@@ -15,6 +15,7 @@
 #include "selfdrive/ui/qt/widgets/prime.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
+#include "selfdrive/ui/qt/offroad/ford_panel.h"
 
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon
@@ -394,6 +395,7 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
     {tr("Network"), networking},
     {tr("Toggles"), toggles},
     {tr("Software"), new SoftwarePanel(this)},
+    {tr("Ford"), new FordSettingsPanel(this)},
     {tr("Developer"), new DeveloperPanel(this)},
   };
 

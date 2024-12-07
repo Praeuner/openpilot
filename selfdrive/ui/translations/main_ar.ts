@@ -302,6 +302,261 @@
     </message>
 </context>
 <context>
+    <name>FordSettingsConfirmationDialog</name>
+    <message>
+        <source>Reboot Later</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FordSettingsPanel</name>
+    <message>
+        <source> Reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preferences: (Tap for more info)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Hands-Free UI (On Supported Vehicles)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This will send the necessary messages to allow the Hands-Free interface in the cluster on supported Ford/Lincoln vehicles with BlueCruise enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send Lane Departure Signals to Vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When enabled, this will attempt to send Openpilot lane departure signals to the vehicle for a native response in the cluster and alerts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send Driver Monitor Signals to Vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When enabled, this will attempt to send Openpilot driver monitor notice signals to the vehicle for a native response in the cluster and alerts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Human Turn Detection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When enabled, this will reset the steering so you don&apos;t fight the wheel when making manual turns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Debug Logging</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enables outputting debug in the logs and console</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lateral Tuning: (Tap on control for more info)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lane Change Modifier</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjust the lane change curvature agrresivness (lower = slower).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>In lane offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Positions car further left (negative) or right (positive)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brake Tuning: (Tap on control for more info)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brake Actuator Activate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acceleration setpoint for which the brake actuator is activated during the braking phase.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brake Actuator Release Delta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sets the acceleration gap between the activation and release of the brake actuator during the braking phase.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limits Tuning: (Tap on control for more info)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Curvature Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Defined the max curvature allowed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Curvature Error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Defined the max curvature error allowed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parameter Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Live Parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Live Torque</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finger Print Data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Calibration Parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Car Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Car Model Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Car Params Persistent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chevron Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom Driving Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom Torque Lateral</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom Offsetts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dev UI Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feature Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Panda Signatures</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Torque Deadzone Deg</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Torque Friction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Torque Lateral Jerk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Torque Max Lat Accell</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VIEW</source>
+        <translation type="unfinished">عرض</translation>
+    </message>
+    <message>
+        <source>Display current value of %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset %1 to default values?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lateral Tuning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brake Tuning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limits Tuning</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FordSettingsParamManageControl</name>
+    <message>
+        <source>MANAGE</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FordSettingsParamValueControl</name>
+    <message>
+        <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FordSettingsParamValueControlFloat</name>
+    <message>
+        <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>HudRenderer</name>
     <message>
         <source>km/h</source>
@@ -648,6 +903,10 @@ This may take up to a minute.</source>
     <message>
         <source>Developer</source>
         <translation>المطور</translation>
+    </message>
+    <message>
+        <source>Ford</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

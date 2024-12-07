@@ -206,6 +206,36 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"MadsCruiseMain", PERSISTENT},
     {"MadsDisengageLateralOnBrake", PERSISTENT},
     {"MadsUnifiedEngagementMode", PERSISTENT},
+    // FORD PREFERENCE SETTING PARAMS
+    {"FordPrefSendHandsFreeCanMsg", PERSISTENT},
+    {"FordPrefSendHandsFreeCanMsg_default", PERSISTENT},
+    {"FordPrefHumanTurnDetectionEnable", PERSISTENT},
+    {"FordPrefHumanTurnDetectionEnable_default", PERSISTENT},
+    {"FordPrefLaneDepartCanMsg", PERSISTENT},
+    {"FordPrefLaneDepartCanMsg_default", PERSISTENT},
+    {"FordPrefDriverMonitorCanMsg", PERSISTENT},
+    {"FordPrefDriverMonitorCanMsg_default", PERSISTENT},
+    {"FordPrefEnableDebugLogs", PERSISTENT},
+    {"FordPrefEnableDebugLogs_default", PERSISTENT},
+    {"FordMenuAllowed", PERSISTENT},
+    {"FingerprintData", PERSISTENT},
+
+    // FORD LATERAL SETTING PARAMS
+    {"FordLatTuningCustomPathOffset", PERSISTENT},
+    {"FordLatTuningCustomPathOffset_default", PERSISTENT},
+    {"FordLatTuningLaneChgModifier", PERSISTENT},
+    {"FordLatTuningLaneChgModifier_default", PERSISTENT},
+
+
+    // FORG LONG SETTING PARAMS
+    {"FordLongTuningBrakeActuatorActivate", PERSISTENT},
+    {"FordLongTuningBrakeActuatorActivate_default", PERSISTENT},
+    {"FordLongTuningBrakeActuatorReleaseDelta", PERSISTENT},
+    {"FordLongTuningBrakeActuatorReleaseDelta_default", PERSISTENT},
+    {"FordLimitsCurvatureMax", PERSISTENT},
+    {"FordLimitsCurvatureMax_default", PERSISTENT},
+    {"FordLimitsCurvatureError", PERSISTENT},
+    {"FordLimitsCurvatureError_default", PERSISTENT}
 };
 
 } // namespace
