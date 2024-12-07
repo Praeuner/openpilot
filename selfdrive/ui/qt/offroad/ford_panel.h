@@ -108,6 +108,7 @@ private:
   std::vector<QWidget*> brakeTuningControls;
   std::vector<QWidget*> limitsTuningControls;
   void addParameterButtons();
+  void addVehicleSelector();
   void addPreferences();
   void addLateralTuning();
   void addBrakeTuning();

@@ -534,6 +534,30 @@
         <source>Limits Tuning</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Vehicle Selection: (Tap for more info)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vehicle Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SELECT</source>
+        <translation type="unfinished">選取</translation>
+    </message>
+    <message>
+        <source>Select your vehicle model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reboot required for changes to take effect. Would you like to reboot now?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="unfinished">重新啟動</translation>
+    </message>
 </context>
 <context>
     <name>FordSettingsParamManageControl</name>

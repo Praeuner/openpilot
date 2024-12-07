@@ -24,6 +24,9 @@ FordSettingsPanel::FordSettingsPanel(SettingsWindow *parent) : FordSettingsListW
   // Enable mouse tracking to receive mouse move events
   setMouseTracking(true);
 
+  // Vehicle Model Selector
+  addVehicleSelector();
+
   // Preferences
   addPreferences();
 
@@ -112,6 +115,67 @@ QPushButton* FordSettingsPanel::createResetButton() {
 
     std::cout << "Reset button created with icon" << std::endl;
     return resetButton;
+}
+
+void FordSettingsPanel::addVehicleSelector() {
+  bool anyCtrlAdded = false;
+  QGroupBox *vehicleGroup = createStyledGroupBox(tr("Vehicle Selection: (Tap for more info)"));
+  QVBoxLayout *vehicleLayout = new QVBoxLayout(vehicleGroup);
+
+  const std::map<QString, QString> vehicleModels = {
+    {"F-150 2021-2023", "FORD_F_150_MK14"},
+    {"F-150 Lightning", "FORD_F_150_LIGHTNING"},
+    {"Mustang Mach-E", "FORD_MUSTANG_MACH_E_MK1"}
+  };
+
+  ButtonControl* btn = new ButtonControl(tr("Vehicle Model"), tr("SELECT"), tr("Select your vehicle model"));
+
+  QString currentModel = QString::fromStdString(params.get("FordSelectedVehicleModel"));
+  if (!currentModel.isEmpty()) {
+    for (const auto &[desc, value] : vehicleModels) {
+      if (value == currentModel) {
+        btn->setValue(desc);
+        break;
+      }
+    }
+  }
+
+  QObject::connect(btn, &ButtonControl::clicked, [=]() {
+    QStringList items;
+    for (const auto &[desc, _] : vehicleModels) {
+      items.append(desc);
+    }
+
+    QString cur = QString::fromStdString(params.get("FordSelectedVehicleModel"));
+    for (const auto &[desc, value] : vehicleModels) {
+      if (value == cur) {
+        cur = desc;
+        break;
+      }
+    }
+
+    QString selection = MultiOptionDialog::getSelection(tr("Select your vehicle model"), items, cur, this);
+
+    if (!selection.isEmpty()) {
+      QString modelValue = vehicleModels.at(selection);
+      params.put("FordSelectedVehicleModel", modelValue.toStdString());
+      btn->setValue(selection);
+      // setenv("FINGERPRINT", modelValue.toStdString().c_str(), 1);
+
+      if (ConfirmationDialog::confirm(tr("Reboot required for changes to take effect. Would you like to reboot now?"), tr("Reboot"), this)) {
+        params.putBool("DoReboot", true);
+      }
+    }
+  });
+
+  anyCtrlAdded = true;
+  vehicleLayout->addWidget(btn);
+
+  if (!anyCtrlAdded) {
+    std::cout << "No vehicle selector added" << std::endl;
+    return;
+  }
+  addItem(vehicleGroup);
 }
 
 void FordSettingsPanel::addPreferences() {
