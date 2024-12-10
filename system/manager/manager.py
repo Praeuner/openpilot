@@ -49,11 +49,15 @@ def manager_init() -> None:
     ("MadsUnifiedEngagementMode", "1"),
   ]
 
+  ford_default_params: list[tuple[str, str | bytes]] = [
+    ("FordPrefQuietDrive", "0"),
+  ]
+
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True)
 
   # set unset params
-  for k, v in (default_params + sunnypilot_default_params):
+  for k, v in (default_params + sunnypilot_default_params + ford_default_params):
     if params.get(k) is None:
       params.put(k, v)
 

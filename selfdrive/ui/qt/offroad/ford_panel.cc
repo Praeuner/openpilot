@@ -188,6 +188,7 @@ void FordSettingsPanel::addPreferences() {
     {"FordPrefLaneDepartCanMsg", tr("Send Lane Departure Signals to Vehicle"), tr("When enabled, this will attempt to send Openpilot lane departure signals to the vehicle for a native response in the cluster and alerts"), { "any"}, {}},
     {"FordPrefDriverMonitorCanMsg", tr("Send Driver Monitor Signals to Vehicle"), tr("When enabled, this will attempt to send Openpilot driver monitor notice signals to the vehicle for a native response in the cluster and alerts"), { "any"}, {}},
     {"FordPrefHumanTurnDetectionEnable", tr("Enable Human Turn Detection"), tr("When enabled, this will reset the steering so you don't fight the wheel when making manual turns"), { "any"}, {}},
+    {"FordPrefQuietDrive", tr("Quiet Drive 🤫", tr("BluePilot will display alerts but only play the most important warning sounds.")), { "any"}, {}},
     {"FordPrefEnableDebugLogs", tr("Enable Debug Logging"), tr("Enables outputting debug in the logs and console"), { "ford-op/sp-dev-c3"}, {}},
   };
 

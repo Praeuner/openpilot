@@ -219,6 +219,8 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordPrefLaneDepartCanMsg_default", PERSISTENT},
     {"FordPrefDriverMonitorCanMsg", PERSISTENT},
     {"FordPrefDriverMonitorCanMsg_default", PERSISTENT},
+    {"FordPrefQuietDrive", PERSISTENT},
+    {"FordPrefQuietDrive_default", PERSISTENT},
     {"FordPrefEnableDebugLogs", PERSISTENT},
     {"FordPrefEnableDebugLogs_default", PERSISTENT},
     {"FordMenuAllowed", PERSISTENT},
