@@ -267,6 +267,9 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(translateBtn);
 
+  QObject::connect(uiState(), &UIState::offroadTransition, errorBtn, [errorBtn](bool offroad) {
+    errorBtn->setEnabled(true);  // Always keep enabled regardless of offroad state
+  });
   QObject::connect(uiState()->prime_state, &PrimeState::changed, [this] (PrimeState::Type type) {
     pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED);
   });
