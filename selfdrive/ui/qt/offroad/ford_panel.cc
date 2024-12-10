@@ -34,7 +34,7 @@ FordSettingsPanel::FordSettingsPanel(SettingsWindow *parent) : FordSettingsListW
   // addLateralTuning();
 
   // Brake Tuning
-  // addBrakeTuning();
+  addBrakeTuning();
 
   // Limits Tuning
   // addLimitsTuning();
