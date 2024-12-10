@@ -75,9 +75,7 @@ class Soundd:
 
   def should_play_sound(self):
     return (self.current_alert == AudibleAlert.warningSoft or self.current_alert == AudibleAlert.warningImmediate or
-      self.current_alert == AudibleAlert.promptDistracted or self.current_alert == AudibleAlert.promptRepeat or
-      self.current_alert == AudibleAlert.promptStarting or self.current_alert == AudibleAlert.promptSingleLow or
-      self.current_alert == AudibleAlert.promptSingleHigh) or (not self.quiet_drive and self.current_alert != AudibleAlert.none)
+      self.current_alert == AudibleAlert.promptDistracted or self.current_alert == AudibleAlert.promptRepeat) or (not self.quiet_drive and self.current_alert != AudibleAlert.none)
 
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
