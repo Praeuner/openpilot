@@ -558,6 +558,22 @@
         <source>Reboot</source>
         <translation type="unfinished">重新啟動</translation>
     </message>
+    <message>
+        <source>Quiet Drive 🤫</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BluePilot will display alerts but only play the most important warning sounds.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Precharge Actuator Target Delta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How much earlier to activate the precharge actuator to reach the target pressure.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FordSettingsParamManageControl</name>

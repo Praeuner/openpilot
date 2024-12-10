@@ -238,6 +238,10 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordLongTuningBrakeActuatorActivate_default", PERSISTENT},
     {"FordLongTuningBrakeActuatorReleaseDelta", PERSISTENT},
     {"FordLongTuningBrakeActuatorReleaseDelta_default", PERSISTENT},
+    {"FordLongTuningPrechargeActuatorTargetDelta", PERSISTENT},
+    {"FordLongTuningPrechargeActuatorTargetDelta_default", PERSISTENT},
+
+    // FORD CURVATURE LIMITS
     {"FordLimitsCurvatureMax", PERSISTENT},
     {"FordLimitsCurvatureMax_default", PERSISTENT},
     {"FordLimitsCurvatureError", PERSISTENT},

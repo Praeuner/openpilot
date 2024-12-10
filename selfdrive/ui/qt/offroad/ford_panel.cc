@@ -274,6 +274,7 @@ void FordSettingsPanel::addBrakeTuning() {
   std::vector<std::tuple<QString, QString, QString, std::vector<std::string>, std::vector<std::string>, FordSettings::ControlType, float, float, float, float>> brakeTuningDefs = {
       {"FordLongTuningBrakeActuatorActivate", tr("Brake Actuator Activate"), tr("Acceleration setpoint for which the brake actuator is activated during the braking phase."), {"ford-op/sp-dev-c3"}, {}, FordSettings::ControlType::Float, -0.20f, 0.20f, 0.01f, 100.0f},
       {"FordLongTuningBrakeActuatorReleaseDelta", tr("Brake Actuator Release Delta"), tr("Sets the acceleration gap between the activation and release of the brake actuator during the braking phase."), {"ford-op/sp-dev-c3"}, {}, FordSettings::ControlType::Float, 0.0f, 0.20f, 0.01f, 100.0f},
+      {"FordLongTuningPrechargeActuatorTargetDelta", tr("Precharge Actuator Target Delta"), tr("How much earlier to activate the precharge actuator to reach the target pressure."), {"ford-op/sp-dev-c3"}, {}, FordSettings::ControlType::Float, 0.0f, 0.20f, 0.01f, 100.0f},
   };
 
   for (const auto &[param, title, desc, git_remote_allowed, git_branch_allowed, controlType, min, max, increment, division] : brakeTuningDefs) {
