@@ -224,6 +224,19 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(resetCalibBtn);
 
+    // Error Troubleshoot
+  auto errorBtn = new ButtonControl(
+    tr("View Error"), tr("VIEW"),
+    tr("Display error from the tmux session when an error has occurred from a system process."));
+  QFileInfo file("/data/community/crashes/error.txt");
+  QDateTime modifiedTime = file.lastModified();
+  QString modified_time = modifiedTime.toString("yyyy-MM-dd hh:mm:ss ");
+  connect(errorBtn, &ButtonControl::clicked, [=]() {
+    const std::string txt = util::read_file("/data/community/crashes/error.txt");
+    ConfirmationDialog::rich(modified_time + QString::fromStdString(txt), this);
+  });
+  addItem(errorBtn);
+
   auto retrainingBtn = new ButtonControl(tr("Review Training Guide"), tr("REVIEW"), tr("Review the rules, features, and limitations of openpilot"));
   connect(retrainingBtn, &ButtonControl::clicked, [=]() {
     if (ConfirmationDialog::confirm(tr("Are you sure you want to review the training guide?"), tr("Review"), this)) {
