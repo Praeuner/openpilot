@@ -124,7 +124,7 @@ void FordSettingsPanel::addVehicleSelector() {
 
   const std::map<QString, QString> vehicleModels = {
     {"F-150 2021-2023", "FORD_F_150_MK14"},
-    {"F-150 Lightning", "FORD_F_150_LIGHTNING"},
+    {"F-150 Lightning", "FORD_F_150_LIGHTNING_MK1"},
     {"Mustang Mach-E", "FORD_MUSTANG_MACH_E_MK1"}
   };
 
