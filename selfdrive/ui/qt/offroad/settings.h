@@ -31,6 +31,7 @@ signals:
   void expandToggleDescription(const QString &param);
 
 private:
+  Params params;
   QPushButton *sidebar_alert_widget;
   QWidget *sidebar_widget;
   QButtonGroup *nav_btns;

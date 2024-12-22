@@ -37,6 +37,7 @@ public:
   // Delete a value
   int remove(const std::string &key);
   void clearAll(ParamKeyType type);
+  void registerKey(const std::string& key, uint32_t flags);
 
   // helpers for reading values
   std::string get(const std::string &key, bool block = false);

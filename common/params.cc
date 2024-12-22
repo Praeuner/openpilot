@@ -207,6 +207,11 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"MadsDisengageLateralOnBrake", PERSISTENT},
     {"MadsUnifiedEngagementMode", PERSISTENT},
 
+    // custom car menu params
+    {"CustomVehicleMenu", PERSISTENT},
+    {"CustomVehicleMenuPath", PERSISTENT},
+    {"CustomVehicleMenuName", PERSISTENT},
+
     // FORD SELECTED MODEL PARAMS
     {"FordSelectedVehicleModel", PERSISTENT},
 
@@ -215,6 +220,10 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordPrefSendHandsFreeCanMsg_default", PERSISTENT},
     {"FordPrefHumanTurnDetectionEnable", PERSISTENT},
     {"FordPrefHumanTurnDetectionEnable_default", PERSISTENT},
+    {"FordPrefEnableCustomLatLogic", PERSISTENT},
+    {"FordPrefEnableCustomLatLogic_default", PERSISTENT},
+    {"FordPrefEnablePathAngle", PERSISTENT},
+    {"FordPrefEnablePathAngle_default", PERSISTENT},
     {"FordPrefLaneDepartCanMsg", PERSISTENT},
     {"FordPrefLaneDepartCanMsg_default", PERSISTENT},
     {"FordPrefDriverMonitorCanMsg", PERSISTENT},
@@ -223,6 +232,8 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordPrefQuietDrive_default", PERSISTENT},
     {"FordPrefEnableDebugLogs", PERSISTENT},
     {"FordPrefEnableDebugLogs_default", PERSISTENT},
+    {"FordPrefAllowNudgelessLaneChange", PERSISTENT},
+    {"FordPrefAllowNudgelessLaneChange_default", PERSISTENT},
     {"FordMenuAllowed", PERSISTENT},
     {"FingerprintData", PERSISTENT},
 
@@ -231,6 +242,10 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordLatTuningCustomPathOffset_default", PERSISTENT},
     {"FordLatTuningLaneChgModifier", PERSISTENT},
     {"FordLatTuningLaneChgModifier_default", PERSISTENT},
+	{"FordLatTuningPathAngleLowSpeedFactor", PERSISTENT},
+    {"FordLatTuningPathAngleLowSpeedFactor_default", PERSISTENT},
+    {"FordLatTuningPathAngleHighSpeedFactor", PERSISTENT},
+    {"FordLatTuningPathAngleHighSpeedFactor_default", PERSISTENT},
 
 
     // FORG LONG SETTING PARAMS
@@ -316,6 +331,16 @@ int Params::put(const char* key, const char* value, size_t value_size) {
     ::unlink(tmp_path.c_str());
   }
   return result;
+}
+
+void Params::registerKey(const std::string& key, uint32_t flags) {
+  keys[key] = flags;  // Add to the existing keys map
+
+  // Create the param file if it doesn't exist
+  std::string param_path = getParamPath(key);
+  if (!util::file_exists(param_path)) {
+    put(key, "");  // Initialize with empty value
+  }
 }
 
 int Params::remove(const std::string &key) {

@@ -20,6 +20,7 @@ cdef extern from "common/params.h":
     int getInt(string, bool) nogil
     float getFloat(string, bool) nogil
     int remove(string) nogil
+    void registerKey(string, unsigned int) nogil
     int put(string, string) nogil
     void putNonBlocking(string, string) nogil
     void putBoolNonBlocking(string, bool) nogil
@@ -127,6 +128,12 @@ cdef class Params:
     cdef string k = self.check_key(key)
     with nogil:
       self.p.putBoolNonBlocking(k, val)
+
+  def register_key(self, key, flags):
+    cdef string k = ensure_bytes(key)
+    cdef unsigned int f = <unsigned int>flags
+    with nogil:
+      self.p.registerKey(k, f)
 
   def remove(self, key):
     cdef string k = self.check_key(key)

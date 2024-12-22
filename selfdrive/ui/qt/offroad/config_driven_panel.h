@@ -1,3 +1,4 @@
+// selfdrive/ui/qt/offroad/custom_car_panel.h
 #pragma once
 
 #include <QFrame>
@@ -5,22 +6,63 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QStackedLayout>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <cmath>
+#include <iostream>
+
+#ifdef QCOM2
+#include <QGuiApplication>
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#include <QPlatformSurfaceEvent>
+#endif
 
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/offroad/settings.h"
 
-namespace FordSettings {
-    enum class ControlType {
-        Integer,
-        Float
-    };
-}
-
-class FordDefaultParams {
+class ConfigDrivenPanelConfig {
 public:
-    static FordDefaultParams& getInstance() {
-        static FordDefaultParams instance;
+    static ConfigDrivenPanelConfig& getInstance() {
+        static ConfigDrivenPanelConfig instance;
+        return instance;
+    }
+
+    bool loadConfig(const QString& filename) {
+      std::cout << "Attempting to load config from: " << filename.toStdString() << std::endl;
+      QFile file(filename);
+      if (!file.open(QIODevice::ReadOnly)) {
+          std::cerr << "Failed to open file: " << file.errorString().toStdString() << std::endl;
+          return false;
+      }
+      QByteArray data = file.readAll();
+      if (data.isEmpty()) {
+          std::cerr << "File is empty" << std::endl;
+          return false;
+      }
+      QJsonDocument doc = QJsonDocument::fromJson(data);
+      if (doc.isNull()) {
+          std::cerr << "Failed to parse JSON" << std::endl;
+          return false;
+      }
+      std::cout << "Successfully loaded config" << std::endl;
+      config = doc.object();
+      return true;
+    }
+
+    const QJsonObject& getConfig() const { return config; }
+
+private:
+    ConfigDrivenPanelConfig() {}
+    QJsonObject config;
+};
+
+class ConfigDrivenDefaultParams {
+public:
+    static ConfigDrivenDefaultParams& getInstance() {
+        static ConfigDrivenDefaultParams instance;
         return instance;
     }
 
@@ -31,13 +73,13 @@ public:
     }
 
 private:
-    FordDefaultParams() {}
+    ConfigDrivenDefaultParams() {}
 };
 
-class FordSettingsListWidget : public QWidget {
+class ConfigDrivenListWidget : public QWidget {
   Q_OBJECT
 public:
-  explicit FordSettingsListWidget(QWidget *parent = 0) : QWidget(parent), outer_layout(this) {
+  explicit ConfigDrivenListWidget(QWidget *parent = 0) : QWidget(parent), outer_layout(this) {
     outer_layout.setMargin(0);
     outer_layout.setSpacing(0);
     outer_layout.addLayout(&inner_layout);
@@ -64,22 +106,17 @@ private:
         visibleRects.push_back(inner_layout.itemAt(i)->geometry());
       }
     }
-
-    // for (int i = 0; i < visibleWidgetCount - 1; ++i) {
-    //   int bottom = visibleRects[i].bottom() + inner_layout.spacing() / 2;
-    //   p.drawLine(visibleRects[i].left() + 40, bottom, visibleRects[i].right() - 40, bottom);
-    // }
   }
   QVBoxLayout outer_layout;
   QVBoxLayout inner_layout;
 };
 
-class FordSettingsPanel : public FordSettingsListWidget {
+class ConfigDrivenPanel : public ConfigDrivenListWidget {
   Q_OBJECT
 
 public:
-  explicit FordSettingsPanel(SettingsWindow *parent);
-  ~FordSettingsPanel();
+  explicit ConfigDrivenPanel(SettingsWindow *parent, const QString &configPath = QString());
+  ~ConfigDrivenPanel();
   void showEvent(QShowEvent *event) override;
   void hideEvent(QHideEvent *event) override;
 
@@ -101,36 +138,84 @@ protected:
   }
 
 private:
+  void createGroup(const QJsonObject& group);
+  QWidget* createControl(const QJsonObject& control);
+  void handleGroupReset(const QString& groupName);
   QGroupBox *createStyledGroupBox(const QString &title);
   QPushButton* createResetButton();
 
-  std::vector<QWidget*> lateralTuningControls;
-  std::vector<QWidget*> brakeTuningControls;
-  std::vector<QWidget*> limitsTuningControls;
-  void addParameterButtons();
-  void addVehicleSelector();
-  void addPreferences();
-  void addLateralTuning();
-  void addBrakeTuning();
-  void addLimitsTuning();
-  void updateToggles();
-  void resetLateralTuning();
-  void resetBrakeTuning();
-  void resetLimitsTuning();
   bool showResetConfirmation(const QString& tuningType);
-
+  void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());
   void updateControlWithDefault(QWidget* ctrl);
   void updateResetButtonVisibility(QGroupBox* group);
+  void updateToggles();
   void resetControlTitle(QWidget* control);
   void resetGroupControls(const std::vector<QWidget*>& controls);
+  QString getProjectRootPath();
+  void setupFullscreenDialog(QDialog* dialog) {
+      #ifdef QCOM2
+      // Apply rotation
+      QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+      wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+      if (s) {
+          wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+          wl_surface_commit(s);
+      }
 
+      // Set window state after rotation
+      dialog->setWindowState(Qt::WindowFullScreen);
+      dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+      // Force layout update
+      dialog->layout()->activate();
+
+      // Ensure EGL display is valid
+      void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
+      assert(egl != nullptr);
+      #endif
+  }
+  void showFullScreenDialog(const QString& title, const QString& content);
   bool isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames);
+  QString getDialogStyle() {
+      return R"(
+          QDialog {
+              background-color: black;
+          }
+          QWidget {
+              background-color: black;
+              color: white;
+          }
+          QLabel {
+              background-color: black;
+          }
+          QPushButton {
+              height: 160px;
+              font-size: 55px;
+              font-weight: 400;
+              border-radius: 10px;
+              background-color: #4F4F4F;
+          }
+          QScrollArea {
+              background-color: black;
+          }
+          QScrollArea > QWidget > QWidget {
+              background-color: black;
+          }
+      )";
+  }
+
+  bool validateSingleCondition(const QString& key, const QJsonValue& value);
+  bool validateConditionObject(const QJsonObject& conditionObj);
+  bool validateCompositeConditions(const QJsonObject& conditions);
+
 
   Params params;
   std::map<std::string, ParamControl*> toggles;
-  QGroupBox *lateralTuningGroup;
-  QGroupBox *brakeTuningGroup;
-  QGroupBox *limitsTuningGroup;
+  struct GroupData {
+    QGroupBox* groupBox;
+    std::vector<QWidget*> controls;
+  };
+  std::map<QString, GroupData> groups;
 
   QTimer *activityTimer;
 
@@ -141,39 +226,59 @@ private:
 };
 
 // Forward declarations
-class FordSettingsParamValueControl;
-class FordSettingsParamValueControlFloat;
+class ConfigDrivenParamValueControl;
+class ConfigDrivenParamValueControlFloat;
 
-class FordSettingsControlFactory {
+class ConfigDrivenControlFactory {
 public:
-  static FordSettingsParamValueControl* createIntegerControl(
+  static ConfigDrivenParamValueControl* createIntegerControl(
     const QString &param, const QString &title, const QString &desc,
     int minValue, int maxValue, int increment = 1, bool loop = false,
     const QString &label = "", const std::map<int, QString> &valueLabels = {});
 
-  static FordSettingsParamValueControlFloat* createFloatControl(
+  static ConfigDrivenParamValueControlFloat* createFloatControl(
     const QString &param, const QString &title, const QString &desc,
     float minValue, float maxValue, float increment = 0.1f, bool loop = false,
     const QString &label = "", const std::map<int, QString> &valueLabels = {}, float division = 1.0f);
 
+  static ParamControl* createToggleControl(const QString &param, const QString &title, const QString &desc, const QString &icon) {
+    auto toggle = new ParamControl(param, title, desc, icon);
+
+    // Apply consistent styling and layout
+    toggle->setStyleSheet(R"(
+      QFrame {
+        padding: 0px;
+        margin: 0px;
+      }
+    )");
+
+    // Adjust toggle switch position and spacing
+    QHBoxLayout* layout = toggle->findChild<QHBoxLayout*>();
+    if (layout) {
+      layout->setContentsMargins(0, 10, 0, 10);
+      layout->setSpacing(50);
+    }
+
+    return toggle;
+  }
 };
 
-class FordSettingsConfirmationDialog : public ConfirmationDialog {
+class ConfigDrivenConfirmationDialog : public ConfirmationDialog {
   Q_OBJECT
 
 public:
-  explicit FordSettingsConfirmationDialog(const QString &prompt_text, const QString &confirm_text,
+  explicit ConfigDrivenConfirmationDialog(const QString &prompt_text, const QString &confirm_text,
                               const QString &cancel_text, const bool rich, QWidget* parent);
   static bool toggle(const QString &prompt_text, const QString &confirm_text, QWidget *parent);
   static bool toggleAlert(const QString &prompt_text, const QString &button_text, QWidget *parent);
   static bool yesorno(const QString &prompt_text, QWidget *parent);
 };
 
-class FordSettingsButtonIconControl : public AbstractControl {
+class ConfigDrivenButtonIconControl : public AbstractControl {
   Q_OBJECT
 
 public:
-  FordSettingsButtonIconControl(const QString &title, const QString &text, const QString &desc = "", const QString &icon = "", QWidget *parent = nullptr);
+  ConfigDrivenButtonIconControl(const QString &title, const QString &text, const QString &desc = "", const QString &icon = "", QWidget *parent = nullptr);
   inline void setText(const QString &text) { btn.setText(text); }
   inline QString text() const { return btn.text(); }
 
@@ -187,10 +292,10 @@ private:
   QPushButton btn;
 };
 
-class FordSettingsButtonParamControl : public ParamControl {
+class ConfigDrivenButtonParamControl : public ParamControl {
   Q_OBJECT
 public:
-  FordSettingsButtonParamControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
+  ConfigDrivenButtonParamControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
                      const std::vector<QString> &button_texts, const int minimum_button_width = 225)
     : ParamControl(param, title, desc, icon) {
     const QString style = R"(
@@ -255,11 +360,11 @@ private:
   QButtonGroup *button_group;
 };
 
-class FordSettingsParamManageControl : public ParamControl {
+class ConfigDrivenParamManageControl : public ParamControl {
   Q_OBJECT
 
 public:
-  FordSettingsParamManageControl(const QString &param, const QString &title, const QString &desc, const QString &icon, QWidget *parent = nullptr)
+  ConfigDrivenParamManageControl(const QString &param, const QString &title, const QString &desc, const QString &icon, QWidget *parent = nullptr)
     : ParamControl(param, title, desc, icon, parent),
       key(param.toStdString()),
       manageButton(new ButtonControl(tr(""), tr("MANAGE"), tr(""))) {
@@ -269,7 +374,7 @@ public:
       refresh();
     });
 
-    connect(manageButton, &ButtonControl::clicked, this, &FordSettingsParamManageControl::manageButtonClicked);
+    connect(manageButton, &ButtonControl::clicked, this, &ConfigDrivenParamManageControl::manageButtonClicked);
   }
 
   void refresh() {
@@ -291,10 +396,10 @@ private:
   ButtonControl *manageButton;
 };
 
-class FordSettingsParamToggleControl : public ParamControl {
+class ConfigDrivenParamToggleControl : public ParamControl {
   Q_OBJECT
 public:
-  FordSettingsParamToggleControl(const QString &param, const QString &title, const QString &desc,
+  ConfigDrivenParamToggleControl(const QString &param, const QString &title, const QString &desc,
                      const QString &icon, const std::vector<QString> &button_params,
                      const std::vector<QString> &button_texts, QWidget *parent = nullptr,
                      const int minimum_button_width = 225)
@@ -365,11 +470,11 @@ private:
   QButtonGroup *button_group;
 };
 
-class FordSettingsParamValueControl : public ParamControl {
+class ConfigDrivenParamValueControl : public ParamControl {
   Q_OBJECT
 
 public:
-  FordSettingsParamValueControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
+  ConfigDrivenParamValueControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
                     const int &minValue, const int &maxValue, const std::map<int, QString> &valueLabels,
                     QWidget *parent = nullptr, const bool &loop = true, const QString &label = "", const int &division = 1)
     : ParamControl(param, title, desc, icon, parent),
@@ -552,11 +657,11 @@ private:
   }
 };
 
-class FordSettingsParamValueControlFloat : public ParamControl {
+class ConfigDrivenParamValueControlFloat : public ParamControl {
   Q_OBJECT
 
 public:
-  FordSettingsParamValueControlFloat(const QString &param, const QString &title, const QString &desc, const QString &icon,
+  ConfigDrivenParamValueControlFloat(const QString &param, const QString &title, const QString &desc, const QString &icon,
                     const float &minValue, const float &maxValue, const std::map<int, QString> &valueLabels,
                     QWidget *parent = nullptr, const bool &loop = true, const QString &label = "", const float &division = 1.0f)
     : ParamControl(param, title, desc, icon, parent),
@@ -749,11 +854,11 @@ private:
   }
 };
 
-class FordSettingsDualParamControl : public QFrame {
+class ConfigDrivenDualParamControl : public QFrame {
   Q_OBJECT
 
 public:
-  FordSettingsDualParamControl(ParamControl *control1, ParamControl *control2, QWidget *parent = nullptr, bool split=false)
+  ConfigDrivenDualParamControl(ParamControl *control1, ParamControl *control2, QWidget *parent = nullptr, bool split=false)
     : QFrame(parent) {
     QHBoxLayout *hlayout = new QHBoxLayout(this);
 
@@ -768,11 +873,11 @@ public:
   }
 };
 
-class FordSettingsParamValueToggleControl : public ParamControl {
+class ConfigDrivenParamValueToggleControl : public ParamControl {
   Q_OBJECT
 
 public:
-  FordSettingsParamValueToggleControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
+  ConfigDrivenParamValueToggleControl(const QString &param, const QString &title, const QString &desc, const QString &icon,
                           const int &minValue, const int &maxValue, const std::map<int, QString> &valueLabels,
                           QWidget *parent = nullptr, const bool &loop = true, const QString &label = "", const int &division = 1,
                           const std::vector<QString> &button_params = std::vector<QString>(), const std::vector<QString> &button_texts = std::vector<QString>(),

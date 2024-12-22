@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JSON Configuration Guide for ConfigDrivenPanel</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        margin: 20px;
+        background-color: #f9f9f9;
+        color: #333;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        color: #2c3e50;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        background-color: #fff;
+      }
+      table,
+      th,
+      td {
+        border: 1px solid #bdc3c7;
+      }
+      th,
+      td {
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #ecf0f1;
+      }
+      pre {
+        background-color: #ecf0f1;
+        padding: 10px;
+        overflow-x: auto;
+      }
+      code {
+        font-family: Consolas, monospace;
+        background-color: #ecf0f1;
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+      blockquote {
+        border-left: 4px solid #bdc3c7;
+        padding-left: 16px;
+        color: #7f8c8d;
+        margin: 20px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>JSON Configuration Guide for ConfigDrivenPanel</h1>
+    <p>
+      This document provides a comprehensive overview of the JSON configuration
+      format used to define panels, groups, and controls within the
+      <code>ConfigDrivenPanel</code> system. Whether you're customizing vehicle
+      settings, adding utility commands, or managing parameters, this guide will
+      help you understand and utilize the available options effectively.
+    </p>
+
+    <h2>Table of Contents</h2>
+    <ul>
+      <li><a href="#introduction">Introduction</a></li>
+      <li>
+        <a href="#overall-json-structure">Overall JSON Structure</a>
+        <ul>
+          <li><a href="#top-level-properties">Top-Level Properties</a></li>
+          <li><a href="#groups">Groups</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#group-object">Group Object</a>
+        <ul>
+          <li><a href="#properties">Properties</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#control-object">Control Object</a>
+        <ul>
+          <li><a href="#common-properties">Common Properties</a></li>
+          <li>
+            <a href="#control-types">Control Types</a>
+            <ul>
+              <li><a href="#toggle-control">Toggle Control</a></li>
+              <li><a href="#float-control">Float Control</a></li>
+              <li><a href="#selection-control">Selection Control</a></li>
+              <li><a href="#param-viewer-control">Param Viewer Control</a></li>
+              <li><a href="#file-viewer-control">File Viewer Control</a></li>
+              <li>
+                <a href="#command-button-control">Command Button Control</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        <a href="#conditions">Conditions</a>
+        <ul>
+          <li><a href="#condition-types">Condition Types</a></li>
+          <li><a href="#composite-conditions">Composite Conditions</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#examples">Examples</a>
+        <ul>
+          <li>
+            <a href="#full-configuration-example">Full Configuration Example</a>
+          </li>
+          <li>
+            <a href="#individual-control-examples"
+              >Individual Control Examples</a
+            >
+          </li>
+        </ul>
+      </li>
+      <li>
+        <a href="#optional-vs-required-properties"
+          >Optional vs. Required Properties</a
+        >
+      </li>
+      <li><a href="#notes-and-best-practices">Notes and Best Practices</a></li>
+      <li><a href="#conclusion">Conclusion</a></li>
+    </ul>
+
+    <hr />
+
+    <h2 id="introduction">Introduction</h2>
+    <p>
+      The <code>ConfigDrivenPanel</code> system leverages JSON files to
+      dynamically generate user interface panels, organizing settings into
+      groups and controls. This approach allows for flexible and scalable
+      configuration management, enabling developers and advanced users to
+      customize functionalities without altering the underlying codebase.
+    </p>
+
+    <h2 id="overall-json-structure">Overall JSON Structure</h2>
+    <p>
+      A configuration JSON file defines the entire panel's structure, including
+      its name, icon, description, and the groups and controls it contains.
+    </p>
+
+    <h3 id="top-level-properties">Top-Level Properties</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>menuName</code></td>
+          <td>String</td>
+          <td>The name of the panel displayed in the UI.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>menuIcon</code></td>
+          <td>String</td>
+          <td>The icon associated with the panel.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>menuDescription</code></td>
+          <td>String</td>
+          <td>A brief description of the panel.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>persistentParams</code></td>
+          <td>Array</td>
+          <td>List of parameter names that persist across sessions.</td>
+          <td>No</td>
+          <td><code>[]</code></td>
+        </tr>
+        <tr>
+          <td><code>clearOnManagerStartParams</code></td>
+          <td>Array</td>
+          <td>Parameters to clear when the manager starts.</td>
+          <td>No</td>
+          <td><code>[]</code></td>
+        </tr>
+        <tr>
+          <td><code>clearOnOnroadTransitionParams</code></td>
+          <td>Array</td>
+          <td>Parameters to clear during on-road transitions.</td>
+          <td>No</td>
+          <td><code>[]</code></td>
+        </tr>
+        <tr>
+          <td><code>clearOnOffroadTransitionParams</code></td>
+          <td>Array</td>
+          <td>Parameters to clear during off-road transitions.</td>
+          <td>No</td>
+          <td><code>[]</code></td>
+        </tr>
+        <tr>
+          <td><code>groups</code></td>
+          <td>Array</td>
+          <td>An array of group objects defining UI sections and controls.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="groups">Groups</h3>
+    <p>
+      The <code>groups</code> array contains objects that define distinct
+      sections within the panel, each housing related controls.
+    </p>
+
+    <h2 id="group-object">Group Object</h2>
+    <p>
+      Each group organizes related controls under a common title and can
+      optionally include a reset button.
+    </p>
+
+    <h3 id="properties">Properties</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>groupName</code></td>
+          <td>String</td>
+          <td>A unique identifier for the group.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the group in the UI.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>enableResetButton</code></td>
+          <td>Boolean</td>
+          <td>Determines if a reset button is available for the group.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>controls</code></td>
+          <td>Array</td>
+          <td>An array of control objects within the group.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+    <blockquote>
+      <strong>Example:</strong>
+      <pre><code>{
+  "groupName": "systemPreferencesGroup",
+  "title": "System Preferences: (Tap item for desc)",
+  "enableResetButton": false,
+  "controls": [
+    // Control objects here
+  ]
+}</code></pre>
+    </blockquote>
+
+    <h2 id="control-object">Control Object</h2>
+    <p>
+      Controls are interactive elements within a group that allow users to view
+      or modify settings. Each control type has specific properties.
+    </p>
+
+    <h3 id="common-properties">Common Properties</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>The type of control (e.g., toggle, float, selection).</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>param</code></td>
+          <td>String</td>
+          <td>The parameter name associated with the control.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the control.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>A description or tooltip for the control.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>conditions</code></td>
+          <td>Object</td>
+          <td>Defines conditions for the control's visibility and behavior.</td>
+          <td>No</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="control-types">Control Types</h3>
+
+    <h4 id="toggle-control">Toggle Control</h4>
+    <p>A switch that allows users to enable or disable a specific feature.</p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"toggle"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>param</code></td>
+          <td>String</td>
+          <td>The parameter name to toggle.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the toggle.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the toggle controls.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the toggle if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>conditions</code></td>
+          <td>Object</td>
+          <td>Conditions to determine the toggle's availability.</td>
+          <td>No</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "toggle",
+  "param": "FordPrefEnableDebugLogs",
+  "title": "Enable Debug Logging",
+  "desc": "Enables additional debug output.",
+  "disable": false,
+  "conditions": {
+    "git_remote": ["ford-op/sp-dev-c3"],
+    "git_branch": []
+  }
+}</code></pre>
+
+    <h4 id="float-control">Float Control</h4>
+    <p>
+      Allows users to adjust a floating-point parameter within a specified
+      range.
+    </p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"float"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>param</code></td>
+          <td>String</td>
+          <td>The parameter name to adjust.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the float control.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the float control adjusts.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>min</code></td>
+          <td>Number</td>
+          <td>The minimum allowable value.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>max</code></td>
+          <td>Number</td>
+          <td>The maximum allowable value.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>increment</code></td>
+          <td>Number</td>
+          <td>The step increment for adjusting the value.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>division</code></td>
+          <td>Number</td>
+          <td>Division factor for displaying the value.</td>
+          <td>Yes</td>
+          <td><code>1.0</code></td>
+        </tr>
+        <tr>
+          <td><code>conditions</code></td>
+          <td>Object</td>
+          <td>Conditions to determine the control's availability.</td>
+          <td>No</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "float",
+  "param": "FordLatTuningLaneChgModifier",
+  "title": "Lane Change Modifier",
+  "desc": "Adjust lane change curvature aggressiveness (lower = slower).",
+  "disable": false,
+  "min": 0.0,
+  "max": 1.0,
+  "increment": 0.05,
+  "division": 100.0,
+  "conditions": {
+    "git_remote": ["any"],
+    "git_branch": []
+  }
+}</code></pre>
+
+    <h4 id="selection-control">Selection Control</h4>
+    <p>
+      Provides a dropdown or selection interface for choosing among predefined
+      options.
+    </p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"selection"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>param</code></td>
+          <td>String</td>
+          <td>The parameter name to set based on selection.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the selection control.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the selection controls.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>options</code></td>
+          <td>Array</td>
+          <td>An array of option objects defining selectable items.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Option Object Properties:</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>name</code></td>
+          <td>String</td>
+          <td>The display name of the option.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>value</code></td>
+          <td>String</td>
+          <td>The value to set when the option is selected.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "selection",
+  "param": "FordSelectedVehicleModel",
+  "title": "Vehicle Model",
+  "desc": "Select your vehicle model",
+  "disable": false,
+  "options": [
+    { "name": "F-150 14th Gen (21-23)", "value": "FORD_F_150_MK14" },
+    { "name": "F-150 Lightning 1st Gen", "value": "FORD_F_150_LIGHTNING_MK1" },
+    { "name": "Mustang Mach-E 1st Gen", "value": "FORD_MUSTANG_MACH_E_MK1" }
+  ]
+}</code></pre>
+
+    <h4 id="param-viewer-control">Param Viewer Control</h4>
+    <p>
+      Displays the current value of a specified parameter in a read-only format.
+    </p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"param_viewer"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>param</code></td>
+          <td>String</td>
+          <td>The parameter name to view.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the parameter viewer.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the viewer displays.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "param_viewer",
+  "param": "LiveParameters",
+  "title": "Live Parameters",
+  "desc": "View live parameters",
+  "disable": false
+}</code></pre>
+
+    <h4 id="file-viewer-control">File Viewer Control</h4>
+    <p>
+      Allows users to view the contents of a specified file within the
+      application.
+    </p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"file_viewer"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>path</code></td>
+          <td>String</td>
+          <td>Relative path to the file to be viewed.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the file viewer.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the file viewer does.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>header</code></td>
+          <td>String</td>
+          <td>Optional header text for the dialog displaying the file.</td>
+          <td>No</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "file_viewer",
+  "path": "CHANGELOGS_BP.md",
+  "title": "BluePilot Changelog",
+  "desc": "View the BluePilot changelog",
+  "header": "BluePilot Changelog",
+  "disable": false
+}</code></pre>
+
+    <h4 id="command-button-control">Command Button Control</h4>
+    <p>
+      Executes a specified command when clicked, optionally requiring user
+      confirmation.
+    </p>
+
+    <h5>Properties:</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Required</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td>String</td>
+          <td>Must be <code>"command_button"</code>.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>command</code></td>
+          <td>String</td>
+          <td>The command to execute.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>working_dir</code></td>
+          <td>String</td>
+          <td>The working directory to execute the command in.</td>
+          <td>No</td>
+          <td>Current directory</td>
+        </tr>
+        <tr>
+          <td><code>title</code></td>
+          <td>String</td>
+          <td>The display title of the command button.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>desc</code></td>
+          <td>String</td>
+          <td>Description of what the command does.</td>
+          <td>Yes</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>button_text</code></td>
+          <td>String</td>
+          <td>The text displayed on the button.</td>
+          <td>No</td>
+          <td><code>"EXECUTE"</code></td>
+        </tr>
+        <tr>
+          <td><code>confirm</code></td>
+          <td>Boolean</td>
+          <td>
+            Whether to prompt for confirmation before executing the command.
+          </td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+        <tr>
+          <td><code>confirm_text</code></td>
+          <td>String</td>
+          <td>The confirmation message displayed to the user.</td>
+          <td>No</td>
+          <td>Default confirmation message</td>
+        </tr>
+        <tr>
+          <td><code>confirm_yes_text</code></td>
+          <td>String</td>
+          <td>The text for the confirmation "Yes" button.</td>
+          <td>No</td>
+          <td><code>"Yes"</code></td>
+        </tr>
+        <tr>
+          <td><code>confirm_no_text</code></td>
+          <td>String</td>
+          <td>The text for the confirmation "No" button.</td>
+          <td>No</td>
+          <td><code>"No"</code></td>
+        </tr>
+        <tr>
+          <td><code>disable</code></td>
+          <td>Boolean</td>
+          <td>Disables the control if set to <code>true</code>.</td>
+          <td>No</td>
+          <td><code>false</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Example:</strong></p>
+    <pre><code>{
+  "type": "command_button",
+  "command": "touch test.txt",
+  "working_dir": "/data/openpilot",
+  "title": "Create test file",
+  "desc": "Create a test file in the openpilot directory",
+  "button_text": "Create",
+  "confirm": true,
+  "confirm_text": "Are you sure you want to create a test file?",
+  "confirm_yes_text": "Yes",
+  "confirm_no_text": "No",
+  "disable": false
+}</code></pre>
+
+    <h2 id="conditions">Conditions</h2>
+    <p>
+      Conditions determine the visibility and behavior of controls based on
+      specific criteria. They enable dynamic and context-sensitive UI elements.
+    </p>
+
+    <h3 id="condition-types">Condition Types</h3>
+    <ul>
+      <li>
+        <strong><code>paramValueEquals</code>:</strong> Checks if a parameter
+        equals a specified value. <br /><strong>Structure:</strong>
+        <pre><code>"paramValueEquals": {
+  "ParameterName": "ExpectedValue"
+}</code></pre>
+      </li>
+      <li>
+        <strong><code>paramValueGreaterThan</code>:</strong> Checks if a
+        parameter's value is greater than a specified number. <br /><strong
+          >Structure:</strong
+        >
+        <pre><code>"paramValueGreaterThan": {
+  "ParameterName": 70
+}</code></pre>
+      </li>
+      <li>
+        <strong><code>paramValueLessThan</code>:</strong> Checks if a
+        parameter's value is less than a specified number. <br /><strong
+          >Structure:</strong
+        >
+        <pre><code>"paramValueLessThan": {
+  "ParameterName": 90
+}</code></pre>
+      </li>
+      <li>
+        <strong><code>git_remote</code>:</strong> Validates against specified
+        Git remote repositories. <br /><strong>Structure:</strong>
+        <pre><code>"git_remote": ["remote1", "remote2"]</code></pre>
+      </li>
+      <li>
+        <strong><code>git_branch</code>:</strong> Validates against specified
+        Git branches. <br /><strong>Structure:</strong>
+        <pre><code>"git_branch": ["branch1", "branch2"]</code></pre>
+      </li>
+      <li>
+        <strong><code>onlyWhenTheseParams</code>:</strong> Ensures that certain
+        parameters are enabled or true. <br /><strong>Structure:</strong>
+        <pre><code>"onlyWhenTheseParams": ["Param1", "Param2"]</code></pre>
+      </li>
+    </ul>
+
+    <h3 id="composite-conditions">Composite Conditions</h3>
+    <p>
+      Conditions can be combined using logical operators to form more complex
+      criteria.
+    </p>
+    <ul>
+      <li>
+        <strong><code>anyConditionsTrue</code>:</strong> The control is visible
+        if <strong>any</strong> of the specified conditions are true.
+        <br /><strong>Structure:</strong>
+        <pre><code>"anyConditionsTrue": [
+  { "paramValueEquals": { "DriveMode": "sport" } },
+  { "allConditionsTrue": [ /* Nested conditions */ ] }
+]</code></pre>
+      </li>
+      <li>
+        <strong><code>allConditionsTrue</code>:</strong> The control is visible
+        only if <strong>all</strong> of the specified conditions are true.
+        <br /><strong>Structure:</strong>
+        <pre><code>"allConditionsTrue": [
+  { "git_remote": ["ford-op/sp-dev-c3"] },
+  { "paramValueLessThan": { "Temperature": 90 } }
+]</code></pre>
+      </li>
+    </ul>
+
+    <p><strong>Example of Composite Conditions:</strong></p>
+    <pre><code>{
+  "conditions": {
+    "anyConditionsTrue": [
+      { "paramValueEquals": { "DriveMode": "sport" } },
+      {
+        "allConditionsTrue": [
+          { "paramValueGreaterThan": { "Speed": 70 } },
+          { "onlyWhenTheseParams": ["AdvancedModeEnabled"] }
+        ]
+      }
+    ],
+    "allConditionsTrue": [
+      { "git_remote": ["ford-op/sp-dev-c3"] },
+      { "paramValueLessThan": { "Temperature": 90 } }
+    ]
+  }
+}</code></pre>
+
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="full-configuration-example">Full Configuration Example</h3>
+    <p>
+      Below is a sample JSON configuration that defines two panels: "BluePilot"
+      for Ford settings and "Utilities" for various utility commands.
+    </p>
+    <pre><code>{
+  "_comment": "This configuration file defines all Ford settings panels, groups, and controls.",
+  "menuName": "BluePilot",
+  "menuIcon": "icon_ford.png",
+  "menuDescription": "BluePilot Panel",
+  "persistentParams": [
+    "FordSelectedVehicleModel",
+    "FordPrefQuietDrive",
+    "FordPrefEnableDebugLogs",
+    "FordPrefSendHandsFreeCanMsg",
+    "FordPrefLaneDepartCanMsg",
+    "FordPrefDriverMonitorCanMsg",
+    "FordPrefEnablePathAngle",
+    "FordPrefHumanTurnDetectionEnable",
+    "FordPrefEnableCustomLatLogic",
+    "FordLatTuningLaneChgModifier",
+    "FordLatTuningCustomPathOffset",
+    "FordLongTuningBrakeActuatorActivate",
+    "FordLongTuningBrakeActuatorReleaseDelta",
+    "FordLongTuningPrechargeActuatorTargetDelta",
+    "FordLimitsCurvatureMax",
+    "FordLimitsCurvatureError"
+  ],
+  "clearOnManagerStartParams": [],
+  "clearOnOnroadTransitionParams": [],
+  "clearOnOffroadTransitionParams": [],
+  "groups": [
+    {
+      "groupName": "vehicleSelectorGroup",
+      "title": "Vehicle Selection: (Tap item for desc)",
+      "enableResetButton": false,
+      "controls": [
+        {
+          "type": "selection",
+          "param": "FordSelectedVehicleModel",
+          "title": "Vehicle Model",
+          "desc": "Select your vehicle model",
+          "disable": false,
+          "options": [
+            { "name": "F-150 14th Gen (21-23)", "value": "FORD_F_150_MK14" },
+            { "name": "F-150 Lightning 1st Gen", "value": "FORD_F_150_LIGHTNING_MK1" },
+            { "name": "Mustang Mach-E 1st Gen", "value": "FORD_MUSTANG_MACH_E_MK1" }
+          ]
+        },
+        {
+          "type": "file_viewer",
+          "path": "CHANGELOGS_BP.md",
+          "title": "BluePilot Changelog",
+          "desc": "View the BluePilot changelog",
+          "header": "BluePilot Changelog",
+          "disable": false
+        }
+      ]
+    },
+    // Additional groups here
+  ]
+}</code></pre>
+
+    <h3 id="individual-control-examples">Individual Control Examples</h3>
+
+    <h4>Toggle Control with Conditions</h4>
+    <pre><code>{
+  "type": "toggle",
+  "param": "FordPrefEnableDebugLogs",
+  "title": "Enable Debug Logging",
+  "desc": "Enables additional debug output.",
+  "disable": false,
+  "conditions": {
+    "git_remote": ["ford-op/sp-dev-c3"],
+    "git_branch": []
+  }
+}</code></pre>
+
+    <h4>Float Control with Default Value</h4>
+    <pre><code>{
+  "type": "float",
+  "param": "FordLatTuningLaneChgModifier",
+  "title": "Lane Change Modifier",
+  "desc": "Adjust lane change curvature aggressiveness (lower = slower).",
+  "disable": false,
+  "min": 0.0,
+  "max": 1.0,
+  "increment": 0.05,
+  "division": 100.0,
+  "conditions": {
+    "git_remote": ["any"],
+    "git_branch": []
+  }
+}</code></pre>
+
+    <h4>Command Button Control with Confirmation</h4>
+    <pre><code>{
+  "type": "command_button",
+  "command": "touch test.txt",
+  "working_dir": "/data/openpilot",
+  "title": "Create test file",
+  "desc": "Create a test file in the openpilot directory",
+  "button_text": "Create",
+  "confirm": true,
+  "confirm_text": "Are you sure you want to create a test file?",
+  "confirm_yes_text": "Yes",
+  "confirm_no_text": "No",
+  "disable": false
+}</code></pre>
+
+    <h2 id="optional-vs-required-properties">
+      Optional vs. Required Properties
+    </h2>
+    <p>
+      Understanding which properties are mandatory and which are optional is
+      crucial for creating valid configurations.
+    </p>
+
+    <h3>Required Properties</h3>
+    <ul>
+      <li>
+        <strong>Top-Level:</strong>
+        <ul>
+          <li><code>menuName</code></li>
+          <li><code>menuIcon</code></li>
+          <li><code>menuDescription</code></li>
+          <li><code>groups</code></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Group Object:</strong>
+        <ul>
+          <li><code>groupName</code></li>
+          <li><code>title</code></li>
+          <li><code>controls</code></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Control Object:</strong>
+        <ul>
+          <li><code>type</code></li>
+          <li><code>param</code></li>
+          <li><code>title</code></li>
+          <li><code>desc</code></li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>Optional Properties</h3>
+    <ul>
+      <li>
+        <strong>Top-Level:</strong>
+        <ul>
+          <li><code>persistentParams</code></li>
+          <li><code>clearOnManagerStartParams</code></li>
+          <li><code>clearOnOnroadTransitionParams</code></li>
+          <li><code>clearOnOffroadTransitionParams</code></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Group Object:</strong>
+        <ul>
+          <li><code>enableResetButton</code></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Control Object:</strong>
+        <ul>
+          <li><code>disable</code></li>
+          <li><code>conditions</code></li>
+          <li>
+            Additional properties specific to control types (e.g.,
+            <code>min</code>, <code>max</code>, <code>options</code>).
+          </li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2 id="notes-and-best-practices">Notes and Best Practices</h2>
+    <ul>
+      <li>
+        <strong>Unique <code>groupName</code>:</strong> Ensure each
+        <code>groupName</code> is unique across the configuration to prevent
+        conflicts.
+      </li>
+      <li>
+        <strong>Consistent Parameter Naming:</strong> Use clear and consistent
+        naming conventions for parameters (<code>param</code>) to maintain
+        readability and manageability.
+      </li>
+      <li>
+        <strong>Condition Accuracy:</strong> When defining conditions, ensure
+        that parameter names and expected values match existing configurations
+        and logic to prevent controls from being unintentionally hidden or
+        disabled.
+      </li>
+      <li>
+        <strong>Increment and Division Values:</strong> For float controls,
+        <code>increment</code> and <code>division</code> values should be chosen
+        carefully to balance precision and usability.
+      </li>
+      <li>
+        <strong>Command Safety:</strong> When using
+        <code>command_button</code> controls, ensure that commands are safe and
+        tested to prevent unintended system behavior.
+      </li>
+      <li>
+        <strong>Styling Consistency:</strong> Leverage the available styling
+        options to maintain a consistent and intuitive UI across all controls
+        and groups.
+      </li>
+    </ul>
+
+    <h2 id="conclusion">Conclusion</h2>
+    <p>
+      The JSON configuration system for <code>ConfigDrivenPanel</code> offers a
+      flexible and powerful way to define and manage user interface panels,
+      groups, and controls. By adhering to the outlined structure and best
+      practices, you can create customized, conditionally-driven interfaces that
+      enhance the user experience and streamline configuration management.
+    </p>
+    <p>
+      For further customization and advanced configurations, refer to the
+      codebase and explore additional properties and control types as needed.
+    </p>
+  </body>
+</html>

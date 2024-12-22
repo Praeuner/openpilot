@@ -6,6 +6,7 @@
 
 #include <QDebug>
 
+#include "common/params.h"
 #include "common/watchdog.h"
 #include "common/util.h"
 #include "selfdrive/ui/qt/offroad/driverview.h"
@@ -15,7 +16,8 @@
 #include "selfdrive/ui/qt/widgets/prime.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
-#include "selfdrive/ui/qt/offroad/ford_panel.h"
+#include "selfdrive/ui/qt/offroad/config_driven_panel.h"
+#include "selfdrive/ui/qt/offroad/git_manager_panel.h"
 
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon
@@ -224,19 +226,6 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(resetCalibBtn);
 
-    // Error Troubleshoot
-  auto errorBtn = new ButtonControl(
-    tr("View Error"), tr("VIEW"),
-    tr("Display error from the tmux session when an error has occurred from a system process."));
-  QFileInfo file("/data/community/crashes/error.txt");
-  QDateTime modifiedTime = file.lastModified();
-  QString modified_time = modifiedTime.toString("yyyy-MM-dd hh:mm:ss ");
-  connect(errorBtn, &ButtonControl::clicked, [=]() {
-    const std::string txt = util::read_file("/data/community/crashes/error.txt");
-    ConfirmationDialog::rich(modified_time + QString::fromStdString(txt), this);
-  });
-  addItem(errorBtn);
-
   auto retrainingBtn = new ButtonControl(tr("Review Training Guide"), tr("REVIEW"), tr("Review the rules, features, and limitations of openpilot"));
   connect(retrainingBtn, &ButtonControl::clicked, [=]() {
     if (ConfirmationDialog::confirm(tr("Are you sure you want to review the training guide?"), tr("Review"), this)) {
@@ -267,9 +256,6 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(translateBtn);
 
-  QObject::connect(uiState(), &UIState::offroadTransition, errorBtn, [errorBtn](bool offroad) {
-    errorBtn->setEnabled(true);  // Always keep enabled regardless of offroad state
-  });
   QObject::connect(uiState()->prime_state, &PrimeState::changed, [this] (PrimeState::Type type) {
     pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED);
   });
@@ -407,13 +393,23 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &Networking::setPrimeType);
 
   QList<QPair<QString, QWidget *>> panels = {
-    {tr("Device"), device},
-    {tr("Network"), networking},
-    {tr("Toggles"), toggles},
-    {tr("Software"), new SoftwarePanel(this)},
-    {tr("Ford"), new FordSettingsPanel(this)},
-    {tr("Developer"), new DeveloperPanel(this)},
+      {tr("Device"), device},
+      {tr("Network"), networking},
+      {tr("Toggles"), toggles},
+      {tr("Software"), new SoftwarePanel(this)},
+      {tr("BluePilot"), new ConfigDrivenPanel(this, "/bp_menu.json")},
+      {tr("Utilities"), new ConfigDrivenPanel(this, "/utilities_menu.json")},
+      {tr("Updater"), new GitManagerPanel(this)},
+      {tr("Developer"), new DeveloperPanel(this)},
   };
+
+  // Look at the CustomVehicleMenu param and the CustomVehicleMenuPath param, if they are true, then add a new panel for the custom car menu
+  std::string custom_car_menu_path = params.get("CustomVehicleMenuPath").c_str();
+  std::string custom_car_menu_name = params.get("CustomVehicleMenuName").c_str();
+  bool custom_car_menu = params.getBool("CustomVehicleMenu");
+  if (custom_car_menu && !custom_car_menu_path.empty() && !custom_car_menu_name.empty()) {
+    panels.insert(panels.size() - 1, {QString::fromStdString(custom_car_menu_name), new ConfigDrivenPanel(this)});
+  }
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel] : panels) {

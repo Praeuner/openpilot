@@ -1,0 +1,62 @@
+{
+  "_comment": "This configuration file defines all utilities panels, groups, and controls.",
+  "menuName": "Utilities",
+  "menuIcon": "icon_utilities.png",
+  "menuDescription": "Utilities Panel",
+  "persistentParams": [],
+  "clearOnManagerStartParams": [],
+  "clearOnOnroadTransitionParams": [],
+  "clearOnOffroadTransitionParams": [],
+  "groups": [
+    {
+      "groupName": "utilityCommandsGroup",
+      "title": "Utility Commands: (Tap item for desc)",
+      "enableResetButton": false,
+      "controls": [
+        {
+          "type": "command_button",
+          "command": "echo \"Starting process...\" && for i in {1..5}; do echo \"[$(date '+%H:%M:%S')] Processing batch $i/5...\"; sleep 1; echo \"  -> Completed subtask $i\"; sleep 1; done && echo \"All tasks completed successfully!\"",
+          "working_dir": "/data/openpilot",
+          "title": "Test Command",
+          "desc": "Test Command",
+          "button_text": "Test Command",
+          "confirm": true,
+          "confirm_text": "Are you sure you want to run this command?",
+          "confirm_button_text": "Run",
+          "cancel_button_text": "Cancel",
+          "disable": false
+        },
+        {
+          "type": "command_button",
+          "command": "cat /data/community/crashes/error.txt",
+          "working_dir": "/data/openpilot",
+          "title": "View Error Log",
+          "desc": "View the crashes file",
+          "button_text": "View Error",
+          "confirm": false,
+          "disable": false
+        },
+        {
+          "type": "command_button",
+          "command": "ifconfig",
+          "working_dir": "/data/openpilot",
+          "title": "Get Network Info",
+          "desc": "Get network info using ifconfig",
+          "button_text": "Get Info",
+          "confirm": false,
+          "disable": false
+        },
+        {
+          "type": "command_button",
+          "command": "tail -f /tmp/launch_log",
+          "working_dir": "/data/openpilot",
+          "title": "View Launch Log",
+          "desc": "View the launch log",
+          "button_text": "View Log",
+          "confirm": false,
+          "disable": false
+        }
+      ]
+    }
+  ]
+}
