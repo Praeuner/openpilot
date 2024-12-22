@@ -88,6 +88,129 @@
     </message>
 </context>
 <context>
+    <name>ConfigDrivenConfirmationDialog</name>
+    <message>
+        <source>Reboot Later</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenPanel</name>
+    <message>
+        <source> Reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SELECT</source>
+        <translation type="unfinished">选择</translation>
+    </message>
+    <message>
+        <source>Reboot required for changes to take effect. Would you like to reboot now?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="unfinished">重启</translation>
+    </message>
+    <message>
+        <source>VIEW</source>
+        <translation type="unfinished">查看</translation>
+    </message>
+    <message>
+        <source>No data available for this parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Error:&lt;/b&gt;&lt;br&gt;Could not open file: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>EXECUTE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to execute this command?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset %1 to default values?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">关闭</translation>
+    </message>
+    <message>
+        <source>Output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop Command</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Command is Running...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Terminated)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Command Failed | Exit code: %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Completed Successfully)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenParamManageControl</name>
+    <message>
+        <source>MANAGE</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenParamValueControl</name>
+    <message>
+        <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenParamValueControlFloat</name>
+    <message>
+        <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ConfirmationDialog</name>
     <message>
         <source>Ok</source>
@@ -282,14 +405,6 @@
         <source>PAIR</source>
         <translation>配对</translation>
     </message>
-    <message>
-        <source>Error Troubleshoot</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Display error from the tmux session when an error has occurred from a system process.</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>DriverViewWindow</name>
@@ -310,256 +425,150 @@
     </message>
 </context>
 <context>
-    <name>FordSettingsConfirmationDialog</name>
-    <message>
-        <source>Reboot Later</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>FordSettingsPanel</name>
     <message>
-        <source> Reset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preferences: (Tap for more info)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Hands-Free UI (On Supported Vehicles)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This will send the necessary messages to allow the Hands-Free interface in the cluster on supported Ford/Lincoln vehicles with BlueCruise enabled.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Send Lane Departure Signals to Vehicle</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When enabled, this will attempt to send Openpilot lane departure signals to the vehicle for a native response in the cluster and alerts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Send Driver Monitor Signals to Vehicle</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When enabled, this will attempt to send Openpilot driver monitor notice signals to the vehicle for a native response in the cluster and alerts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enable Human Turn Detection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When enabled, this will reset the steering so you don&apos;t fight the wheel when making manual turns</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enable Debug Logging</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enables outputting debug in the logs and console</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lateral Tuning: (Tap on control for more info)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lane Change Modifier</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Adjust the lane change curvature agrresivness (lower = slower).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>In lane offset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Positions car further left (negative) or right (positive)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Brake Tuning: (Tap on control for more info)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Brake Actuator Activate</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Acceleration setpoint for which the brake actuator is activated during the braking phase.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Brake Actuator Release Delta</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Sets the acceleration gap between the activation and release of the brake actuator during the braking phase.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Limits Tuning: (Tap on control for more info)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Curvature Max</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Defined the max curvature allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Curvature Error</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Defined the max curvature error allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Parameter Viewer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Live Parameters</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Live Torque</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Finger Print Data</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Calibration Parameters</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Car Model</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Car Model Text</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Car Params Persistent</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Chevron Info</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom Driving Model</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom Torque Lateral</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom Offsetts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dev UI Info</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Feature Status</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Panda Signatures</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Torque Deadzone Deg</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Torque Friction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Torque Lateral Jerk</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Torque Max Lat Accell</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>VIEW</source>
-        <translation type="unfinished">查看</translation>
-    </message>
-    <message>
-        <source>Display current value of %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to reset %1 to default values?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lateral Tuning</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Brake Tuning</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Limits Tuning</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Vehicle Selection: (Tap for more info)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Vehicle Model</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">查看</translation>
     </message>
     <message>
         <source>SELECT</source>
-        <translation type="unfinished">选择</translation>
+        <translation type="obsolete">选择</translation>
     </message>
     <message>
-        <source>Select your vehicle model</source>
+        <source>Reboot</source>
+        <translation type="obsolete">重启</translation>
+    </message>
+</context>
+<context>
+    <name>GitManagerPanel</name>
+    <message>
+        <source>Error: Not a valid git repository.
+Please ensure /data/openpilot is a valid git repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Reboot required for changes to take effect. Would you like to reboot now?</source>
+        <source>Openpilot Directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Internet Connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check Updates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repair</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">重置</translation>
+    </message>
+    <message>
+        <source>History</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Submodules</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No submodules found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Updates Available)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Modified)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Clean)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to get branch list. Please check your internet connection or repository status.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Branch (Online)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Branch (Offline)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You have uncommitted changes that will be lost if you switch branches.
+Continue?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switching Branch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update Check Failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished">一般</translation>
+    </message>
+    <message>
+        <source>Failed to check for updates: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 seconds ago</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 minutes ago</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 hours ago</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 days ago</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop Command</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retry</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -567,40 +576,123 @@
         <translation type="unfinished">重启</translation>
     </message>
     <message>
-        <source>Quiet Drive 🤫</source>
+        <source>Command is Running...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>BluePilot will display alerts but only play the most important warning sounds.</source>
+        <source>Close (Timed Out)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Precharge Actuator Target Delta</source>
+        <source>Close (Terminated)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>How much earlier to activate the precharge actuator to reach the target pressure.</source>
+        <source>Close (Command Failed | Exit code: %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Completed Successfully)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retrying command:
+
+%1
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reboot?</source>
+        <translation type="unfinished">您确定要重新启动吗？</translation>
+    </message>
+    <message>
+        <source>Executing command:
+
+%1
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Commit ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">关闭</translation>
+    </message>
+    <message>
+        <source>Update Openpilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update All Submodules</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to repair the repository?
+This will completely remove and re-download the repository.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source script not found at: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove existing temp script</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to copy script. Error: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to make script executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repairing Openpilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset all changes? This cannot be undone.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset Changes</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>FordSettingsParamManageControl</name>
+    <name>GitStatusWidget</name>
     <message>
-        <source>MANAGE</source>
+        <source>Last Commit</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>FordSettingsParamValueControl</name>
     <message>
-        <source>Default: %1</source>
+        <source> - Clean</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>FordSettingsParamValueControlFloat</name>
     <message>
-        <source>Default: %1</source>
+        <source> - Modified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Last Commit: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No commits</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -933,7 +1025,15 @@ This may take up to a minute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Ford</source>
+        <source>BluePilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Utilities</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updater</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1241,6 +1341,67 @@ This may take up to a minute.</source>
     <message>
         <source>Enable SSH</source>
         <translation>启用SSH</translation>
+    </message>
+</context>
+<context>
+    <name>SubmoduleWidget</name>
+    <message>
+        <source>• Checking...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">重置</translation>
+    </message>
+    <message>
+        <source>Repair</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>History</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update Submodule</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset the submodule &apos;%1&apos;?
+This will lose all local changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset Submodule</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to repair the submodule &apos;%1&apos;?
+This will remove and re-download it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repair Submodule</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Initialized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Modified)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Updates Available)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Up to date)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

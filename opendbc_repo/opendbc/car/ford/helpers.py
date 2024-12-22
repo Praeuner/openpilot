@@ -10,13 +10,16 @@ params = Params()
 SETTINGS_PARAMS = [
   ["FordPrefSendHandsFreeCanMsg", "send_hands_free_cluster_msg", False, bool],
   ["FordPrefHumanTurnDetectionEnable", "enable_human_turn_detection", True, bool],
+  ["FordPrefEnablePathAngle", "enable_path_angle", False, bool],
   ["FordPrefLaneDepartCanMsg", "send_lane_depart_can_msg", False, bool],
   ["FordPrefDriverMonitorCanMsg", "send_driver_monitor_can_msg", False, bool],
-  # ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
-  # ["FordLatTuningLaneChgModifier", "lane_change_factor", 0.80, float],
+  ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
+  ["FordLatTuningPathAngleLowSpeedFactor", "path_angle_low_speed_factor", 0.15, float],
+  ["FordLatTuningPathAngleHighSpeedFactor", "path_angle_high_speed_factor", 3.0, float],
   ["FordLongTuningBrakeActuatorActivate", "brake_actuator_activate", None, float],
   ["FordLongTuningBrakeActuatorReleaseDelta", "brake_actuator_release_delta", None, float],
   ["FordLongTuningPrechargeActuatorTargetDelta", "precharge_actuator_target_delta", None, float],
+  ["FordPrefEnableCustomLatLogic", "enable_custom_lat_logic", False, bool],
   # ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
   # ["FordLimitsCurvatureError", "curvature_error", CarControllerParams.CURVATURE_ERROR, float],
 ]
@@ -25,10 +28,13 @@ SETTINGS_PARAMS = [
 def load_initial_cc_pref_params(self_obj): # self_obj is the CarController object (self)
   self_obj.send_hands_free_cluster_msg = get_bool_param("FordPrefSendHandsFreeCanMsg", False)
   self_obj.enable_human_turn_detection = get_bool_param("FordPrefHumanTurnDetectionEnable", True)
+  self_obj.enable_path_angle = get_bool_param("FordPrefEnablePathAngle", False)
   self_obj.send_lane_depart_can_msg = get_bool_param("FordPrefLaneDepartCanMsg", False)
   self_obj.send_driver_monitor_can_msg = get_bool_param("FordPrefDriverMonitorCanMsg", False)
-  # self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
-  # self_obj.lane_change_factor = get_float_param("FordLatTuningLaneChgModifier", 0.80)
+  self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
+  self_obj.path_angle_low_speed_factor = get_float_param("FordLatTuningPathAngleLowSpeedFactor", 0.15)
+  self_obj.path_angle_high_speed_factor = get_float_param("FordLatTuningPathAngleHighSpeedFactor", 3.0)
+  self_obj.enable_custom_lat_logic = get_bool_param("FordPrefEnableCustomLatLogic", False)
   # self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
   # self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
 
@@ -234,6 +240,7 @@ def get_dm_driver_state(d_state):
     return "none"
 
 def get_dm_disable_state(d_state):
+  # print(f"d_state: {d_state}")
   if d_state == ET.USER_DISABLE:
     return "userDisable"
   elif d_state == ET.SOFT_DISABLE:
@@ -247,37 +254,40 @@ def get_dm_disable_state(d_state):
 
 
 def compute_dm_msg_values(hud_control, send_hands_free_cluster_msg):
-    tja_msg = 0
-    tja_warn = 0
-
-    disableState = get_dm_disable_state(hud_control.alertType)
-    driverState = get_dm_driver_state(hud_control.eventType)
-
-    if send_hands_free_cluster_msg:
-      if disableState == "noEntry":
-        tja_msg = 4  # BlueCruise not available
-      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
-        tja_warn = 3  # Resume Control
-      elif disableState == "userDisable":
-        tja_warn = 1  # Cancelled
-      elif driverState == "preDistracted":
-        tja_warn = 6  # Watch The Road (no chime)
-      elif driverState == "promptDistracted":
-        tja_warn = 7  # Watch The Road (chime)
-      elif hud_control.leftLaneDepart:
-        tja_warn = 5  # Left Lane Departure (chime)
-      elif hud_control.rightLaneDepart:
-        tja_warn = 4  # Right Lane Departure (chime)
-      else:
-        tja_warn = 0
-    else:
-      if disableState == "noEntry":
-        tja_msg = 1  # Lane Centering Assist not available
-      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
-        tja_warn = 3  # Resume Control
-      elif disableState == "userDisable":
-        tja_warn = 1  # Cancelled
-      else:
-        tja_warn = 0
-
+  # print(f"hud_control: {hud_control}")
+  # print(f"send_hands_free_cluster_msg: {send_hands_free_cluster_msg}")
+  tja_msg = 0
+  tja_warn = 0
+  if hud_control is None or hud_control.alertType is None:
     return tja_msg, tja_warn
+  disableState = get_dm_disable_state(hud_control.alertType)
+  driverState = get_dm_driver_state(hud_control.eventType)
+
+  if send_hands_free_cluster_msg:
+    if disableState == "noEntry":
+      tja_msg = 4  # BlueCruise not available
+    elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+      tja_warn = 3  # Resume Control
+    elif disableState == "userDisable":
+      tja_warn = 1  # Cancelled
+    elif driverState == "preDistracted":
+      tja_warn = 6  # Watch The Road (no chime)
+    elif driverState == "promptDistracted":
+      tja_warn = 7  # Watch The Road (chime)
+    elif hud_control.leftLaneDepart:
+      tja_warn = 5  # Left Lane Departure (chime)
+    elif hud_control.rightLaneDepart:
+      tja_warn = 4  # Right Lane Departure (chime)
+    else:
+      tja_warn = 0
+  else:
+    if disableState == "noEntry":
+      tja_msg = 1  # Lane Centering Assist not available
+    elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+      tja_warn = 3  # Resume Control
+    elif disableState == "userDisable":
+      tja_warn = 1  # Cancelled
+    else:
+      tja_warn = 0
+
+  return tja_msg, tja_warn

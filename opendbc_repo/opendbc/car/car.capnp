@@ -251,6 +251,7 @@ struct CarState {
     speedOffset @3 :Float32;
     standstill @4 :Bool;
     nonAdaptive @5 :Bool;
+    speedLimit @7 :Float32;
   }
 
   enum GearShifter {
@@ -337,6 +338,7 @@ struct CarControl {
   enabled @0 :Bool;
   latActive @11: Bool;
   longActive @12: Bool;
+  vCruise @17 :Float32;  # actual set speed
 
   # Final actuator commands
   actuators @6 :Actuators;
@@ -398,6 +400,8 @@ struct CarControl {
     rightLaneDepart @8: Bool;
     leftLaneDepart @9: Bool;
     leadDistanceBars @10: Int8;  # 1-3: 1 is closest, 3 is farthest. some ports may utilize 2-4 bars instead
+    alertType @11: Text;
+    eventType @12: Text;
 
     enum VisualAlert {
       # these are the choices from the Honda
