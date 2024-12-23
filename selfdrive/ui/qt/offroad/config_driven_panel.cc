@@ -135,9 +135,6 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
     QString title = group["title"].toString();
     bool enableReset = group["enableResetButton"].toBool();
 
-    std::cout << "Creating group: " << groupName.toStdString()
-              << " enableReset: " << enableReset << std::endl;
-
     QGroupBox* groupBox = createStyledGroupBox(title);
     QVBoxLayout* layout = new QVBoxLayout(groupBox);
 
@@ -146,22 +143,24 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
     groupData.groupBox = groupBox;
 
     if (enableReset) {
-      std::cout << "Creating reset button" << std::endl;
-      QHBoxLayout* titleLayout = new QHBoxLayout();
-      titleLayout->addStretch();
-      QPushButton* resetButton = createResetButton();
-      connect(resetButton, &QPushButton::clicked, this, [this, groupName]() {
-          this->handleGroupReset(groupName);
-      });
-      titleLayout->addWidget(resetButton);
-      titleLayout->setContentsMargins(0, 0, 0, 20);
-      layout->addLayout(titleLayout);
+        QHBoxLayout* titleLayout = new QHBoxLayout();
+        titleLayout->addStretch();
+        QPushButton* resetButton = createResetButton();
+        connect(resetButton, &QPushButton::clicked, this, [this, groupName]() {
+            this->handleGroupReset(groupName);
+        });
+        titleLayout->addWidget(resetButton);
+        titleLayout->setContentsMargins(0, 0, 0, 20);
+        layout->addLayout(titleLayout);
     }
 
     const QJsonArray& controls = group["controls"].toArray();
+    bool hasVisibleControls = false;
+
     for (const auto& controlValue : controls) {
         QWidget* widget = createControl(controlValue.toObject());
         if (widget) {
+            hasVisibleControls = true;
             if (auto* control = qobject_cast<AbstractControl*>(widget)) {
                 QList<QLabel*> labels = control->findChildren<QLabel*>();
                 for (QLabel* label : labels) {
@@ -178,17 +177,40 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
         }
     }
 
-    // Store group data
-    groups[groupName] = groupData;
-    addItem(groupBox);
+    // Only add the group if it has visible controls
+    if (hasVisibleControls) {
+        groups[groupName] = groupData;
+        addItem(groupBox);
+    } else {
+        delete groupBox;  // Clean up if no visible controls
+    }
+}
+
+void ConfigDrivenPanel::updateGroupVisibility() {
+    for (auto& [groupName, groupData] : groups) {
+        bool hasVisibleControls = false;
+        for (QWidget* control : groupData.controls) {
+            if (control && control->isVisible()) {
+                hasVisibleControls = true;
+                break;
+            }
+        }
+        groupData.groupBox->setVisible(hasVisibleControls);
+    }
 }
 
 QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
+
+    bool hidden = control["hidden"].toBool();
+    if (hidden) {
+        std::cout << "Control is hidden" << std::endl;
+        return nullptr;  // Return nullptr for hidden controls
+    }
+
     QString type = control["type"].toString();
     QString param = control["param"].toString();
     QString title = control["title"].toString();
     QString desc = control["desc"].toString();
-    bool disable = control["disable"].toBool();
 
     // Check conditions if they exist
     if (control.contains("conditions")) {
@@ -214,17 +236,35 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditionsValid = validateCompositeConditions(conditions);
         }
 
+        // Parameter value conditions
+        if (conditionsValid && conditions.contains("paramValueEquals")) {
+            QJsonObject equals = conditions["paramValueEquals"].toObject();
+            for (auto it = equals.begin(); it != equals.end(); ++it) {
+                std::string paramKey = it.key().toStdString();
+                std::string paramVal = params.get(paramKey);
+                std::cout << "Checking param " << paramKey
+                        << " value: '" << paramVal << "'"
+                        << " against: '" << it.value().toString().toStdString() << "'" << std::endl;
+                if (paramVal != it.value().toString().toStdString()) {
+                    conditionsValid = false;
+                    break;
+                }
+            }
+        }
+
         if (!conditionsValid) {
             return nullptr;
         }
     }
 
+    QWidget* widget = nullptr;
+
     if (type == "toggle") {
         auto toggle = ConfigDrivenControlFactory::createToggleControl(param, title, desc, "");
         toggle->setObjectName(param);
-        toggle->setEnabled(!disable);
+        toggle->setVisible(!hidden);
         toggles[param.toStdString()] = toggle;
-        return toggle;
+        widget = toggle;
     }
     else if (type == "float") {
         float min = control["min"].toDouble();
@@ -236,8 +276,8 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             param, title, desc,
             min, max, increment, false, "", {}, division);
         ctrl->setObjectName(param);
-        ctrl->setEnabled(!disable);
-        return ctrl;
+        ctrl->setVisible(!hidden);
+        widget = ctrl;
     }
     else if (type == "integer") {
         int min = control["min"].toInt();
@@ -248,13 +288,13 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             param, title, desc,
             min, max, increment, false);
         ctrl->setObjectName(param);
-        ctrl->setEnabled(!disable);
-        return ctrl;
+        ctrl->setVisible(!hidden);
+        widget = ctrl;
     }
     else if (type == "selection") {
         auto button = new ButtonControl(title, tr("SELECT"), desc);
-        button->setEnabled(!disable);
         button->setObjectName(param);
+        button->setVisible(!hidden);
         QJsonArray options = control["options"].toArray();
         QStringList items;
         std::map<QString, QString> selections;
@@ -303,11 +343,11 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             }
         }
 
-        return button;
+        widget = button;
     }
     else if (type == "param_viewer") {
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
-        dataBtn->setEnabled(!disable);
+        dataBtn->setVisible(!hidden);
 
         QObject::connect(dataBtn, &ButtonControl::clicked, [this, param, title]() {
             QString rawValue = QString::fromStdString(params.get(param.toStdString()));
@@ -327,14 +367,14 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             showFullScreenDialog(dialogTitle, content);
         });
 
-        return dataBtn;
+        widget = dataBtn;
     }
     else if (type == "file_viewer") {
         std::cout << "Creating file viewer button" << std::endl;
         QString relativePath = control["path"].toString();
         QString header = control["header"].toString();
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
-        dataBtn->setEnabled(!disable);
+        dataBtn->setVisible(!hidden);
 
         QObject::connect(dataBtn, &ButtonControl::clicked, [this, relativePath, header, title]() {
             QString rootPath = getProjectRootPath();
@@ -362,7 +402,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             showFullScreenDialog(dialogTitle, content);
         });
 
-        return dataBtn;
+        widget = dataBtn;
     }
     else if (type == "command_button") {
         QString command = control["command"].toString();
@@ -396,7 +436,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         }
 
         auto cmdBtn = new ButtonControl(title, buttonText, desc);
-        cmdBtn->setEnabled(!disable);
+        cmdBtn->setVisible(!hidden);
 
         QObject::connect(cmdBtn, &ButtonControl::clicked, [this, command, title, workingDir, confirmText, confirmYesText, confirmNoText, requireConfirm, actionButtons]() {
             if (requireConfirm) {
@@ -411,10 +451,30 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             executeCommand(command, title, workingDir, actionButtons);
         });
 
-        return cmdBtn;
+          widget = cmdBtn;
     }
 
-    return nullptr;
+    if (widget) {
+    // Connect to value changes based on control type
+    if (auto* paramControl = qobject_cast<ParamControl*>(widget)) {
+        connect(paramControl, &ParamControl::toggleFlipped,
+                this, &ConfigDrivenPanel::onControlValueChanged);
+    }
+    else if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(widget)) {
+        connect(valueControl, &ConfigDrivenParamValueControl::valueChanged,
+                this, &ConfigDrivenPanel::onControlValueChanged);
+    }
+    else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(widget)) {
+        connect(floatControl, &ConfigDrivenParamValueControlFloat::valueChanged,
+                this, &ConfigDrivenPanel::onControlValueChanged);
+    }
+    else if (auto* buttonControl = qobject_cast<ButtonControl*>(widget)) {
+        connect(buttonControl, &ButtonControl::clicked,
+                this, &ConfigDrivenPanel::onControlValueChanged);
+    }
+}
+
+    return widget;
 }
 
 void ConfigDrivenPanel::updateControlWithDefault(QWidget* ctrl) {
@@ -496,15 +556,33 @@ void ConfigDrivenPanel::resetMaxDurationTimer() {
   QTimer::singleShot(270000, this, &ConfigDrivenPanel::stopActivitySimulation); // 4 minutes and 30 seconds
 }
 
+void ConfigDrivenPanel::refreshPanel() {
+  std::cout << "Refreshing ConfigDrivenPanel" << std::endl;
+  updateToggles();
+  updateGroupVisibility();
+
+  // Update reset buttons visibility for all groups
+  for (const auto& [groupName, groupData] : groups) {
+      updateResetButtonVisibility(groupData.groupBox);
+  }
+}
+
+void ConfigDrivenPanel::onControlValueChanged() {
+  refreshPanel();
+}
+
+
 void ConfigDrivenPanel::showEvent(QShowEvent *event) {
   std::cout << "Showing ConfigDrivenPanel" << std::endl;
   updateToggles();
+  updateGroupVisibility();
 
   // Update reset buttons visibility for all groups
   for (const auto& [groupName, groupData] : groups) {
       updateResetButtonVisibility(groupData.groupBox);
   }
 
+  refreshPanel();
   activityTimer->start();
   resetMaxDurationTimer();
   QWidget::showEvent(event);

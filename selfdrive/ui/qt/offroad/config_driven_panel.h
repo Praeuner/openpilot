@@ -137,7 +137,11 @@ protected:
     return QWidget::event(event);
   }
 
+private slots:
+  void onControlValueChanged();
+
 private:
+  void refreshPanel();
   void createGroup(const QJsonObject& group);
   QWidget* createControl(const QJsonObject& control);
   void handleGroupReset(const QString& groupName);
@@ -207,7 +211,7 @@ private:
   bool validateSingleCondition(const QString& key, const QJsonValue& value);
   bool validateConditionObject(const QJsonObject& conditionObj);
   bool validateCompositeConditions(const QJsonObject& conditions);
-
+  void updateGroupVisibility();
 
   Params params;
   std::map<std::string, ParamControl*> toggles;

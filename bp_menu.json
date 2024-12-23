@@ -35,7 +35,7 @@
           "param": "FordSelectedVehicleModel",
           "title": "Vehicle Model",
           "desc": "Select your vehicle model",
-          "disable": false,
+          "hidden": false,
           "options": [
             { "name": "F-150 14th Gen (21-23)", "value": "FORD_F_150_MK14" },
             {
@@ -54,7 +54,7 @@
           "title": "BluePilot Changelog",
           "desc": "View the BluePilot changelog",
           "header": "BluePilot Changelog",
-          "disable": false
+          "hidden": false
         }
       ]
     },
@@ -68,7 +68,7 @@
           "param": "FordPrefQuietDrive",
           "title": "Quiet Drive - Warnings/Alerts Only",
           "desc": "BluePilot displays alerts but only plays important warning sounds.",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -79,7 +79,7 @@
           "param": "FordPrefEnableDebugLogs",
           "title": "Enable Debug Logging",
           "desc": "Enables additional debug output.",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["ford-op/sp-dev-c3"],
             "git_branch": []
@@ -97,7 +97,7 @@
           "param": "FordPrefSendHandsFreeCanMsg",
           "title": "Show Hands-Free UI (On Supported Vehicles)",
           "desc": "Sends necessary messages for Hands-Free interface.",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -108,7 +108,7 @@
           "param": "FordPrefLaneDepartCanMsg",
           "title": "Send Lane Departure Signals to Vehicle",
           "desc": "Send Openpilot lane departure signals for native cluster alerts.",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -119,7 +119,7 @@
           "param": "FordPrefDriverMonitorCanMsg",
           "title": "Send Driver Monitor Signals",
           "desc": "Send driver monitor notice signals to the vehicle for native cluster alerts.",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -134,10 +134,21 @@
       "controls": [
         {
           "type": "toggle",
+          "param": "FordPrefHumanTurnDetectionEnable",
+          "title": "Enable Human Turn Detection",
+          "desc": "Reset steering so you don't fight the wheel making manual turns.",
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["any"],
+            "git_branch": []
+          }
+        },
+        {
+          "type": "toggle",
           "param": "FordPrefAllowNudgelessLaneChange",
           "title": "Allow Nudgeless Lane Changes",
           "desc": "Allow nudgeless lane change",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -148,7 +159,7 @@
           "param": "FordPrefEnableCustomLatLogic",
           "title": "Enable Custom Lateral Logic",
           "desc": "Enable custom lateral logic",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
             "git_branch": []
@@ -159,82 +170,86 @@
           "param": "FordPrefEnablePathAngle",
           "title": "Enable Path Angle",
           "desc": "Enable path angle",
-          "disable": false,
+          "hidden": false,
           "conditions": {
             "git_remote": ["any"],
-            "git_branch": []
+            "git_branch": [],
+            "paramValueEquals": {
+              "FordPrefEnableCustomLatLogic": "1"
+            }
           }
         },
+
         {
-          "type": "toggle",
-          "param": "FordPrefHumanTurnDetectionEnable",
-          "title": "Enable Human Turn Detection",
-          "desc": "Reset steering so you don't fight the wheel making manual turns.",
-          "disable": false,
-          "conditions": {
-            "git_remote": ["any"],
-            "git_branch": []
-          }
-        },
-        {
-          "_comment": "Originally defined in code but commented out. Now enabled here as an example.",
           "type": "float",
           "param": "FordLatTuningLaneChgModifier",
           "title": "Lane Change Modifier",
           "desc": "Adjust lane change curvature aggressiveness (lower = slower).",
-          "disable": true,
+          "hidden": true,
           "min": 0.0,
           "max": 1.0,
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
             "git_remote": ["any"],
-            "git_branch": []
+            "git_branch": [],
+            "paramValueEquals": {
+              "FordPrefEnableCustomLatLogic": "1"
+            }
           }
         },
         {
           "type": "float",
           "param": "FordLatTuningPathAngleLowSpeedFactor",
-          "title": "path_angle low speed factor",
+          "title": "Path Angle - Low Speed Factor",
           "desc": "Adjust aggressiveness of path_angle at 15mph (lower = less aggressive).",
-          "disable": false,
+          "hidden": false,
           "min": 0.0,
           "max": 1.0,
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
             "git_remote": ["any"],
-            "git_branch": []
+            "git_branch": [],
+            "paramValueEquals": {
+              "FordPrefEnableCustomLatLogic": "1"
+            }
           }
         },
         {
           "type": "float",
           "param": "FordLatTuningPathAngleHighSpeedFactor",
-          "title": "path_angle high speed factor",
+          "title": "Path Angle - High Speed Factor",
           "desc": "Adjust aggressiveness of path_angle at 85mph (lower = less aggressive).",
-          "disable": false,
+          "hidden": false,
           "min": 0.0,
           "max": 5.0,
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
             "git_remote": ["any"],
-            "git_branch": []
+            "git_branch": [],
+            "paramValueEquals": {
+              "FordPrefEnableCustomLatLogic": "1"
+            }
           }
         },
         {
           "type": "float",
           "param": "FordLatTuningCustomPathOffset",
-          "title": "In lane offset",
+          "title": "In Lane Offset",
           "desc": "Positions car further left (negative) or right (positive)",
-          "disable": false,
+          "hidden": false,
           "min": -0.5,
           "max": 0.5,
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
             "git_remote": ["any"],
-            "git_branch": []
+            "git_branch": [],
+            "paramValueEquals": {
+              "FordPrefEnableCustomLatLogic": "1"
+            }
           }
         }
       ]
@@ -249,7 +264,7 @@
           "param": "FordLongTuningBrakeActuatorActivate",
           "title": "Brake Actuator Activate",
           "desc": "Acceleration setpoint for brake actuator activation.",
-          "disable": false,
+          "hidden": false,
           "min": -0.2,
           "max": 0.2,
           "increment": 0.01,
@@ -264,7 +279,7 @@
           "param": "FordLongTuningBrakeActuatorReleaseDelta",
           "title": "Brake Actuator Release Delta",
           "desc": "Acceleration gap between activation and release.",
-          "disable": false,
+          "hidden": false,
           "min": 0.0,
           "max": 0.2,
           "increment": 0.01,
@@ -279,7 +294,7 @@
           "param": "FordLongTuningPrechargeActuatorTargetDelta",
           "title": "Precharge Actuator Target Delta",
           "desc": "How much earlier to activate the precharge actuator.",
-          "disable": false,
+          "hidden": false,
           "min": 0.0,
           "max": 0.2,
           "increment": 0.01,
@@ -302,7 +317,7 @@
           "param": "FordLimitsCurvatureMax",
           "title": "Curvature Max",
           "desc": "Defines the max curvature allowed.",
-          "disable": true,
+          "hidden": true,
           "min": 0.0,
           "max": 0.2,
           "increment": 0.005,
@@ -317,7 +332,7 @@
           "param": "FordLimitsCurvatureError",
           "title": "Curvature Error",
           "desc": "Defines the max curvature error allowed.",
-          "disable": true,
+          "hidden": true,
           "min": 0.0,
           "max": 0.02,
           "increment": 0.001,
@@ -339,112 +354,112 @@
           "param": "LiveParameters",
           "title": "Live Parameters",
           "desc": "View live parameters",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "LiveTorque",
           "title": "Live Torque",
           "desc": "View live torque data",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "FingerPrintData",
           "title": "Finger Print Data",
           "desc": "View fingerprint data",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "CalibrationParams",
           "title": "Calibration Parameters",
           "desc": "View calibration parameters",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "CarModelText",
           "title": "Car Model Text",
           "desc": "View car model text",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "ChevronInfo",
           "title": "Chevron Info",
           "desc": "View chevron information",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "CustomDrivingModel",
           "title": "Custom Driving Model",
           "desc": "View custom driving model",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "CustomTorqueLateral",
           "title": "Custom Torque Lateral",
           "desc": "View custom torque lateral",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "CustomOffsets",
           "title": "Custom Offsets",
           "desc": "View custom offsets",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "DevUIInfo",
           "title": "Dev UI Info",
           "desc": "View dev UI information",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "FeatureStatus",
           "title": "Feature Status",
           "desc": "View feature status",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "PandaSignatures",
           "title": "Panda Signatures",
           "desc": "View panda signatures",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "TorqueDeadzoneDeg",
           "title": "Torque Deadzone Deg",
           "desc": "View torque deadzone degrees",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "TorqueFriction",
           "title": "Torque Friction",
           "desc": "View torque friction",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "TorqueLateralJerk",
           "title": "Torque Lateral Jerk",
           "desc": "View torque lateral jerk",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "param_viewer",
           "param": "TorqueMaxLatAccel",
           "title": "Torque Max Lat Accel",
           "desc": "View torque max lateral acceleration",
-          "disable": false
+          "hidden": false
         }
       ]
     }

@@ -24,7 +24,7 @@
           "confirm_text": "Are you sure you want to run this command?",
           "confirm_button_text": "Run",
           "cancel_button_text": "Cancel",
-          "disable": false
+          "hidden": false
         },
         {
           "type": "command_button",
@@ -34,7 +34,7 @@
           "desc": "View the crashes file",
           "button_text": "View Error",
           "confirm": false,
-          "disable": false
+          "hidden": false
         },
         {
           "type": "command_button",
@@ -44,7 +44,7 @@
           "desc": "Get network info using ifconfig",
           "button_text": "Get Info",
           "confirm": false,
-          "disable": false
+          "hidden": false
         },
         {
           "type": "command_button",
@@ -54,7 +54,7 @@
           "desc": "View the launch log",
           "button_text": "View Log",
           "confirm": false,
-          "disable": false
+          "hidden": false
         }
       ]
     }
