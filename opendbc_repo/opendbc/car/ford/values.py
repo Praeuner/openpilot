@@ -53,7 +53,6 @@ class FordFlags(IntFlag):
 class RADAR:
   DELPHI_ESR = 'ford_fusion_2018_adas'
   DELPHI_MRR = 'FORD_CADS'
-  DELPHI_MRR_64 = 'FORD_CADS_64'
   STEER_ASSIST_DATA = 'ford_lincoln_base_pt'
 
 
@@ -100,8 +99,6 @@ class FordPlatformConfig(PlatformConfig):
 class FordCANFDPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
-    # Bus.radar: RADAR.STEER_ASSIST_DATA,
-    Bus.radar: RADAR.DELPHI_MRR_64,
   })
 
   def init(self):
@@ -177,7 +174,7 @@ FORD_VEHICLE_TUNINGS = {
     "precharge_actuator_target_delta": 0.02, # how much earlier to activate the precharge actuator to reach the target pressure
     "path_lookup_time": 0.25,
     "reset_lookup_time": 0.5,
-    "steerActuatorDelay": 0.2,
+    "steerActuatorDelay": 0.05,
     "steerLimitTimer": 1.5,
     "stoppingControl": True,
     "startingState": True,

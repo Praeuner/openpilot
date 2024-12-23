@@ -142,7 +142,7 @@ class CarController(CarControllerBase):
 
     if self.sm.updated['modelV2']:
       self.model = self.sm["modelV2"]
-      print(f"{self.model}\n")
+      # print(f"{self.model}\n")
 
     # Trigger the update of the settings params defined in helpers.SETTINGS_PARAMS
     update_settings_params(self)
