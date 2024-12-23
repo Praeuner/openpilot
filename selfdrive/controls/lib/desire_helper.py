@@ -41,7 +41,7 @@ class DesireHelper:
     self.prev_one_blinker = False
     self.desire = log.Desire.none
     self.params = Params()
-    self.enable_nudgeless_lane_change = self.params.get("FordPrefAllowNudgelessLaneChange")
+    self.enable_nudgeless_lane_change = self.params.get_bool("FordPrefAllowNudgelessLaneChange")
 
   def update(self, carstate, lateral_active, lane_change_prob):
     v_ego = carstate.vEgo

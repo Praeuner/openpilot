@@ -29,7 +29,7 @@ _services: dict[str, tuple] = {
   "peripheralState": (True, 2., 1),
   "radarState": (True, 20., 5),
   "roadEncodeIdx": (False, 20., 1),
-  "liveTracks": (True, 20.),
+  "liveTracks": (True, 5.),
   "sendcan": (True, 100., 139),
   "logMessage": (True, 0.),
   "errorLogMessage": (True, 0., 1),
