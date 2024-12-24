@@ -79,10 +79,9 @@ class CarController(CarControllerBase):
     self.distance_bar_frame = 0
 
     # Variables used only if enable_custom_lat_logic is True
-    self.accel_pitch_compensated = 0.0
+    self.accel_pitch_compensated = 0.0 #not a lateral variable. probably from shea_d accelerate up hills long logic
     self.path_lookup_time = 0.5
     self.precision_type = 1
-    self.human_turn_frames = 0
     self.human_turn = False
     self.steer_warning = False
     self.steer_warning_count = 0
@@ -104,7 +103,7 @@ class CarController(CarControllerBase):
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples)
     self.path_angle_wheel_angle_conversion = 0.0017
     self.path_angle_speed_bp = [4.4, 40.23]
-    self.path_angle_low_speed_factor = 0.15
+    self.path_angle_low_speed_factor = 0.05
     self.path_angle_high_speed_factor = 3.0
 
     # Maximum values (only used if enable_custom_lat_logic)
@@ -177,12 +176,10 @@ class CarController(CarControllerBase):
       can_sends.append(fordcan.create_button_msg(self.packer, self.CAN.camera, CS.buttons_stock_values, tja_toggle=True))
 
     ### lateral control ###
-    # This block is modified to clearly separate the logic depending on self.enable_custom_lat_logic
     apply_curvature = 0.0
     desired_curvature_rate = 0.0
     path_offset = 0.0
     path_angle = 0.0
-    reset_steering = 0
     ramp_type = 0
     precision_type = 1
 
@@ -204,115 +201,99 @@ class CarController(CarControllerBase):
         requested_curvature = actuators.curvature
         apply_curvature = apply_ford_curvature_limits(requested_curvature, self.apply_curvature_last, current_curvature, CS.out.vEgoRaw)
 
-        if self.enable_custom_lat_logic:
-          # Enhanced logic
-          # detect if steering was limited and warn
-          if (requested_curvature != apply_curvature) and (not steeringPressed):
-            self.steering_limited = True
-          else:
-            self.steering_limited = False
-
-          if self.steering_limited and CS.out.vEgoRaw > 7:
-            self.steer_warning = True
-
-          if self.steer_warning and not self.steering_limited:
-            self.steer_warning_count += 1
-          if self.steer_warning_count > 10:
-            self.steer_warning = False
-            self.steer_warning_count = 0
-
-          # Curvature rate calculation
-          self.curvature_rate_deque.append(apply_curvature)
-          if len(self.curvature_rate_deque) > 1:
-            delta_t = (len(self.curvature_rate_deque)-1)*0.05
-            desired_curvature_rate = (self.curvature_rate_deque[-1] - self.curvature_rate_deque[0]) / max(delta_t * max(0.01, CS.out.vEgoRaw), 0.001)
-          else:
-            desired_curvature_rate = 0.0
-
-          # If model data is available, compute path_offset/path_angle
-          if self.model is not None and len(self.model.orientation.x) >= CONTROL_N:
-            path_offset_model = interp(self.offset_lookup_time, T_IDXS, self.model.position.y)
-            path_offset_lanelines = (self.model.laneLines[1].y[0] + self.model.laneLines[2].y[0]) / 2
-            laneline_width = self.model.laneLines[2].y[0] + (-self.model.laneLines[1].y[0])
-            laneline_width_tolerance = interp(laneline_width, [3.75,4.25], [0.81,0.59])
-            laneline_confidence = min(self.model.laneLineProbs[1], self.model.laneLineProbs[2], laneline_width_tolerance)
-            laneline_path_offset_scale = interp(laneline_confidence, self.min_laneline_confidence_bp, [0.0, 1.0])
-
-            lane_change_active = (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2)
-
-            if lane_change_active:
-              # If lane changing, reduce complexity of offset
-              path_offset_total = 0.0
-              if apply_curvature > 0 and self.custom_path_offset > 0:
-                path_offset_total = self.custom_path_offset
-              if apply_curvature < 0 and self.custom_path_offset < 0:
-                path_offset_total = self.custom_path_offset
-            else:
-              path_offset_total = (path_offset_model * (1 - laneline_path_offset_scale) + (path_offset_lanelines * laneline_path_offset_scale)) + self.custom_path_offset
-
-            # path_angle calculation
-            steeringAngleDeg_PV = CS.out.steeringAngleDeg
-            steeringAngleDeg_SP = actuators.steeringAngleDeg
-            path_angle_speed_v = [self.path_angle_low_speed_factor, self.path_angle_high_speed_factor]
-            path_angle_speed_factor = interp(abs(CS.out.vEgoRaw), self.path_angle_speed_bp, path_angle_speed_v)
-
-            steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
-            steerAnglePathOffset = steering_wheel_delta * self.path_angle_wheel_angle_conversion * path_angle_speed_factor
-            self.path_angle_deque.append(steerAnglePathOffset)
-            path_angle_model = sum(self.path_angle_deque)/len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
-
-            if lane_change_active:
-              path_angle_model = 0.0
-
-            # Rate limit path_angle
-            path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
-            path_angle_model = clip(path_angle_model, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
-
-            # Clip all values
-            apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
-            desired_curvature_rate = clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
-            path_offset_total = clip(path_offset_total, -self.path_offset_max, self.path_offset_max)
-            path_angle_model = clip(path_angle_model, -self.path_angle_max, self.path_angle_max)
-
-            path_offset = path_offset_total
-            path_angle = path_angle_model
-          else:
-            path_offset = 0.0
-            path_angle = 0.0
-            desired_curvature_rate = 0.0
-
-          # Reset steering if human turn detected
-          if self.human_turn:
-            apply_curvature = 0
-            path_offset = 0.0
-            path_angle = 0.0
-            desired_curvature_rate = 0.0
-            ramp_type = 3
-            self.path_angle_deque.clear()
-          else:
-            ramp_type = 2
-
-          # If path angle not enabled, zero them out
-          if not self.enable_path_angle:
-            path_angle = 0.0
-            path_offset = 0.0
-            desired_curvature_rate = 0.0
-
-          self.path_offset_last = path_offset
-          self.path_angle_last = path_angle
-          self.curvature_rate_last = desired_curvature_rate
-
+        # detect if steering was limited and warn (this will usually only happen in public releases)
+        if (requested_curvature != apply_curvature) and (not steeringPressed):
+          self.steering_limited = True
         else:
-          # Stock/fallback logic
-          # No advanced calculations, just basic curvature
+          self.steering_limited = False
+
+        if self.steering_limited and CS.out.vEgoRaw > 7:
+          self.steer_warning = True
+
+        if self.steer_warning and not self.steering_limited:
+          self.steer_warning_count += 1
+        if self.steer_warning_count > 10:
+          self.steer_warning = False
+          self.steer_warning_count = 0
+
+
+        #############################################################
+        # This logic is for OEM style control 
+        ############################################################
+        
+        # Curvature rate calculation
+        self.curvature_rate_deque.append(apply_curvature)
+        if len(self.curvature_rate_deque) > 1:
+          delta_t = (len(self.curvature_rate_deque)-1)*0.05
+          desired_curvature_rate = (self.curvature_rate_deque[-1] - self.curvature_rate_deque[0]) / max(delta_t * max(0.01, CS.out.vEgoRaw), 0.001)
+        else:
+          desired_curvature_rate = 0.0
+
+        # If model data is available, compute path_offset
+        if self.model is not None and len(self.model.orientation.x) >= CONTROL_N:
+          path_offset_model = interp(self.offset_lookup_time, T_IDXS, self.model.position.y)
+          path_offset_lanelines = (self.model.laneLines[1].y[0] + self.model.laneLines[2].y[0]) / 2
+          laneline_width = self.model.laneLines[2].y[0] + (-self.model.laneLines[1].y[0])
+          laneline_width_tolerance = interp(laneline_width, [3.75,4.25], [0.81,0.59])
+          laneline_confidence = min(self.model.laneLineProbs[1], self.model.laneLineProbs[2], laneline_width_tolerance)
+          laneline_path_offset_scale = interp(laneline_confidence, self.min_laneline_confidence_bp, [0.0, 1.0])
+
+          path_offset_total = (path_offset_model * (1 - laneline_path_offset_scale) + (path_offset_lanelines * laneline_path_offset_scale)) + self.custom_path_offset
+          
+          lane_change_active = (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2)
+
+        if lane_change_active:
+          path_offset_total = 0.0
+
+          # path_angle calculation
+          steeringAngleDeg_PV = CS.out.steeringAngleDeg
+          steeringAngleDeg_SP = actuators.steeringAngleDeg
+          path_angle_speed_v = [self.path_angle_low_speed_factor, self.path_angle_high_speed_factor]
+          path_angle_speed_factor = interp(abs(CS.out.vEgoRaw), self.path_angle_speed_bp, path_angle_speed_v)
+
+          steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
+          steerAnglePathOffset = steering_wheel_delta * self.path_angle_wheel_angle_conversion * path_angle_speed_factor
+          self.path_angle_deque.append(steerAnglePathOffset)
+          path_angle_model = sum(self.path_angle_deque)/len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
+
+          if lane_change_active:
+            path_angle_model = 0.0
+
+          # Rate limit path_angle
+          path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
+          path_angle_model = clip(path_angle_model, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+
+          # Clip all values
+          apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
+          desired_curvature_rate = clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
+          path_offset_total = clip(path_offset_total, -self.path_offset_max, self.path_offset_max)
+          path_angle_model = clip(path_angle_model, -self.path_angle_max, self.path_angle_max)
+
+          path_offset = path_offset_total
+          path_angle = path_angle_model
+        
+        # If not using adv_lateral_control then zero the 3 extra variables
+        if self.enable_custom_lat_logic == False:
           path_offset = 0.0
           path_angle = 0.0
           desired_curvature_rate = 0.0
-          # fallback ramp_type can remain 0 or a simple value
-          ramp_type = 0
-          precision_type = 1
 
-        # If not latActive, no control
+        # Reset steering if human turn detected
+        if self.human_turn:
+          apply_curvature = 0
+          path_offset = 0.0
+          path_angle = 0.0
+          desired_curvature_rate = 0.0
+          ramp_type = 3
+          self.path_angle_deque.clear()
+        else:
+          ramp_type = 2
+
+        self.path_offset_last = path_offset
+        self.path_angle_last = path_angle
+        self.curvature_rate_last = desired_curvature_rate
+
+      # If not latActive, no control
       else:
         apply_curvature = 0.
         path_offset = 0.0
@@ -322,7 +303,7 @@ class CarController(CarControllerBase):
         precision_type = 1
 
       self.apply_curvature_last = apply_curvature
-      lat_active = CC.latActive and not self.human_turn
+      lat_active = CC.latActive
 
       if self.CP.flags & FordFlags.CANFD:
         # TODO: extended mode
