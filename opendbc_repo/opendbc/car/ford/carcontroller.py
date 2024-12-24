@@ -278,6 +278,10 @@ class CarController(CarControllerBase):
           path_angle = 0.0
           desired_curvature_rate = 0.0
 
+        #############################################################
+        # This ends OEM style control 
+        ############################################################
+        
         # Reset steering if human turn detected
         if self.human_turn:
           apply_curvature = 0
