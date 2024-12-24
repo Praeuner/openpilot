@@ -20,6 +20,7 @@ SETTINGS_PARAMS = [
   ["FordLongTuningBrakeActuatorReleaseDelta", "brake_actuator_release_delta", None, float],
   ["FordLongTuningPrechargeActuatorTargetDelta", "precharge_actuator_target_delta", None, float],
   ["FordPrefEnableCustomLatLogic", "enable_custom_lat_logic", False, bool],
+  ["FordPrefHideSteerSaturatedAlerts", "hide_steer_saturated_alerts", False, bool],
   # ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
   # ["FordLimitsCurvatureError", "curvature_error", CarControllerParams.CURVATURE_ERROR, float],
 ]

@@ -156,6 +156,17 @@
         },
         {
           "type": "toggle",
+          "param": "FordPrefHideSteerSaturatedAlerts",
+          "title": "Hide Steer Saturated Alerts",
+          "desc": "Hide steer saturated alerts",
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["any"],
+            "git_branch": []
+          }
+        },
+        {
+          "type": "toggle",
           "param": "FordPrefEnableCustomLatLogic",
           "title": "Enable Custom Lateral Logic",
           "desc": "Enable custom lateral logic",

@@ -51,6 +51,7 @@ def manager_init() -> None:
 
   ford_default_params: list[tuple[str, str | bytes]] = [
     ("FordPrefQuietDrive", "0"),
+    ("FordPrefHideSteerSaturatedAlerts", "0"),
   ]
 
   if params.get_bool("RecordFrontLock"):

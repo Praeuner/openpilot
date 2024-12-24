@@ -242,10 +242,12 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"FordLatTuningCustomPathOffset_default", PERSISTENT},
     {"FordLatTuningLaneChgModifier", PERSISTENT},
     {"FordLatTuningLaneChgModifier_default", PERSISTENT},
-	{"FordLatTuningPathAngleLowSpeedFactor", PERSISTENT},
+    {"FordLatTuningPathAngleLowSpeedFactor", PERSISTENT},
     {"FordLatTuningPathAngleLowSpeedFactor_default", PERSISTENT},
     {"FordLatTuningPathAngleHighSpeedFactor", PERSISTENT},
     {"FordLatTuningPathAngleHighSpeedFactor_default", PERSISTENT},
+    {"FordPrefHideSteerSaturatedAlerts", PERSISTENT},
+    {"FordPrefHideSteerSaturatedAlerts_default", PERSISTENT},
 
 
     // FORG LONG SETTING PARAMS

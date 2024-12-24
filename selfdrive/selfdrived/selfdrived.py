@@ -68,6 +68,8 @@ class SelfdriveD:
     self.sensor_packets = ["accelerometer", "gyroscope"]
     self.camera_packets = ["roadCameraState", "driverCameraState", "wideRoadCameraState"]
 
+    self.hide_steer_saturated_alerts = self.params.get_bool("FordPrefHideSteerSaturatedAlerts")
+
     # TODO: de-couple selfdrived with card/conflate on carState without introducing controls mismatches
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
 
@@ -339,7 +341,7 @@ class SelfdriveD:
       undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2
       turning = abs(desired_lateral_accel) > 1.0
       good_speed = CS.vEgo > 5
-      if undershooting and turning and good_speed and lac.saturated:
+      if undershooting and turning and good_speed and lac.saturated and not self.hide_steer_saturated_alerts:
         self.events.add(EventName.steerSaturated)
 
     # Check for FCW
