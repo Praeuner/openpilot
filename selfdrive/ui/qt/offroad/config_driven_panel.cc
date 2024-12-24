@@ -745,6 +745,13 @@ bool ConfigDrivenPanel::showResetConfirmation(const QString& tuningType) {
 }
 
 bool ConfigDrivenPanel::validateControlBasics(const QJsonObject& control) {
+    if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool()) {
+        if (!isCommaDevice()) {
+            std::cout << "Control is only available on Comma devices" << std::endl;
+            return false;
+        }
+    }
+
     // Check if required basic fields are present
     if (!control.contains("type") || !control.contains("title")) {
         std::cerr << "Control missing required type or title field" << std::endl;

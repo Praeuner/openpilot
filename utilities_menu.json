@@ -39,6 +39,7 @@
           "button_text": "Install",
           "confirm": false,
           "hidden": false,
+          "OnlyOnCommaDevice": true,
           "conditions": {
             "git_remote": ["ford-op/sp-dev-c3"],
             "git_branch": []

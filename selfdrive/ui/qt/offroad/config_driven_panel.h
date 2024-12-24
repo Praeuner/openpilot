@@ -209,6 +209,14 @@ private:
         )";
     }
 
+    bool isCommaDevice() const {
+        #ifdef QCOM2
+            return true;
+        #else
+            return false;
+        #endif
+    }
+
     bool validateSingleCondition(const QString& key, const QJsonValue& value);
     bool validateConditionObject(const QJsonObject& conditionObj);
     bool validateCompositeConditions(const QJsonObject& conditions);
