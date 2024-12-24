@@ -164,6 +164,7 @@ protected:
 
 private:
     Params params;
+    bool commandInProgress = false;
     QTimer* autoUpdateCheckTimer = nullptr;
     QTimer* activityTimer = nullptr;
     QLabel* updateChkBtnLabelTxt = nullptr;

@@ -419,6 +419,18 @@ GitManagerPanel::GitManagerPanel(QWidget* parent) : QWidget(parent), branchSelec
 }
 
 void GitManagerPanel::simulateActivity() {
+    // Only run if this widget is visible
+    if (!this->isVisible()) {
+        return;
+    }
+
+    if (commandInProgress) {
+      std::cout << "Simulating activity: command in progress" << std::endl;
+        resetMaxDurationTimer();
+    } else {
+      std::cout << "Simulating activity in GitManagerPanel" << std::endl;
+    }
+
     // Create a mouse move event at the current cursor position
     QPoint globalPos = QCursor::pos();
     QPoint localPos = this->mapFromGlobal(globalPos);
@@ -429,7 +441,6 @@ void GitManagerPanel::simulateActivity() {
 
     QMouseEvent mouseEvent(QEvent::MouseMove, localPos, globalPos, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
 
-    std::cout << "Simulating activity in GitManagerPanel" << std::endl;
     // Send the event to this widget
     QCoreApplication::sendEvent(this, &mouseEvent);
 }
@@ -527,7 +538,7 @@ void GitManagerPanel::setupMainRepoSection() {
     updateChkBtnLabelTxt->setAlignment(Qt::AlignCenter);
     updateChkBtnLabelTxt->setStyleSheet("color: white; font-size: 35px; background: transparent;");
 
-    updateChkBtnTimeTxt = new QLabel("", checkUpdatesButton);
+    updateChkBtnTimeTxt = new QLabel("Checking...", checkUpdatesButton);
     updateChkBtnTimeTxt->setAlignment(Qt::AlignCenter);
     updateChkBtnTimeTxt->setStyleSheet("color: white; opacity: 0.8; font-size: 25px; background: transparent;");
     updateChkBtnTimeTxt->setFixedHeight(updateChkBtnTimeTxt->sizeHint().height());
@@ -1408,6 +1419,9 @@ void GitManagerPanel::showCommandOutputDialog(const QString& title, const QStrin
         currentDialog = nullptr;
     }
 
+    // Set commandInProgress to true to make sure the UI stays awake while the command is running
+    commandInProgress = true;
+
     // Create and set up process
     QProcess* process = new QProcess(this);
     if (!workingDir.isEmpty()) {
@@ -1590,6 +1604,7 @@ void GitManagerPanel::showCommandOutputDialog(const QString& title, const QStrin
             outputText->append("\n<span style='color: #ff7c30;'>Process timed out after " +
                             QString::number(timeoutMs/1000) + " seconds</span>");
             process->kill();
+            commandInProgress = false;
             if (killButton) killButton->hide();
             if (retryButton) {
                 retryButton->setVisible(true);
@@ -1643,6 +1658,7 @@ void GitManagerPanel::showCommandOutputDialog(const QString& title, const QStrin
             [=](int exitCode, QProcess::ExitStatus exitStatus) {
         timeoutTimer->stop();
         closeButton->setEnabled(true);
+        commandInProgress = false;
         if (killButton) killButton->hide();
 
         if (exitStatus == QProcess::CrashExit) {
