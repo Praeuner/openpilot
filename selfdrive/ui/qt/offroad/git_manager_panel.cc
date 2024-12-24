@@ -535,14 +535,19 @@ void GitManagerPanel::setupMainRepoSection() {
     updateBtnLayout->setContentsMargins(0, 0, 0, 0);
 
     updateChkBtnLabelTxt = new QLabel(tr("Check Updates"), checkUpdatesButton);
+    updateChkBtnLabelTxt->setObjectName("updateChkBtnLabelTxt");
     updateChkBtnLabelTxt->setAlignment(Qt::AlignCenter);
-    updateChkBtnLabelTxt->setStyleSheet("color: white; font-size: 35px; background: transparent;");
+    updateChkBtnLabelTxt->setStyleSheet("font-size: 35px; background: transparent;");
+    updateChkBtnLabelTxt->setAttribute(Qt::WA_TranslucentBackground);
 
     updateChkBtnTimeTxt = new QLabel("Checking...", checkUpdatesButton);
+    updateChkBtnTimeTxt->setObjectName("updateChkBtnTimeTxt");
     updateChkBtnTimeTxt->setAlignment(Qt::AlignCenter);
-    updateChkBtnTimeTxt->setStyleSheet("color: white; opacity: 0.8; font-size: 25px; background: transparent;");
+    updateChkBtnTimeTxt->setStyleSheet("font-size: 25px; background: transparent; opacity: 0.8;");
+    updateChkBtnTimeTxt->setAttribute(Qt::WA_TranslucentBackground);
     updateChkBtnTimeTxt->setFixedHeight(updateChkBtnTimeTxt->sizeHint().height());
     updateChkBtnTimeTxt->setMinimumHeight(0);
+
 
     // Add stretches for vertical centering
     updateBtnLayout->addStretch();
@@ -551,8 +556,8 @@ void GitManagerPanel::setupMainRepoSection() {
     updateBtnLayout->addStretch();
 
     checkUpdatesButton->setStyleSheet(QString(baseButtonStyle) +
-        "QPushButton { background-color: #465BEA; }"
-        "QPushButton:pressed { background-color: #3049F4; }"
+        "QPushButton { background-color: #465BEA; color: white; }"
+        "QPushButton:pressed { background-color: #3049F4; color: white; }"
         "QPushButton:disabled { background-color: #4F4F4F; color: #888888; }");
 
     updateRepoButton = new QPushButton(tr("Update"));
@@ -1036,6 +1041,8 @@ void GitManagerPanel::checkForUpdates() {
     std::system("killall system.updated.updated");
 
     checkUpdatesButton->setEnabled(false);
+    updateChkBtnLabelTxt->setStyleSheet("color: #888888; font-size: 35px; background: transparent;");
+    updateChkBtnTimeTxt->setStyleSheet("color: #888888; font-size: 25px; background: transparent; opacity: 0.8;");
     updateChkBtnLabelTxt->setText(tr("Checking..."));
     updateChkBtnTimeTxt->setText("");
 
@@ -1054,6 +1061,8 @@ void GitManagerPanel::checkForUpdates() {
         if (!fetchResult.success) {
             QMetaObject::invokeMethod(this, [=]() {
                 checkUpdatesButton->setText(tr("Check Updates"));
+                updateChkBtnLabelTxt->setStyleSheet("color: white; font-size: 35px; background: transparent;");
+                updateChkBtnTimeTxt->setStyleSheet("color: white; font-size: 25px; background: transparent; opacity: 0.8;");
                 checkUpdatesButton->setEnabled(true);
 
                 // Create custom error dialog
@@ -2279,6 +2288,14 @@ void GitManagerPanel::updateButtonStates() {
 
     checkUpdatesButton->setEnabled(internetAvailable && sshValid);
     updateRepoButton->setEnabled(internetAvailable && sshValid);
+    if (internetAvailable && sshValid) {
+        updateChkBtnLabelTxt->setStyleSheet("color: white; font-size: 35px; background: transparent;");
+        updateChkBtnTimeTxt->setStyleSheet("color: white; font-size: 25px; background: transparent; opacity: 0.8;");
+    } else {
+        updateChkBtnLabelTxt->setStyleSheet("color: #888888; font-size: 35px; background: transparent;");
+        updateChkBtnTimeTxt->setStyleSheet("color: #888888; font-size: 25px; background: transparent; opacity: 0.8;");
+    }
+
     updateAllButton->setEnabled(internetAvailable && sshValid);
     repairRepoButton->setEnabled(internetAvailable && sshValid);
 
