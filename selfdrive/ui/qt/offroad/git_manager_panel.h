@@ -278,9 +278,35 @@ private:
     mutable QDateTime lastInternetCheckTime;
     mutable bool lastInternetCheckResult = false;
     static constexpr int INTERNET_CHECK_INTERVAL_SECS = 30;
-    QLabel* noInternetLabel;
+    QLabel* updaterPanelStatusLabel;
+
+    enum class UpdaterStatus {
+        OK,
+        NO_INTERNET,
+        SSH_MISSING,
+        SSH_AUTH_FAILED
+    };
+
+    // Define message mapping using tuples
+    const std::vector<std::tuple<UpdaterStatus, QString>> STATUS_MESSAGES = {
+        {UpdaterStatus::OK, ""},
+        {UpdaterStatus::NO_INTERNET, tr("No Internet Available")},
+        {UpdaterStatus::SSH_MISSING, tr("SSH Config Missing")},
+        {UpdaterStatus::SSH_AUTH_FAILED, tr("SSH Authentication Failed")}
+    };
+
+    // Method declaration
+    void updateStatusLabel(UpdaterStatus status) const;
     void updateButtonStates();
     bool isInternetAvailable() const;
+
+    mutable QDateTime lastSSHCheckTime;
+    mutable bool lastSSHCheckResult = false;
+    static constexpr int SSH_CHECK_INTERVAL_SECS = 30;
+    bool isSSHValid() const;
+    bool checkAndRestoreSSH();
+    bool restoreSSHFromUtility();
+
 };
 
 

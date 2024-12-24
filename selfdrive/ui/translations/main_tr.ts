@@ -439,10 +439,6 @@ Please ensure /data/openpilot is a valid git repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No Internet Connection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Check Updates</source>
         <translation type="unfinished"></translation>
     </message>
@@ -658,6 +654,26 @@ This will completely remove and re-download the repository.</source>
     </message>
     <message>
         <source>Reset Changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSH configuration is missing or invalid. Would you like to restore from backup?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSH Authentication Failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Internet Available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSH Config Missing</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

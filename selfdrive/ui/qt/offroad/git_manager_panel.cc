@@ -473,11 +473,12 @@ void GitManagerPanel::setupMainRepoSection() {
     QVBoxLayout* infoLayout = new QVBoxLayout(infoWidget);
     infoLayout->setSpacing(10);
 
-    noInternetLabel = new QLabel(tr("No Internet Connection"), this);
-    noInternetLabel->setStyleSheet("font-size: 35px; color: #ff7c30;");
-    noInternetLabel->setVisible(false);
-    noInternetLabel->setAlignment(Qt::AlignRight);
-    infoLayout->addWidget(noInternetLabel);
+    updaterPanelStatusLabel = new QLabel(this);
+    updaterPanelStatusLabel->setStyleSheet("font-size: 35px; color: red;");
+    updaterPanelStatusLabel->setVisible(false);
+    updaterPanelStatusLabel->setAlignment(Qt::AlignRight);
+    infoLayout->addWidget(updaterPanelStatusLabel);
+    updateStatusLabel(UpdaterStatus::OK);
 
     mainRepoStatus = new GitStatusWidget(infoWidget);
     infoLayout->addWidget(mainRepoStatus);
@@ -2114,18 +2115,129 @@ bool GitManagerPanel::isInternetAvailable() const {
     return lastInternetCheckResult;
 }
 
-void GitManagerPanel::updateButtonStates() {
-    bool internetAvailable = isInternetAvailable();
-    std::cout << "Internet available: " << internetAvailable << std::endl;
-    checkUpdatesButton->setEnabled(internetAvailable);
-    updateRepoButton->setEnabled(internetAvailable);
-    updateAllButton->setEnabled(internetAvailable);
-    repairRepoButton->setEnabled(internetAvailable);
-
-    for (auto* widget : submoduleWidgets) {
-        widget->updateModuleButton->setEnabled(internetAvailable);
-        widget->repairModuleButton->setEnabled(internetAvailable);
+bool GitManagerPanel::isSSHValid() const {
+    // If we have a recent check, reuse that result
+    if (lastSSHCheckTime.isValid()) {
+        int secsSinceLastCheck = lastSSHCheckTime.secsTo(QDateTime::currentDateTime());
+        if (secsSinceLastCheck < SSH_CHECK_INTERVAL_SECS) {
+            return lastSSHCheckResult;
+        }
     }
 
-    noInternetLabel->setVisible(!internetAvailable);
+    // First check if SSH key exists
+    if (!QFile::exists("/home/comma/.ssh/github")) {
+        lastSSHCheckResult = false;
+        lastSSHCheckTime = QDateTime::currentDateTime();
+        updateStatusLabel(UpdaterStatus::SSH_MISSING);
+        return false;
+    }
+
+    // Test SSH connection to GitHub
+    QProcess process;
+    process.start("ssh", QStringList() << "-T" << "-o" << "BatchMode=yes" << "-o" << "ConnectTimeout=5" << "git@github.com");
+
+    if (!process.waitForStarted(5000)) {
+        lastSSHCheckResult = false;
+        lastSSHCheckTime = QDateTime::currentDateTime();
+        updateStatusLabel(UpdaterStatus::SSH_AUTH_FAILED);
+        return false;
+    }
+
+    process.waitForFinished(5000);
+    QString output = QString::fromUtf8(process.readAllStandardError());
+
+    // Check if authentication was successful
+    lastSSHCheckResult = output.contains("successfully authenticated");
+    lastSSHCheckTime = QDateTime::currentDateTime();
+
+    if (!lastSSHCheckResult) {
+        updateStatusLabel(UpdaterStatus::SSH_AUTH_FAILED);
+    }
+
+    return lastSSHCheckResult;
+}
+
+bool GitManagerPanel::checkAndRestoreSSH() {
+    // Check if SSH exists and is valid
+    if (!QFile::exists("/home/comma/.ssh/github") || !isSSHValid()) {
+        // Check for backup
+        if (QFile::exists("/data/ssh_backup/github")) {
+            if (ConfirmationDialog::confirm(
+                tr("SSH configuration is missing or invalid. Would you like to restore from backup?"),
+                tr("Restore"),
+                this)) {
+                return restoreSSHFromUtility();
+            }
+        }
+        return false;
+    }
+    return true;
+}
+
+bool GitManagerPanel::restoreSSHFromUtility() {
+    // Download CommaUtility script if not present
+    QString utilityPath = "/data/CommaUtility.sh";
+    if (!QFile::exists(utilityPath)) {
+        QProcess wget;
+        wget.start("wget", QStringList()
+            << "-O" << utilityPath
+            << "https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh");
+        if (!wget.waitForFinished(30000)) {
+            return false;
+        }
+        QProcess::execute("chmod", QStringList() << "+x" << utilityPath);
+    }
+
+    // Execute restore command
+    QProcess restore;
+    restore.start(utilityPath, QStringList() << "--restore-ssh");
+    restore.waitForFinished();
+
+    // Verify restoration was successful
+    return isSSHValid();
+}
+
+void GitManagerPanel::updateStatusLabel(UpdaterStatus status) const {
+    auto it = std::find_if(STATUS_MESSAGES.begin(), STATUS_MESSAGES.end(),
+        [status](const auto& tuple) { return std::get<0>(tuple) == status; });
+
+    if (it != STATUS_MESSAGES.end()) {
+        QString statusText = std::get<1>(*it);
+        updaterPanelStatusLabel->setText(statusText);
+        updaterPanelStatusLabel->setVisible(status != UpdaterStatus::OK);
+    }
+}
+
+void GitManagerPanel::updateButtonStates() {
+    bool internetAvailable = isInternetAvailable();
+    bool sshValid = isSSHValid();
+
+    std::cout << "Internet available: " << internetAvailable << std::endl;
+    std::cout << "SSH valid: " << sshValid << std::endl;
+
+    // Update status label based on conditions
+    if (!internetAvailable) {
+        updateStatusLabel(UpdaterStatus::NO_INTERNET);
+    } else if (sshValid) {
+        updateStatusLabel(UpdaterStatus::OK);
+    }
+    // Note: SSH-related statuses are handled in isSSHValid()
+
+    // If SSH is invalid, try to restore it
+    if (!sshValid && internetAvailable) {
+        #ifdef QCOM2
+        checkAndRestoreSSH();
+        #endif
+        sshValid = isSSHValid();
+    }
+
+    checkUpdatesButton->setEnabled(internetAvailable && sshValid);
+    updateRepoButton->setEnabled(internetAvailable && sshValid);
+    updateAllButton->setEnabled(internetAvailable && sshValid);
+    repairRepoButton->setEnabled(internetAvailable && sshValid);
+
+    for (auto* widget : submoduleWidgets) {
+        widget->updateModuleButton->setEnabled(internetAvailable && sshValid);
+        widget->repairModuleButton->setEnabled(internetAvailable && sshValid);
+    }
 }

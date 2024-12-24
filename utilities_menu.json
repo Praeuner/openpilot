@@ -28,9 +28,19 @@
         },
         {
           "type": "command_button",
-          "command": "cat /data/community/crashes/error.txt",
+          "command": "cd /data && wget https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh && chmod +x CommaUtility.sh",
+          "working_dir": "/data",
+          "title": "Install Comma Utility",
+          "desc": "Install Comma Utility",
+          "button_text": "Install",
+          "confirm": false,
+          "hidden": false
+        },
+        {
+          "type": "command_button",
+          "command": "ifconfig",
           "working_dir": "/data/openpilot",
-          "title": "View Error Log",
+          "title": "Get Network Info",
           "desc": "View the crashes file",
           "button_text": "View Error",
           "confirm": false,
