@@ -1945,10 +1945,6 @@ void GitManagerPanel::showCommitHistory(QWidget* parent, const QString& title, c
     table->setColumnWidth(0, 260);
     table->setColumnWidth(2, 350);
 
-    // for (int row = 0; row < table->rowCount(); ++row) {
-    //     table->resizeRowToContents(row);
-    // }
-
     scrollLayout->addWidget(table);
     scrollContent->setLayout(scrollLayout);
     scrollArea->setWidget(scrollContent);
@@ -1991,6 +1987,10 @@ void GitManagerPanel::handleRepoUpdate() {
             this)) {
         return;
       }
+    } else {
+      if (!ConfirmationDialog::confirm(tr("Are you sure you want to update this repository?"), tr("Yes"), this)) {
+        return;
+      }
     }
 
     // Kill system.updated.updated
@@ -2006,6 +2006,23 @@ void GitManagerPanel::handleRepoUpdate() {
 }
 
 void GitManagerPanel::handleRepoUpdateAll() {
+    // If there are uncommitted local changes, confirm before proceeding
+    if (hasUncommittedChanges()) {
+      if (!ConfirmationDialog::confirm(
+            tr("You have local changes that will be overwritten by this update. Continue?"),
+            tr("Yes"),
+            this)) {
+        return;
+      }
+    } else {
+      if (!ConfirmationDialog::confirm(
+        tr("Are you sure you want to update all submodules?"),
+        tr("Yes"),
+        this)) {
+        return;
+      }
+    }
+
     // Kill system.updated.updated
     std::system("killall system.updated.updated");
 

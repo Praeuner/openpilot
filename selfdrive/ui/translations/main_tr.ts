@@ -676,6 +676,22 @@ This will completely remove and re-download the repository.</source>
         <source>SSH Config Missing</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>(Updates Available - Local Modified)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You have local changes that will be overwritten by this update. Continue?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to update this repository?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to update all submodules?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>GitStatusWidget</name>
