@@ -24,17 +24,25 @@
           "confirm_text": "Are you sure you want to run this command?",
           "confirm_button_text": "Run",
           "cancel_button_text": "Cancel",
-          "hidden": false
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
         },
         {
           "type": "command_button",
-          "command": "cd /data && wget https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh && chmod +x CommaUtility.sh",
+          "command": "wget https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh && chmod +x /data/CommaUtility.sh",
           "working_dir": "/data",
           "title": "Install Comma Utility",
           "desc": "Install Comma Utility",
           "button_text": "Install",
           "confirm": false,
-          "hidden": false
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
         },
         {
           "type": "command_button",
@@ -44,7 +52,11 @@
           "desc": "View the crashes file",
           "button_text": "View Error",
           "confirm": false,
-          "hidden": false
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
         },
         {
           "type": "command_button",
@@ -54,7 +66,11 @@
           "desc": "Get network info using ifconfig",
           "button_text": "Get Info",
           "confirm": false,
-          "hidden": false
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
         },
         {
           "type": "command_button",
@@ -64,7 +80,11 @@
           "desc": "View the launch log",
           "button_text": "View Log",
           "confirm": false,
-          "hidden": false
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
         }
       ]
     }

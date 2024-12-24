@@ -180,6 +180,14 @@
         <source>Close (Completed Successfully)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>EXECUTE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to execute this command?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ConfigDrivenParamManageControl</name>

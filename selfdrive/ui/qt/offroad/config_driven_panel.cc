@@ -201,6 +201,7 @@ void ConfigDrivenPanel::updateGroupVisibility() {
 
 QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     if (!validateControlBasics(control)) {
+        std::cout << "Control failed basic validation" << std::endl;
         return nullptr;
     }
 
@@ -359,6 +360,53 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         });
 
         widget = dataBtn;
+    }
+    else if (type == "command_button") {
+        QString command = control["command"].toString();
+        QString workingDir = control["working_dir"].toString();
+        QString buttonText = control["button_text"].toString();
+        QString confirmText = control["confirm_text"].toString();
+        QString confirmYesText = control["confirm_yes_text"].toString();
+        QString confirmNoText = control["confirm_no_text"].toString();
+        bool requireConfirm = control["confirm"].toBool();
+
+        QJsonArray actionButtons;
+        if (control.contains("actionButtons")) {
+            actionButtons = control["actionButtons"].toArray();
+        }
+
+        if (buttonText.isEmpty()) {
+            buttonText = tr("EXECUTE");
+        }
+        if (requireConfirm) {
+            if (confirmText.isEmpty()) {
+                confirmText = tr("Are you sure you want to execute this command?");
+            }
+            if (confirmYesText.isEmpty()) {
+                confirmYesText = tr("Yes");
+            }
+            if (confirmNoText.isEmpty()) {
+                confirmNoText = tr("No");
+            }
+        }
+
+        auto cmdBtn = new ButtonControl(title, buttonText, desc);
+        cmdBtn->setVisible(!hidden);
+
+        QObject::connect(cmdBtn, &ButtonControl::clicked, [this, command, title, workingDir, confirmText, confirmYesText, confirmNoText, requireConfirm, actionButtons]() {
+            if (requireConfirm) {
+                auto confirm = new ConfirmationDialog(confirmText, confirmYesText, confirmNoText, false, this);
+                bool confirmed = confirm->exec();
+                delete confirm;
+                if (!confirmed) {
+                    return;
+                }
+            }
+
+            executeCommand(command, title, workingDir, actionButtons);
+        });
+
+        widget = cmdBtn;
     }
 
     // If widget was created successfully, cache its conditions
@@ -978,7 +1026,7 @@ void ConfigDrivenPanel::showFullScreenDialog(const QString& title, const QString
     // Apply fullscreen settings
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
-        dialog->setFixedSize(screen->geometry().size());
+        dialog->setFixedSize(2160, 1080);
     }
 
     // Show dialog and apply rotation
@@ -1252,7 +1300,7 @@ void ConfigDrivenPanel::executeCommand(const QString& command, const QString& ti
     // Set dialog size and show
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
-        dialog->setFixedSize(screen->geometry().size());
+        dialog->setFixedSize(2160, 1080);
     }
     dialog->show();
     setupFullscreenDialog(dialog);
