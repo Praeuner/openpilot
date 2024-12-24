@@ -137,14 +137,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>EXECUTE</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to execute this command?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Yes</source>
         <translation type="unfinished"></translation>
     </message>

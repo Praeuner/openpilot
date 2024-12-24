@@ -148,10 +148,13 @@ private:
     QPushButton* createResetButton();
 
     bool validateControlBasics(const QJsonObject& control);
-    QWidget* createControlImplementation(const QJsonObject& control);
-    void setupControlConnections(QWidget* widget);
-    bool validateBasicConditions(const QJsonObject& conditions);
-    bool validateParameterConditions(const QJsonObject& conditions);
+    QJsonObject configJson; // Cache of the full configuration
+
+    struct ControlConditions {
+        QJsonObject conditions;
+        bool hasConditions;
+    };
+    std::map<QWidget*, ControlConditions> controlConditions;
 
     bool showResetConfirmation(const QString& tuningType);
     void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());

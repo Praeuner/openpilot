@@ -215,51 +215,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     QString title = control["title"].toString();
     QString desc = control["desc"].toString();
 
-    // Check conditions if they exist
-    if (control.contains("conditions")) {
-        QJsonObject conditions = control["conditions"].toObject();
-
-        // Handle both legacy and composite conditions
-        bool conditionsValid = true;
-
-        // Legacy git conditions - maintain backward compatibility
-        if (conditions.contains("git_remote") || conditions.contains("git_branch")) {
-            QJsonObject legacyGitCondition;
-            if (conditions.contains("git_remote")) {
-                legacyGitCondition["git_remote"] = conditions["git_remote"];
-            }
-            if (conditions.contains("git_branch")) {
-                legacyGitCondition["git_branch"] = conditions["git_branch"];
-            }
-            conditionsValid = validateConditionObject(legacyGitCondition);
-        }
-
-        // Composite conditions
-        if (conditionsValid && (conditions.contains("anyConditionsTrue") || conditions.contains("allConditionsTrue"))) {
-            conditionsValid = validateCompositeConditions(conditions);
-        }
-
-        // Parameter value conditions
-        if (conditionsValid && conditions.contains("paramValueEquals")) {
-            QJsonObject equals = conditions["paramValueEquals"].toObject();
-            for (auto it = equals.begin(); it != equals.end(); ++it) {
-                std::string paramKey = it.key().toStdString();
-                std::string paramVal = params.get(paramKey);
-                std::cout << "Checking param " << paramKey
-                        << " value: '" << paramVal << "'"
-                        << " against: '" << it.value().toString().toStdString() << "'" << std::endl;
-                if (paramVal != it.value().toString().toStdString()) {
-                    conditionsValid = false;
-                    break;
-                }
-            }
-        }
-
-        if (!conditionsValid) {
-            return nullptr;
-        }
-    }
-
+    // Create the widget based on type
     QWidget* widget = nullptr;
 
     if (type == "toggle") {
@@ -373,7 +329,6 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         widget = dataBtn;
     }
     else if (type == "file_viewer") {
-        std::cout << "Creating file viewer button" << std::endl;
         QString relativePath = control["path"].toString();
         QString header = control["header"].toString();
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
@@ -405,56 +360,32 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
 
         widget = dataBtn;
     }
-    else if (type == "command_button") {
-        QString command = control["command"].toString();
-        QString workingDir = control["working_dir"].toString();
-        QString buttonText = control["button_text"].toString();
-        QString confirmText = control["confirm_text"].toString();
-        QString confirmYesText = control["confirm_yes_text"].toString();
-        QString confirmNoText = control["confirm_no_text"].toString();
-        bool requireConfirm = control["confirm"].toBool();
 
-        QJsonArray actionButtons;
-        if (control.contains("actionButtons")) {
-            actionButtons = control["actionButtons"].toArray();
-        }
+    // If widget was created successfully, cache its conditions
+    if (widget && control.contains("conditions")) {
+        ControlConditions conditions;
+        conditions.conditions = control["conditions"].toObject();
+        conditions.hasConditions = true;
+        controlConditions[widget] = conditions;
+        widget->setObjectName(param); // Ensure the widget has its param as object name
 
-        if (buttonText.isEmpty()) {
-            buttonText = tr("EXECUTE");
-        }
-        if (requireConfirm) {
-            if (confirmText.isEmpty()) {
-                confirmText = tr("Are you sure you want to execute this command?");
-            }
-            if (confirmYesText.isEmpty()) {
-                confirmYesText = tr("Yes");
-            }
-            if (confirmNoText.isEmpty()) {
-                confirmNoText = tr("No");
-            }
-        }
-
-        auto cmdBtn = new ButtonControl(title, buttonText, desc);
-        cmdBtn->setVisible(!hidden);
-
-        QObject::connect(cmdBtn, &ButtonControl::clicked, [this, command, title, workingDir, confirmText, confirmYesText, confirmNoText, requireConfirm, actionButtons]() {
-            if (requireConfirm) {
-                auto confirm = new ConfirmationDialog(confirmText, confirmYesText, confirmNoText, false, this);
-                bool confirmed = confirm->exec();
-                delete confirm;
-                if (!confirmed) {
-                    return;
-                }
-            }
-
-            executeCommand(command, title, workingDir, actionButtons);
-        });
-
-        widget = cmdBtn;
+        // Log the control being created
+        // std::cout << "Created control with param: " << param.toStdString()
+        //          << " and conditions: " << conditions.conditions.isEmpty() << std::endl;
     }
 
+    // Check initial visibility based on conditions
+    if (widget && control.contains("conditions")) {
+        QJsonObject conditions = control["conditions"].toObject();
+        bool shouldBeVisible = validateCompositeConditions(conditions);
+        widget->setVisible(shouldBeVisible);
+
+        // std::cout << "Initial visibility for " << param.toStdString()
+        //          << ": " << shouldBeVisible << std::endl;
+    }
+
+    // Connect value change signals
     if (widget) {
-        // Connect to value changes based on control type
         if (auto* paramControl = qobject_cast<ParamControl*>(widget)) {
             connect(paramControl, &ParamControl::toggleFlipped,
                     this, &ConfigDrivenPanel::onControlValueChanged);
@@ -560,28 +491,42 @@ void ConfigDrivenPanel::refreshPanel() {
     isRefreshing = true;
 
     try {
-        // Update all controls
-        for (auto &[param, toggle] : toggles) {
-            if (toggle) toggle->refresh();
-        }
+        // Update all controls and evaluate their conditions
+        for (auto& [groupName, groupData] : groups) {
+            bool hasVisibleControls = false;
 
-        // Update all groups
-        for (auto &[groupName, groupData] : groups) {
             for (QWidget* ctrl : groupData.controls) {
+                // First refresh the control's value
                 if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
                     valueControl->refresh();
                     updateControlWithDefault(ctrl);
                 } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
                     floatControl->refresh();
                     updateControlWithDefault(ctrl);
+                } else if (auto* toggle = qobject_cast<ParamControl*>(ctrl)) {
+                    toggle->refresh();
+                }
+
+                // Check visibility conditions
+                bool shouldBeVisible = true;
+                auto conditionIt = controlConditions.find(ctrl);
+                if (conditionIt != controlConditions.end() && conditionIt->second.hasConditions) {
+                    shouldBeVisible = validateCompositeConditions(conditionIt->second.conditions);
+                }
+
+                ctrl->setVisible(shouldBeVisible);
+                if (shouldBeVisible) {
+                    hasVisibleControls = true;
                 }
             }
-            if (groupData.groupBox) {
+
+            // Update group visibility based on visible controls
+            groupData.groupBox->setVisible(hasVisibleControls);
+
+            if (groupData.groupBox->isVisible()) {
                 updateResetButtonVisibility(groupData.groupBox);
             }
         }
-
-        updateGroupVisibility();
     } catch (const std::exception& e) {
         std::cerr << "Error during refresh: " << e.what() << std::endl;
     }
@@ -592,6 +537,56 @@ void ConfigDrivenPanel::refreshPanel() {
 void ConfigDrivenPanel::onControlValueChanged() {
     if (!refreshTimer.isActive()) {
         refreshTimer.start();
+    }
+
+    // std::cout << "Control value changed, re-evaluating conditions..." << std::endl;
+
+    // Re-evaluate visibility for all controls based on their conditions
+    for (auto& [groupName, groupData] : groups) {
+        bool hasVisibleControls = false;
+        // std::cout << "Checking group: " << groupName.toStdString() << std::endl;
+
+        for (QWidget* ctrl : groupData.controls) {
+            // Log all controls in the group
+            // std::cout << "Found control: " << ctrl->objectName().toStdString() << std::endl;
+
+            auto conditionIt = controlConditions.find(ctrl);
+            if (conditionIt != controlConditions.end() && conditionIt->second.hasConditions) {
+                QJsonObject conditions = conditionIt->second.conditions;
+
+                // Log the condition checking
+                // std::cout << "Checking conditions for: " << ctrl->objectName().toStdString() << std::endl;
+                if (conditions.contains("paramValueEquals")) {
+                    QJsonObject equals = conditions["paramValueEquals"].toObject();
+                    for (auto it = equals.begin(); it != equals.end(); ++it) {
+                        std::string paramKey = it.key().toStdString();
+                        std::string paramVal = params.get(paramKey);
+                        // std::cout << "Checking param " << paramKey
+                        //         << " value: '" << paramVal << "'"
+                        //         << " against: '" << it.value().toString().toStdString() << "'" << std::endl;
+                    }
+                }
+
+                bool shouldBeVisible = validateCompositeConditions(conditions);
+
+                // std::cout << "Control " << ctrl->objectName().toStdString()
+                //          << " shouldBeVisible: " << shouldBeVisible
+                //          << " current visibility: " << ctrl->isVisible() << std::endl;
+
+                ctrl->setVisible(shouldBeVisible);
+                ctrl->update();
+
+                if (shouldBeVisible) {
+                    hasVisibleControls = true;
+                }
+            }
+        }
+
+        // std::cout << "Group " << groupName.toStdString()
+        //          << " hasVisibleControls: " << hasVisibleControls << std::endl;
+
+        groupData.groupBox->setVisible(hasVisibleControls);
+        groupData.groupBox->update();
     }
 }
 

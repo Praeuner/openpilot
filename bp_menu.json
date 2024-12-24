@@ -172,11 +172,11 @@
           "desc": "Enable path angle",
           "hidden": false,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": [],
-            "paramValueEquals": {
-              "FordPrefEnableCustomLatLogic": "1"
-            }
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } }
+            ]
           }
         },
 
@@ -191,11 +191,11 @@
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": [],
-            "paramValueEquals": {
-              "FordPrefEnableCustomLatLogic": "1"
-            }
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } }
+            ]
           }
         },
         {
@@ -209,11 +209,12 @@
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": [],
-            "paramValueEquals": {
-              "FordPrefEnableCustomLatLogic": "1"
-            }
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+            ]
           }
         },
         {
@@ -227,11 +228,12 @@
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": [],
-            "paramValueEquals": {
-              "FordPrefEnableCustomLatLogic": "1"
-            }
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+            ]
           }
         },
         {
@@ -245,11 +247,12 @@
           "increment": 0.05,
           "division": 100.0,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": [],
-            "paramValueEquals": {
-              "FordPrefEnableCustomLatLogic": "1"
-            }
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+            ]
           }
         }
       ]
