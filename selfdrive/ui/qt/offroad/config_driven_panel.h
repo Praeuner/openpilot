@@ -1,4 +1,4 @@
-// selfdrive/ui/qt/offroad/custom_car_panel.h
+// selfdrive/ui/qt/offroad/config_driven_panel.h
 #pragma once
 
 #include <QFrame>
@@ -84,7 +84,7 @@ public:
     outer_layout.setSpacing(0);
     outer_layout.addLayout(&inner_layout);
     inner_layout.setMargin(0);
-    inner_layout.setSpacing(25); // default spacing is 25
+    inner_layout.setSpacing(25);
     outer_layout.addStretch();
   }
   inline void addItem(QWidget *w) { inner_layout.addWidget(w); }
@@ -95,14 +95,10 @@ private:
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
     p.setPen(Qt::gray);
-
-    // int visibleWidgetCount = 0;
     std::vector<QRect> visibleRects;
-
     for (int i = 0; i < inner_layout.count(); ++i) {
       QWidget *widget = inner_layout.itemAt(i)->widget();
       if (widget && widget->isVisible()) {
-        // visibleWidgetCount++;
         visibleRects.push_back(inner_layout.itemAt(i)->geometry());
       }
     }
@@ -141,92 +137,93 @@ private slots:
   void onControlValueChanged();
 
 private:
-  void refreshPanel();
-  void createGroup(const QJsonObject& group);
-  QWidget* createControl(const QJsonObject& control);
-  void handleGroupReset(const QString& groupName);
-  QGroupBox *createStyledGroupBox(const QString &title);
-  QPushButton* createResetButton();
+    QTimer refreshTimer;  // For debouncing updates
+    bool isRefreshing = false;  // Guard against recursive updates
 
-  bool showResetConfirmation(const QString& tuningType);
-  void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());
-  void updateControlWithDefault(QWidget* ctrl);
-  void updateResetButtonVisibility(QGroupBox* group);
-  void updateToggles();
-  void resetControlTitle(QWidget* control);
-  void resetGroupControls(const std::vector<QWidget*>& controls);
-  QString getProjectRootPath();
-  void setupFullscreenDialog(QDialog* dialog) {
-      #ifdef QCOM2
-      // Apply rotation
-      QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-      wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
-      if (s) {
-          wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-          wl_surface_commit(s);
-      }
+    void refreshPanel();
+    void createGroup(const QJsonObject& group);
+    QWidget* createControl(const QJsonObject& control);
+    void handleGroupReset(const QString& groupName);
+    QGroupBox *createStyledGroupBox(const QString &title);
+    QPushButton* createResetButton();
 
-      // Set window state after rotation
-      dialog->setWindowState(Qt::WindowFullScreen);
-      dialog->setAttribute(Qt::WA_DeleteOnClose);
+    bool validateControlBasics(const QJsonObject& control);
+    QWidget* createControlImplementation(const QJsonObject& control);
+    void setupControlConnections(QWidget* widget);
+    bool validateBasicConditions(const QJsonObject& conditions);
+    bool validateParameterConditions(const QJsonObject& conditions);
 
-      // Force layout update
-      dialog->layout()->activate();
+    bool showResetConfirmation(const QString& tuningType);
+    void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());
+    void updateControlWithDefault(QWidget* ctrl);
+    void updateResetButtonVisibility(QGroupBox* group);
+    void updateToggles();
+    void resetControlTitle(QWidget* control);
+    void resetGroupControls(const std::vector<QWidget*>& controls);
+    QString getProjectRootPath();
+    void setupFullscreenDialog(QDialog* dialog) {
+        #ifdef QCOM2
+        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+        wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+        if (s) {
+            wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+            wl_surface_commit(s);
+        }
+        dialog->setWindowState(Qt::WindowFullScreen);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->layout()->activate();
+        void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
+        assert(egl != nullptr);
+        #endif
+    }
+    void showFullScreenDialog(const QString& title, const QString& content);
+    bool isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames);
+    QString getDialogStyle() {
+        return R"(
+            QDialog {
+                background-color: black;
+            }
+            QWidget {
+                background-color: black;
+                color: white;
+            }
+            QLabel {
+                background-color: black;
+            }
+            QPushButton {
+                height: 160px;
+                font-size: 55px;
+                font-weight: 400;
+                border-radius: 10px;
+                background-color: #4F4F4F;
+            }
+            QScrollArea {
+                background-color: black;
+            }
+            QScrollArea > QWidget > QWidget {
+                background-color: black;
+            }
+        )";
+    }
 
-      // Ensure EGL display is valid
-      void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
-      assert(egl != nullptr);
-      #endif
-  }
-  void showFullScreenDialog(const QString& title, const QString& content);
-  bool isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames);
-  QString getDialogStyle() {
-      return R"(
-          QDialog {
-              background-color: black;
-          }
-          QWidget {
-              background-color: black;
-              color: white;
-          }
-          QLabel {
-              background-color: black;
-          }
-          QPushButton {
-              height: 160px;
-              font-size: 55px;
-              font-weight: 400;
-              border-radius: 10px;
-              background-color: #4F4F4F;
-          }
-          QScrollArea {
-              background-color: black;
-          }
-          QScrollArea > QWidget > QWidget {
-              background-color: black;
-          }
-      )";
-  }
+    bool validateSingleCondition(const QString& key, const QJsonValue& value);
+    bool validateConditionObject(const QJsonObject& conditionObj);
+    bool validateCompositeConditions(const QJsonObject& conditions);
+    void updateGroupVisibility();
 
-  bool validateSingleCondition(const QString& key, const QJsonValue& value);
-  bool validateConditionObject(const QJsonObject& conditionObj);
-  bool validateCompositeConditions(const QJsonObject& conditions);
-  void updateGroupVisibility();
+    Params params;
+    std::map<std::string, ParamControl*> toggles;
+    struct GroupData {
+        QGroupBox* groupBox;
+        std::vector<QWidget*> controls;
+    };
+    std::map<QString, GroupData> groups;
 
-  Params params;
-  std::map<std::string, ParamControl*> toggles;
-  struct GroupData {
-    QGroupBox* groupBox;
-    std::vector<QWidget*> controls;
-  };
-  std::map<QString, GroupData> groups;
+    QTimer *activityTimer;
 
-  QTimer *activityTimer;
-
-  void simulateActivity();
-  void stopActivitySimulation();
-  void resetMaxDurationTimer();
-
+    void simulateActivity();
+    void stopActivitySimulation();
+    void resetMaxDurationTimer();
 };
 
 // Forward declarations
