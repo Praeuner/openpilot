@@ -306,7 +306,4 @@ private:
     bool isSSHValid() const;
     bool checkAndRestoreSSH();
     bool restoreSSHFromUtility();
-
 };
-
-

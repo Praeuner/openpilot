@@ -834,7 +834,10 @@ void GitManagerPanel::refreshAll() {
             updateButtonStates();
             QString status;
             QString color;
-            if (hasUpdates) {
+            if (hasLocal && hasUpdates) {
+                status = tr("(Updates Available - Local Modified)");
+                color = "#FF3C0F";  // Or any color that stands out
+            } else if (hasUpdates) {
                 status = tr("(Updates Available)");
                 color = "#465BEA";
             } else if (hasLocal) {
@@ -1980,6 +1983,16 @@ void GitManagerPanel::showCommitHistory(QWidget* parent, const QString& title, c
 }
 
 void GitManagerPanel::handleRepoUpdate() {
+    // If there are uncommitted local changes, confirm before proceeding
+    if (hasUncommittedChanges()) {
+      if (!ConfirmationDialog::confirm(
+            tr("You have local changes that will be overwritten by this update. Continue?"),
+            tr("Yes"),
+            this)) {
+        return;
+      }
+    }
+
     // Kill system.updated.updated
     std::system("killall system.updated.updated");
 
