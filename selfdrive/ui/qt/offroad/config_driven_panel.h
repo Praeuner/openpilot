@@ -575,7 +575,7 @@ public:
     }
 
     params.putInt(key, value);
-    refresh();
+    // refresh();
     emit buttonPressed();
     emit valueChanged(value);
   }

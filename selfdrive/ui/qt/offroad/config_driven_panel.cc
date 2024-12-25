@@ -586,56 +586,6 @@ void ConfigDrivenPanel::onControlValueChanged() {
     if (!refreshTimer.isActive()) {
         refreshTimer.start();
     }
-
-    // std::cout << "Control value changed, re-evaluating conditions..." << std::endl;
-
-    // Re-evaluate visibility for all controls based on their conditions
-    for (auto& [groupName, groupData] : groups) {
-        bool hasVisibleControls = false;
-        // std::cout << "Checking group: " << groupName.toStdString() << std::endl;
-
-        for (QWidget* ctrl : groupData.controls) {
-            // Log all controls in the group
-            // std::cout << "Found control: " << ctrl->objectName().toStdString() << std::endl;
-
-            auto conditionIt = controlConditions.find(ctrl);
-            if (conditionIt != controlConditions.end() && conditionIt->second.hasConditions) {
-                QJsonObject conditions = conditionIt->second.conditions;
-
-                // Log the condition checking
-                // std::cout << "Checking conditions for: " << ctrl->objectName().toStdString() << std::endl;
-                if (conditions.contains("paramValueEquals")) {
-                    QJsonObject equals = conditions["paramValueEquals"].toObject();
-                    for (auto it = equals.begin(); it != equals.end(); ++it) {
-                        std::string paramKey = it.key().toStdString();
-                        std::string paramVal = params.get(paramKey);
-                        // std::cout << "Checking param " << paramKey
-                        //         << " value: '" << paramVal << "'"
-                        //         << " against: '" << it.value().toString().toStdString() << "'" << std::endl;
-                    }
-                }
-
-                bool shouldBeVisible = validateCompositeConditions(conditions);
-
-                // std::cout << "Control " << ctrl->objectName().toStdString()
-                //          << " shouldBeVisible: " << shouldBeVisible
-                //          << " current visibility: " << ctrl->isVisible() << std::endl;
-
-                ctrl->setVisible(shouldBeVisible);
-                ctrl->update();
-
-                if (shouldBeVisible) {
-                    hasVisibleControls = true;
-                }
-            }
-        }
-
-        // std::cout << "Group " << groupName.toStdString()
-        //          << " hasVisibleControls: " << hasVisibleControls << std::endl;
-
-        groupData.groupBox->setVisible(hasVisibleControls);
-        groupData.groupBox->update();
-    }
 }
 
 void ConfigDrivenPanel::showEvent(QShowEvent *event) {
