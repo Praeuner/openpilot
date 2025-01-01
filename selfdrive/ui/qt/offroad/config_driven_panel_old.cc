@@ -1,4 +1,4 @@
-// selfdrive/ui/qt/offroad/config_driven_panel.cc
+// selfdrive/ui/qt/offroad/custom_car_panel_old.cc
 #include <filesystem>
 #include <iostream>
 #include <QTimer>
@@ -23,92 +23,42 @@
 #include "common/params.h"
 
 ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &configPath) : ConfigDrivenListWidget(parent) {
-    setSpacing(50);
+  setSpacing(50);
 
-    // unified style sheet at the panel level
-    this->setStyleSheet(R"(
-      * {
-          background: none;
-      }
-      /* QPushButton Styles */
-      QPushButton {
-          border-radius: 10px;
-          font-size: 40px;
-          font-weight: 500;
-          color: #E4E4E4;
-          background-color: #393939;
-          padding: 10px;
-      }
-      QPushButton:pressed {
-          background-color: #4a4a4a;
-      }
-      QPushButton:disabled {
-          background-color: #2a2a2a;
-          color: #777777;
-      }
-      QLabel {
-          color: white;
-          font-size: 40px;
-          background: none;
-      }
-      QLabel:disabled {
-          color: #777777;
-      }
-      QFrame {
-          padding: 0px;
-          margin: 0px;
-          background: none;
-          border: none;
-      }
-      QFrame:disabled {
-          opacity: 0.5;
-      }
-      QWidget {
-          background: none;
-      }
-      QWidget:disabled {
-          opacity: 0.5;
-      }
-    )");
+  // Initialize the timer
+  activityTimer = new QTimer(this);
+  activityTimer->setInterval(9000); // 9 seconds
+  connect(activityTimer, &QTimer::timeout, this, &ConfigDrivenPanel::simulateActivity);
 
-    // Initialize timers
-    refreshTimer.setSingleShot(true);
-    refreshTimer.setInterval(100);
-    connect(&refreshTimer, &QTimer::timeout, this, [this]() {
-        if (!isRefreshing) {
-            refreshPanel();
-        }
-    });
+  // Set up the max duration timer
+  QTimer::singleShot(270000, this, &ConfigDrivenPanel::stopActivitySimulation); // 4 minutes and 30 seconds
 
-    activityTimer = new QTimer(this);
-    activityTimer->setInterval(9000); // 9 seconds
-    connect(activityTimer, &QTimer::timeout, this, &ConfigDrivenPanel::simulateActivity);
+  // Enable mouse tracking to receive mouse move events
+  setMouseTracking(true);
 
-    // Set up the max duration timer
-    QTimer::singleShot(270000, this, &ConfigDrivenPanel::stopActivitySimulation); // 4 minutes and 30 seconds
+  // Load JSON config
+  ConfigDrivenPanelConfig& config = ConfigDrivenPanelConfig::getInstance();
+  // std::cout << "QCoreApplication::applicationDirPath(): " << QCoreApplication::applicationDirPath().toStdString() << std::endl;
+  // QString configPath = QString::fromStdString(params.get("CustomVehicleMenuPath", "utf-8"));
+  // QString configPath = getProjectRootPath() + "/opendbc/car/ford/custom_menu/menu.json";
+  QString actualConfigPath = getProjectRootPath() + configPath;
+  if (!config.loadConfig(actualConfigPath)) {
+      std::cerr << "Failed to load Custom Car panel configuration" << std::endl;
+      return;
+  }
 
-    // Enable mouse tracking to receive mouse move events
-    setMouseTracking(true);
-
-    // Load JSON config
-    ConfigDrivenPanelConfig& config = ConfigDrivenPanelConfig::getInstance();
-    QString actualConfigPath = getProjectRootPath() + configPath;
-    if (!config.loadConfig(actualConfigPath)) {
-        std::cerr << "Failed to load Custom Car panel configuration" << std::endl;
-        return;
-    }
-
-    // Process JSON configuration
-    const QJsonObject& jsonConfig = config.getConfig();
-    QJsonArray groupsArray = jsonConfig["groups"].toArray();
-    for (const auto& groupValue : groupsArray) {
-        createGroup(groupValue.toObject());
-    }
+  // Process JSON configuration
+  const QJsonObject& jsonConfig = config.getConfig();
+  QJsonArray groupsArray = jsonConfig["groups"].toArray();
+  for (const auto& groupValue : groupsArray) {
+      createGroup(groupValue.toObject());
+  }
 }
 
 ConfigDrivenPanel::~ConfigDrivenPanel() {
-    std::cout << "Stopping activity timer" << std::endl;
-    activityTimer->stop();
+  // Ensure the timer is stopped
+  std::cout << "Stopping activity timer" << std::endl;
+  activityTimer->stop();
 }
 
 QGroupBox *ConfigDrivenPanel::createStyledGroupBox(const QString &title) {
@@ -128,19 +78,13 @@ QGroupBox *ConfigDrivenPanel::createStyledGroupBox(const QString &title) {
       padding: 0 10px;
       color: #666666;
     }
-    QGroupBox:disabled {
-      border: 1px solid #555555;
-    }
-    QGroupBox::title:disabled {
-      color: #777777;
-    }
   )");
   return groupBox;
 }
 
 QPushButton* ConfigDrivenPanel::createResetButton() {
     QPushButton* resetButton = new QPushButton();
-    resetButton->setObjectName("resetButton");
+    resetButton->setObjectName("resetButton");  // Add this line
     resetButton->setText(tr(" Reset"));  // Space before "Reset" for icon spacing
 
     // Create a custom icon with styling
@@ -175,7 +119,11 @@ QPushButton* ConfigDrivenPanel::createResetButton() {
 
     resetButton->setIconSize(QSize(40, 40));
     resetButton->setCursor(Qt::PointingHandCursor);
+
+    // Ensure icon is on the left and text is on the right
     resetButton->setLayoutDirection(Qt::LeftToRight);
+
+    // Set a fixed size to ensure consistent appearance
     resetButton->setFixedSize(200, 60);
 
     std::cout << "Reset button created with icon" << std::endl;
@@ -187,6 +135,9 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
     QString title = group["title"].toString();
     bool enableReset = group["enableResetButton"].toBool();
 
+    std::cout << "Creating group: " << groupName.toStdString()
+              << " enableReset: " << enableReset << std::endl;
+
     QGroupBox* groupBox = createStyledGroupBox(title);
     QVBoxLayout* layout = new QVBoxLayout(groupBox);
 
@@ -195,30 +146,28 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
     groupData.groupBox = groupBox;
 
     if (enableReset) {
-        QHBoxLayout* titleLayout = new QHBoxLayout();
-        titleLayout->addStretch();
-        QPushButton* resetButton = createResetButton();
-        connect(resetButton, &QPushButton::clicked, this, [this, groupName]() {
-            this->handleGroupReset(groupName);
-        });
-        titleLayout->addWidget(resetButton);
-        titleLayout->setContentsMargins(0, 0, 0, 20);
-        layout->addLayout(titleLayout);
+      std::cout << "Creating reset button" << std::endl;
+      QHBoxLayout* titleLayout = new QHBoxLayout();
+      titleLayout->addStretch();
+      QPushButton* resetButton = createResetButton();
+      connect(resetButton, &QPushButton::clicked, this, [this, groupName]() {
+          this->handleGroupReset(groupName);
+      });
+      titleLayout->addWidget(resetButton);
+      titleLayout->setContentsMargins(0, 0, 0, 20);
+      layout->addLayout(titleLayout);
     }
 
     const QJsonArray& controls = group["controls"].toArray();
-    bool hasVisibleControls = false;
-
     for (const auto& controlValue : controls) {
         QWidget* widget = createControl(controlValue.toObject());
         if (widget) {
-            hasVisibleControls = true;
             if (auto* control = qobject_cast<AbstractControl*>(widget)) {
                 QList<QLabel*> labels = control->findChildren<QLabel*>();
                 for (QLabel* label : labels) {
                     if (label->text() == control->getDescription()) {
                         label->setContentsMargins(0, 0, 0, 10);
-                        label->setStyleSheet("font-size: 40px; color: yellow; padding-left: 0px; background-color: transparent;");
+                        label->setStyleSheet("font-size: 40px; color: yellow; padding-left: 0px;");
                         label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
                         break;
                     }
@@ -229,131 +178,83 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
         }
     }
 
-    // Only add the group if it has visible controls
-    if (hasVisibleControls) {
-        groups[groupName] = groupData;
-        addItem(groupBox);
-    } else {
-        delete groupBox;  // Clean up if no visible controls
-    }
-}
-
-void ConfigDrivenPanel::updateGroupVisibility() {
-    for (auto& [groupName, groupData] : groups) {
-        bool hasVisibleControls = false;
-        for (QWidget* control : groupData.controls) {
-            if (control && control->isVisible()) {
-                hasVisibleControls = true;
-                break;
-            }
-        }
-        groupData.groupBox->setVisible(hasVisibleControls);
-    }
+    // Store group data
+    groups[groupName] = groupData;
+    addItem(groupBox);
 }
 
 QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
-    if (!validateControlBasics(control)) {
-        std::cout << "Control failed basic validation" << std::endl;
-        return nullptr;
-    }
-
-    bool hidden = control["hidden"].toBool();
-    if (hidden) {
-        std::cout << "Control is hidden" << std::endl;
-        return nullptr;
-    }
-
     QString type = control["type"].toString();
     QString param = control["param"].toString();
     QString title = control["title"].toString();
     QString desc = control["desc"].toString();
-    // bool disable = control["disable"].toBool();
+    bool disable = control["disable"].toBool();
+
+    // Check conditions if they exist
+    if (control.contains("conditions")) {
+        QJsonObject conditions = control["conditions"].toObject();
+
+        // Handle both legacy and composite conditions
+        bool conditionsValid = true;
+
+        // Legacy git conditions - maintain backward compatibility
+        if (conditions.contains("git_remote") || conditions.contains("git_branch")) {
+            QJsonObject legacyGitCondition;
+            if (conditions.contains("git_remote")) {
+                legacyGitCondition["git_remote"] = conditions["git_remote"];
+            }
+            if (conditions.contains("git_branch")) {
+                legacyGitCondition["git_branch"] = conditions["git_branch"];
+            }
+            conditionsValid = validateConditionObject(legacyGitCondition);
+        }
+
+        // Composite conditions
+        if (conditionsValid && (conditions.contains("anyConditionsTrue") || conditions.contains("allConditionsTrue"))) {
+            conditionsValid = validateCompositeConditions(conditions);
+        }
+
+        if (!conditionsValid) {
+            return nullptr;
+        }
+    }
 
     if (type == "toggle") {
         auto toggle = ConfigDrivenControlFactory::createToggleControl(param, title, desc, "");
         toggle->setObjectName(param);
-
-
-
+        toggle->setEnabled(!disable);
         toggles[param.toStdString()] = toggle;
-        QObject::connect(toggle, &ToggleControl::toggleFlipped, [this]() {
-            onControlValueChanged();
-        });
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[toggle] = conditions;
-            toggle->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
         return toggle;
-    } else if (type == "float") {
+    }
+    else if (type == "float") {
+        float min = control["min"].toDouble();
+        float max = control["max"].toDouble();
+        float increment = control["increment"].toDouble();
+        float division = control["division"].toDouble();
+
         auto ctrl = ConfigDrivenControlFactory::createFloatControl(
             param, title, desc,
-            control["min"].toDouble(),
-            control["max"].toDouble(),
-            control["increment"].toDouble(),
-            false, "", {},
-            control["division"].toDouble());
+            min, max, increment, false, "", {}, division);
         ctrl->setObjectName(param);
-        QObject::connect(ctrl, &ConfigDrivenParamValueControlFloat::valueChanged, [this](float) {
-            onControlValueChanged();
-        });
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[ctrl] = conditions;
-            ctrl->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
+        ctrl->setEnabled(!disable);
         return ctrl;
-    } else if (type == "integer") {
+    }
+    else if (type == "integer") {
+        int min = control["min"].toInt();
+        int max = control["max"].toInt();
+        int increment = control["increment"].toInt();
+
         auto ctrl = ConfigDrivenControlFactory::createIntegerControl(
             param, title, desc,
-            control["min"].toInt(),
-            control["max"].toInt(),
-            control["increment"].toInt(),
-            false);
+            min, max, increment, false);
         ctrl->setObjectName(param);
-        QObject::connect(ctrl, &ConfigDrivenParamValueControl::valueChanged, [this](int) {
-            onControlValueChanged();
-        });
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[ctrl] = conditions;
-            ctrl->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
+        ctrl->setEnabled(!disable);
         return ctrl;
-    } else if (type == "selection") {
+    }
+    else if (type == "selection") {
         auto button = new ButtonControl(title, tr("SELECT"), desc);
+        button->setEnabled(!disable);
         button->setObjectName(param);
-        button->setStyleSheet(R"(
-            QPushButton {
-                border-radius: 10px;
-                font-size: 40px;
-                font-weight: 500;
-                color: #E4E4E4;
-                // background-color: #393939;
-            }
-            QPushButton:pressed {
-                background-color: #4a4a4a;
-            }
-            QPushButton:disabled {
-                color: #777777;
-                // background-color: #2a2a2a;
-            }
-            QFrame:disabled {
-                opacity: 0.5;
-            }
-            QLabel:disabled {
-                color: #777777;
-            }
-        )");
         QJsonArray options = control["options"].toArray();
         QStringList items;
         std::map<QString, QString> selections;
@@ -368,6 +269,8 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
 
         QObject::connect(button, &ButtonControl::clicked, [=]() {
             QString cur = QString::fromStdString(params.get(param.toStdString()));
+
+            // Convert value back to display name
             for (const auto& [name, value] : selections) {
                 if (value == cur) {
                     cur = name;
@@ -391,8 +294,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             }
         });
 
-        connect(button, &ButtonControl::clicked, this, &ConfigDrivenPanel::onControlValueChanged);
-
+        // Set initial value
         QString currentValue = QString::fromStdString(params.get(param.toStdString()));
         for (const auto& [name, value] : selections) {
             if (value == currentValue) {
@@ -401,17 +303,11 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             }
         }
 
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[button] = conditions;
-            button->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
         return button;
-    } else if (type == "param_viewer") {
+    }
+    else if (type == "param_viewer") {
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
-        // dataBtn->setVisible(!disable);
+        dataBtn->setEnabled(!disable);
 
         QObject::connect(dataBtn, &ButtonControl::clicked, [this, param, title]() {
             QString rawValue = QString::fromStdString(params.get(param.toStdString()));
@@ -431,22 +327,14 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             showFullScreenDialog(dialogTitle, content);
         });
 
-        connect(dataBtn, &ButtonControl::clicked, this, &ConfigDrivenPanel::onControlValueChanged);
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[dataBtn] = conditions;
-            dataBtn->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
         return dataBtn;
-    } else if (type == "file_viewer") {
-        auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
-        // dataBtn->setVisible(!hidden);
-
+    }
+    else if (type == "file_viewer") {
+        std::cout << "Creating file viewer button" << std::endl;
         QString relativePath = control["path"].toString();
         QString header = control["header"].toString();
+        auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
+        dataBtn->setEnabled(!disable);
 
         QObject::connect(dataBtn, &ButtonControl::clicked, [this, relativePath, header, title]() {
             QString rootPath = getProjectRootPath();
@@ -462,27 +350,21 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
                 if (fileContent.isEmpty()) {
                     content = tr("File is empty");
                 } else {
+                    // Using QLabel's built-in text formatting for code/pre sections
                     content = "<pre style='white-space: pre-wrap; margin: 0; padding: 0; background-color: transparent;'>" +
                             fileContent.toHtmlEscaped() +
                             "</pre>";
                 }
             }
 
+            // Use the header if provided, otherwise use the button title
             QString dialogTitle = header.isEmpty() ? title : header;
             showFullScreenDialog(dialogTitle, content);
         });
 
-        connect(dataBtn, &ButtonControl::clicked, this, &ConfigDrivenPanel::onControlValueChanged);
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[dataBtn] = conditions;
-            dataBtn->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
         return dataBtn;
-    } else if (type == "command_button") {
+    }
+    else if (type == "command_button") {
         QString command = control["command"].toString();
         QString workingDir = control["working_dir"].toString();
         QString buttonText = control["button_text"].toString();
@@ -491,11 +373,13 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         QString confirmNoText = control["confirm_no_text"].toString();
         bool requireConfirm = control["confirm"].toBool();
 
+        // Parse action buttons if they exist
         QJsonArray actionButtons;
         if (control.contains("actionButtons")) {
             actionButtons = control["actionButtons"].toArray();
         }
 
+        // Use defaults if not specified
         if (buttonText.isEmpty()) {
             buttonText = tr("EXECUTE");
         }
@@ -512,7 +396,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         }
 
         auto cmdBtn = new ButtonControl(title, buttonText, desc);
-        // cmdBtn->setVisible(!hidden);
+        cmdBtn->setEnabled(!disable);
 
         QObject::connect(cmdBtn, &ButtonControl::clicked, [this, command, title, workingDir, confirmText, confirmYesText, confirmNoText, requireConfirm, actionButtons]() {
             if (requireConfirm) {
@@ -527,15 +411,6 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             executeCommand(command, title, workingDir, actionButtons);
         });
 
-        connect(cmdBtn, &ButtonControl::clicked, this, &ConfigDrivenPanel::onControlValueChanged);
-
-        if (control.contains("conditions")) {
-            ControlConditions conditions;
-            conditions.conditions = control["conditions"].toObject();
-            conditions.hasConditions = true;
-            controlConditions[cmdBtn] = conditions;
-            cmdBtn->setEnabled(validateCompositeConditions(conditions.conditions));
-        }
         return cmdBtn;
     }
 
@@ -543,361 +418,186 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
 }
 
 void ConfigDrivenPanel::updateControlWithDefault(QWidget* ctrl) {
-    if (!ctrl) return;
+  if (!ctrl) return;
 
-    QString paramName = ctrl->objectName();
-    ConfigDrivenDefaultParams& defaults = ConfigDrivenDefaultParams::getInstance();
-    QString defaultValue = defaults.getDefault(paramName);
+  QString paramName = ctrl->objectName();
+  ConfigDrivenDefaultParams& defaults = ConfigDrivenDefaultParams::getInstance();
+  QString defaultValue = defaults.getDefault(paramName);
 
-    if (!defaultValue.isEmpty()) {
-        if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
-            valueControl->setDefaultValue(defaultValue);
-        } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
-            floatControl->setDefaultValue(defaultValue);
-        }
-    } else {
-        resetControlTitle(ctrl);
+  if (!defaultValue.isEmpty()) {
+    if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
+      valueControl->setDefaultValue(defaultValue);
+    } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
+      floatControl->setDefaultValue(defaultValue);
     }
+  } else {
+    resetControlTitle(ctrl);
+  }
 }
 
 void ConfigDrivenPanel::updateResetButtonVisibility(QGroupBox* group) {
-    if (!group) return;
+  if (!group) return;
 
-    QPushButton* resetButton = group->findChild<QPushButton*>("resetButton");
-    if (resetButton) {
-        bool hasDefaults = false;
-        // Find the corresponding GroupData for this QGroupBox
-        for (const auto& [groupName, groupData] : groups) {
-            if (groupData.groupBox == group) {
-                // Check controls in this group for defaults
-                for (QWidget* ctrl : groupData.controls) {
-                    QString paramName = ctrl->objectName();
-                    if (!ConfigDrivenDefaultParams::getInstance().getDefault(paramName).isEmpty()) {
-                        hasDefaults = true;
-                        break;
-                    }
-                }
-                break;
-            }
+  QPushButton* resetButton = group->findChild<QPushButton*>("resetButton");
+  if (resetButton) {
+    bool hasDefaults = false;
+    // Find the corresponding GroupData for this QGroupBox
+    for (const auto& [groupName, groupData] : groups) {
+      if (groupData.groupBox == group) {
+        // Check controls in this group for defaults
+        for (QWidget* ctrl : groupData.controls) {
+          QString paramName = ctrl->objectName();
+          if (!ConfigDrivenDefaultParams::getInstance().getDefault(paramName).isEmpty()) {
+            hasDefaults = true;
+            break;
+          }
         }
-        resetButton->setVisible(hasDefaults);
+        break;
+      }
     }
+    resetButton->setVisible(hasDefaults);
+  }
 }
 
 void ConfigDrivenPanel::handleGroupReset(const QString& groupName) {
-    if (groups.find(groupName) == groups.end()) return;
+  if (groups.find(groupName) == groups.end()) return;
 
-    QString groupTitle = groups[groupName].groupBox->title();
-    if (!showResetConfirmation(groupTitle)) {
-        return;
-    }
+  QString groupTitle = groups[groupName].groupBox->title();
+  if (!showResetConfirmation(groupTitle)) {
+      return;
+  }
 
-    resetGroupControls(groups[groupName].controls);
+  resetGroupControls(groups[groupName].controls);
 }
 
 void ConfigDrivenPanel::simulateActivity() {
-    // Create a mouse move event at the current cursor position
-    QPoint globalPos = QCursor::pos();
-    QPoint localPos = this->mapFromGlobal(globalPos);
+  // Create a mouse move event at the current cursor position
+  QPoint globalPos = QCursor::pos();
+  QPoint localPos = this->mapFromGlobal(globalPos);
 
-    // Add small random movement to simulate real activity
-    localPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
-    globalPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
+  // Add small random movement to simulate real activity
+  localPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
+  globalPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
 
-    QMouseEvent mouseEvent(QEvent::MouseMove, localPos, globalPos, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QMouseEvent mouseEvent(QEvent::MouseMove, localPos, globalPos, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
 
-    std::cout << "Simulating activity" << std::endl;
-    // Send the event to this widget
-    if (!isCommaDevice()) {
-      QCoreApplication::sendEvent(this, &mouseEvent);
-    }
+  std::cout << "Simulating activity" << std::endl;
+  // Send the event to this widget
+  QCoreApplication::sendEvent(this, &mouseEvent);
 }
 
 void ConfigDrivenPanel::stopActivitySimulation() {
-    std::cout << "Stopping activity simulation | max duration timer stopped" << std::endl;
-    activityTimer->stop();
+  std::cout << "Stopping activity simulation | max duration timer stopped" << std::endl;
+  activityTimer->stop();
 }
 
 void ConfigDrivenPanel::resetMaxDurationTimer() {
-    // Reset the max duration timer
-    QTimer::singleShot(270000, this, &ConfigDrivenPanel::stopActivitySimulation); // 4 minutes and 30 seconds
+  // Reset the max duration timer
+  QTimer::singleShot(270000, this, &ConfigDrivenPanel::stopActivitySimulation); // 4 minutes and 30 seconds
 }
-
-void ConfigDrivenPanel::refreshPanel() {
-    if (isRefreshing) return;
-    isRefreshing = true;
-
-    try {
-        // Update all controls and evaluate their conditions
-        for (auto& [groupName, groupData] : groups) {
-            bool hasVisibleControls = false;
-
-            for (QWidget* ctrl : groupData.controls) {
-                // First refresh the control's value
-                if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
-                    valueControl->refresh();
-                    updateControlWithDefault(ctrl);
-                } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
-                    floatControl->refresh();
-                    updateControlWithDefault(ctrl);
-                } else if (auto* toggle = qobject_cast<ParamControl*>(ctrl)) {
-                    toggle->refresh();
-                }
-
-                // Check and apply conditions
-                auto conditionIt = controlConditions.find(ctrl);
-                if (conditionIt != controlConditions.end() && conditionIt->second.hasConditions) {
-                    bool shouldBeEnabled = validateCompositeConditions(conditionIt->second.conditions);
-                    if (ctrl->isEnabled() != shouldBeEnabled) {
-                        ctrl->setEnabled(shouldBeEnabled);
-                        ctrl->update();
-                    }
-                }
-
-                if (ctrl->isEnabled() && ctrl->isVisible()) {
-                    hasVisibleControls = true;
-                }
-            }
-
-            // Update group visibility based on visible controls
-            groupData.groupBox->setVisible(hasVisibleControls);
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error during refresh: " << e.what() << std::endl;
-    }
-
-    isRefreshing = false;
-}
-
-void ConfigDrivenPanel::onControlValueChanged() {
-    // Update conditions for all controls immediately
-    updateConditionsForAllControls();
-
-    // Schedule a refresh for other UI updates
-    if (!refreshTimer.isActive()) {
-        refreshTimer.start();
-    }
-}
-
-void ConfigDrivenPanel::updateConditionsForAllControls() {
-    for (const auto& [ctrl, conditions] : controlConditions) {
-        if (conditions.hasConditions && ctrl) {
-            bool shouldBeEnabled = validateCompositeConditions(conditions.conditions);
-            bool currentlyEnabled = ctrl->isEnabled();
-
-            if (currentlyEnabled != shouldBeEnabled) {
-                std::cout << "Control " << ctrl->objectName().toStdString()
-                         << " enabled: " << currentlyEnabled
-                         << " -> " << shouldBeEnabled << std::endl;
-
-                // Force style refresh
-                ctrl->style()->unpolish(ctrl);
-                ctrl->style()->polish(ctrl);
-
-                // Update all child widgets
-                QList<QWidget*> children = ctrl->findChildren<QWidget*>();
-                for (QWidget* child : children) {
-                    child->setEnabled(shouldBeEnabled);
-                    child->style()->unpolish(child);
-                    child->style()->polish(child);
-                    child->update();
-                }
-
-                ctrl->update();
-            }
-        }
-    }
-    updateGroupVisibility();
-}
-
-
 
 void ConfigDrivenPanel::showEvent(QShowEvent *event) {
-    std::cout << "Showing ConfigDrivenPanel" << std::endl;
-    updateToggles();
-    updateConditionsForAllControls();
-    updateGroupVisibility();
+  std::cout << "Showing ConfigDrivenPanel" << std::endl;
+  updateToggles();
 
-    // Update reset buttons visibility for all groups
-    for (const auto& [groupName, groupData] : groups) {
-        updateResetButtonVisibility(groupData.groupBox);
-    }
+  // Update reset buttons visibility for all groups
+  for (const auto& [groupName, groupData] : groups) {
+      updateResetButtonVisibility(groupData.groupBox);
+  }
 
-    refreshPanel();
-    activityTimer->start();
-    resetMaxDurationTimer();
-
-    // Start a timer to periodically check conditions
-    QTimer::singleShot(1000, this, [this]() {
-        static QTimer* conditionTimer = new QTimer(this);
-        connect(conditionTimer, &QTimer::timeout, this, &ConfigDrivenPanel::updateConditionsForAllControls);
-        conditionTimer->start(1000); // Check every second
-    });
-
-    QWidget::showEvent(event);
+  activityTimer->start();
+  resetMaxDurationTimer();
+  QWidget::showEvent(event);
 }
 
 void ConfigDrivenPanel::hideEvent(QHideEvent *event) {
-    // Stop the timer when the panel is hidden
-    std::cout << "Hiding ConfigDrivenPanel" << std::endl;
-    activityTimer->stop();
-    std::cout << "Activity timer stopped" << std::endl;
-    // Find and stop the condition timer
-    for (QTimer* timer : findChildren<QTimer*>()) {
-        if (timer->interval() == 1000) {
-            timer->stop();
-            break;
-        }
-    }
-
-    QWidget::hideEvent(event);
+  // Stop the timer when the panel is hidden
+  std::cout << "Hiding ConfigDrivenPanel" << std::endl;
+  activityTimer->stop();
+  std::cout << "Activity timer stopped" << std::endl;
+  QWidget::hideEvent(event);
 }
 
 void ConfigDrivenPanel::updateToggles() {
-    // Update toggle controls
-    for (auto &[param, toggle] : toggles) {
-        toggle->refresh();
-    }
+  // Update toggle controls
+  for (auto &[param, toggle] : toggles) {
+    toggle->refresh();
+  }
 
-    // Update all groups' controls
-    for (auto &[groupName, groupData] : groups) {
-        for (QWidget* ctrl : groupData.controls) {
-            if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
-                valueControl->refresh();
-                updateControlWithDefault(ctrl);
-            } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
-                floatControl->refresh();
-                updateControlWithDefault(ctrl);
-            }
-        }
-        updateResetButtonVisibility(groupData.groupBox);
+  // Update all groups' controls
+  for (auto &[groupName, groupData] : groups) {
+    for (QWidget* ctrl : groupData.controls) {
+      if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(ctrl)) {
+        valueControl->refresh();
+        updateControlWithDefault(ctrl);
+      } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(ctrl)) {
+        floatControl->refresh();
+        updateControlWithDefault(ctrl);
+      }
     }
+    updateResetButtonVisibility(groupData.groupBox);
+  }
 }
 
 bool ConfigDrivenConfirmationDialog::toggle(const QString &prompt_text, const QString &confirm_text, QWidget *parent) {
-    ConfirmationDialog d = ConfirmationDialog(prompt_text, confirm_text, tr("Reboot Later"), false, parent);
-    return d.exec();
+  ConfirmationDialog d = ConfirmationDialog(prompt_text, confirm_text, tr("Reboot Later"), false, parent);
+  return d.exec();
 }
 
 bool ConfigDrivenConfirmationDialog::toggleAlert(const QString &prompt_text, const QString &button_text, QWidget *parent) {
-    ConfirmationDialog d = ConfirmationDialog(prompt_text, button_text, "", false, parent);
-    return d.exec();
+  ConfirmationDialog d = ConfirmationDialog(prompt_text, button_text, "", false, parent);
+  return d.exec();
 }
 
 bool ConfigDrivenConfirmationDialog::yesorno(const QString &prompt_text, QWidget *parent) {
-    ConfirmationDialog d = ConfirmationDialog(prompt_text, tr("Yes"), tr("No"), false, parent);
-    return d.exec();
+  ConfirmationDialog d = ConfirmationDialog(prompt_text, tr("Yes"), tr("No"), false, parent);
+  return d.exec();
 }
 
 ConfigDrivenButtonIconControl::ConfigDrivenButtonIconControl(const QString &title, const QString &text, const QString &desc, const QString &icon, QWidget *parent) : AbstractControl(title, desc, icon, parent) {
-    btn.setText(text);
-    // btn.setStyleSheet(R"(
-    //     QPushButton {
-    //         padding: 0;
-    //         border-radius: 50px;
-    //         font-size: 35px;
-    //         font-weight: 500;
-    //         color: #E4E4E4;
-    //         background-color: #393939;
-    //     }
-    //     QPushButton:pressed {
-    //         background-color: #4a4a4a;
-    //     }
-    //     QPushButton:disabled {
-    //         color: #33E4E4E4;
-    //     }
-    // )");
-    btn.setFixedSize(250, 100);
-    QObject::connect(&btn, &QPushButton::clicked, this, &ConfigDrivenButtonIconControl::clicked);
-    hlayout->addWidget(&btn);
+  btn.setText(text);
+  btn.setStyleSheet(R"(
+    QPushButton {
+      padding: 0;
+      border-radius: 50px;
+      font-size: 35px;
+      font-weight: 500;
+      color: #E4E4E4;
+      background-color: #393939;
+    }
+    QPushButton:pressed {
+      background-color: #4a4a4a;
+    }
+    QPushButton:disabled {
+      color: #33E4E4E4;
+    }
+  )");
+  btn.setFixedSize(250, 100);
+  QObject::connect(&btn, &QPushButton::clicked, this, &ConfigDrivenButtonIconControl::clicked);
+  hlayout->addWidget(&btn);
 }
 
 ConfigDrivenParamValueControl* ConfigDrivenControlFactory::createIntegerControl(
-    const QString &param, const QString &title, const QString &desc,
-    int minValue, int maxValue, int increment, bool loop,
-    const QString &label, const std::map<int, QString> &valueLabels) {
-    return new ConfigDrivenParamValueControl(param, title, desc, "", minValue, maxValue, valueLabels, nullptr, loop, label, increment);
+  const QString &param, const QString &title, const QString &desc,
+  int minValue, int maxValue, int increment, bool loop,
+  const QString &label, const std::map<int, QString> &valueLabels) {
+  return new ConfigDrivenParamValueControl(param, title, desc, "", minValue, maxValue, valueLabels, nullptr, loop, label, increment);
 }
 
 ConfigDrivenParamValueControlFloat* ConfigDrivenControlFactory::createFloatControl(
-    const QString &param, const QString &title, const QString &desc,
-    float minValue, float maxValue, float increment, bool loop,
-    const QString &label, const std::map<int, QString> &valueLabels, float division) {
-    return new ConfigDrivenParamValueControlFloat(param, title, desc, "", minValue, maxValue,
+  const QString &param, const QString &title, const QString &desc,
+  float minValue, float maxValue, float increment, bool loop,
+  const QString &label, const std::map<int, QString> &valueLabels, float division) {
+  return new ConfigDrivenParamValueControlFloat(param, title, desc, "", minValue, maxValue,
                                                 valueLabels, nullptr, loop, label, division);
 }
 
 bool ConfigDrivenPanel::showResetConfirmation(const QString& tuningType) {
-    QString msg = tr("Are you sure you want to reset %1 to default values?").arg(tuningType);
-    auto confirm = new ConfirmationDialog(msg, tr("Yes"), tr("No"), false, this);
-    bool ret = confirm->exec();
-    delete confirm;
-    return ret;
-}
-
-bool ConfigDrivenPanel::validateControlBasics(const QJsonObject& control) {
-    if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool()) {
-        if (!isCommaDevice()) {
-            std::cout << "Control is only available on Comma devices" << std::endl;
-            return false;
-        }
-    }
-
-    // Check if required basic fields are present
-    if (!control.contains("type") || !control.contains("title")) {
-        std::cerr << "Control missing required type or title field" << std::endl;
-        return false;
-    }
-
-    // Param is required for most control types except file_viewer and command_button
-    QString type = control["type"].toString();
-    if (type != "file_viewer" && type != "command_button" && !control.contains("param")) {
-        std::cerr << "Control missing required param field for type: " << type.toStdString() << std::endl;
-        return false;
-    }
-
-    // Verify type is supported
-    QStringList supportedTypes = {
-        "toggle", "float", "integer", "selection",
-        "param_viewer", "file_viewer", "command_button"
-    };
-    if (!supportedTypes.contains(type)) {
-        std::cerr << "Unsupported control type: " << type.toStdString() << std::endl;
-        return false;
-    }
-
-    // Type-specific validation
-    if (type == "float" || type == "integer") {
-        if (!control.contains("min") || !control.contains("max")) {
-            std::cerr << "Numeric control missing min/max values" << std::endl;
-            return false;
-        }
-        if (type == "float" && (!control.contains("increment") || !control.contains("division"))) {
-            std::cerr << "Float control missing increment or division values" << std::endl;
-            return false;
-        }
-        if (type == "integer" && !control.contains("increment")) {
-            std::cerr << "Integer control missing increment value" << std::endl;
-            return false;
-        }
-    } else if (type == "selection") {
-        if (!control.contains("options") || !control["options"].isArray()) {
-            std::cerr << "Selection control missing options array" << std::endl;
-            return false;
-        }
-    } else if (type == "file_viewer") {
-        if (!control.contains("path")) {
-            std::cerr << "File viewer control missing path" << std::endl;
-            return false;
-        }
-    } else if (type == "command_button") {
-        if (!control.contains("command")) {
-            std::cerr << "Command button control missing command" << std::endl;
-            return false;
-        }
-    }
-
-    return true;
+  QString msg = tr("Are you sure you want to reset %1 to default values?").arg(tuningType);
+  auto confirm = new ConfirmationDialog(msg, tr("Yes"), tr("No"), false, this);
+  bool ret = confirm->exec();
+  delete confirm;
+  return ret;
 }
 
 bool ConfigDrivenPanel::validateSingleCondition(const QString& conditionType, const QJsonValue& condition) {
@@ -905,18 +605,7 @@ bool ConfigDrivenPanel::validateSingleCondition(const QString& conditionType, co
         QJsonObject equals = condition.toObject();
         for (auto it = equals.begin(); it != equals.end(); ++it) {
             std::string paramVal = params.get(it.key().toStdString());
-            if (paramVal.empty()) return false;
-
-            QString expected = it.value().toString();
-            bool isNumeric;
-            double expectedNum = expected.toDouble(&isNumeric);
-
-            if (isNumeric) {
-                double actualNum = QString::fromStdString(paramVal).toDouble(&isNumeric);
-                if (!isNumeric || std::abs(actualNum - expectedNum) > 1e-6) {
-                    return false;
-                }
-            } else if (paramVal != expected.toStdString()) {
+            if (paramVal != it.value().toString().toStdString()) {
                 return false;
             }
         }
@@ -937,19 +626,6 @@ bool ConfigDrivenPanel::validateSingleCondition(const QString& conditionType, co
             double paramNum = std::stod(paramVal);
             double compareNum = it.value().toDouble();
             if (paramNum >= compareNum) return false;
-        }
-    } else if (conditionType == "paramValueInRange") {
-        QJsonObject range = condition.toObject();
-        for (auto it = range.begin(); it != range.end(); ++it) {
-            std::string paramVal = params.get(it.key().toStdString());
-            if (paramVal.empty()) return false;
-
-            double paramNum = std::stod(paramVal);
-            QJsonObject rangeValues = it.value().toObject();
-            double min = rangeValues["min"].toDouble();
-            double max = rangeValues["max"].toDouble();
-
-            if (paramNum < min || paramNum > max) return false;
         }
     } else if (conditionType == "git_remote") {
         QJsonArray remotes = condition.toArray();
@@ -981,8 +657,6 @@ bool ConfigDrivenPanel::validateConditionObject(const QJsonObject& conditionObj)
 }
 
 bool ConfigDrivenPanel::validateCompositeConditions(const QJsonObject& conditions) {
-    bool result = true;
-
     // Check anyConditionsTrue
     if (conditions.contains("anyConditionsTrue")) {
         QJsonArray anyConditions = conditions["anyConditionsTrue"].toArray();
@@ -994,7 +668,7 @@ bool ConfigDrivenPanel::validateCompositeConditions(const QJsonObject& condition
                     break;
                 }
             }
-            result &= anyTrue;
+            if (!anyTrue) return false;
         }
     }
 
@@ -1003,78 +677,85 @@ bool ConfigDrivenPanel::validateCompositeConditions(const QJsonObject& condition
         QJsonArray allConditions = conditions["allConditionsTrue"].toArray();
         for (const auto& condition : allConditions) {
             if (!validateConditionObject(condition.toObject())) {
-                result = false;
-                break;
+                return false;
             }
-        }
-    }
-
-    return result;
-}
-
-
-bool ConfigDrivenPanel::isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames) {
-    std::string gitRemote = params.get("GitRemote");
-    std::string gitBranch = params.get("GitBranch");
-
-    // Set debugMode to true to allow all controls to be shown if the GitRemote is empty
-    bool debugMode = gitRemote.empty();
-
-    if (debugMode || searchStrs.empty() || std::find(searchStrs.begin(), searchStrs.end(), "any") != searchStrs.end()) {
-        return true;
-    }
-
-    if (gitRemote.empty()) {
-        return false;
-    }
-
-    bool searchStrFound = false;
-    for (const auto& searchStr : searchStrs) {
-        if (!searchStr.empty() && gitRemote.find(searchStr) != std::string::npos) {
-            searchStrFound = true;
-            break;
-        }
-    }
-
-    if (!searchStrFound) {
-        return false;
-    }
-
-    if (!branchNames.empty()) {
-        bool branchFound = false;
-        for (const auto& branchName : branchNames) {
-            if (!branchName.empty() && gitBranch == branchName) {
-                branchFound = true;
-                break;
-            }
-        }
-        if (!branchFound) {
-            return false;
         }
     }
 
     return true;
 }
 
-void ConfigDrivenPanel::resetGroupControls(const std::vector<QWidget*>& controls) {
-    ConfigDrivenDefaultParams& defaults = ConfigDrivenDefaultParams::getInstance();
-    for (QWidget* ctrl : controls) {
-        QString paramName = ctrl->objectName();
-        QString defaultValue = defaults.getDefault(paramName);
-        if (!defaultValue.isEmpty()) {
-            params.put(paramName.toStdString(), defaultValue.toStdString());
-        }
+bool ConfigDrivenPanel::isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames) {
+  // std::cout << "Entering isGitRemoteValid" << std::endl;;
+  std::string gitRemote = params.get("GitRemote");
+  std::string gitBranch = params.get("GitBranch");
+
+  // std::cout << "GitRemote: " << gitRemote << std::endl;
+  // std::cout << "GitBranch: " << gitBranch << std::endl;
+
+  // Set debugMode to true to allow all controls to be shown if the GitRemote is empty
+  bool debugMode = gitRemote.empty();
+
+  if (debugMode || searchStrs.empty() || std::find(searchStrs.begin(), searchStrs.end(), "any") != searchStrs.end()) {
+    // std::cout << "Returning true (searchStrs is empty or contains 'any')" << std::endl;
+    return true;
+  }
+
+  if (gitRemote.empty()) {
+    // std::cout << "Returning false (GitRemote is empty)" << std::endl;
+    return false;
+  }
+
+  bool searchStrFound = false;
+  for (const auto& searchStr : searchStrs) {
+    if (!searchStr.empty() && gitRemote.find(searchStr) != std::string::npos) {
+      searchStrFound = true;
+      break;
     }
-    updateToggles();
+  }
+
+  if (!searchStrFound) {
+    // std::cout << "Returning false (no searchStr found in GitRemote)" << std::endl;
+    return false;
+  }
+
+  if (!branchNames.empty()) {
+    bool branchFound = false;
+    for (const auto& branchName : branchNames) {
+      if (!branchName.empty() && gitBranch == branchName) {
+        branchFound = true;
+        break;
+      }
+    }
+    if (!branchFound) {
+      // std::cout << "Returning false (no matching branchName)" << std::endl;
+      return false;
+    }
+  }
+
+  // std::cout << "Returning true (all checks passed)" << std::endl;
+  return true;
+}
+
+void ConfigDrivenPanel::resetGroupControls(const std::vector<QWidget*>& controls) {
+  ConfigDrivenDefaultParams& defaults = ConfigDrivenDefaultParams::getInstance();
+  for (QWidget* ctrl : controls) {
+    QString paramName = ctrl->objectName();
+    QString defaultValue = defaults.getDefault(paramName);
+    if (!defaultValue.isEmpty()) {
+      params.put(paramName.toStdString(), defaultValue.toStdString());
+    }
+  }
+  updateToggles();
 }
 
 void ConfigDrivenPanel::resetControlTitle(QWidget* control) {
-    if (!control) return;
-    if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(control)) {
-        valueControl->setDefaultValue("");
-    } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(control)) {
-        floatControl->setDefaultValue("");
-    }
+  if (!control) return;
+  if (auto* valueControl = qobject_cast<ConfigDrivenParamValueControl*>(control)) {
+    valueControl->setDefaultValue("");
+  } else if (auto* floatControl = qobject_cast<ConfigDrivenParamValueControlFloat*>(control)) {
+    floatControl->setDefaultValue("");
+  }
 }
 
 QString ConfigDrivenPanel::getProjectRootPath() {
@@ -1151,7 +832,7 @@ void ConfigDrivenPanel::showFullScreenDialog(const QString& title, const QString
     // Apply fullscreen settings
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
-        dialog->setFixedSize(2160, 1080);
+        dialog->setFixedSize(screen->geometry().size());
     }
 
     // Show dialog and apply rotation
@@ -1209,11 +890,11 @@ void ConfigDrivenPanel::executeCommand(const QString& command, const QString& ti
             margin: 0px;
         }
         QTextEdit QScrollBar::handle:vertical {
-            background-color: white;
+            background-color: white;  /* Changed to background-color */
             min-height: 30px;
             border-radius: 5px;
-            margin: 2px;
-            width: 16px;
+            margin: 2px;  /* Add margin to prevent handle from touching the edges */
+            width: 16px;  /* Make the handle slightly narrower than the scrollbar */
         }
         QTextEdit QScrollBar::add-line:vertical,
         QTextEdit QScrollBar::sub-line:vertical {
@@ -1227,7 +908,7 @@ void ConfigDrivenPanel::executeCommand(const QString& command, const QString& ti
     )");
     outputText->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     outputText->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    outputText->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    outputText->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);  // Enable touch events
     layout->addWidget(outputText);
 
     // Create button layout
@@ -1425,7 +1106,7 @@ void ConfigDrivenPanel::executeCommand(const QString& command, const QString& ti
     // Set dialog size and show
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
-        dialog->setFixedSize(2160, 1080);
+        dialog->setFixedSize(screen->geometry().size());
     }
     dialog->show();
     setupFullscreenDialog(dialog);

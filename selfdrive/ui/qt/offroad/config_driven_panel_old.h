@@ -1,4 +1,4 @@
-// selfdrive/ui/qt/offroad/config_driven_panel.h
+// selfdrive/ui/qt/offroad/custom_car_panel_old.h
 #pragma once
 
 #include <QFrame>
@@ -10,7 +10,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QStyle>
 #include <cmath>
 #include <iostream>
 
@@ -85,7 +84,7 @@ public:
     outer_layout.setSpacing(0);
     outer_layout.addLayout(&inner_layout);
     inner_layout.setMargin(0);
-    inner_layout.setSpacing(25);
+    inner_layout.setSpacing(25); // default spacing is 25
     outer_layout.addStretch();
   }
   inline void addItem(QWidget *w) { inner_layout.addWidget(w); }
@@ -96,10 +95,14 @@ private:
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
     p.setPen(Qt::gray);
+
+    // int visibleWidgetCount = 0;
     std::vector<QRect> visibleRects;
+
     for (int i = 0; i < inner_layout.count(); ++i) {
       QWidget *widget = inner_layout.itemAt(i)->widget();
       if (widget && widget->isVisible()) {
+        // visibleWidgetCount++;
         visibleRects.push_back(inner_layout.itemAt(i)->geometry());
       }
     }
@@ -117,127 +120,109 @@ public:
   void showEvent(QShowEvent *event) override;
   void hideEvent(QHideEvent *event) override;
 
-// protected:
-//   bool event(QEvent *event) override {
-//     std::cout
-//     switch (event->type()) {
-//       case QEvent::MouseMove:
-//       case QEvent::MouseButtonPress:
-//       case QEvent::MouseButtonRelease:
-//       case QEvent::KeyPress:
-//       case QEvent::KeyRelease:
-//       case QEvent::Wheel:
-//         resetMaxDurationTimer();
-//         break;
-//       default:
-//         break;
-//     }
-//     return QWidget::event(event);
-//   }
-
-private slots:
-  void onControlValueChanged();
+protected:
+  bool event(QEvent *event) override {
+    switch (event->type()) {
+      case QEvent::MouseMove:
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonRelease:
+      case QEvent::KeyPress:
+      case QEvent::KeyRelease:
+      case QEvent::Wheel:
+        resetMaxDurationTimer();
+        break;
+      default:
+        break;
+    }
+    return QWidget::event(event);
+  }
 
 private:
-    QTimer refreshTimer;  // For debouncing updates
-    bool isRefreshing = false;  // Guard against recursive updates
+  void createGroup(const QJsonObject& group);
+  QWidget* createControl(const QJsonObject& control);
+  void handleGroupReset(const QString& groupName);
+  QGroupBox *createStyledGroupBox(const QString &title);
+  QPushButton* createResetButton();
 
-    void refreshPanel();
-    void createGroup(const QJsonObject& group);
-    QWidget* createControl(const QJsonObject& control);
-    void handleGroupReset(const QString& groupName);
-    QGroupBox *createStyledGroupBox(const QString &title);
-    QPushButton* createResetButton();
-    void updateConditionsForAllControls();
+  bool showResetConfirmation(const QString& tuningType);
+  void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());
+  void updateControlWithDefault(QWidget* ctrl);
+  void updateResetButtonVisibility(QGroupBox* group);
+  void updateToggles();
+  void resetControlTitle(QWidget* control);
+  void resetGroupControls(const std::vector<QWidget*>& controls);
+  QString getProjectRootPath();
+  void setupFullscreenDialog(QDialog* dialog) {
+      #ifdef QCOM2
+      // Apply rotation
+      QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+      wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+      if (s) {
+          wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+          wl_surface_commit(s);
+      }
 
-    bool validateControlBasics(const QJsonObject& control);
-    QJsonObject configJson; // Cache of the full configuration
+      // Set window state after rotation
+      dialog->setWindowState(Qt::WindowFullScreen);
+      dialog->setAttribute(Qt::WA_DeleteOnClose);
 
-    struct ControlConditions {
-        QJsonObject conditions;
-        bool hasConditions;
-    };
-    std::map<QWidget*, ControlConditions> controlConditions;
+      // Force layout update
+      dialog->layout()->activate();
 
-    bool showResetConfirmation(const QString& tuningType);
-    void executeCommand(const QString& command, const QString& title, const QString& workingDir = QString(), const QJsonArray& actionButtons = QJsonArray());
-    void updateControlWithDefault(QWidget* ctrl);
-    void updateResetButtonVisibility(QGroupBox* group);
-    void updateToggles();
-    void resetControlTitle(QWidget* control);
-    void resetGroupControls(const std::vector<QWidget*>& controls);
-    QString getProjectRootPath();
-    void setupFullscreenDialog(QDialog* dialog) {
-        #ifdef QCOM2
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
-        if (s) {
-            wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-            wl_surface_commit(s);
-        }
-        dialog->setWindowState(Qt::WindowFullScreen);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->layout()->activate();
-        void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
-        assert(egl != nullptr);
-        #endif
-    }
-    void showFullScreenDialog(const QString& title, const QString& content);
-    bool isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames);
-    QString getDialogStyle() {
-        return R"(
-            QDialog {
-                background-color: black;
-            }
-            QWidget {
-                background-color: black;
-                color: white;
-            }
-            QLabel {
-                background-color: black;
-            }
-            QPushButton {
-                height: 160px;
-                font-size: 55px;
-                font-weight: 400;
-                border-radius: 10px;
-                background-color: #4F4F4F;
-            }
-            QScrollArea {
-                background-color: black;
-            }
-            QScrollArea > QWidget > QWidget {
-                background-color: black;
-            }
-        )";
-    }
+      // Ensure EGL display is valid
+      void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
+      assert(egl != nullptr);
+      #endif
+  }
+  void showFullScreenDialog(const QString& title, const QString& content);
+  bool isGitRemoteValid(const std::vector<std::string>& searchStrs, const std::vector<std::string>& branchNames);
+  QString getDialogStyle() {
+      return R"(
+          QDialog {
+              background-color: black;
+          }
+          QWidget {
+              background-color: black;
+              color: white;
+          }
+          QLabel {
+              background-color: black;
+          }
+          QPushButton {
+              height: 160px;
+              font-size: 55px;
+              font-weight: 400;
+              border-radius: 10px;
+              background-color: #4F4F4F;
+          }
+          QScrollArea {
+              background-color: black;
+          }
+          QScrollArea > QWidget > QWidget {
+              background-color: black;
+          }
+      )";
+  }
 
-    bool isCommaDevice() const {
-        #ifdef QCOM2
-            return true;
-        #else
-            return false;
-        #endif
-    }
+  bool validateSingleCondition(const QString& key, const QJsonValue& value);
+  bool validateConditionObject(const QJsonObject& conditionObj);
+  bool validateCompositeConditions(const QJsonObject& conditions);
 
-    bool validateSingleCondition(const QString& key, const QJsonValue& value);
-    bool validateConditionObject(const QJsonObject& conditionObj);
-    bool validateCompositeConditions(const QJsonObject& conditions);
-    void updateGroupVisibility();
 
-    Params params;
-    std::map<std::string, ParamControl*> toggles;
-    struct GroupData {
-        QGroupBox* groupBox;
-        std::vector<QWidget*> controls;
-    };
-    std::map<QString, GroupData> groups;
+  Params params;
+  std::map<std::string, ParamControl*> toggles;
+  struct GroupData {
+    QGroupBox* groupBox;
+    std::vector<QWidget*> controls;
+  };
+  std::map<QString, GroupData> groups;
 
-    QTimer *activityTimer;
+  QTimer *activityTimer;
 
-    void simulateActivity();
-    void stopActivitySimulation();
-    void resetMaxDurationTimer();
+  void simulateActivity();
+  void stopActivitySimulation();
+  void resetMaxDurationTimer();
+
 };
 
 // Forward declarations
@@ -259,22 +244,13 @@ public:
   static ParamControl* createToggleControl(const QString &param, const QString &title, const QString &desc, const QString &icon) {
     auto toggle = new ParamControl(param, title, desc, icon);
 
-    // Ensure all container elements have transparent backgrounds
+    // Apply consistent styling and layout
     toggle->setStyleSheet(R"(
-        ParamControl {
-            background: transparent;
-        }
-        QFrame {
-            background: transparent;
-        }
-        QHBoxLayout {
-            background: transparent;
-        }
-        QWidget {
-            background: transparent;
-        }
+      QFrame {
+        padding: 0px;
+        margin: 0px;
+      }
     )");
-
 
     // Adjust toggle switch position and spacing
     QHBoxLayout* layout = toggle->findChild<QHBoxLayout*>();
@@ -433,26 +409,26 @@ public:
       refreshButtons(state);
     });
 
-    // const QString style = R"(
-    //   QPushButton {
-    //     border-radius: 10px;
-    //     font-size: 40px;
-    //     font-weight: 500;
-    //     height:100px;
-    //     padding: 0 25 0 25;
-    //     color: #E4E4E4;
-    //     background-color: #393939;
-    //   }
-    //   QPushButton:pressed {
-    //     background-color: #4a4a4a;
-    //   }
-    //   QPushButton:checked:enabled {
-    //     background-color: #33Ab4C;
-    //   }
-    //   QPushButton:disabled {
-    //     color: #33E4E4E4;
-    //   }
-    // )";
+    const QString style = R"(
+      QPushButton {
+        border-radius: 10px;
+        font-size: 40px;
+        font-weight: 500;
+        height:100px;
+        padding: 0 25 0 25;
+        color: #E4E4E4;
+        background-color: #393939;
+      }
+      QPushButton:pressed {
+        background-color: #4a4a4a;
+      }
+      QPushButton:checked:enabled {
+        background-color: #33Ab4C;
+      }
+      QPushButton:disabled {
+        color: #33E4E4E4;
+      }
+    )";
 
     button_group = new QButtonGroup(this);
     button_group->setExclusive(false);
@@ -466,7 +442,7 @@ public:
       QPushButton *button = new QPushButton(button_texts[i], this);
       button->setCheckable(true);
       button->setChecked(paramState[button_params[i]]);
-      // button->setStyleSheet(style);
+      button->setStyleSheet(style);
       button->setMinimumWidth(minimum_button_width);
       button_group->addButton(button, i);
 
@@ -505,52 +481,35 @@ public:
       minValue(minValue), maxValue(maxValue), valueLabelMappings(valueLabels), loop(loop), labelText(label), division(division) {
         key = param.toStdString();
 
-        defaultValueLabel = new QLabel(this);
-        // defaultValueLabel->setStyleSheet(R"(
-        //     QLabel {
-        //         color: #888888;
-        //         font-size: 40px;
-        //     }
-        //     QLabel:disabled {
-        //         color: #777777;
-        //     }
-        // )");
+         // Create a vertical layout for the title and default value
+        QVBoxLayout *titleLayout = new QVBoxLayout();
+        titleLayout->setSpacing(0);
+        titleLayout->setContentsMargins(0, 0, 0, 0);
 
+        // Move the title label to our new layout
+        titleLayout->addWidget(this->title_label);
+
+        // Create and add the default value label
+        defaultValueLabel = new QLabel(this);
+        defaultValueLabel->setStyleSheet("QLabel { color: #888888; font-size: 40px; }");
         defaultValueLabel->setAlignment(Qt::AlignLeft);
-        hlayout->addWidget(defaultValueLabel);
+        titleLayout->addWidget(defaultValueLabel);
+
+        // Replace the title label in the main layout with our new vertical layout
+        hlayout->replaceWidget(this->title_label, new QWidget());
+        hlayout->insertLayout(0, titleLayout);
 
         QLabel *minLabel = new QLabel("Min: " + QString::number(minValue), this);
         QLabel *maxLabel = new QLabel("Max: " + QString::number(maxValue), this);
-        // For min/max labels
-        QString minMaxLabelStyle = R"(
-          QLabel {
-            color: %1;
-            font-size: 30px;
-          }
-          QLabel:disabled {
-            color: #777777;
-          }
-        )";
-        minLabel->setStyleSheet(minMaxLabelStyle.arg("#ff7c30"));
-        maxLabel->setStyleSheet(minMaxLabelStyle.arg("#50d332"));
+        minLabel->setStyleSheet("QLabel { color: #ff7c30; font-size: 30px; }");
+        maxLabel->setStyleSheet("QLabel { color: #50d332; font-size: 30px; }");
         minLabel->setAlignment(Qt::AlignCenter);
         maxLabel->setAlignment(Qt::AlignCenter);
 
         valueLabel = new QLabel(this);
         valueLabel->setAlignment(Qt::AlignCenter);
         valueLabel->setFixedSize(190, 130);
-        valueLabel->setStyleSheet(R"(
-          QLabel {
-            color: #3f9fff;
-            font-size: 50px;
-            background-color: #393939;
-            border: none;
-          }
-          QLabel:disabled {
-            color: #777777;
-            background-color: #2a2a2a;
-          }
-        )");
+        valueLabel->setStyleSheet("QLabel { color: #3f9fff; font-size: 50px; background-color: #393939; border: none; }");
 
         QPushButton *decrementButton = createButton("-", this, true);
         QPushButton *incrementButton = createButton("+", this, false);
@@ -583,11 +542,11 @@ public:
         hlayout->setContentsMargins(0, 10, 0, 10);
 
         connect(decrementButton, &QPushButton::clicked, this, [=]() {
-            updateValue(-1);
+          updateValue(-1);
         });
 
         connect(incrementButton, &QPushButton::clicked, this, [=]() {
-            updateValue(1);
+          updateValue(1);
         });
 
         toggle.hide();
@@ -604,7 +563,7 @@ public:
     }
 
     params.putInt(key, value);
-    // refresh();
+    refresh();
     emit buttonPressed();
     emit valueChanged(value);
   }
@@ -650,20 +609,6 @@ public:
     }
   }
 
-  void setEnabled(bool isEnabled) {
-    ParamControl::setEnabled(isEnabled);
-    valueLabel->setEnabled(isEnabled);
-    defaultValueLabel->setEnabled(isEnabled);
-    // Enable/disable all buttons in this control
-    for (QPushButton* btn : findChildren<QPushButton*>()) {
-        btn->setEnabled(isEnabled);
-    }
-    // Enable/disable all labels in this control
-    for (QLabel* lbl : findChildren<QLabel*>()) {
-        lbl->setEnabled(isEnabled);
-    }
-  }
-
 signals:
   void buttonPressed();
   void valueChanged(int value);
@@ -699,10 +644,6 @@ private:
       QPushButton:pressed {
         background-color: #4a4a4a;
       }
-      QPushButton:disabled {
-        color: #777777;
-        background-color: #2a2a2a;
-      }
     )";
 
     if (isLeftButton) {
@@ -727,43 +668,36 @@ public:
       minValue(minValue), maxValue(maxValue), valueLabelMappings(valueLabels), loop(loop), labelText(label), division(division) {
         key = param.toStdString();
 
+         // Create a vertical layout for the title and default value
+        QVBoxLayout *titleLayout = new QVBoxLayout();
+        titleLayout->setSpacing(0);
+        titleLayout->setContentsMargins(0, 0, 0, 0);
+
+        // Move the title label to our new layout
+        titleLayout->addWidget(this->title_label);
+
+        // Create and add the default value label
         defaultValueLabel = new QLabel(this);
-        // defaultValueLabel->setStyleSheet("QLabel { color: #888888; font-size: 40px; }");
+        defaultValueLabel->setStyleSheet("QLabel { color: #888888; font-size: 40px; }");
         defaultValueLabel->setAlignment(Qt::AlignLeft);
-        hlayout->addWidget(defaultValueLabel);
+        titleLayout->addWidget(defaultValueLabel);
+
+        // Replace the title label in the main layout with our new vertical layout
+        hlayout->replaceWidget(this->title_label, new QWidget());  // Remove the old title label
+        hlayout->insertLayout(0, titleLayout);  // Insert the new layout at the beginning
 
         QLabel *minLabel = new QLabel("Min: " + QString::number(minValue, 'f', 2), this);
         QLabel *maxLabel = new QLabel("Max: " + QString::number(maxValue, 'f', 2), this);
-        QString minMaxLabelStyle = R"(
-          QLabel {
-            color: %1;
-            font-size: 30px;
-          }
-          QLabel:disabled {
-            color: #777777;
-          }
-        )";
-        minLabel->setStyleSheet(minMaxLabelStyle.arg("#ff7c30"));
-        maxLabel->setStyleSheet(minMaxLabelStyle.arg("#50d332"));
-
+        // Orange color code: #
+        minLabel->setStyleSheet("QLabel { color: #ff7c30; font-size: 30px; }");
+        maxLabel->setStyleSheet("QLabel { color: #50d332; font-size: 30px; }");
         minLabel->setAlignment(Qt::AlignCenter);
         maxLabel->setAlignment(Qt::AlignCenter);
 
         valueLabel = new QLabel(this);
         valueLabel->setAlignment(Qt::AlignCenter);
         valueLabel->setFixedSize(190, 130);
-        valueLabel->setStyleSheet(R"(
-          QLabel {
-            color: #3f9fff;
-            font-size: 50px;
-            background-color: #393939;
-            border: none;
-          }
-          QLabel:disabled {
-            color: #777777;
-            background-color: #2a2a2a;
-          }
-        )");
+        valueLabel->setStyleSheet("QLabel { color: #3f9fff; font-size: 50px; background-color: #393939; border: none; }");
 
         QPushButton *decrementButton = createButton("-", this, true);
         QPushButton *incrementButton = createButton("+", this, false);
@@ -796,11 +730,11 @@ public:
         hlayout->setContentsMargins(0, 10, 0, 10);
 
         connect(decrementButton, &QPushButton::clicked, this, [=]() {
-            updateValue(-1.0f);
+          updateValue(-1.0f);
         });
 
         connect(incrementButton, &QPushButton::clicked, this, [=]() {
-            updateValue(1.0f);
+          updateValue(1.0f);
         });
 
         toggle.hide();
@@ -864,20 +798,6 @@ public:
     } else {
       defaultValueLabel->setText(tr("Default: %1").arg(defaultValue));
       defaultValueLabel->show();   // Ensure the label is visible when there's a default value
-    }
-  }
-
-  void setEnabled(bool isEnabled) {
-    ParamControl::setEnabled(isEnabled);
-    valueLabel->setEnabled(isEnabled);
-    defaultValueLabel->setEnabled(isEnabled);
-    // Enable/disable all buttons in this control
-    for (QPushButton* btn : findChildren<QPushButton*>()) {
-        btn->setEnabled(isEnabled);
-    }
-    // Enable/disable all labels in this control
-    for (QLabel* lbl : findChildren<QLabel*>()) {
-        lbl->setEnabled(isEnabled);
     }
   }
 
