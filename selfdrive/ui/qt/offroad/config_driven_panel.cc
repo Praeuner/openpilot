@@ -24,13 +24,17 @@
 
 ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &configPath) : ConfigDrivenListWidget(parent) {
     setSpacing(50);
+    setMaximumWidth(1920);
 
     // unified style sheet at the panel level
     this->setStyleSheet(R"(
       * {
           background: none;
       }
-      /* QPushButton Styles */
+      AbstractControl {
+          min-width: 0;
+          max-width: 1920px;
+      }
       QPushButton {
           border-radius: 10px;
           font-size: 40px;
@@ -49,6 +53,7 @@ ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &conf
       QLabel {
           color: white;
           font-size: 40px;
+          min-width: 100px;
           background: none;
       }
       QLabel:disabled {
@@ -68,6 +73,16 @@ ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &conf
       }
       QWidget:disabled {
           opacity: 0.5;
+      }
+
+      QPushButton:disabled {
+          background-color: #2a2a2a;
+      }
+      QAbstractButton:disabled {
+          background-color: #2a2a2a;
+      }
+      ToggleControl:disabled {
+          background-color: #2a2a2a;
       }
     )");
 
@@ -189,6 +204,8 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
 
     QGroupBox* groupBox = createStyledGroupBox(title);
     QVBoxLayout* layout = new QVBoxLayout(groupBox);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(20);
 
     // Initialize group data
     GroupData groupData;
@@ -216,12 +233,27 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
             if (auto* control = qobject_cast<AbstractControl*>(widget)) {
                 QList<QLabel*> labels = control->findChildren<QLabel*>();
                 for (QLabel* label : labels) {
-                    if (label->text() == control->getDescription()) {
-                        label->setContentsMargins(0, 0, 0, 10);
-                        label->setStyleSheet("font-size: 40px; color: yellow; padding-left: 0px; background-color: transparent;");
-                        label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-                        break;
-                    }
+                  if (label->text() == control->getDescription()) {
+                      label->setContentsMargins(0, 0, 0, 10);
+                      label->setStyleSheet(R"(
+                          font-size: 40px;
+                          color: yellow;
+                          padding-left: 0px;
+                          background-color: transparent;
+                          min-height: 40px;
+                      )");
+                      label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+                      label->setWordWrap(true);  // Enable word wrap
+                      label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+                      label->setMaximumWidth(1300);  // Adjust this value based on your needs
+                      break;
+                  }
+                }
+
+                // Find and adjust the main layout of the control
+                if (QHBoxLayout* mainLayout = control->findChild<QHBoxLayout*>()) {
+                    mainLayout->setStretch(0, 1);  // Give more stretch to the label area
+                    mainLayout->setSpacing(50);
                 }
             }
             layout->addWidget(widget);
@@ -248,6 +280,11 @@ void ConfigDrivenPanel::updateGroupVisibility() {
             }
         }
         groupData.groupBox->setVisible(hasVisibleControls);
+
+        // Force style refresh on the group box:
+        groupData.groupBox->style()->unpolish(groupData.groupBox);
+        groupData.groupBox->style()->polish(groupData.groupBox);
+        groupData.groupBox->update();
     }
 }
 
@@ -661,6 +698,11 @@ void ConfigDrivenPanel::refreshPanel() {
 
             // Update group visibility based on visible controls
             groupData.groupBox->setVisible(hasVisibleControls);
+
+            // Force style refresh on the group box:
+            groupData.groupBox->style()->unpolish(groupData.groupBox);
+            groupData.groupBox->style()->polish(groupData.groupBox);
+            groupData.groupBox->update();
         }
     } catch (const std::exception& e) {
         std::cerr << "Error during refresh: " << e.what() << std::endl;
@@ -690,27 +732,30 @@ void ConfigDrivenPanel::updateConditionsForAllControls() {
                          << " enabled: " << currentlyEnabled
                          << " -> " << shouldBeEnabled << std::endl;
 
-                // Force style refresh
+                // First set the enabled state of the main control
+                ctrl->setEnabled(shouldBeEnabled);
+                ctrl->setProperty("enabled", QVariant(shouldBeEnabled));
+                ctrl->update();
+
+                // Force style refresh on ctrl
                 ctrl->style()->unpolish(ctrl);
                 ctrl->style()->polish(ctrl);
+                ctrl->update();
 
-                // Update all child widgets
+
+                // Also ensure all child widgets get re-polished
                 QList<QWidget*> children = ctrl->findChildren<QWidget*>();
                 for (QWidget* child : children) {
-                    child->setEnabled(shouldBeEnabled);
+                    child->update();
                     child->style()->unpolish(child);
                     child->style()->polish(child);
                     child->update();
                 }
-
-                ctrl->update();
             }
         }
     }
     updateGroupVisibility();
 }
-
-
 
 void ConfigDrivenPanel::showEvent(QShowEvent *event) {
     std::cout << "Showing ConfigDrivenPanel" << std::endl;
@@ -791,22 +836,6 @@ bool ConfigDrivenConfirmationDialog::yesorno(const QString &prompt_text, QWidget
 
 ConfigDrivenButtonIconControl::ConfigDrivenButtonIconControl(const QString &title, const QString &text, const QString &desc, const QString &icon, QWidget *parent) : AbstractControl(title, desc, icon, parent) {
     btn.setText(text);
-    // btn.setStyleSheet(R"(
-    //     QPushButton {
-    //         padding: 0;
-    //         border-radius: 50px;
-    //         font-size: 35px;
-    //         font-weight: 500;
-    //         color: #E4E4E4;
-    //         background-color: #393939;
-    //     }
-    //     QPushButton:pressed {
-    //         background-color: #4a4a4a;
-    //     }
-    //     QPushButton:disabled {
-    //         color: #33E4E4E4;
-    //     }
-    // )");
     btn.setFixedSize(250, 100);
     QObject::connect(&btn, &QPushButton::clicked, this, &ConfigDrivenButtonIconControl::clicked);
     hlayout->addWidget(&btn);
@@ -816,7 +845,15 @@ ConfigDrivenParamValueControl* ConfigDrivenControlFactory::createIntegerControl(
     const QString &param, const QString &title, const QString &desc,
     int minValue, int maxValue, int increment, bool loop,
     const QString &label, const std::map<int, QString> &valueLabels) {
-    return new ConfigDrivenParamValueControl(param, title, desc, "", minValue, maxValue, valueLabels, nullptr, loop, label, increment);
+    auto control = new ConfigDrivenParamValueControl(param, title, desc, "", minValue, maxValue, valueLabels, nullptr, loop, label, increment);
+
+    // Find and adjust the main layout
+    if (QHBoxLayout* mainLayout = control->findChild<QHBoxLayout*>()) {
+        mainLayout->setStretch(0, 1);  // Give more stretch to the label area
+        mainLayout->setSpacing(50);
+    }
+
+    return control;
 }
 
 ConfigDrivenParamValueControlFloat* ConfigDrivenControlFactory::createFloatControl(

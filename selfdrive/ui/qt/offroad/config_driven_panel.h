@@ -281,6 +281,14 @@ public:
     if (layout) {
       layout->setContentsMargins(0, 10, 0, 10);
       layout->setSpacing(50);
+      layout->setStretch(0, 1);
+    }
+
+    // Find all labels and adjust them
+    QList<QLabel*> labels = toggle->findChildren<QLabel*>();
+    for (QLabel* label : labels) {
+        label->setWordWrap(true);
+        label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     }
 
     return toggle;
@@ -433,27 +441,6 @@ public:
       refreshButtons(state);
     });
 
-    // const QString style = R"(
-    //   QPushButton {
-    //     border-radius: 10px;
-    //     font-size: 40px;
-    //     font-weight: 500;
-    //     height:100px;
-    //     padding: 0 25 0 25;
-    //     color: #E4E4E4;
-    //     background-color: #393939;
-    //   }
-    //   QPushButton:pressed {
-    //     background-color: #4a4a4a;
-    //   }
-    //   QPushButton:checked:enabled {
-    //     background-color: #33Ab4C;
-    //   }
-    //   QPushButton:disabled {
-    //     color: #33E4E4E4;
-    //   }
-    // )";
-
     button_group = new QButtonGroup(this);
     button_group->setExclusive(false);
 
@@ -466,7 +453,6 @@ public:
       QPushButton *button = new QPushButton(button_texts[i], this);
       button->setCheckable(true);
       button->setChecked(paramState[button_params[i]]);
-      // button->setStyleSheet(style);
       button->setMinimumWidth(minimum_button_width);
       button_group->addButton(button, i);
 
@@ -506,16 +492,6 @@ public:
         key = param.toStdString();
 
         defaultValueLabel = new QLabel(this);
-        // defaultValueLabel->setStyleSheet(R"(
-        //     QLabel {
-        //         color: #888888;
-        //         font-size: 40px;
-        //     }
-        //     QLabel:disabled {
-        //         color: #777777;
-        //     }
-        // )");
-
         defaultValueLabel->setAlignment(Qt::AlignLeft);
         hlayout->addWidget(defaultValueLabel);
 
