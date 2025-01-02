@@ -18,6 +18,12 @@
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 
+#ifdef QCOM2
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#include <QPlatformSurfaceEvent>
+#endif
+
 class ConfigDrivenConfirmationDialog : public ConfirmationDialog {
     Q_OBJECT
 
