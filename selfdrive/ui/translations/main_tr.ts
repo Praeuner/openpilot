@@ -88,6 +88,45 @@
     </message>
 </context>
 <context>
+    <name>ConfigDrivenCommandDialog</name>
+    <message>
+        <source>Output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop Command</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Command is Running...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Command Failed | Exit code: %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Completed Successfully)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Terminated)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ConfigDrivenConfirmationDialog</name>
     <message>
         <source>Reboot Later</source>
@@ -100,6 +139,13 @@
     <message>
         <source>No</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenFullScreenDialog</name>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Kapat</translation>
     </message>
 </context>
 <context>
