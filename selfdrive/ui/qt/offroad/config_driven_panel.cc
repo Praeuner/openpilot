@@ -18,7 +18,9 @@
 ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &configPath)
     : ConfigDrivenListWidget(parent) {
     setSpacing(50);
-    setMaximumWidth(1920);
+    setMinimumWidth(1000);  // Minimum reasonable width
+    setMaximumWidth(1920);  // Max width from original code
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
 
     // unified style sheet at the panel level
     this->setStyleSheet(R"(
@@ -310,8 +312,8 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.hasConditions = true;
             controlConditions[toggle] = conditions;
             // Evaluate conditions immediately
-            bool shouldBeEnabled = validateCompositeConditions(conditions.conditions);
-            toggle->setEnabled(shouldBeEnabled);
+            // bool shouldBeEnabled = validateCompositeConditions(conditions.conditions);
+            toggle->setEnabled(true);
             toggle->update();
         }
         return toggle;
@@ -334,7 +336,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[ctrl] = conditions;
-            ctrl->setEnabled(validateCompositeConditions(conditions.conditions));
+            ctrl->setEnabled(true);
         }
         return ctrl;
     }
@@ -355,7 +357,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[ctrl] = conditions;
-            ctrl->setEnabled(validateCompositeConditions(conditions.conditions));
+            ctrl->setEnabled(true);
         }
         return ctrl;
     }
@@ -435,7 +437,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[button] = conditions;
-            button->setEnabled(validateCompositeConditions(conditions.conditions));
+            button->setEnabled(true);
         }
         return button;
     }
@@ -467,7 +469,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[dataBtn] = conditions;
-            dataBtn->setEnabled(validateCompositeConditions(conditions.conditions));
+            dataBtn->setEnabled(true);
         }
         return dataBtn;
     }
@@ -508,7 +510,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[dataBtn] = conditions;
-            dataBtn->setEnabled(validateCompositeConditions(conditions.conditions));
+            dataBtn->setEnabled(true);
         }
         return dataBtn;
     }
@@ -564,7 +566,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             conditions.conditions = control["conditions"].toObject();
             conditions.hasConditions = true;
             controlConditions[cmdBtn] = conditions;
-            cmdBtn->setEnabled(validateCompositeConditions(conditions.conditions));
+            cmdBtn->setEnabled(true);
         }
         return cmdBtn;
     }

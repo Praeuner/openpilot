@@ -116,8 +116,6 @@ ConfigDrivenParamValueControl::ConfigDrivenParamValueControl(const QString &para
         toggle.hide();
 }
 
-// config_driven_controls.cc (continued)
-
 void ConfigDrivenParamValueControl::updateValue(int increment) {
     value = value + increment;
 
@@ -216,8 +214,6 @@ QPushButton* ConfigDrivenParamValueControl::createButton(const QString &text, QW
     return button;
 }
 
-// config_driven_controls.cc (continued)
-
 ConfigDrivenParamValueControlFloat::ConfigDrivenParamValueControlFloat(const QString &param, const QString &title, const QString &desc, const QString &icon,
                     const float &minValue, const float &maxValue, const std::map<int, QString> &valueLabels,
                     QWidget *parent, const bool &loop, const QString &label, const float &division)
@@ -227,7 +223,19 @@ ConfigDrivenParamValueControlFloat::ConfigDrivenParamValueControlFloat(const QSt
 
         defaultValueLabel = new QLabel(this);
         defaultValueLabel->setAlignment(Qt::AlignLeft);
+        defaultValueLabel->setWordWrap(true);
+        defaultValueLabel->setMaximumWidth(800);  // Adjust width as needed
+        defaultValueLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         hlayout->addWidget(defaultValueLabel);
+
+        for (QLabel* title_label : findChildren<QLabel*>()) {
+            if (title_label->text() == title) {
+                title_label->setWordWrap(true);
+                title_label->setMaximumWidth(800);  // Adjust width as needed
+                title_label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+                break;
+            }
+        }
 
         QLabel *minLabel = new QLabel("Min: " + QString::number(minValue, 'f', 2), this);
         QLabel *maxLabel = new QLabel("Max: " + QString::number(maxValue, 'f', 2), this);
@@ -320,8 +328,6 @@ void ConfigDrivenParamValueControlFloat::refresh() {
     valueLabel->setStyleSheet("QLabel { color: #3f9fff; background-color: #393939; font-size: 50px; border: none; }");
 }
 
-// config_driven_controls.cc (continued)
-
 void ConfigDrivenParamValueControlFloat::updateValue(float increment) {
     value += increment / division;
 
@@ -352,9 +358,13 @@ void ConfigDrivenParamValueControlFloat::setDefaultValue(const QString &defaultV
     if (defaultValue.isEmpty()) {
         defaultValueLabel->clear();
         defaultValueLabel->hide();
+        // defaultValueLabel->setText(tr("Default: %1").arg("10.0"));
+        // defaultValueLabel->show();
     } else {
-        defaultValueLabel->setText(tr("Default: %1").arg(defaultValue));
-        defaultValueLabel->show();
+        defaultValueLabel->clear();
+        defaultValueLabel->hide();
+        // defaultValueLabel->setText(tr("Default: %1").arg(defaultValue));
+        // defaultValueLabel->show();
     }
 }
 
@@ -437,8 +447,6 @@ ConfigDrivenParamValueControl* ConfigDrivenControlFactory::createIntegerControl(
 
     return control;
 }
-
-// config_driven_controls.cc (continued)
 
 ConfigDrivenParamValueControlFloat* ConfigDrivenControlFactory::createFloatControl(
     const QString &param, const QString &title, const QString &desc,
@@ -599,8 +607,6 @@ ConfigDrivenParamValueToggleControl::ConfigDrivenParamValueToggleControl(const Q
 
     toggle.hide();
 }
-
-// config_driven_controls.cc (continued)
 
 void ConfigDrivenParamValueToggleControl::updateValue(int increment) {
     value = value + increment;
