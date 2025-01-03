@@ -1,5 +1,6 @@
 // config_driven_controls.cc
 #include "config_driven_panel_controls.h"
+#include "common/params.h"
 #include <QTimer>
 
 ConfigDrivenButtonIconControl::ConfigDrivenButtonIconControl(const QString &title, const QString &text, const QString &desc, const QString &icon, QWidget *parent) : AbstractControl(title, desc, icon, parent) {
@@ -672,4 +673,78 @@ QPushButton* ConfigDrivenParamValueToggleControl::createButton(const QString &te
         }
     )");
     return button;
+}
+
+ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
+    const QString &param, const QString &title, const QString &desc,
+    const QString &icon, const QVector<QPair<QString, QString>> &options,
+    QWidget *parent)
+  : ParamControl(param, title, desc, icon, parent)
+  , paramName(param)
+  , optionsList(options)
+{
+  buttonGroup = new QButtonGroup(this);
+  buttonGroup->setExclusive(true);
+
+  QWidget *pillWidget = new QWidget(this);
+  pillWidget->setObjectName("pillWidget");
+  QHBoxLayout *pillLayout = new QHBoxLayout(pillWidget);
+  pillLayout->setContentsMargins(0, 0, 0, 0);
+  pillLayout->setSpacing(0);
+
+  QString style = R"(
+    QWidget#pillWidget {
+      background-color: rgba(57, 57, 57, 0.3);
+      border-radius: 50px;
+      padding: 5px;
+      max-height: 90px;
+    }
+    QPushButton {
+      border: none;
+      padding: 8px 24px;
+      margin: 0;
+      background: transparent;
+      color: #ddd;
+      font-size: 32px;
+      min-height: 80px;
+      max-height: 80px;
+    }
+    QPushButton:checked {
+      background: rgba(85, 85, 85, 0.9);
+      color: white;
+      border-radius: 45px;
+    }
+  )";
+
+  pillWidget->setStyleSheet(style);
+
+  int maxOptions = std::min(optionsList.size(), 4);
+  for (int i = 0; i < maxOptions; i++) {
+    QPushButton *btn = new QPushButton(optionsList[i].first, pillWidget);
+    btn->setCheckable(true);
+    buttonGroup->addButton(btn, i);
+    pillLayout->addWidget(btn);
+
+    connect(btn, &QPushButton::clicked, this, [this, i]() {
+      Params().put(paramName.toStdString(), optionsList[i].second.toStdString());
+      updateSelection();
+    });
+  }
+
+  hlayout->addWidget(pillWidget);
+  toggle.hide();
+  updateSelection();
+}
+
+void ConfigDrivenSegmentedControl::updateSelection() {
+  QString storedVal = QString::fromStdString(Params().get(paramName.toStdString()));
+  for (QAbstractButton *btn : buttonGroup->buttons()) {
+    int idx = buttonGroup->id(btn);
+    bool match = (storedVal == optionsList[idx].second);
+    btn->setChecked(match);
+  }
+}
+
+void ConfigDrivenSegmentedControl::refresh() {
+  updateSelection();
 }

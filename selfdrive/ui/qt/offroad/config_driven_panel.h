@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QStackedLayout>
 #include <QTimer>
+#include <QTabWidget>
 #include <QMouseEvent>
 #include <map>
 #include <vector>
@@ -69,6 +70,8 @@ private:
 
   void refreshPanel();
   void createGroup(const QJsonObject& group);
+  void createTabPanel(const QJsonObject& group);
+  QWidget* createTabContent(const QJsonArray& tabGroups);
   QWidget* createControl(const QJsonObject& control);
   void handleGroupReset(const QString& groupName);
   QGroupBox *createStyledGroupBox(const QString &title);
@@ -128,3 +131,4 @@ private:
       #endif
   }
 };
+

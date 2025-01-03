@@ -55,6 +55,62 @@
           "desc": "View the BluePilot changelog",
           "header": "BluePilot Changelog",
           "hidden": false
+        },
+        {
+          "type": "segmented_control",
+          "param": "DrivingPersonality",
+          "title": "Driving Personality",
+          "desc": "Select driving personality style",
+          "options": [
+            { "name": "Aggressive", "value": "aggressive" },
+            { "name": "Moderate", "value": "moderate" },
+            { "name": "Standard", "value": "standard" },
+            { "name": "Relaxed", "value": "relaxed" }
+          ]
+        }
+      ]
+    },
+    {
+      "groupName": "settingsTabs",
+      "type": "tabPanel",
+      "tabs": [
+        {
+          "name": "Basic",
+          "groups": [
+            {
+              "groupName": "vehicleGroup",
+              "title": "Vehicle Settings",
+              "controls": [
+                {
+                  "type": "toggle",
+                  "param": "EnableQuietMode",
+                  "title": "Quiet Mode",
+                  "desc": "Reduce system sounds"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Advanced",
+          "groups": [
+            {
+              "groupName": "tuningGroup",
+              "title": "Tuning Parameters",
+              "controls": [
+                {
+                  "type": "float",
+                  "param": "SteeringRatio",
+                  "title": "Steering Ratio",
+                  "desc": "Adjust steering sensitivity",
+                  "min": 0.1,
+                  "max": 2.0,
+                  "increment": 0.1,
+                  "division": 10.0
+                }
+              ]
+            }
+          ]
         }
       ]
     },

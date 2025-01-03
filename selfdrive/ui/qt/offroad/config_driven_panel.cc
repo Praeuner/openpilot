@@ -193,6 +193,14 @@ QPushButton* ConfigDrivenPanel::createResetButton() {
 }
 
 void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
+    QString type = group["type"].toString();
+    std::cout << "Group type: " << type.toStdString() << std::endl;
+    if (type == "tabPanel") {
+        std::cout << "Creating tab panel" << std::endl;
+        createTabPanel(group);
+        return;
+    }
+
     QString groupName = group["groupName"].toString();
     QString title = group["title"].toString();
     bool enableReset = group["enableResetButton"].toBool();
@@ -263,26 +271,26 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
 }
 
 void ConfigDrivenPanel::updateGroupVisibility() {
-    bool anyVisible = false;
+    // bool anyVisible = false;
     for (auto& [groupName, groupData] : groups) {
         bool hasVisibleControls = false;
         for (QWidget* control : groupData.controls) {
             if (control && control->isVisible()) {
                 hasVisibleControls = true;
-                anyVisible = true;
+                // anyVisible = true;
                 break;
             }
         }
-        std::cout << "Group " << groupName.toStdString()
-                  << " visibility: " << hasVisibleControls << std::endl;
+        // std::cout << "Group " << groupName.toStdString()
+        //           << " visibility: " << hasVisibleControls << std::endl;
         groupData.groupBox->setVisible(hasVisibleControls);
     }
-    std::cout << "Any groups visible: " << anyVisible << std::endl;
+    // std::cout << "Any groups visible: " << anyVisible << std::endl;
 }
 
 QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     if (!validateControlBasics(control)) {
-        std::cout << "Control failed basic validation" << std::endl;
+        // std::cout << "Control failed basic validation" << std::endl;
         return nullptr;
     }
 
@@ -317,6 +325,27 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             toggle->update();
         }
         return toggle;
+    }
+    else if (type == "segmented_control") {
+      std::cout << "Creating segmented control" << std::endl;
+        QJsonArray options = control["options"].toArray();
+        QVector<QPair<QString, QString>> optionPairs;
+
+        for (const auto& opt : options) {
+          QJsonObject option = opt.toObject();
+          optionPairs.append({
+            option["name"].toString(),
+            option["value"].toString()
+          });
+        }
+
+        auto ctrl = new ConfigDrivenSegmentedControl(
+          param, title, desc, "",
+          optionPairs, nullptr
+        );
+
+        ctrl->setObjectName(param);
+        return ctrl;
     }
     else if (type == "float") {
         auto ctrl = ConfigDrivenControlFactory::createFloatControl(
@@ -574,6 +603,71 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     return nullptr;
 }
 
+void ConfigDrivenPanel::createTabPanel(const QJsonObject& group) {
+  QTabWidget* tabWidget = new QTabWidget(this);
+  tabWidget->setStyleSheet(R"(
+    QTabWidget::pane {
+      border: none;
+      background: rgba(57, 57, 57, 0.3);
+      border-radius: 10px;
+      margin-top: -1px;
+    }
+    QTabBar::tab {
+      background: rgba(57, 57, 57, 0.3);
+      color: #ddd;
+      padding: 12px 30px;
+      border: none;
+      margin: 0;
+      font-size: 32px;
+      border-radius: 8px;
+    }
+    QTabBar::tab:selected {
+      background: rgba(85, 85, 85, 0.9);
+      color: white;
+    }
+  )");
+
+  QWidget* container = new QWidget();
+  QVBoxLayout* containerLayout = new QVBoxLayout(container);
+  containerLayout->setContentsMargins(0, 0, 0, 0);
+  containerLayout->addWidget(tabWidget);
+
+  const QJsonArray& tabs = group["tabs"].toArray();
+  for (const auto& tabRef : tabs) {
+    QJsonObject tab = tabRef.toObject();
+    QString name = tab["name"].toString();
+    QWidget* content = createTabContent(tab["groups"].toArray());
+    tabWidget->addTab(content, name);
+  }
+
+  addItem(container);
+}
+
+QWidget* ConfigDrivenPanel::createTabContent(const QJsonArray& tabGroups) {
+    QWidget* content = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(content);
+    layout->setSpacing(25);
+
+    for (const auto& groupRef : tabGroups) {
+        QJsonObject groupObj = groupRef.toObject();
+        QGroupBox* group = createStyledGroupBox(groupObj["title"].toString());
+        QVBoxLayout* groupLayout = new QVBoxLayout(group);
+
+        const QJsonArray& controls = groupObj["controls"].toArray();
+        for (const auto& controlRef : controls) {
+            QWidget* control = createControl(controlRef.toObject());
+            if (control) {
+                groupLayout->addWidget(control);
+            }
+        }
+
+        layout->addWidget(group);
+    }
+
+    layout->addStretch();
+    return content;
+}
+
 void ConfigDrivenPanel::updateControlWithDefault(QWidget* ctrl) {
     if (!ctrl) return;
 
@@ -789,57 +883,58 @@ bool ConfigDrivenPanel::showResetConfirmation(const QString& tuningType) {
 bool ConfigDrivenPanel::validateControlBasics(const QJsonObject& control) {
     if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool()) {
         if (!isCommaDevice()) {
-            std::cout << "Control is only available on Comma devices" << std::endl;
+            std::cout << "Control is only available on Comma devices" <<  " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
             return false;
         }
     }
 
     if (!control.contains("type") || !control.contains("title")) {
-        std::cerr << "Control missing required type or title field" << std::endl;
+        std::cerr << "Control missing required type or title field" << " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
         return false;
     }
 
     QString type = control["type"].toString();
     if (type != "file_viewer" && type != "command_button" && !control.contains("param")) {
-        std::cerr << "Control missing required param field for type: " << type.toStdString() << std::endl;
+        std::cerr << "Control missing required param field for type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
         return false;
     }
 
     QStringList supportedTypes = {
         "toggle", "float", "integer", "selection",
-        "param_viewer", "file_viewer", "command_button"
+        "param_viewer", "file_viewer", "command_button",
+        "segmented_control"
     };
     if (!supportedTypes.contains(type)) {
-        std::cerr << "Unsupported control type: " << type.toStdString() << std::endl;
+        std::cerr << "Unsupported control type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
         return false;
     }
 
     if (type == "float" || type == "integer") {
         if (!control.contains("min") || !control.contains("max")) {
-            std::cerr << "Numeric control missing min/max values" << std::endl;
+            std::cerr << "Numeric control missing min/max values" << " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
             return false;
         }
         if (type == "float" && (!control.contains("increment") || !control.contains("division"))) {
-            std::cerr << "Float control missing increment or division values" << std::endl;
+            std::cerr << "Float control missing increment or division values" << " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
             return false;
         }
         if (type == "integer" && !control.contains("increment")) {
-            std::cerr << "Integer control missing increment value" << std::endl;
+            std::cerr << "Integer control missing increment value | Param: " << control["param"].toString().toStdString() << std::endl;
             return false;
         }
     } else if (type == "selection") {
         if (!control.contains("options") || !control["options"].isArray()) {
-            std::cerr << "Selection control missing options array" << std::endl;
+            std::cerr << "Selection control missing options array | Param: " << control["param"].toString().toStdString() << std::endl;
             return false;
         }
     } else if (type == "file_viewer") {
         if (!control.contains("path")) {
-            std::cerr << "File viewer control missing path" << std::endl;
+            std::cerr << "File viewer control missing path" << " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
             return false;
         }
     } else if (type == "command_button") {
         if (!control.contains("command")) {
-            std::cerr << "Command button control missing command" << std::endl;
+            std::cerr << "Command button control missing command" << " | Type: " << control["type"].toString().toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
             return false;
         }
     }

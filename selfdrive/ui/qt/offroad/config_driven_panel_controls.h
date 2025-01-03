@@ -205,3 +205,25 @@ private:
   Params params;
   QPushButton *createButton(const QString &text, QWidget *parent);
 };
+
+class ConfigDrivenSegmentedControl : public ParamControl {
+  Q_OBJECT
+
+public:
+  ConfigDrivenSegmentedControl(
+    const QString &param, const QString &title,
+    const QString &desc, const QString &icon,
+    const QVector<QPair<QString, QString>> &options,
+    QWidget *parent = nullptr);
+
+  void refresh() ;
+
+private:
+  void updateSelection();
+
+  // Declare a member to store the options:
+  QVector<QPair<QString, QString>> optionsList;
+  QButtonGroup *buttonGroup;
+  QString paramName;
+  QHBoxLayout *segmentLayout;
+};
