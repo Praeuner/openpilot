@@ -14,6 +14,12 @@
       "enableResetButton": false,
       "controls": [
         {
+          "type": "param_list_viewer",
+          "title": "All Parameters",
+          "desc": "View all available parameters in the system",
+          "hidden": false
+        },
+        {
           "type": "command_button",
           "command": "echo \"Starting process...\" && for i in {1..5}; do echo \"[$(date '+%H:%M:%S')] Processing batch $i/5...\"; sleep 1; echo \"  -> Completed subtask $i\"; sleep 1; done && echo \"All tasks completed successfully!\"",
           "working_dir": "/data/openpilot",
@@ -46,16 +52,15 @@
           }
         },
         {
-          "type": "command_button",
-          "command": "ifconfig",
-          "working_dir": "/data/openpilot",
-          "title": "Get Network Info",
+          "type": "file_viewer",
+          "path": "/data/community/crashes/error.txt",
+          "title": "Recent Crashes",
           "desc": "View the crashes file",
           "button_text": "View Error",
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_remote": ["any"],
             "git_branch": []
           }
         },

@@ -15,6 +15,8 @@
 #include <QVBoxLayout>
 #include <QTextEdit>
 #include <QProcess>
+#include <QCheckBox>
+#include <QTimer>
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 
@@ -43,13 +45,12 @@ public:
     void setupContent(const QString& title, const QString& content);
     void setupFullscreen();
     QString getDialogStyle() const;
-
+    QVBoxLayout* main_layout;
     #ifdef QCOM2
     void setupWaylandSurface();
     #endif
 
 protected:
-    QVBoxLayout* main_layout;
     QLabel* title_label;
     ScrollView* scroll;
     QPushButton* close_btn;
@@ -79,4 +80,24 @@ private:
     void killProcess();
     QPushButton* createActionButton(const QJsonObject& buttonObj);
     QString getButtonStyle(const QJsonObject& style) const;
+};
+
+
+class ConfigDrivenParamViewerDialog : public ConfigDrivenFullScreenDialog {
+    Q_OBJECT
+
+public:
+    explicit ConfigDrivenParamViewerDialog(QWidget *parent = nullptr);
+    void setupParamViewer(const QString& title, const QString& param);
+
+public slots:  // Change private slots to public slots
+    void refreshParamValue();
+    void toggleAutoRefresh(bool enabled);
+
+private:
+    QTextEdit* paramContent;
+    QPushButton* refreshButton;
+    QTimer* refreshTimer;
+    QString paramName;
+    QCheckBox* autoRefreshCheckbox;
 };

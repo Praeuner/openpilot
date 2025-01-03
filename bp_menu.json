@@ -26,6 +26,157 @@
   "clearOnOffroadTransitionParams": [],
   "groups": [
     {
+      "groupName": "mainTabs",
+      "type": "tabPanel",
+      "tabs": [
+        {
+          "name": "Vehicle",
+          "groups": [
+            {
+              "groupName": "vehicleSelectorGroup",
+              "title": "Vehicle Selection: (Tap item for desc)",
+              "enableResetButton": false,
+              "controls": [
+                {
+                  "type": "selection",
+                  "param": "FordSelectedVehicleModel",
+                  "title": "Vehicle Model",
+                  "desc": "Select your vehicle model",
+                  "hidden": false,
+                  "options": [
+                    {
+                      "name": "F-150 14th Gen (21-23)",
+                      "value": "FORD_F_150_MK14"
+                    },
+                    {
+                      "name": "F-150 Lightning 1st Gen",
+                      "value": "FORD_F_150_LIGHTNING_MK1"
+                    },
+                    {
+                      "name": "Mustang Mach-E 1st Gen",
+                      "value": "FORD_MUSTANG_MACH_E_MK1"
+                    }
+                  ]
+                },
+                {
+                  "type": "segmented_control",
+                  "param": "DrivingPersonality",
+                  "title": "Driving Personality",
+                  "desc": "Select driving personality style",
+                  "hidden": true,
+                  "options": [
+                    { "name": "Aggressive", "value": "aggressive" },
+                    { "name": "Moderate", "value": "moderate" },
+                    { "name": "Standard", "value": "standard" },
+                    { "name": "Relaxed", "value": "relaxed" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "System",
+          "groups": [
+            {
+              "groupName": "systemPreferencesGroup",
+              "title": "System Preferences: (Tap item for desc)",
+              "enableResetButton": false,
+              "controls": [
+                {
+                  "type": "toggle",
+                  "param": "FordPrefQuietDrive",
+                  "title": "Quiet Drive - Warnings/Alerts Only",
+                  "desc": "BluePilot displays alerts but only plays important warning sounds.",
+                  "hidden": false,
+                  "conditions": {
+                    "git_remote": ["any"],
+                    "git_branch": []
+                  }
+                },
+                {
+                  "type": "toggle",
+                  "param": "FordPrefEnableDebugLogs",
+                  "title": "Enable Debug Logging",
+                  "desc": "Enables additional debug output.",
+                  "hidden": false,
+                  "conditions": {
+                    "git_remote": ["ford-op/sp-dev-c3"],
+                    "git_branch": []
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Cluster",
+          "groups": [
+            {
+              "groupName": "clusterPreferencesGroup",
+              "title": "Cluster Preferences: (Tap item for desc)",
+              "enableResetButton": false,
+              "controls": [
+                {
+                  "type": "toggle",
+                  "param": "FordPrefSendHandsFreeCanMsg",
+                  "title": "Show Hands-Free UI (On Supported Vehicles)",
+                  "desc": "Sends necessary messages for Hands-Free interface.",
+                  "hidden": false,
+                  "conditions": {
+                    "git_remote": ["any"],
+                    "git_branch": []
+                  }
+                },
+                {
+                  "type": "toggle",
+                  "param": "FordPrefLaneDepartCanMsg",
+                  "title": "Send Lane Departure Signals to Vehicle",
+                  "desc": "Send Openpilot lane departure signals for native cluster alerts.",
+                  "hidden": false,
+                  "conditions": {
+                    "git_remote": ["any"],
+                    "git_branch": []
+                  }
+                },
+                {
+                  "type": "toggle",
+                  "param": "FordPrefDriverMonitorCanMsg",
+                  "title": "Send Driver Monitor Signals",
+                  "desc": "Send driver monitor notice signals to the vehicle for native cluster alerts.",
+                  "hidden": false,
+                  "conditions": {
+                    "git_remote": ["any"],
+                    "git_branch": []
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "groups": [
+            {
+              "groupName": "infoGroup",
+              "title": "Information",
+              "enableResetButton": false,
+              "controls": [
+                {
+                  "type": "file_viewer",
+                  "path": "CHANGELOGS_BP.md",
+                  "title": "BluePilot Changelog",
+                  "desc": "View the BluePilot changelog",
+                  "header": "BluePilot Changelog",
+                  "hidden": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "groupName": "vehicleSelectorGroup",
       "title": "Vehicle Selection: (Tap item for desc)",
       "enableResetButton": false,
@@ -61,6 +212,7 @@
           "param": "DrivingPersonality",
           "title": "Driving Personality",
           "desc": "Select driving personality style",
+          "hidden": true,
           "options": [
             { "name": "Aggressive", "value": "aggressive" },
             { "name": "Moderate", "value": "moderate" },
@@ -73,6 +225,7 @@
     {
       "groupName": "settingsTabs",
       "type": "tabPanel",
+      "hidden": true,
       "tabs": [
         {
           "name": "Basic",
@@ -424,111 +577,6 @@
           "param": "LiveParameters",
           "title": "Live Parameters",
           "desc": "View live parameters",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "LiveTorque",
-          "title": "Live Torque",
-          "desc": "View live torque data",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "FingerPrintData",
-          "title": "Finger Print Data",
-          "desc": "View fingerprint data",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "CalibrationParams",
-          "title": "Calibration Parameters",
-          "desc": "View calibration parameters",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "CarModelText",
-          "title": "Car Model Text",
-          "desc": "View car model text",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "ChevronInfo",
-          "title": "Chevron Info",
-          "desc": "View chevron information",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "CustomDrivingModel",
-          "title": "Custom Driving Model",
-          "desc": "View custom driving model",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "CustomTorqueLateral",
-          "title": "Custom Torque Lateral",
-          "desc": "View custom torque lateral",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "CustomOffsets",
-          "title": "Custom Offsets",
-          "desc": "View custom offsets",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "DevUIInfo",
-          "title": "Dev UI Info",
-          "desc": "View dev UI information",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "FeatureStatus",
-          "title": "Feature Status",
-          "desc": "View feature status",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "PandaSignatures",
-          "title": "Panda Signatures",
-          "desc": "View panda signatures",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "TorqueDeadzoneDeg",
-          "title": "Torque Deadzone Deg",
-          "desc": "View torque deadzone degrees",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "TorqueFriction",
-          "title": "Torque Friction",
-          "desc": "View torque friction",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "TorqueLateralJerk",
-          "title": "Torque Lateral Jerk",
-          "desc": "View torque lateral jerk",
-          "hidden": false
-        },
-        {
-          "type": "param_viewer",
-          "param": "TorqueMaxLatAccel",
-          "title": "Torque Max Lat Accel",
-          "desc": "View torque max lateral acceleration",
           "hidden": false
         }
       ]

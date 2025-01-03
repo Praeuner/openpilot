@@ -234,6 +234,18 @@
         <source>Are you sure you want to execute this command?</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>VIEW ALL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Available Parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parameter Value</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ConfigDrivenParamManageControl</name>
@@ -253,6 +265,21 @@
     <name>ConfigDrivenParamValueControlFloat</name>
     <message>
         <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ConfigDrivenParamViewerDialog</name>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">閉じる</translation>
+    </message>
+    <message>
+        <source>No data available for this parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto Refresh</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

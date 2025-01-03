@@ -435,3 +435,142 @@ QString ConfigDrivenCommandDialog::getButtonStyle(const QJsonObject& style) cons
         }
     )").arg(backgroundColor, textColor, pressedColor, disabledColor, textColor);
 }
+
+ConfigDrivenParamViewerDialog::ConfigDrivenParamViewerDialog(QWidget *parent)
+    : ConfigDrivenFullScreenDialog(parent) {
+    refreshTimer = new QTimer(this);
+    refreshTimer->setInterval(2000); // 2 second refresh interval
+    connect(refreshTimer, &QTimer::timeout, this, &ConfigDrivenParamViewerDialog::refreshParamValue);
+}
+
+void ConfigDrivenParamViewerDialog::setupParamViewer(const QString& title, const QString& param) {
+    paramName = param;
+
+    // Setup Title
+    title_label = new QLabel(title + " | " + param);
+    title_label->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black;");
+    title_label->setAlignment(Qt::AlignCenter); // Center the title
+    main_layout->addWidget(title_label);
+    main_layout->addSpacing(30);
+
+    // Create horizontal layout for Auto Refresh label and checkbox, aligned to the right
+    QHBoxLayout* toggleLayout = new QHBoxLayout();
+    toggleLayout->setContentsMargins(0, 0, 0, 0);
+    toggleLayout->setSpacing(10); // Adjust spacing as needed
+
+    // Add spacer to push the following widgets to the right
+    toggleLayout->addStretch();
+
+    // Auto Refresh Label
+    QLabel* toggleLabel = new QLabel(tr("Auto Refresh"));
+    toggleLabel->setStyleSheet("font-size: 35px; font-weight: 200; color: #C9C9C9; background-color:transparent;");
+    toggleLabel->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+    toggleLayout->addWidget(toggleLabel);
+
+    // Auto Refresh Checkbox
+    autoRefreshCheckbox = new QCheckBox(this);
+    autoRefreshCheckbox->setStyleSheet(R"(
+        QCheckBox {
+            spacing: 10px;
+            font-size: 35px;
+            font-weight: 200;
+            color: #C9C9C9;
+            background-color: transparent;
+        }
+        QCheckBox::indicator {
+            width: 40px;
+            height: 40px;
+            background-color: #C9C9C9;
+            border: 2px solid #FFFFFF;
+            border-radius: 20px;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #33Ab4C;
+        }
+        QCheckBox::indicator:unchecked {
+            background-color: #EA4646;
+        }
+    )");
+    autoRefreshCheckbox->setFixedSize(60, 60); // Adjust size as needed
+    autoRefreshCheckbox->setChecked(true); // Default state
+    // autoRefreshCheckbox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    // Connect the checkbox state to the auto-refresh functionality
+    connect(autoRefreshCheckbox, &QCheckBox::stateChanged, this, [this](int state) {
+        if (state == Qt::Checked) {
+            refreshTimer->start(); // Start the refresh timer
+        } else {
+            refreshTimer->stop(); // Stop the refresh timer
+        }
+    });
+
+    toggleLayout->addWidget(autoRefreshCheckbox, 0, Qt::AlignVCenter); // Ensure vertical centering
+
+    // Add the horizontal layout to the main layout
+    main_layout->addLayout(toggleLayout);
+    main_layout->addSpacing(20); // Adjust spacing to prevent overlapping
+
+    // Content below toggle
+    paramContent = new QTextEdit(this);
+    paramContent->setReadOnly(true);
+    paramContent->setStyleSheet(R"(
+        QTextEdit {
+            font-family: monospace;
+            font-size: 35px;
+            color: #C9C9C9;
+            background-color: #1B1B1B;
+            padding: 50px;
+            border: none;
+        }
+    )");
+    main_layout->addWidget(paramContent);
+
+    // Add close button
+    close_btn = new QPushButton(tr("Close"));
+    close_btn->setFixedHeight(160);
+    close_btn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #465BEA;
+            font-size: 55px;
+            font-weight: 400;
+            border-radius: 10px;
+            color: white;
+        }
+        QPushButton:pressed {
+            background-color: #3049F4;
+        }
+    )");
+    main_layout->addWidget(close_btn);
+
+    // Connect close button
+    connect(close_btn, &QPushButton::clicked, this, [this]() {
+        refreshTimer->stop();
+        accept();
+    });
+
+    // Initial refresh
+    refreshParamValue();
+}
+
+void ConfigDrivenParamViewerDialog::refreshParamValue() {
+    Params params;
+    QString rawValue = QString::fromStdString(params.get(paramName.toStdString()));
+    std::cout << "refreshParamValue: " << rawValue.toStdString() << std::endl;
+
+    QString content;
+    if (rawValue.isEmpty()) {
+        content = tr("No data available for this parameter.");
+    } else {
+        content = rawValue;
+    }
+
+    paramContent->setText(content);
+}
+
+void ConfigDrivenParamViewerDialog::toggleAutoRefresh(bool enabled) {
+    if (enabled) {
+        refreshTimer->start();
+    } else {
+        refreshTimer->stop();
+    }
+}

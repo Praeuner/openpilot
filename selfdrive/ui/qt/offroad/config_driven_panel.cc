@@ -9,6 +9,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QScreen>
+#include <QTabWidget>
+#include <QTabBar>
 
 #include "selfdrive/ui/ui.h"
 #include "selfdrive/ui/qt/offroad/config_driven_panel.h"
@@ -194,9 +196,10 @@ QPushButton* ConfigDrivenPanel::createResetButton() {
 
 void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
     QString type = group["type"].toString();
-    std::cout << "Group type: " << type.toStdString() << std::endl;
+    bool hidden = group["hidden"].toBool();
+    if (hidden) return;
+    // std::cout << "Group type: " << type.toStdString() << std::endl;
     if (type == "tabPanel") {
-        std::cout << "Creating tab panel" << std::endl;
         createTabPanel(group);
         return;
     }
@@ -271,32 +274,20 @@ void ConfigDrivenPanel::createGroup(const QJsonObject& group) {
 }
 
 void ConfigDrivenPanel::updateGroupVisibility() {
-    // bool anyVisible = false;
     for (auto& [groupName, groupData] : groups) {
         bool hasVisibleControls = false;
         for (QWidget* control : groupData.controls) {
             if (control && control->isVisible()) {
                 hasVisibleControls = true;
-                // anyVisible = true;
                 break;
             }
         }
-        // std::cout << "Group " << groupName.toStdString()
-        //           << " visibility: " << hasVisibleControls << std::endl;
         groupData.groupBox->setVisible(hasVisibleControls);
     }
-    // std::cout << "Any groups visible: " << anyVisible << std::endl;
 }
 
 QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     if (!validateControlBasics(control)) {
-        // std::cout << "Control failed basic validation" << std::endl;
-        return nullptr;
-    }
-
-    bool hidden = control["hidden"].toBool();
-    if (hidden) {
-        std::cout << "Control is hidden" << std::endl;
         return nullptr;
     }
 
@@ -304,6 +295,11 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
     QString param = control["param"].toString();
     QString title = control["title"].toString();
     QString desc = control["desc"].toString();
+    bool hidden = control["hidden"].toBool();
+    if (hidden) {
+        std::cout << param.toStdString() << " Control is hidden" << std::endl;
+        return nullptr;
+    }
 
     if (type == "toggle") {
         auto toggle = ConfigDrivenControlFactory::createToggleControl(param, title, desc, "");
@@ -474,21 +470,10 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
 
         QObject::connect(dataBtn, &ButtonControl::clicked, [this, param, title]() {
-            QString rawValue = QString::fromStdString(params.get(param.toStdString()));
-            QString content;
-
-            if (rawValue.isEmpty()) {
-                content = "<pre style='white-space: pre-wrap; margin: 0; padding: 0; background-color: transparent;'>" +
-                        tr("No data available for this parameter.") +
-                        "</pre>";
-            } else {
-                content = "<pre style='white-space: pre-wrap; margin: 0; padding: 0; background-color: transparent;'>" +
-                        rawValue.toHtmlEscaped() +
-                        "</pre>";
-            }
-
-            QString dialogTitle = title + " | " + param;
-            showFullScreenDialog(dialogTitle, content);
+            auto dialog = new ConfigDrivenParamViewerDialog(this);
+            dialog->setupParamViewer(title, param);
+            dialog->setupFullscreen();
+            dialog->exec();
         });
 
         connect(dataBtn, &ButtonControl::clicked, this, &ConfigDrivenPanel::onControlValueChanged);
@@ -501,6 +486,41 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             dataBtn->setEnabled(true);
         }
         return dataBtn;
+    }
+    else if (type == "param_list_viewer") {
+        auto listBtn = new ButtonControl(title, tr("VIEW ALL"), desc);
+
+        QObject::connect(listBtn, &ButtonControl::clicked, [this]() {
+            std::vector<std::string> allParams = Params().allKeys();
+
+            QVBoxLayout* paramLayout = new QVBoxLayout();
+            QWidget* paramWidget = new QWidget();
+            paramWidget->setLayout(paramLayout);
+
+            for (const auto& param : allParams) {
+                QString paramStr = QString::fromStdString(param);
+                auto paramBtn = new ButtonControl(paramStr, tr("VIEW"), "");
+
+                QObject::connect(paramBtn, &ButtonControl::clicked, [this, paramStr]() {
+                    auto dialog = new ConfigDrivenParamViewerDialog(this);
+                    dialog->setupParamViewer(tr("Parameter Value"), paramStr);
+                    dialog->setupFullscreen();
+                    dialog->exec();
+                });
+
+                paramLayout->addWidget(paramBtn);
+            }
+
+            ScrollView* scroll = new ScrollView(paramWidget, this);
+
+            auto dialog = new ConfigDrivenFullScreenDialog(this);
+            dialog->setupContent(tr("Available Parameters"), "");
+            dialog->main_layout->insertWidget(2, scroll);
+            dialog->setupFullscreen();
+            dialog->exec();
+        });
+
+        return listBtn;
     }
     else if (type == "file_viewer") {
         auto dataBtn = new ButtonControl(title, tr("VIEW"), desc);
@@ -604,43 +624,87 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
 }
 
 void ConfigDrivenPanel::createTabPanel(const QJsonObject& group) {
-  QTabWidget* tabWidget = new QTabWidget(this);
-  tabWidget->setStyleSheet(R"(
+    QTabWidget* tabWidget = new QTabWidget(this);
+    tabWidget->setStyleSheet(R"(
     QTabWidget::pane {
-      border: none;
-      background: rgba(57, 57, 57, 0.3);
-      border-radius: 10px;
-      margin-top: -1px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-top: none;  /* Remove top border to prevent double border with tab */
+        background: rgba(80, 80, 80, 0.5);
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-bottom-left-radius: 20px;
+        border-bottom-right-radius: 20px;
+        margin-top: 0;  /* Remove margin to connect with tab */
+    }
+    QTabWidget {
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-bottom-left-radius: 20px;
+        border-bottom-right-radius: 20px;
+        background: rgba(80, 80, 80, 0.5);
+    }
+    QWidget#qt_tabwidget_stackedwidget {
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-bottom-left-radius: 20px;
+        border-bottom-right-radius: 20px;
+        background: rgba(80, 80, 80, 0.5);
+    }
+    QTabBar {
+        background: transparent;
+        border: none;
     }
     QTabBar::tab {
-      background: rgba(57, 57, 57, 0.3);
-      color: #ddd;
-      padding: 12px 30px;
-      border: none;
-      margin: 0;
-      font-size: 32px;
-      border-radius: 8px;
+        background: rgba(50, 50, 50, 1.0);
+        border: none;
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+        padding: 12px 30px;
+        margin: 0px 2px;
+        color: #E4E4E4;
+        font-size: 40px;
+        font-weight: 500;
+        min-width: 120px;
     }
     QTabBar::tab:selected {
-      background: rgba(85, 85, 85, 0.9);
-      color: white;
+        background: rgba(80, 80, 80, 0.5);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-bottom: none;  /* Remove bottom border to connect with panel */
+        padding: 12px 30px;
+        margin-bottom: -2px;  /* Offset to overlap with panel border */
     }
-  )");
+    QTabBar::tab:!selected {
+        margin-top: 3px;
+    }
+    QTabBar::tab:hover {
+        background: rgba(70, 70, 70, 1.0);
+    }
+    QTabWidget::tab-bar {
+        alignment: center;
+    }
+)");
 
-  QWidget* container = new QWidget();
-  QVBoxLayout* containerLayout = new QVBoxLayout(container);
-  containerLayout->setContentsMargins(0, 0, 0, 0);
-  containerLayout->addWidget(tabWidget);
+    tabWidget->setTabPosition(QTabWidget::TabPosition::North);
+    tabWidget->setTabShape(QTabWidget::TabShape::Rounded);
+    tabWidget->tabBar()->setExpanding(false);
+    tabWidget->tabBar()->setDocumentMode(true);
+    tabWidget->tabBar()->setUsesScrollButtons(false);
 
-  const QJsonArray& tabs = group["tabs"].toArray();
-  for (const auto& tabRef : tabs) {
-    QJsonObject tab = tabRef.toObject();
-    QString name = tab["name"].toString();
-    QWidget* content = createTabContent(tab["groups"].toArray());
-    tabWidget->addTab(content, name);
-  }
+    QWidget* container = new QWidget();
+    QVBoxLayout* containerLayout = new QVBoxLayout(container);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->addWidget(tabWidget);
 
-  addItem(container);
+    const QJsonArray& tabs = group["tabs"].toArray();
+    for (const auto& tabRef : tabs) {
+        QJsonObject tab = tabRef.toObject();
+        QString name = tab["name"].toString();
+        QWidget* content = createTabContent(tab["groups"].toArray());
+        tabWidget->addTab(content, name);
+    }
+
+    addItem(container);
 }
 
 QWidget* ConfigDrivenPanel::createTabContent(const QJsonArray& tabGroups) {
@@ -655,11 +719,12 @@ QWidget* ConfigDrivenPanel::createTabContent(const QJsonArray& tabGroups) {
 
         const QJsonArray& controls = groupObj["controls"].toArray();
         for (const auto& controlRef : controls) {
-            QWidget* control = createControl(controlRef.toObject());
-            if (control) {
+            if (QWidget* control = createControl(controlRef.toObject())) {
                 groupLayout->addWidget(control);
             }
         }
+
+        groupLayout->setContentsMargins(20, 20, 20, 20);
 
         layout->addWidget(group);
     }
@@ -894,7 +959,7 @@ bool ConfigDrivenPanel::validateControlBasics(const QJsonObject& control) {
     }
 
     QString type = control["type"].toString();
-    if (type != "file_viewer" && type != "command_button" && !control.contains("param")) {
+    if (type != "file_viewer" && type != "command_button" && type != "param_list_viewer" && !control.contains("param")) {
         std::cerr << "Control missing required param field for type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
         return false;
     }
@@ -902,7 +967,7 @@ bool ConfigDrivenPanel::validateControlBasics(const QJsonObject& control) {
     QStringList supportedTypes = {
         "toggle", "float", "integer", "selection",
         "param_viewer", "file_viewer", "command_button",
-        "segmented_control"
+        "param_list_viewer", "segmented_control"
     };
     if (!supportedTypes.contains(type)) {
         std::cerr << "Unsupported control type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
