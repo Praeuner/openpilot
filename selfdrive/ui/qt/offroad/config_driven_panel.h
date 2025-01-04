@@ -70,6 +70,7 @@ private:
 
   void refreshPanel();
   void createGroup(const QJsonObject& group);
+  QString getBaseGroupBoxStyle();
   void createTabPanel(const QJsonObject& group);
   QWidget* createTabContent(const QJsonArray& tabGroups);
   QWidget* createControl(const QJsonObject& control);

@@ -124,9 +124,8 @@ ConfigDrivenPanel::~ConfigDrivenPanel() {
     activityTimer->stop();
 }
 
-QGroupBox *ConfigDrivenPanel::createStyledGroupBox(const QString &title) {
-    QGroupBox *groupBox = new QGroupBox(title);
-    groupBox->setStyleSheet(R"(
+QString ConfigDrivenPanel::getBaseGroupBoxStyle() {
+    return R"(
         QGroupBox {
             border: 1px solid #cccccc;
             border-radius: 10px;
@@ -147,7 +146,12 @@ QGroupBox *ConfigDrivenPanel::createStyledGroupBox(const QString &title) {
         QGroupBox::title:disabled {
             color: #777777;
         }
-    )");
+    )";
+}
+
+QGroupBox *ConfigDrivenPanel::createStyledGroupBox(const QString &title) {
+    QGroupBox *groupBox = new QGroupBox(title);
+    groupBox->setStyleSheet(getBaseGroupBoxStyle());
     return groupBox;
 }
 
@@ -627,9 +631,8 @@ void ConfigDrivenPanel::createTabPanel(const QJsonObject& group) {
     QTabWidget* tabWidget = new QTabWidget(this);
     tabWidget->setStyleSheet(R"(
     QTabWidget::pane {
-        border: 2px solid rgba(255, 255, 255, 0.2);
-        border-top: none;  /* Remove top border to prevent double border with tab */
-        background: rgba(80, 80, 80, 0.5);
+        border-top: none;
+        background: rgba(80, 80, 80, 0.7);
         border-top-left-radius: 0;
         border-top-right-radius: 0;
         border-bottom-left-radius: 20px;
@@ -641,14 +644,18 @@ void ConfigDrivenPanel::createTabPanel(const QJsonObject& group) {
         border-top-right-radius: 0;
         border-bottom-left-radius: 20px;
         border-bottom-right-radius: 20px;
-        background: rgba(80, 80, 80, 0.5);
+
+        background: rgba(80, 80, 80, 0.7);
     }
     QWidget#qt_tabwidget_stackedwidget {
         border-top-left-radius: 0;
         border-top-right-radius: 0;
         border-bottom-left-radius: 20px;
         border-bottom-right-radius: 20px;
-        background: rgba(80, 80, 80, 0.5);
+        border-left: 2px solid rgba(255, 255, 255, 0.2);
+        border-right: 2px solid rgba(255, 255, 255, 0.2);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        background: rgba(80, 80, 80, 0.7);
     }
     QTabBar {
         background: transparent;
@@ -667,7 +674,7 @@ void ConfigDrivenPanel::createTabPanel(const QJsonObject& group) {
         min-width: 120px;
     }
     QTabBar::tab:selected {
-        background: rgba(80, 80, 80, 0.5);
+        background: rgba(80, 80, 80, 0.7);
         color: white;
         border: 2px solid rgba(255, 255, 255, 0.2);
         border-bottom: none;  /* Remove bottom border to connect with panel */
@@ -715,6 +722,14 @@ QWidget* ConfigDrivenPanel::createTabContent(const QJsonArray& tabGroups) {
     for (const auto& groupRef : tabGroups) {
         QJsonObject groupObj = groupRef.toObject();
         QGroupBox* group = createStyledGroupBox(groupObj["title"].toString());
+        group->setObjectName("tabPanelGroupBox");
+        QString combinedStyle = getBaseGroupBoxStyle() + R"(
+            QGroupBox#tabPanelGroupBox {
+                padding: 30px !important;
+            }
+        )";
+        group->setStyleSheet(combinedStyle);
+
         QVBoxLayout* groupLayout = new QVBoxLayout(group);
 
         const QJsonArray& controls = groupObj["controls"].toArray();

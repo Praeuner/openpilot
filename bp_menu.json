@@ -28,6 +28,7 @@
     {
       "groupName": "mainTabs",
       "type": "tabPanel",
+      "hidden": true,
       "tabs": [
         {
           "name": "Vehicle",
@@ -198,14 +199,6 @@
               "value": "FORD_MUSTANG_MACH_E_MK1"
             }
           ]
-        },
-        {
-          "type": "file_viewer",
-          "path": "CHANGELOGS_BP.md",
-          "title": "BluePilot Changelog",
-          "desc": "View the BluePilot changelog",
-          "header": "BluePilot Changelog",
-          "hidden": false
         },
         {
           "type": "segmented_control",
@@ -577,6 +570,21 @@
           "param": "LiveParameters",
           "title": "Live Parameters",
           "desc": "View live parameters",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "groupName": "bpInfoGroup",
+      "title": "Other Information",
+      "enableResetButton": false,
+      "controls": [
+        {
+          "type": "file_viewer",
+          "path": "CHANGELOGS_BP.md",
+          "title": "BluePilot Changelog",
+          "desc": "View the BluePilot changelog",
+          "header": "BluePilot Changelog",
           "hidden": false
         }
       ]
