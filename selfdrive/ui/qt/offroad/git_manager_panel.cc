@@ -1712,6 +1712,19 @@ void GitManagerPanel::showCommandOutputDialog(const QString& title, const QStrin
                 }
             )");
 
+            // For SSH restore specifically, verify the result after a short delay
+            // if (command.contains("ssh")) {
+            //     QTimer::singleShot(1000, [this, outputText]() {
+            //         bool valid = isSSHValid();
+            //         if (valid) {
+            //             outputText->append("\n<span style='color: #50d332;'>SSH verification successful</span>");
+            //         } else {
+            //             outputText->append("\n<span style='color: #ff7c30;'>SSH verification failed</span>");
+            //         }
+            //         updateButtonStates();
+            //     });
+            // }
+
             // Hide retry button on success if retry is enabled
             if (retryButton) {
                 retryButton->setVisible(false);
@@ -2212,44 +2225,170 @@ bool GitManagerPanel::isSSHValid() const {
     return lastSSHCheckResult;
 }
 
-bool GitManagerPanel::checkAndRestoreSSH() {
-    // Check if SSH exists and is valid
-    if (!QFile::exists("/home/comma/.ssh/github") || !isSSHValid()) {
-        // Check for backup
-        if (QFile::exists("/data/ssh_backup/github")) {
+bool GitManagerPanel::checkRootDiskSpace() {
+    std::cout << "checkRootDiskSpace: Starting disk space check" << std::endl;
+
+    QProcess process;
+    process.start("df", QStringList() << "-h" << "/");
+    process.waitForFinished();
+    QString output = QString::fromUtf8(process.readAllStandardOutput());
+    std::cout << "checkRootDiskSpace: df output: " << output.toStdString() << std::endl;
+
+    QRegExp rx("\\d+(?=%)");
+    if (rx.indexIn(output) != -1) {
+        int usage = rx.cap(0).toInt();
+        std::cout << "checkRootDiskSpace: Parsed usage: " << usage << "%" << std::endl;
+
+        if (usage >= 95) {
+            std::cout << "checkRootDiskSpace: High disk usage detected, prompting for repair" << std::endl;
             if (ConfirmationDialog::confirm(
-                tr("SSH configuration is missing or invalid. Would you like to restore from backup?"),
-                tr("Restore"),
+                tr("Root partition is at %1% capacity. Would you like to attempt to repair?").arg(usage),
+                tr("Repair"),
                 this)) {
-                return restoreSSHFromUtility();
+                return repairRootDiskSpace();
             }
+            std::cout << "checkRootDiskSpace: User declined repair" << std::endl;
+            return false;
         }
-        return false;
+    } else {
+        std::cout << "checkRootDiskSpace: Failed to parse disk usage" << std::endl;
     }
+
+    std::cout << "checkRootDiskSpace: Check completed successfully" << std::endl;
     return true;
 }
 
-bool GitManagerPanel::restoreSSHFromUtility() {
-    // Download CommaUtility script if not present
-    QString utilityPath = "/data/CommaUtility.sh";
-    if (!QFile::exists(utilityPath)) {
-        QProcess wget;
-        wget.start("wget", QStringList()
-            << "-O" << utilityPath
-            << "https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh");
-        if (!wget.waitForFinished(30000)) {
-            return false;
-        }
-        QProcess::execute("chmod", QStringList() << "+x" << utilityPath);
+bool GitManagerPanel::repairRootDiskSpace() {
+    std::cout << "repairRootDiskSpace: Starting disk repair" << std::endl;
+    QProcess process;
+
+    // Remount as writable
+    std::cout << "repairRootDiskSpace: Attempting to remount as writable" << std::endl;
+    process.start("sudo", QStringList() << "mount" << "-o" << "remount,rw" << "/");
+    process.waitForFinished();
+    std::cout << "repairRootDiskSpace: Remount exit code: " << process.exitCode() << std::endl;
+    if (process.exitCode() != 0) {
+        std::cout << "repairRootDiskSpace: Remount error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
     }
 
-    // Execute restore command
-    QProcess restore;
-    restore.start(utilityPath, QStringList() << "--restore-ssh");
-    restore.waitForFinished();
+    // Get device path
+    std::cout << "repairRootDiskSpace: Getting device path" << std::endl;
+    process.start("findmnt", QStringList() << "-n" << "-o" << "SOURCE" << "/");
+    process.waitForFinished();
+    QString device = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+    std::cout << "repairRootDiskSpace: Found device: " << device.toStdString() << std::endl;
 
-    // Verify restoration was successful
-    return isSSHValid();
+    // Resize filesystem
+    std::cout << "repairRootDiskSpace: Attempting resize2fs on " << device.toStdString() << std::endl;
+    process.start("sudo", QStringList() << "resize2fs" << device);
+    process.waitForFinished();
+    std::cout << "repairRootDiskSpace: resize2fs exit code: " << process.exitCode() << std::endl;
+    if (process.exitCode() != 0) {
+        std::cout << "repairRootDiskSpace: resize2fs error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
+    }
+
+    // Verify repair
+    std::cout << "repairRootDiskSpace: Verifying repair results" << std::endl;
+    process.start("df", QStringList() << "-h" << "/");
+    process.waitForFinished();
+    QString output = QString::fromUtf8(process.readAllStandardOutput());
+    std::cout << "repairRootDiskSpace: Post-repair df output: " << output.toStdString() << std::endl;
+
+    QRegExp rx("\\d+(?=%)");
+    if (rx.indexIn(output) != -1) {
+        int usage = rx.cap(0).toInt();
+        std::cout << "repairRootDiskSpace: Post-repair usage: " << usage << "%" << std::endl;
+        if (usage >= 95) {
+            std::cout << "repairRootDiskSpace: Repair unsuccessful, usage still high" << std::endl;
+            ConfirmationDialog::alert(
+                tr("Failed to free up space. Please manually clean up the root partition."),
+                this);
+            return false;
+        }
+    } else {
+        std::cout << "repairRootDiskSpace: Failed to parse post-repair usage" << std::endl;
+    }
+
+    std::cout << "repairRootDiskSpace: Repair completed successfully" << std::endl;
+    return true;
+}
+
+bool GitManagerPanel::checkAndRestoreSSH() {
+    std::cout << "checkAndRestoreSSH: Starting SSH check and restore process" << std::endl;
+
+    // Move disk space check to a concurrent operation
+    QtConcurrent::run([this]() {
+        if (!checkRootDiskSpace()) {
+            std::cout << "checkAndRestoreSSH: Disk space check failed" << std::endl;
+            return;
+        }
+
+        // Check SSH on UI thread
+        QMetaObject::invokeMethod(this, [this]() {
+            bool sshExists = QFile::exists("/home/comma/.ssh/github");
+            std::cout << "checkAndRestoreSSH: SSH key exists: " << (sshExists ? "yes" : "no") << std::endl;
+
+            if (!sshExists || !isSSHValid()) {
+                std::cout << "checkAndRestoreSSH: SSH invalid or missing, checking for backup" << std::endl;
+                bool backupExists = QFile::exists("/data/ssh_backup/github");
+                std::cout << "checkAndRestoreSSH: SSH backup exists: " << (backupExists ? "yes" : "no") << std::endl;
+
+                if (backupExists) {
+                    // Show confirmation dialog
+                    QMetaObject::invokeMethod(this, [this]() {
+                        if (ConfirmationDialog::confirm(
+                            tr("SSH configuration is missing or invalid. Would you like to restore from backup?"),
+                            tr("Restore"),
+                            this)) {
+                            restoreSSHFromUtility();
+                        }
+                    }, Qt::QueuedConnection);
+                }
+            }
+        }, Qt::QueuedConnection);
+    });
+
+    return true;
+}
+
+
+bool GitManagerPanel::restoreSSHFromUtility() {
+    std::cout << "restoreSSHFromUtility: Starting SSH restore process" << std::endl;
+
+    // Create commands based on CommaUtility.sh logic
+    QStringList commands;
+
+    // Setup directories
+    commands << "sudo mkdir -p /home/comma/.ssh";
+
+    // Copy files
+    commands << "cp /data/ssh_backup/github /home/comma/.ssh/github";
+    commands << "cp /data/ssh_backup/github.pub /home/comma/.ssh/github.pub";
+    commands << "cp /data/ssh_backup/config /home/comma/.ssh/config";
+
+    // Set ownership
+    commands << "sudo chown -R comma:comma /home/comma/.ssh";
+
+    // Set permissions
+    commands << "sudo chmod 600 /home/comma/.ssh/github";
+    commands << "sudo chmod 644 /home/comma/.ssh/github.pub";
+    commands << "sudo chmod 644 /home/comma/.ssh/config";
+
+    // Combine commands
+    QString command = commands.join(" && ");
+
+    // Use the existing command output dialog pattern
+    showCommandOutputDialog(
+        tr("Restoring SSH Configuration"),
+        command,
+        "",  // Use default working directory
+        30000,  // 30 second timeout
+        true,   // Show kill button
+        true,   // Show retry button
+        false   // Don't show reboot button
+    );
+
+    return true;
 }
 
 void GitManagerPanel::updateStatusLabel(UpdaterStatus status) const {
@@ -2276,14 +2415,16 @@ void GitManagerPanel::updateButtonStates() {
     } else if (sshValid) {
         updateStatusLabel(UpdaterStatus::OK);
     }
-    // Note: SSH-related statuses are handled in isSSHValid()
 
-    // If SSH is invalid, try to restore it
-    if (!sshValid && internetAvailable) {
+    // If SSH is invalid, try to restore it asynchronously
+    if (!sshValid && internetAvailable && !commandInProgress) {
         #ifdef QCOM2
-        checkAndRestoreSSH();
+        QtConcurrent::run([this]() {
+            QMetaObject::invokeMethod(this, [this]() {
+                checkAndRestoreSSH();
+            }, Qt::QueuedConnection);
+        });
         #endif
-        sshValid = isSSHValid();
     }
 
     checkUpdatesButton->setEnabled(internetAvailable && sshValid);
