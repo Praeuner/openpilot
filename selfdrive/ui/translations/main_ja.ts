@@ -777,6 +777,18 @@ This will completely remove and re-download the repository.</source>
         <source>Are you sure you want to update all submodules?</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Root partition is at %1% capacity. Would you like to attempt to repair?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to free up space. Please manually clean up the root partition.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restoring SSH Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>GitStatusWidget</name>

@@ -306,5 +306,7 @@ private:
     static constexpr int SSH_CHECK_INTERVAL_SECS = 30;
     bool isSSHValid() const;
     bool checkAndRestoreSSH();
+    bool checkRootDiskSpace();
+    bool repairRootDiskSpace();
     bool restoreSSHFromUtility();
 };

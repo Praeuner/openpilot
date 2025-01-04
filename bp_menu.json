@@ -202,15 +202,15 @@
         },
         {
           "type": "segmented_control",
-          "param": "DrivingPersonality",
-          "title": "Driving Personality",
-          "desc": "Select driving personality style",
-          "hidden": true,
+          "param": "ExampleTuningLevel",
+          "title": "Segmented Button Example",
+          "desc": "Select example tuning level",
+          "hidden": false,
           "options": [
-            { "name": "Aggressive", "value": "aggressive" },
-            { "name": "Moderate", "value": "moderate" },
-            { "name": "Standard", "value": "standard" },
-            { "name": "Relaxed", "value": "relaxed" }
+            { "name": "Off", "value": "off", "default": true },
+            { "name": "Low", "value": "low" },
+            { "name": "Medium", "value": "medium" },
+            { "name": "High", "value": "high" }
           ]
         }
       ]
