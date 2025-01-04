@@ -2354,8 +2354,8 @@ bool GitManagerPanel::checkAndRestoreSSH() {
 bool GitManagerPanel::restoreSSHFromUtility() {
     std::cout << "restoreSSHFromUtility: Starting SSH restore process" << std::endl;
 
-    // Construct the command sequence with proper sudo permissions
-    QString command = QString(
+    // First restore to /home/comma/.ssh
+    QString restoreCommand = QString(
         "sudo bash -c '"
         "mkdir -p /home/comma/.ssh && "
         "cp /data/ssh_backup/github /home/comma/.ssh/github && "
@@ -2364,13 +2364,20 @@ bool GitManagerPanel::restoreSSHFromUtility() {
         "chown -R comma:comma /home/comma/.ssh && "
         "chmod 600 /home/comma/.ssh/github && "
         "chmod 644 /home/comma/.ssh/github.pub && "
-        "chmod 644 /home/comma/.ssh/config"
+        "chmod 644 /home/comma/.ssh/config && "
+        // Now copy to persistent storage
+        "mount -o remount,rw / && "
+        "mkdir -p /usr/default/home/comma/.ssh/ && "
+        "cp /home/comma/.ssh/config /usr/default/home/comma/.ssh/ && "
+        "cp /home/comma/.ssh/github* /usr/default/home/comma/.ssh/ && "
+        "chown -R comma:comma /usr/default/home/comma/.ssh/ && "
+        "chmod 600 /usr/default/home/comma/.ssh/github"
         "'");
 
     // Use the existing command output dialog pattern
     showCommandOutputDialog(
         tr("Restoring SSH Configuration"),
-        command,
+        restoreCommand,
         "",  // Use default working directory
         30000,  // 30 second timeout
         true,   // Show kill button
