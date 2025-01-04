@@ -2351,31 +2351,21 @@ bool GitManagerPanel::checkAndRestoreSSH() {
     return true;
 }
 
-
 bool GitManagerPanel::restoreSSHFromUtility() {
     std::cout << "restoreSSHFromUtility: Starting SSH restore process" << std::endl;
 
-    // Create commands based on CommaUtility.sh logic
-    QStringList commands;
-
-    // Setup directories
-    commands << "sudo mkdir -p /home/comma/.ssh";
-
-    // Copy files
-    commands << "cp /data/ssh_backup/github /home/comma/.ssh/github";
-    commands << "cp /data/ssh_backup/github.pub /home/comma/.ssh/github.pub";
-    commands << "cp /data/ssh_backup/config /home/comma/.ssh/config";
-
-    // Set ownership
-    commands << "sudo chown -R comma:comma /home/comma/.ssh";
-
-    // Set permissions
-    commands << "sudo chmod 600 /home/comma/.ssh/github";
-    commands << "sudo chmod 644 /home/comma/.ssh/github.pub";
-    commands << "sudo chmod 644 /home/comma/.ssh/config";
-
-    // Combine commands
-    QString command = commands.join(" && ");
+    // Construct the command sequence with proper sudo permissions
+    QString command = QString(
+        "sudo bash -c '"
+        "mkdir -p /home/comma/.ssh && "
+        "cp /data/ssh_backup/github /home/comma/.ssh/github && "
+        "cp /data/ssh_backup/github.pub /home/comma/.ssh/github.pub && "
+        "cp /data/ssh_backup/config /home/comma/.ssh/config && "
+        "chown -R comma:comma /home/comma/.ssh && "
+        "chmod 600 /home/comma/.ssh/github && "
+        "chmod 644 /home/comma/.ssh/github.pub && "
+        "chmod 644 /home/comma/.ssh/config"
+        "'");
 
     // Use the existing command output dialog pattern
     showCommandOutputDialog(
