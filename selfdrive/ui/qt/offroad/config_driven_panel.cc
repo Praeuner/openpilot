@@ -327,21 +327,26 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         return toggle;
     }
     else if (type == "segmented_control") {
-      std::cout << "Creating segmented control" << std::endl;
         QJsonArray options = control["options"].toArray();
         QVector<QPair<QString, QString>> optionPairs;
+        QString defaultValue;
 
+        // Look for option with default: true
         for (const auto& opt : options) {
-          QJsonObject option = opt.toObject();
-          optionPairs.append({
-            option["name"].toString(),
-            option["value"].toString()
-          });
+            QJsonObject option = opt.toObject();
+            optionPairs.append({
+                option["name"].toString(),
+                option["value"].toString()
+            });
+
+            if (option.contains("default") && option["default"].toBool()) {
+                defaultValue = option["value"].toString();
+            }
         }
 
         auto ctrl = new ConfigDrivenSegmentedControl(
-          param, title, desc, "",
-          optionPairs, nullptr
+            param, title, desc, "",
+            optionPairs, defaultValue, nullptr
         );
 
         ctrl->setObjectName(param);

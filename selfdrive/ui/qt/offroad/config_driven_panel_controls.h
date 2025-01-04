@@ -214,6 +214,7 @@ public:
     const QString &param, const QString &title,
     const QString &desc, const QString &icon,
     const QVector<QPair<QString, QString>> &options,
+    const QString &defaultValue = QString(),
     QWidget *parent = nullptr);
 
   void refresh() ;
@@ -226,4 +227,5 @@ private:
   QButtonGroup *buttonGroup;
   QString paramName;
   QHBoxLayout *segmentLayout;
+  QString defaultValue;
 };

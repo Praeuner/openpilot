@@ -678,45 +678,54 @@ QPushButton* ConfigDrivenParamValueToggleControl::createButton(const QString &te
 ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
     const QString &param, const QString &title, const QString &desc,
     const QString &icon, const QVector<QPair<QString, QString>> &options,
-    QWidget *parent)
+    const QString &defaultValue, QWidget *parent)
   : ParamControl(param, title, desc, icon, parent)
   , paramName(param)
   , optionsList(options)
 {
+
   buttonGroup = new QButtonGroup(this);
   buttonGroup->setExclusive(true);
 
+  // Check if param exists, if not and we have a default, set it
+  if (Params().get(param.toStdString()).empty() && !defaultValue.isEmpty()) {
+      Params().put(param.toStdString(), defaultValue.toStdString());
+  }
+
   QWidget *pillWidget = new QWidget(this);
   pillWidget->setObjectName("pillWidget");
-  QHBoxLayout *pillLayout = new QHBoxLayout(pillWidget);
-  pillLayout->setContentsMargins(0, 0, 0, 0);
-  pillLayout->setSpacing(0);
 
+  // Layout for buttons
+  QHBoxLayout *pillLayout = new QHBoxLayout(pillWidget);
+  pillLayout->setContentsMargins(10, 10, 10, 10);
+  pillLayout->setSpacing(15);
+
+  // Removed background styling from pillWidget
   QString style = R"(
     QWidget#pillWidget {
-      background-color: rgba(57, 57, 57, 0.3);
-      border-radius: 50px;
-      padding: 5px;
-      max-height: 90px;
+      background: transparent;
+      border-radius: 0px;
     }
     QPushButton {
-      border: none;
-      padding: 8px 24px;
-      margin: 0;
-      background: transparent;
+      background: #393939;
+      border: 2px solid #444;
+      border-radius: 35px;
+      padding: 5px 35px;
+      margin: 0 10px;
       color: #ddd;
       font-size: 32px;
       min-height: 80px;
       max-height: 80px;
     }
     QPushButton:checked {
-      background: rgba(85, 85, 85, 0.9);
+      background: #666;
+      border: 2px solid #666;
       color: white;
-      border-radius: 45px;
     }
   )";
 
   pillWidget->setStyleSheet(style);
+
 
   int maxOptions = std::min(optionsList.size(), 4);
   for (int i = 0; i < maxOptions; i++) {
