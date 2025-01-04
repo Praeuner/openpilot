@@ -36,6 +36,7 @@ def load_initial_cc_pref_params(self_obj): # self_obj is the CarController objec
   self_obj.path_angle_low_speed_factor = get_float_param("FordLatTuningPathAngleLowSpeedFactor", 0.15)
   self_obj.path_angle_high_speed_factor = get_float_param("FordLatTuningPathAngleHighSpeedFactor", 3.0)
   self_obj.enable_custom_lat_logic = get_bool_param("FordPrefEnableCustomLatLogic", False)
+  self_obj.hide_steer_saturated_alerts = get_bool_param("FordPrefHideSteerSaturatedAlerts", False)
   # self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
   # self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
 
