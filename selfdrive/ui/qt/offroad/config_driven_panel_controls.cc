@@ -683,7 +683,6 @@ ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
   , paramName(param)
   , optionsList(options)
 {
-
   buttonGroup = new QButtonGroup(this);
   buttonGroup->setExclusive(true);
 
@@ -700,7 +699,6 @@ ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
   pillLayout->setContentsMargins(10, 10, 10, 10);
   pillLayout->setSpacing(15);
 
-  // Removed background styling from pillWidget
   QString style = R"(
     QWidget#pillWidget {
       background: transparent;
@@ -710,12 +708,11 @@ ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
       background: #393939;
       border: 2px solid #444;
       border-radius: 35px;
-      padding: 5px 35px;
+      padding: 5px 20px;
       margin: 0 10px;
       color: #ddd;
       font-size: 32px;
       min-height: 80px;
-      max-height: 80px;
     }
     QPushButton:checked {
       background: #666;
@@ -726,11 +723,11 @@ ConfigDrivenSegmentedControl::ConfigDrivenSegmentedControl(
 
   pillWidget->setStyleSheet(style);
 
-
   int maxOptions = std::min(optionsList.size(), 4);
   for (int i = 0; i < maxOptions; i++) {
     QPushButton *btn = new QPushButton(optionsList[i].first, pillWidget);
     btn->setCheckable(true);
+    btn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     buttonGroup->addButton(btn, i);
     pillLayout->addWidget(btn);
 
