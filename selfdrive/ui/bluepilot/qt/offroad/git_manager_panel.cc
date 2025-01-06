@@ -433,25 +433,28 @@ void GitManagerPanel::simulateActivity() {
         return;
     }
 
-    if (commandInProgress) {
-      std::cout << "Simulating activity: command in progress" << std::endl;
-        resetMaxDurationTimer();
-    } else {
-      std::cout << "Simulating activity in GitManagerPanel" << std::endl;
-    }
-
     // Create a mouse move event at the current cursor position
     QPoint globalPos = QCursor::pos();
+
+    // Simulate activity on both the panel and active dialog
+    if (currentDialog && currentDialog->isVisible()) {
+        QPoint dialogLocalPos = currentDialog->mapFromGlobal(globalPos);
+        // Add small random movement
+        dialogLocalPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
+        QMouseEvent dialogEvent(QEvent::MouseMove, dialogLocalPos, globalPos,
+                              Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(currentDialog, &dialogEvent);
+    }
+
+    // Always simulate activity on the main panel too
     QPoint localPos = this->mapFromGlobal(globalPos);
-
-    // Add small random movement to simulate real activity
     localPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
-    globalPos += QPoint(rand() % 5 - 2, rand() % 5 - 2);
+    QMouseEvent panelEvent(QEvent::MouseMove, localPos, globalPos,
+                          Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(this, &panelEvent);
 
-    QMouseEvent mouseEvent(QEvent::MouseMove, localPos, globalPos, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
-
-    // Send the event to this widget
-    QCoreApplication::sendEvent(this, &mouseEvent);
+    // Reset the max duration timer
+    resetMaxDurationTimer();
 }
 
 void GitManagerPanel::stopActivitySimulation() {
