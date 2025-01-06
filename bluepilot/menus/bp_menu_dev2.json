@@ -3,180 +3,11 @@
   "menuName": "BluePilot",
   "menuIcon": "icon_ford.png",
   "menuDescription": "BluePilot Panel",
-  "persistentParams": [
-    "FordSelectedVehicleModel",
-    "FordPrefQuietDrive",
-    "FordPrefEnableDebugLogs",
-    "FordPrefSendHandsFreeCanMsg",
-    "FordPrefLaneDepartCanMsg",
-    "FordPrefDriverMonitorCanMsg",
-    "FordPrefEnablePathAngle",
-    "FordPrefHumanTurnDetectionEnable",
-    "FordPrefEnableCustomLatLogic",
-    "FordLatTuningLaneChgModifier",
-    "FordLatTuningCustomPathOffset",
-    "FordLongTuningBrakeActuatorActivate",
-    "FordLongTuningBrakeActuatorReleaseDelta",
-    "FordLongTuningPrechargeActuatorTargetDelta",
-    "FordLimitsCurvatureMax",
-    "FordLimitsCurvatureError"
-  ],
+  "persistentParams": [],
   "clearOnManagerStartParams": [],
   "clearOnOnroadTransitionParams": [],
   "clearOnOffroadTransitionParams": [],
   "groups": [
-    {
-      "groupName": "mainTabs",
-      "type": "tabPanel",
-      "hidden": true,
-      "tabs": [
-        {
-          "name": "Vehicle",
-          "groups": [
-            {
-              "groupName": "vehicleSelectorGroup",
-              "title": "Vehicle Selection: (Tap item for desc)",
-              "enableResetButton": false,
-              "controls": [
-                {
-                  "type": "selection",
-                  "param": "FordSelectedVehicleModel",
-                  "title": "Vehicle Model",
-                  "desc": "Select your vehicle model",
-                  "hidden": false,
-                  "options": [
-                    {
-                      "name": "F-150 14th Gen (21-23)",
-                      "value": "FORD_F_150_MK14"
-                    },
-                    {
-                      "name": "F-150 Lightning 1st Gen",
-                      "value": "FORD_F_150_LIGHTNING_MK1"
-                    },
-                    {
-                      "name": "Mustang Mach-E 1st Gen",
-                      "value": "FORD_MUSTANG_MACH_E_MK1"
-                    }
-                  ]
-                },
-                {
-                  "type": "segmented_control",
-                  "param": "DrivingPersonality",
-                  "title": "Driving Personality",
-                  "desc": "Select driving personality style",
-                  "hidden": true,
-                  "options": [
-                    { "name": "Aggressive", "value": "aggressive" },
-                    { "name": "Moderate", "value": "moderate" },
-                    { "name": "Standard", "value": "standard" },
-                    { "name": "Relaxed", "value": "relaxed" }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "System",
-          "groups": [
-            {
-              "groupName": "systemPreferencesGroup",
-              "title": "System Preferences: (Tap item for desc)",
-              "enableResetButton": false,
-              "controls": [
-                {
-                  "type": "toggle",
-                  "param": "FordPrefQuietDrive",
-                  "title": "Quiet Drive - Warnings/Alerts Only",
-                  "desc": "BluePilot displays alerts but only plays important warning sounds.",
-                  "hidden": false,
-                  "conditions": {
-                    "git_remote": ["any"],
-                    "git_branch": []
-                  }
-                },
-                {
-                  "type": "toggle",
-                  "param": "FordPrefEnableDebugLogs",
-                  "title": "Enable Debug Logging",
-                  "desc": "Enables additional debug output.",
-                  "hidden": false,
-                  "conditions": {
-                    "git_remote": ["ford-op/sp-dev-c3"],
-                    "git_branch": []
-                  }
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Cluster",
-          "groups": [
-            {
-              "groupName": "clusterPreferencesGroup",
-              "title": "Cluster Preferences: (Tap item for desc)",
-              "enableResetButton": false,
-              "controls": [
-                {
-                  "type": "toggle",
-                  "param": "FordPrefSendHandsFreeCanMsg",
-                  "title": "Show Hands-Free UI (On Supported Vehicles)",
-                  "desc": "Sends necessary messages for Hands-Free interface.",
-                  "hidden": false,
-                  "conditions": {
-                    "git_remote": ["any"],
-                    "git_branch": []
-                  }
-                },
-                {
-                  "type": "toggle",
-                  "param": "FordPrefLaneDepartCanMsg",
-                  "title": "Send Lane Departure Signals to Vehicle",
-                  "desc": "Send Openpilot lane departure signals for native cluster alerts.",
-                  "hidden": false,
-                  "conditions": {
-                    "git_remote": ["any"],
-                    "git_branch": []
-                  }
-                },
-                {
-                  "type": "toggle",
-                  "param": "FordPrefDriverMonitorCanMsg",
-                  "title": "Send Driver Monitor Signals",
-                  "desc": "Send driver monitor notice signals to the vehicle for native cluster alerts.",
-                  "hidden": false,
-                  "conditions": {
-                    "git_remote": ["any"],
-                    "git_branch": []
-                  }
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Info",
-          "groups": [
-            {
-              "groupName": "infoGroup",
-              "title": "Information",
-              "enableResetButton": false,
-              "controls": [
-                {
-                  "type": "file_viewer",
-                  "path": "CHANGELOGS_BP.md",
-                  "title": "BluePilot Changelog",
-                  "desc": "View the BluePilot changelog",
-                  "header": "BluePilot Changelog",
-                  "hidden": false
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
     {
       "groupName": "vehicleSelectorGroup",
       "title": "Vehicle Selection: (Tap item for desc)",
@@ -215,51 +46,7 @@
         }
       ]
     },
-    {
-      "groupName": "settingsTabs",
-      "type": "tabPanel",
-      "hidden": true,
-      "tabs": [
-        {
-          "name": "Basic",
-          "groups": [
-            {
-              "groupName": "vehicleGroup",
-              "title": "Vehicle Settings",
-              "controls": [
-                {
-                  "type": "toggle",
-                  "param": "EnableQuietMode",
-                  "title": "Quiet Mode",
-                  "desc": "Reduce system sounds"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Advanced",
-          "groups": [
-            {
-              "groupName": "tuningGroup",
-              "title": "Tuning Parameters",
-              "controls": [
-                {
-                  "type": "float",
-                  "param": "SteeringRatio",
-                  "title": "Steering Ratio",
-                  "desc": "Adjust steering sensitivity",
-                  "min": 0.1,
-                  "max": 2.0,
-                  "increment": 0.1,
-                  "division": 10.0
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
+
     {
       "groupName": "systemPreferencesGroup",
       "title": "System Preferences: (Tap item for desc)",
@@ -392,7 +179,53 @@
             ]
           }
         },
-
+        {
+          "type": "float",
+          "param": "FordLatTuningLaneChgFactorHigh",
+          "title": "Lane Change Factor High",
+          "desc": "Adjust lane change curvature aggressiveness (lower = slower).",
+          "hidden": false,
+          "min": 0.0,
+          "max": 1.0,
+          "increment": 0.05,
+          "division": 100.0,
+          "conditions": {
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] }
+            ]
+          }
+        },
+        {
+          "type": "segmented_control",
+          "param": "FordLatTuningTuningProfile",
+          "title": "Tuning Profile",
+          "desc": "Sets the tuning aggressiveness profile",
+          "hidden": false,
+          "options": [
+            { "name": "Low", "value": "1", "default": true },
+            { "name": "Medium", "value": "2" },
+            { "name": "High", "value": "3" },
+            { "name": "Custom", "value": "4" }
+          ]
+        },
+        {
+          "type": "float",
+          "param": "FordLatTuningCustomPathOffset",
+          "title": "In Lane Offset",
+          "desc": "Positions car further left (negative) or right (positive)",
+          "hidden": false,
+          "min": -0.5,
+          "max": 0.5,
+          "increment": 0.05,
+          "division": 100.0,
+          "conditions": {
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] }
+            ]
+          }
+        },
         {
           "type": "float",
           "param": "FordLatTuningLaneChgModifier",

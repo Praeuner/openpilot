@@ -402,16 +402,13 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
       {tr("Network"), networking},
       {tr("Toggles"), toggles},
       {tr("Software"), new SoftwarePanel(this)},
-      // {tr("BluePilot"), new ConfigDrivenPanel(this, "/bp_menu.json")},
-      // {tr("Utilities"), new ConfigDrivenPanel(this, "/utilities_menu.json")},
-      // {tr("Updater"), new GitManagerPanel(this)},
       {tr("Developer"), new DeveloperPanel(this)},
   };
 
 	// Add the folowing BluePilot panels after the software panel: BluePilot, Utilities, Updater
   #ifdef BLUEPILOT
   // sunnypilot panel index is 5
-  panels.insert(4, {tr("BluePilot"), new ConfigDrivenPanel(this, "/bluepilot/menus/bp_menu.json")});
+  panels.insert(4, {tr("BluePilot"), new ConfigDrivenPanel(this, "/bluepilot/menus/bp_menu_dev2.json")});
   panels.insert(5, {tr("Utilities"), new ConfigDrivenPanel(this, "/bluepilot/menus/utilities_menu.json")});
   panels.insert(6, {tr("Updater"), new GitManagerPanel(this)});
 
