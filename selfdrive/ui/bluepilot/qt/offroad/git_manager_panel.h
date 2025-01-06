@@ -1,4 +1,4 @@
-// git_manager_panel.h
+// selfdrive/ui/bluepilot/qt/offroad/git_manager_panel.h
 #pragma once
 
 // Forward declaration first
@@ -29,7 +29,17 @@ class GitManagerPanel;
 #include <QPlatformSurfaceEvent>
 #endif
 
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#define AbstractControl AbstractControlSP
+#define ParamControl ParamControlSP
+#define ButtonControl ButtonControlSP
+#define InputDialog InputDialogSP
+#else
 #include "selfdrive/ui/qt/widgets/controls.h"
+#include "selfdrive/ui/qt/widgets/input.h"
+#endif
+
 #include "selfdrive/ui/qt/offroad/settings.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 
@@ -285,7 +295,8 @@ private:
         OK,
         NO_INTERNET,
         SSH_MISSING,
-        SSH_AUTH_FAILED
+        SSH_AUTH_FAILED,
+        NO_REMOTE_BRANCH
     };
 
     // Define message mapping using tuples
@@ -293,7 +304,8 @@ private:
         {UpdaterStatus::OK, ""},
         {UpdaterStatus::NO_INTERNET, tr("No Internet Available")},
         {UpdaterStatus::SSH_MISSING, tr("SSH Config Missing")},
-        {UpdaterStatus::SSH_AUTH_FAILED, tr("SSH Authentication Failed")}
+        {UpdaterStatus::SSH_AUTH_FAILED, tr("SSH Authentication Failed")},
+        {UpdaterStatus::NO_REMOTE_BRANCH, tr("No Remote Branch")}
     };
 
     // Method declaration

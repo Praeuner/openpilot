@@ -1,4 +1,4 @@
-// config_driven_panel.cc
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel.cc
 
 #include <filesystem>
 #include <iostream>
@@ -12,10 +12,22 @@
 #include <QTabWidget>
 #include <QTabBar>
 
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/ui.h"
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#define ListWidget ListWidgetSP
+#define ParamControl ParamControlSP
+#define ButtonControl ButtonControlSP
+#define AbstractControl AbstractControlSP
+#define ToggleControl ToggleControlSP
+#else
 #include "selfdrive/ui/ui.h"
-#include "selfdrive/ui/qt/offroad/config_driven_panel.h"
+#include "selfdrive/ui/qt/widgets/controls.h"
+#endif
+
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/offroad/settings.h"
+#include "config_driven_panel.h"
 
 ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &configPath)
     : ConfigDrivenListWidget(parent) {
@@ -25,7 +37,7 @@ ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &conf
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
 
     // unified style sheet at the panel level
-    this->setStyleSheet(R"(
+    QString baseStyle = R"(
       * {
           background: none;
       }
@@ -82,7 +94,9 @@ ConfigDrivenPanel::ConfigDrivenPanel(SettingsWindow *parent, const QString &conf
       ToggleControl:disabled {
           background-color: #2a2a2a;
       }
-    )");
+    )";
+
+    this->setStyleSheet(baseStyle);
 
     // Initialize timers
     refreshTimer.setInterval(1000);
@@ -314,6 +328,8 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             onControlValueChanged();
         });
 
+        ConfigDrivenPanel::fixSpStyle(toggle);
+
         if (control.contains("conditions")) {
             ControlConditions conditions;
             conditions.conditions = control["conditions"].toObject();
@@ -350,20 +366,8 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
         );
 
         ctrl->setObjectName(param);
-        return ctrl;
-    }
-    else if (type == "float") {
-        auto ctrl = ConfigDrivenControlFactory::createFloatControl(
-            param, title, desc,
-            control["min"].toDouble(),
-            control["max"].toDouble(),
-            control["increment"].toDouble(),
-            false, "", {},
-            control["division"].toDouble());
-        ctrl->setObjectName(param);
-        QObject::connect(ctrl, &ConfigDrivenParamValueControlFloat::valueChanged, [this](float) {
-            onControlValueChanged();
-        });
+
+        ConfigDrivenPanel::fixSpStyle(ctrl);
 
         if (control.contains("conditions")) {
             ControlConditions conditions;
@@ -372,19 +376,58 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             controlConditions[ctrl] = conditions;
             ctrl->setEnabled(true);
         }
+
         return ctrl;
     }
-    else if (type == "integer") {
-        auto ctrl = ConfigDrivenControlFactory::createIntegerControl(
-            param, title, desc,
-            control["min"].toInt(),
-            control["max"].toInt(),
-            control["increment"].toInt(),
-            false);
+    else if (type == "float" || type == "integer") {
+        QWidget* ctrl;
+
+        if (type == "float") {
+            ctrl = ConfigDrivenControlFactory::createFloatControl(
+                param, title, desc,
+                control["min"].toDouble(),
+                control["max"].toDouble(),
+                control["increment"].toDouble(),
+                false, "", {},
+                control["division"].toDouble());
+        } else {
+            ctrl = ConfigDrivenControlFactory::createIntegerControl(
+                param, title, desc,
+                control["min"].toInt(),
+                control["max"].toInt(),
+                control["increment"].toInt(),
+                false);
+        }
+
         ctrl->setObjectName(param);
-        QObject::connect(ctrl, &ConfigDrivenParamValueControl::valueChanged, [this](int) {
-            onControlValueChanged();
-        });
+
+        #ifdef SUNNYPILOT
+    if (ctrl->inherits("ParamControlSP")) {
+        ctrl->setStyleSheet(R"(
+            * {
+                background: transparent;
+            }
+            *:disabled {
+                background: transparent;
+            }
+        )");
+    }
+    #endif
+
+
+        ConfigDrivenPanel::fixSpStyle(ctrl);
+
+        if (type == "float") {
+            QObject::connect(static_cast<ConfigDrivenParamValueControlFloat*>(ctrl),
+                &ConfigDrivenParamValueControlFloat::valueChanged, [this](float) {
+                    onControlValueChanged();
+                });
+        } else {
+            QObject::connect(static_cast<ConfigDrivenParamValueControl*>(ctrl),
+                &ConfigDrivenParamValueControl::valueChanged, [this](int) {
+                    onControlValueChanged();
+                });
+        }
 
         if (control.contains("conditions")) {
             ControlConditions conditions;
@@ -393,6 +436,7 @@ QWidget* ConfigDrivenPanel::createControl(const QJsonObject& control) {
             controlConditions[ctrl] = conditions;
             ctrl->setEnabled(true);
         }
+
         return ctrl;
     }
     else if (type == "selection") {

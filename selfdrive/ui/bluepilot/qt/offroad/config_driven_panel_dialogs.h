@@ -1,4 +1,4 @@
-// config_driven_panel_dialogs.h
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel_dialogs.h
 #pragma once
 
 #include <QDialog>
@@ -11,13 +11,20 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QDir>
-#include <QLabel>
-#include <QVBoxLayout>
 #include <QTextEdit>
 #include <QProcess>
 #include <QCheckBox>
 #include <QTimer>
+
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#define AbstractControl AbstractControlSP
+#define ParamControl ParamControlSP
+#define ButtonControl ButtonControlSP
+#else
 #include "selfdrive/ui/qt/widgets/controls.h"
+#endif
+
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 
 #ifdef QCOM2

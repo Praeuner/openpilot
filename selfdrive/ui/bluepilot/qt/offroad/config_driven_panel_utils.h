@@ -1,4 +1,4 @@
-// config_driven_panel_utils.h
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel_utils.h
 #pragma once
 
 #include <QFile>

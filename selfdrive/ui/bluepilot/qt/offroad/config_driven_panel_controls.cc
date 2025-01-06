@@ -1,4 +1,4 @@
-// config_driven_controls.cc
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel_controls.cc
 #include "config_driven_panel_controls.h"
 #include "common/params.h"
 #include <QTimer>

@@ -16,8 +16,13 @@
 #include "selfdrive/ui/qt/widgets/prime.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
-#include "selfdrive/ui/qt/offroad/config_driven_panel.h"
-#include "selfdrive/ui/qt/offroad/git_manager_panel.h"
+
+#ifdef BLUEPILOT
+#include <iostream>
+#include "common/params.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/config_driven_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/git_manager_panel.h"
+#endif
 
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon
@@ -397,19 +402,22 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
       {tr("Network"), networking},
       {tr("Toggles"), toggles},
       {tr("Software"), new SoftwarePanel(this)},
-      {tr("BluePilot"), new ConfigDrivenPanel(this, "/bp_menu.json")},
-      {tr("Utilities"), new ConfigDrivenPanel(this, "/utilities_menu.json")},
-      {tr("Updater"), new GitManagerPanel(this)},
+      // {tr("BluePilot"), new ConfigDrivenPanel(this, "/bp_menu.json")},
+      // {tr("Utilities"), new ConfigDrivenPanel(this, "/utilities_menu.json")},
+      // {tr("Updater"), new GitManagerPanel(this)},
       {tr("Developer"), new DeveloperPanel(this)},
   };
 
-  // Look at the CustomVehicleMenu param and the CustomVehicleMenuPath param, if they are true, then add a new panel for the custom car menu
-  std::string custom_car_menu_path = params.get("CustomVehicleMenuPath").c_str();
-  std::string custom_car_menu_name = params.get("CustomVehicleMenuName").c_str();
-  bool custom_car_menu = params.getBool("CustomVehicleMenu");
-  if (custom_car_menu && !custom_car_menu_path.empty() && !custom_car_menu_name.empty()) {
-    panels.insert(panels.size() - 1, {QString::fromStdString(custom_car_menu_name), new ConfigDrivenPanel(this)});
-  }
+	// Add the folowing BluePilot panels after the software panel: BluePilot, Utilities, Updater
+  #ifdef BLUEPILOT
+  // sunnypilot panel index is 5
+  panels.insert(4, {tr("BluePilot"), new ConfigDrivenPanel(this, "/bluepilot/menus/bp_menu.json")});
+  panels.insert(5, {tr("Utilities"), new ConfigDrivenPanel(this, "/bluepilot/menus/utilities_menu.json")});
+  panels.insert(6, {tr("Updater"), new GitManagerPanel(this)});
+
+
+  std::cout << "Adding BluePilot panels" << std::endl;
+  #endif
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel] : panels) {
