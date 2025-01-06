@@ -1,4 +1,4 @@
-// config_driven_panel.h
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel.h
 #pragma once
 
 #include <QFrame>
@@ -12,7 +12,6 @@
 #include <map>
 #include <vector>
 
-#include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/settings.h"
 #include "config_driven_panel_utils.h"
@@ -129,6 +128,42 @@ private:
           return true;
       #else
           return false;
+      #endif
+  }
+
+  void fixSpStyle(QWidget* ctrl) {
+      #ifdef SUNNYPILOT
+      if (ctrl && ctrl->inherits("ParamControlSP")) {
+          QVBoxLayout* main_layout = qobject_cast<QVBoxLayout*>(ctrl->layout());
+          if (main_layout) {
+              main_layout->setContentsMargins(0, 0, 0, 0);
+              main_layout->setSpacing(0);
+
+              if (main_layout->count() > 0) {
+                  QHBoxLayout* hlayout = qobject_cast<QHBoxLayout*>(main_layout->itemAt(0)->layout());
+                  if (hlayout) {
+                      hlayout->setContentsMargins(0, 0, 0, 0);
+                      hlayout->setSpacing(5);
+
+                      // Fix ElidedLabelSP
+                      QList<QWidget*> elidedLabels = ctrl->findChildren<QWidget*>("ElidedLabelSP");
+                      for (QWidget* label : elidedLabels) {
+                          label->setStyleSheet(R"(
+                              color: #aaaaaa;
+                              background: transparent;
+                          )");
+                      }
+
+                      if (hlayout->count() > 1) {
+                          QWidget* icon_label = hlayout->itemAt(1)->widget();
+                          if (icon_label) {
+                              icon_label->setVisible(false);
+                          }
+                      }
+                  }
+              }
+          }
+      }
       #endif
   }
 };

@@ -1,4 +1,4 @@
-// config_driven_panel_controls.h
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel_controls.h
 #pragma once
 
 #include <QWidget>
@@ -8,7 +8,18 @@
 #include <QButtonGroup>
 #include <QStyle>
 #include <cmath>
+
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#define AbstractControl AbstractControlSP
+#define ParamControl ParamControlSP
+#define ButtonControl ButtonControlSP
+#define ElidedLabel ElidedLabelSP
+#define ToggleControl ToggleControlSP
+#else
 #include "selfdrive/ui/qt/widgets/controls.h"
+#endif
+
 #include "common/params.h"
 #include "config_driven_panel_utils.h"
 

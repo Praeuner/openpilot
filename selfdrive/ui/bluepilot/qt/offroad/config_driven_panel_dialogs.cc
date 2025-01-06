@@ -1,4 +1,4 @@
-// config_driven_dialogs.cc
+// selfdrive/ui/bluepilot/qt/offroad/config_driven_panel_dialogs.cc
 #include "config_driven_panel_dialogs.h"
 #include <iostream>
 

@@ -171,10 +171,6 @@
         <translation type="unfinished">BAK</translation>
     </message>
     <message>
-        <source>No data available for this parameter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;b&gt;Error:&lt;/b&gt;&lt;br&gt;Could not open file: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -196,35 +192,7 @@
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Kapat</translation>
-    </message>
-    <message>
-        <source>Output</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stop Command</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Command is Running...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Terminated)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Command Failed | Exit code: %1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Completed Successfully)</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Kapat</translation>
     </message>
     <message>
         <source>EXECUTE</source>
@@ -256,13 +224,6 @@
 </context>
 <context>
     <name>ConfigDrivenParamValueControl</name>
-    <message>
-        <source>Default: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenParamValueControlFloat</name>
     <message>
         <source>Default: %1</source>
         <translation type="unfinished"></translation>
@@ -783,6 +744,10 @@ This will completely remove and re-download the repository.</source>
     </message>
     <message>
         <source>Restoring SSH Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Remote Branch</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

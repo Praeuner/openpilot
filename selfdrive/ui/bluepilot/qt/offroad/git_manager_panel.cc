@@ -1,10 +1,4 @@
-// selfdrive/ui/qt/offroad/git_manager_panel.cc
-
-#include "selfdrive/ui/ui.h"
-#include "selfdrive/ui/qt/widgets/controls.h"
-#include "selfdrive/ui/qt/widgets/scrollview.h"
-#include "selfdrive/ui/qt/offroad/git_manager_panel.h"
-#include "common/params.h"
+// selfdrive/ui/bluepilot/qt/offroad/git_manager_panel.cc
 
 #include <QScrollArea>
 #include <QDialog>
@@ -22,6 +16,21 @@
 #include <iostream>
 #include <QtConcurrent>
 
+#include "selfdrive/ui/qt/widgets/scrollview.h"
+#include "git_manager_panel.h"
+#include "common/params.h"
+
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/ui.h"
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#define AbstractControl AbstractControlSP
+#define ParamControl ParamControlSP
+#define ButtonControl ButtonControlSP
+#else
+#include "selfdrive/ui/ui.h"
+#include "selfdrive/ui/qt/widgets/controls.h"
+#endif
+
 GitStatusWidget::GitStatusWidget(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -33,7 +42,7 @@ GitStatusWidget::GitStatusWidget(QWidget* parent) : QWidget(parent) {
         QFrame {
             background-color: #1B1B1B;
             border-radius: 20px;
-            padding: 5px;
+            padding: 5px 0px;
         }
     )");
 
@@ -476,7 +485,7 @@ void GitManagerPanel::setupMainRepoSection() {
     )");
 
     QVBoxLayout* mainRepoLayout = new QVBoxLayout(mainRepoGroup);
-    mainRepoLayout->setContentsMargins(20, 20, 20, 20);
+    mainRepoLayout->setContentsMargins(0, 20, 0, 20);
     mainRepoLayout->setSpacing(15);
 
     // Create info section
@@ -498,7 +507,7 @@ void GitManagerPanel::setupMainRepoSection() {
     branchSelector = new BranchSelector("", "", "");
     branchSelector->setStyleSheet(R"(
         QWidget {
-            background-color: #2D2D2D;
+            background-color: transparent !important;
             border-radius: 10px;
             padding: 5px;
         }
@@ -1017,6 +1026,17 @@ bool GitManagerPanel::hasUpdatesAvailable() const {
     QProcess process;
     process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
 
+    // First check if current branch has an upstream branch
+    process.start("git", QStringList() << "rev-parse" << "--abbrev-ref" << "--symbolic-full-name" << "@{u}");
+    if (!process.waitForFinished(5000) || process.exitCode() != 0) {
+        process.kill();
+        std::cerr << "Current branch has no upstream configured" << std::endl;
+        QMetaObject::invokeMethod(const_cast<GitManagerPanel*>(this), [this]() {
+            updateStatusLabel(UpdaterStatus::NO_REMOTE_BRANCH);
+        }, Qt::QueuedConnection);
+        return false;
+    }
+
     // Fetch updates from remote with timeout
     process.start("git", QStringList() << "fetch");
     if (!process.waitForFinished(30000)) {
@@ -1049,11 +1069,25 @@ void GitManagerPanel::checkForUpdates() {
     QtConcurrent::run([=]() {
         QString workingDir = qApp->applicationDirPath() + "/../..";
 
+        // First check if current branch has an upstream branch
+        auto upstreamCheck = executeGitCommand(
+            "git rev-parse --abbrev-ref --symbolic-full-name @{u}", workingDir, 5000);
+
+        if (!upstreamCheck.success) {
+            QMetaObject::invokeMethod(this, [=]() {
+                updateChkBtnLabelTxt->setText(tr("Check Updates"));
+                updateChkBtnTimeTxt->setText("");
+                checkUpdatesButton->setEnabled(true);
+                updateStatusLabel(UpdaterStatus::NO_REMOTE_BRANCH);
+                updateButtonStates();
+            }, Qt::QueuedConnection);
+            return;
+        }
+
         QMetaObject::invokeMethod(this, [=]() {
             updateChkBtnLabelTxt->setText(tr("Checking..."));
             updateChkBtnTimeTxt->setText("");
         }, Qt::QueuedConnection);
-
 
         // Fetch updates
         auto fetchResult = executeGitCommand("git fetch --all", workingDir, 45000);
@@ -1120,7 +1154,6 @@ void GitManagerPanel::checkForUpdates() {
             }, Qt::QueuedConnection);
             return;
         }
-
 
         // Check for updates
         auto updateResult = executeGitCommand(
@@ -2402,31 +2435,39 @@ void GitManagerPanel::updateStatusLabel(UpdaterStatus status) const {
 void GitManagerPanel::updateButtonStates() {
     bool internetAvailable = isInternetAvailable();
     bool sshValid = isSSHValid();
+    bool hasRemoteBranch = true;  // We'll set this based on the check
+
+    // Check for remote branch
+    QProcess process;
+    process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
+    process.start("git", QStringList() << "rev-parse" << "--abbrev-ref" << "--symbolic-full-name" << "@{u}");
+    if (!process.waitForFinished(5000) || process.exitCode() != 0) {
+        hasRemoteBranch = false;
+        updateStatusLabel(UpdaterStatus::NO_REMOTE_BRANCH);
+    }
 
     std::cout << "Internet available: " << internetAvailable << std::endl;
     std::cout << "SSH valid: " << sshValid << std::endl;
+    std::cout << "Has remote branch: " << hasRemoteBranch << std::endl;
 
     // Update status label based on conditions
     if (!internetAvailable) {
         updateStatusLabel(UpdaterStatus::NO_INTERNET);
+    } else if (!hasRemoteBranch) {
+        updateStatusLabel(UpdaterStatus::NO_REMOTE_BRANCH);
     } else if (sshValid) {
         updateStatusLabel(UpdaterStatus::OK);
     }
 
-    // If SSH is invalid, try to restore it asynchronously
-    if (!sshValid && internetAvailable && !commandInProgress) {
-        #ifdef QCOM2
-        QtConcurrent::run([this]() {
-            QMetaObject::invokeMethod(this, [this]() {
-                checkAndRestoreSSH();
-            }, Qt::QueuedConnection);
-        });
-        #endif
-    }
+    // Update button states
+    bool canCheckUpdates = internetAvailable && sshValid && hasRemoteBranch;
+    checkUpdatesButton->setEnabled(canCheckUpdates);
+    updateRepoButton->setEnabled(canCheckUpdates);
+    updateAllButton->setEnabled(canCheckUpdates);
+    repairRepoButton->setEnabled(internetAvailable && sshValid);
 
-    checkUpdatesButton->setEnabled(internetAvailable && sshValid);
-    updateRepoButton->setEnabled(internetAvailable && sshValid);
-    if (internetAvailable && sshValid) {
+    // Update button styling
+    if (canCheckUpdates) {
         updateChkBtnLabelTxt->setStyleSheet("color: white; font-size: 35px; background: transparent;");
         updateChkBtnTimeTxt->setStyleSheet("color: white; font-size: 25px; background: transparent; opacity: 0.8;");
     } else {
@@ -2434,11 +2475,9 @@ void GitManagerPanel::updateButtonStates() {
         updateChkBtnTimeTxt->setStyleSheet("color: #888888; font-size: 25px; background: transparent; opacity: 0.8;");
     }
 
-    updateAllButton->setEnabled(internetAvailable && sshValid);
-    repairRepoButton->setEnabled(internetAvailable && sshValid);
-
+    // Update submodule buttons
     for (auto* widget : submoduleWidgets) {
-        widget->updateModuleButton->setEnabled(internetAvailable && sshValid);
+        widget->updateModuleButton->setEnabled(canCheckUpdates);
         widget->repairModuleButton->setEnabled(internetAvailable && sshValid);
     }
 }
