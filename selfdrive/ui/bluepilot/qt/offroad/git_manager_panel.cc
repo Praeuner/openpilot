@@ -1000,7 +1000,7 @@ void GitManagerPanel::switchBranch(const QString& branch) {
         "git submodule update --init --recursive && scons -j$(nproc)"
     ).arg(branch);
 
-    showCommandOutputDialog(tr("Switching Branch"), command, "", 300000, true, true, true);
+    showCommandOutputDialog(tr("Switching Branch"), command, "", 900000, true, true, true); // 15 minutes timeout
 }
 
 bool GitManagerPanel::hasUncommittedChanges() const {
@@ -2073,7 +2073,7 @@ void GitManagerPanel::handleRepoUpdate() {
     // Fetch, pull, and update
     showCommandOutputDialog(tr("Update Openpilot"),
         "git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)",
-        "", 600000, true, true, true);
+        "", 900000, true, true, true); // 15 minutes timeout
 }
 
 void GitManagerPanel::handleRepoUpdateAll() {
@@ -2147,7 +2147,7 @@ void GitManagerPanel::handleRepoRepair() {
     }
 
     // Run repair script
-    showCommandOutputDialog(tr("Repairing Openpilot"), tempScript, "", 600000, true, true, true);
+    showCommandOutputDialog(tr("Repairing Openpilot"), tempScript, "", 900000, true, true, true); // 15 minutes timeout
 }
 
 void GitManagerPanel::handleRepoReset() {
