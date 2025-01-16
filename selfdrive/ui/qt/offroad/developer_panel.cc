@@ -2,8 +2,13 @@
 
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
 #include "selfdrive/ui/qt/widgets/ssh_keys.h"
-#include "selfdrive/ui/qt/widgets/controls.h"
 #include "common/util.h"
+
+#ifdef SUNNYPILOT
+#include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
+#else
+#include "selfdrive/ui/qt/widgets/controls.h"
+#endif
 
 DeveloperPanel::DeveloperPanel(SettingsWindow *parent) : ListWidget(parent) {
   // SSH keys
@@ -24,19 +29,20 @@ DeveloperPanel::DeveloperPanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(longManeuverToggle);
 
-  // FIXME-SP: Move to sunnypilot panels before merging
-  auto madsToggle = new ParamControl("Mads", tr("Modular Assistive Driving System (MADS)"), "", "");
-  addItem(madsToggle);
+  // TODO-SP: Move to Vehicles panel when ported back
+  hyundaiRadarTracksToggle = new ParamControl(
+    "HyundaiRadarTracksToggle",
+    tr("Hyundai: Enable Radar Tracks"),
+    tr("Enable this to attempt to enable radar tracks for Hyundai, Kia, and Genesis models equipped with the supported Mando SCC radar. "
+       "This allows sunnypilot to use radar data for improved lead tracking and overall longitudinal performance."), "");
+  hyundaiRadarTracksToggle->setConfirmation(true, false);
+  QObject::connect(hyundaiRadarTracksToggle, &ParamControl::toggleFlipped, [=](bool state) {
+    updateToggles(offroad);
+  });
+  addItem(hyundaiRadarTracksToggle);
 
-  // TODO-SP: Rename toggle
-  auto madsCruiseMainToggle = new ParamControl("MadsCruiseMain", tr("MADS: Cruise Main"), "", "");
-  addItem(madsCruiseMainToggle);
-
-  auto madsDisengageLateralOnBrakeToggle = new ParamControl("MadsDisengageLateralOnBrake", tr("MADS: Disengage Lateral on Brake"), "", "");
-  addItem(madsDisengageLateralOnBrakeToggle);
-
-  auto madsUnifiedEngagementModeToggle = new ParamControl("MadsUnifiedEngagementMode", tr("MADS: Unified Engagement Mode"), "", "");
-  addItem(madsUnifiedEngagementModeToggle);
+  auto enableGithubRunner = new ParamControl("EnableGithubRunner", tr("Enable GitHub runner service"), tr("Enables or disables the github runner service."), "");
+  addItem(enableGithubRunner);
 
   // Joystick and longitudinal maneuvers should be hidden on release branches
   is_release = params.getBool("IsReleaseBranch");
@@ -57,9 +63,15 @@ void DeveloperPanel::updateToggles(bool _offroad) {
     AlignedBuffer aligned_buf;
     capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+
+    auto hyundai = CP.getCarName() == "hyundai";
+    auto hyundai_mando_radar = hyundai && (CP.getFlags() & 4096);
+
     longManeuverToggle->setEnabled(hasLongitudinalControl(CP) && _offroad);
+    hyundaiRadarTracksToggle->setVisible(hyundai_mando_radar && hasLongitudinalControl(CP));
   } else {
     longManeuverToggle->setEnabled(false);
+    hyundaiRadarTracksToggle->setVisible(false);
   }
 
   offroad = _offroad;

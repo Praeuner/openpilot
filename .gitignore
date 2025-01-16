@@ -74,6 +74,9 @@ comma*.sh
 selfdrive/modeld/thneed/compile
 selfdrive/modeld/models/*.thneed
 selfdrive/modeld/models/*.pkl
+sunnypilot/modeld/thneed/compile
+sunnypilot/modeld/models/*.thneed
+sunnypilot/modeld/models/*.pkl
 
 *.bz2
 *.zst
@@ -103,4 +106,8 @@ Pipfile
 # Ignore all local history of files
 .history
 .ionide
-opendbc_repo_bk/
+
+### JetBrains ###
+!.idea/customTargets.xml
+!.idea/tools/*
+!.run/*

@@ -88,160 +88,36 @@
     </message>
 </context>
 <context>
-    <name>ConfigDrivenCommandDialog</name>
-    <message>
-        <source>Output</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stop Command</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Command is Running...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Command Failed | Exit code: %1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Completed Successfully)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close (Terminated)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenConfirmationDialog</name>
-    <message>
-        <source>Reboot Later</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>ConfigDrivenFullScreenDialog</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Fermer</translation>
+        <translation type="obsolete">Fermer</translation>
     </message>
 </context>
 <context>
     <name>ConfigDrivenPanel</name>
     <message>
-        <source> Reset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>SELECT</source>
-        <translation type="unfinished">SÉLECTIONNER</translation>
-    </message>
-    <message>
-        <source>Reboot required for changes to take effect. Would you like to reboot now?</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">SÉLECTIONNER</translation>
     </message>
     <message>
         <source>Reboot</source>
-        <translation type="unfinished">Redémarrer</translation>
+        <translation type="obsolete">Redémarrer</translation>
     </message>
     <message>
         <source>VIEW</source>
-        <translation type="unfinished">VOIR</translation>
-    </message>
-    <message>
-        <source>&lt;b&gt;Error:&lt;/b&gt;&lt;br&gt;Could not open file: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File is empty</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to reset %1 to default values?</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">VOIR</translation>
     </message>
     <message>
         <source>Close</source>
         <translation type="obsolete">Fermer</translation>
-    </message>
-    <message>
-        <source>EXECUTE</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to execute this command?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VIEW ALL</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Available Parameters</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Parameter Value</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenParamManageControl</name>
-    <message>
-        <source>MANAGE</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenParamValueControl</name>
-    <message>
-        <source>Default: %1</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>ConfigDrivenParamViewerDialog</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Fermer</translation>
-    </message>
-    <message>
-        <source>No data available for this parameter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Auto Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Fermer</translation>
     </message>
 </context>
 <context>
@@ -253,6 +129,21 @@
     <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
+    </message>
+</context>
+<context>
+    <name>ConnectivityStatCard</name>
+    <message>
+        <source>Connectivity Statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wi-Fi Connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cellular Connection</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -281,19 +172,19 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>MADS: Cruise Main</source>
+        <source>Hyundai: Enable Radar Tracks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>MADS: Disengage Lateral on Brake</source>
+        <source>Enable this to attempt to enable radar tracks for Hyundai, Kia, and Genesis models equipped with the supported Mando SCC radar. This allows sunnypilot to use radar data for improved lead tracking and overall longitudinal performance.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Modular Assistive Driving System (MADS)</source>
+        <source>Enable GitHub runner service</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>MADS: Unified Engagement Mode</source>
+        <source>Enables or disables the github runner service.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -441,10 +332,229 @@
     </message>
 </context>
 <context>
+    <name>DevicePanelSP</name>
+    <message>
+        <source>Driver Camera Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Training Guide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Regulatory</source>
+        <translation type="unfinished">Réglementaire</translation>
+    </message>
+    <message>
+        <source>Language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to review the training guide?</source>
+        <translation type="unfinished">Êtes-vous sûr de vouloir revoir le guide de formation ?</translation>
+    </message>
+    <message>
+        <source>Review</source>
+        <translation type="unfinished">Revoir</translation>
+    </message>
+    <message>
+        <source>Select a language</source>
+        <translation type="unfinished">Choisir une langue</translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="unfinished">Redémarrer</translation>
+    </message>
+    <message>
+        <source>Power Off</source>
+        <translation type="unfinished">Éteindre</translation>
+    </message>
+</context>
+<context>
+    <name>DriveStats</name>
+    <message>
+        <source>Drives</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hours</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ALL TIME</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PAST WEEK</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>KM</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Miles</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DriverViewWindow</name>
     <message>
         <source>camera starting</source>
         <translation>démarrage de la caméra</translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanel</name>
+    <message>
+        <source> Reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SELECT</source>
+        <translation type="unfinished">SÉLECTIONNER</translation>
+    </message>
+    <message>
+        <source>Reboot required for changes to take effect. Would you like to reboot now?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="unfinished">Redémarrer</translation>
+    </message>
+    <message>
+        <source>VIEW</source>
+        <translation type="unfinished">VOIR</translation>
+    </message>
+    <message>
+        <source>VIEW ALL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parameter Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Available Parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Error:&lt;/b&gt;&lt;br&gt;Could not open file: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>EXECUTE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to execute this command?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset %1 to default values?</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelCommandDialog</name>
+    <message>
+        <source>Output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop Command</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Command is Running...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Command Failed | Exit code: %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Completed Successfully)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close (Terminated)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelConfirmationDialog</name>
+    <message>
+        <source>Reboot Later</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelFullScreenDialog</name>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Fermer</translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelParamManageControl</name>
+    <message>
+        <source>MANAGE</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelParamValueControl</name>
+    <message>
+        <source>Default: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DynamicPanelParamViewerDialog</name>
+    <message>
+        <source>Auto Refresh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Fermer</translation>
+    </message>
+    <message>
+        <source>No data available for this parameter.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -474,7 +584,7 @@
     </message>
 </context>
 <context>
-    <name>GitManagerPanel</name>
+    <name>GitDirectoryPanel</name>
     <message>
         <source>Error: Not a valid git repository.
 Please ensure /data/openpilot is a valid git repository.</source>
@@ -517,6 +627,10 @@ Please ensure /data/openpilot is a valid git repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>(Updates Available - Local Modified)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>(Updates Available)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -551,6 +665,14 @@ Continue?</source>
     </message>
     <message>
         <source>Switching Branch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updates Disabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Vehicle in Motion)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -662,7 +784,19 @@ Continue?</source>
         <translation type="unfinished">Fermer</translation>
     </message>
     <message>
+        <source>You have local changes that will be overwritten by this update. Continue?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to update this repository?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Update Openpilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to update all submodules?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -703,6 +837,14 @@ This will completely remove and re-download the repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Root partition is at %1% capacity. Would you like to attempt to repair?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to free up space. Please manually clean up the root partition.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>SSH configuration is missing or invalid. Would you like to restore from backup?</source>
         <translation type="unfinished"></translation>
     </message>
@@ -711,7 +853,19 @@ This will completely remove and re-download the repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>SSH Authentication Failed</source>
+        <source>Restoring SSH Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(No Internet)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(SSH Error)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(No Remote Branch)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -723,36 +877,39 @@ This will completely remove and re-download the repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>(Updates Available - Local Modified)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>You have local changes that will be overwritten by this update. Continue?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to update this repository?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Are you sure you want to update all submodules?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Root partition is at %1% capacity. Would you like to attempt to repair?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to free up space. Please manually clean up the root partition.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Restoring SSH Configuration</source>
+        <source>SSH Authentication Failed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No Remote Branch</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vehicle in Motion</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>GitManagerPanel</name>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">Réinitialiser</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="obsolete">OK</translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="obsolete">Redémarrer</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reboot?</source>
+        <translation type="obsolete">Êtes-vous sûr de vouloir redémarrer ?</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">Fermer</translation>
     </message>
 </context>
 <context>
@@ -812,6 +969,55 @@ This will completely remove and re-download the repository.</source>
     <message>
         <source>Installing...</source>
         <translation>Installation...</translation>
+    </message>
+</context>
+<context>
+    <name>MadsSettings</name>
+    <message>
+        <source>Toggle with Main Cruise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Note: For vehicles without LFA/LKAS button, disabling this will prevent lateral control engagement.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unified Engagement Mode (UEM)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Engage lateral and longitudinal control with cruise control engagement.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Note: Once lateral control is engaged via UEM, it will remain engaged until it is manually disabled via the MADS button or car shut off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remain Active</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause Steering</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steering Mode After Braking</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose how Automatic Lane Centering (ALC) behaves after the brake pedal is manually pressed in sunnypilot.
+
+Remain Active: ALC will remain active even after the brake pedal is pressed.
+Pause Steering: ALC will be paused after the brake pedal is manually pressed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ModelDataViewerDialog</name>
+    <message>
+        <source>Model Data Viewer</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -959,6 +1165,17 @@ This will completely remove and re-download the repository.</source>
     <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
+    </message>
+</context>
+<context>
+    <name>ParamControlSP</name>
+    <message>
+        <source>Enable</source>
+        <translation type="unfinished">Activer</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">Annuler</translation>
     </message>
 </context>
 <context>
@@ -1110,12 +1327,55 @@ Cela peut prendre jusqu&apos;à une minute.</translation>
         <source>Developer</source>
         <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>SettingsWindowSP</name>
     <message>
-        <source>BluePilot</source>
+        <source>×</source>
+        <translation type="unfinished">×</translation>
+    </message>
+    <message>
+        <source>Device</source>
+        <translation type="unfinished">Appareil</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished">Réseau</translation>
+    </message>
+    <message>
+        <source>sunnylink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggles</source>
+        <translation type="unfinished">Options</translation>
+    </message>
+    <message>
+        <source>Software</source>
+        <translation type="unfinished">Logiciel</translation>
+    </message>
+    <message>
+        <source>sunnypilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trips</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bluepilot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Utilities</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Statistics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1309,6 +1569,33 @@ Cela peut prendre jusqu&apos;à une minute.</translation>
     </message>
 </context>
 <context>
+    <name>SidebarSP</name>
+    <message>
+        <source>DISABLED</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OFFLINE</source>
+        <translation type="unfinished">HORS LIGNE</translation>
+    </message>
+    <message>
+        <source>REGIST...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ONLINE</source>
+        <translation type="unfinished">EN LIGNE</translation>
+    </message>
+    <message>
+        <source>ERROR</source>
+        <translation type="unfinished">ERREUR</translation>
+    </message>
+    <message>
+        <source>SUNNYLINK</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>SoftwarePanel</name>
     <message>
         <source>Updates are only downloaded while the car is off.</source>
@@ -1384,6 +1671,101 @@ Cela peut prendre jusqu&apos;à une minute.</translation>
     </message>
 </context>
 <context>
+    <name>SoftwarePanelSP</name>
+    <message>
+        <source>Current Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SELECT</source>
+        <translation type="unfinished">SÉLECTIONNER</translation>
+    </message>
+    <message>
+        <source>No custom model selected!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driving</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Navigation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading %1 model [%2]... (%3%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 model [%2] %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>downloaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ready</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>from cache</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 model [%2] download failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 model [%2] pending...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetching models...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model download has started in the background.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>We STRONGLY suggest you to reset calibration. Would you like to do that now?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset Calibration</source>
+        <translation type="unfinished">Réinitialiser la calibration</translation>
+    </message>
+    <message>
+        <source>Warning: You are on a metered connection!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation type="unfinished">Continuer</translation>
+    </message>
+    <message>
+        <source>on Metered</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>SshControl</name>
     <message>
         <source>SSH Keys</source>
@@ -1427,6 +1809,17 @@ Cela peut prendre jusqu&apos;à une minute.</translation>
     <message>
         <source>Enable SSH</source>
         <translation>Activer SSH</translation>
+    </message>
+</context>
+<context>
+    <name>StorageStatCard</name>
+    <message>
+        <source>Storage Statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No storage devices found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1487,6 +1880,63 @@ This will remove and re-download it.</source>
     </message>
     <message>
         <source>(Up to date)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>SunnylinkPanel</name>
+    <message>
+        <source>This is the master switch, it will allow you to cutoff any sunnylink requests should you want to do that.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable sunnylink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>🎉Welcome back! We&apos;re excited to see you&apos;ve enabled sunnylink again! 🚀</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>👋Not going to lie, it&apos;s sad to see you disabled sunnylink 😢, but we&apos;ll be here when you&apos;re ready to come back 🎉.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Device ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>N/A</source>
+        <translation type="unfinished">N/A</translation>
+    </message>
+</context>
+<context>
+    <name>SunnypilotPanel</name>
+    <message>
+        <source>Modular Assistive Driving System (MADS)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable the beloved MADS feature. Disable toggle to revert back to stock openpilot engagement/disengagement.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Customize MADS</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>SystemStatCard</name>
+    <message>
+        <source>System Statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CPU Usage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Memory Usage</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1629,6 +2079,14 @@ This will remove and re-download it.</source>
     </message>
     <message>
         <source>Enable driver monitoring even when openpilot is not engaged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Dynamic Experimental Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

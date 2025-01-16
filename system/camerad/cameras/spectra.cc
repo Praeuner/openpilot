@@ -51,12 +51,12 @@ int do_sync_control(int fd, uint32_t id, void *handle, uint32_t size) {
   };
   int ret = HANDLE_EINTR(ioctl(fd, CAM_PRIVATE_IOCTL_CMD, &arg));
 
-  int32_t ioctl_result = (int32_t)arg.result;
+  int32_t ioctl_result = static_cast<int32_t>(arg.result);
   if (ret < 0) {
     LOGE("CAM_SYNC error: id %u - errno %d - ret %d - ioctl_result %d", id, errno, ret, ioctl_result);
     return ret;
   }
-  if (ioctl_result < 0) {
+  if (ioctl_result != 0) {
     LOGE("CAM_SYNC error: id %u - errno %d - ret %d - ioctl_result %d", id, errno, ret, ioctl_result);
     return ioctl_result;
   }
@@ -196,9 +196,9 @@ void SpectraMaster::init() {
   assert(isp_fd >= 0);
   LOGD("opened isp");
 
-  //icp_fd = open_v4l_by_name_and_index("cam-icp");
-  //assert(icp_fd >= 0);
-  //LOGD("opened icp");
+  icp_fd = open_v4l_by_name_and_index("cam-icp");
+  assert(icp_fd >= 0);
+  LOGD("opened icp");
 
   // query ISP for MMU handles
   LOG("-- Query for MMU handles");
@@ -215,7 +215,6 @@ void SpectraMaster::init() {
   cdm_iommu = isp_query_cap_cmd.cdm_iommu.non_secure;
 
   // query ICP for MMU handles
-  /*
   struct cam_icp_query_cap_cmd icp_query_cap_cmd = {0};
   query_cap_cmd.caps_handle = (uint64_t)&icp_query_cap_cmd;
   query_cap_cmd.size = sizeof(icp_query_cap_cmd);
@@ -223,7 +222,6 @@ void SpectraMaster::init() {
   assert(ret == 0);
   LOGD("using ICP MMU handle: %x", icp_query_cap_cmd.dev_iommu_handle.non_secure);
   icp_device_iommu = icp_query_cap_cmd.dev_iommu_handle.non_secure;
-  */
 
   // subscribe
   LOG("-- Subscribing");
@@ -509,9 +507,9 @@ void SpectraCamera::config_ife(int idx, int request_id, bool init) {
     // stream of IFE register writes
     if (!is_raw) {
       if (init) {
-        buf_desc[0].length = build_initial_config((unsigned char*)ife_cmd.ptr + buf_desc[0].offset, sensor.get(), patches);
+        buf_desc[0].length = build_initial_config((unsigned char*)ife_cmd.ptr + buf_desc[0].offset, sensor.get(), patches, cc.camera_num);
       } else {
-        buf_desc[0].length = build_update((unsigned char*)ife_cmd.ptr + buf_desc[0].offset, sensor.get(), patches);
+        buf_desc[0].length = build_update((unsigned char*)ife_cmd.ptr + buf_desc[0].offset, sensor.get(), patches, cc.camera_num);
       }
     }
 
@@ -675,18 +673,21 @@ void SpectraCamera::enqueue_buffer(int i, bool dp) {
   uint64_t request_id = request_ids[i];
 
   if (sync_objs[i]) {
-    // wait
+    // SOF has come in, wait until readout is complete
     struct cam_sync_wait sync_wait = {0};
     sync_wait.sync_obj = sync_objs[i];
-    sync_wait.timeout_ms = 50; // max dt tolerance, typical should be 23
+    sync_wait.timeout_ms = 100;
     ret = do_sync_control(m->cam_sync_fd, CAM_SYNC_WAIT, &sync_wait, sizeof(sync_wait));
     if (ret != 0) {
-      LOGE("failed to wait for sync: %d %d", ret, sync_wait.sync_obj);
       // TODO: handle frame drop cleanly
+      // when this happens, it messes up future frames
+      LOGE("failed to wait for sync: %d %d", ret, sync_wait.sync_obj);
     }
     buf.frame_metadata[i].timestamp_end_of_isp = (uint64_t)nanos_since_boot();
     buf.frame_metadata[i].timestamp_eof = buf.frame_metadata[i].timestamp_sof + sensor->readout_time_ns;
-    if (dp) buf.queue(i);
+    if (dp) {
+      buf.queue(i);
+    }
 
     // destroy old output fence
     for (auto so : {sync_objs, sync_objs_bps_out}) {
@@ -709,13 +710,13 @@ void SpectraCamera::enqueue_buffer(int i, bool dp) {
   }
   sync_objs[i] = sync_create.sync_obj;
 
-  /*
-  ret = do_cam_control(m->cam_sync_fd, CAM_SYNC_CREATE, &sync_create, sizeof(sync_create));
-  if (ret != 0) {
-    LOGE("failed to create fence: %d %d", ret, sync_create.sync_obj);
+  if (icp_dev_handle > 0) {
+    ret = do_cam_control(m->cam_sync_fd, CAM_SYNC_CREATE, &sync_create, sizeof(sync_create));
+    if (ret != 0) {
+      LOGE("failed to create fence: %d %d", ret, sync_create.sync_obj);
+    }
+    sync_objs_bps_out[i] = sync_create.sync_obj;
   }
-  sync_objs_bps_out[i] = sync_create.sync_obj;
-  */
 
   // schedule request with camera request manager
   struct cam_req_mgr_sched_request req_mgr_sched_request = {0};
@@ -743,8 +744,10 @@ void SpectraCamera::camera_map_bufs() {
     mem_mgr_map_cmd.flags = CAM_MEM_FLAG_HW_READ_WRITE;
     mem_mgr_map_cmd.mmu_hdls[0] = m->device_iommu;
     mem_mgr_map_cmd.num_hdl = 1;
-    //mem_mgr_map_cmd.mmu_hdls[1] = m->icp_device_iommu;
-    //mem_mgr_map_cmd.num_hdl = 2;
+    if (icp_dev_handle > 0) {
+      mem_mgr_map_cmd.num_hdl = 2;
+      mem_mgr_map_cmd.mmu_hdls[1] = m->icp_device_iommu;
+    }
 
     if (is_raw) {
       // RAW bayer images
@@ -876,28 +879,31 @@ void SpectraCamera::configISP() {
                CAM_MEM_FLAG_HW_READ_WRITE | CAM_MEM_FLAG_KMD_ACCESS | CAM_MEM_FLAG_UMD_ACCESS | CAM_MEM_FLAG_CMD_BUF_TYPE,
                m->device_iommu, m->cdm_iommu, ife_buf_depth);
   if (!is_raw) {
-    ife_gamma_lut.init(m, 64*sizeof(uint32_t), 0x20,
+    assert(sensor->gamma_lut_rgb.size() == 64);
+    ife_gamma_lut.init(m, sensor->gamma_lut_rgb.size()*sizeof(uint32_t), 0x20,
                        CAM_MEM_FLAG_HW_READ_WRITE | CAM_MEM_FLAG_KMD_ACCESS | CAM_MEM_FLAG_UMD_ACCESS | CAM_MEM_FLAG_CMD_BUF_TYPE,
                        m->device_iommu, m->cdm_iommu, 3); // 3 for RGB
     for (int i = 0; i < 3; i++) {
       memcpy(ife_gamma_lut.ptr + ife_gamma_lut.size*i, sensor->gamma_lut_rgb.data(), ife_gamma_lut.size);
     }
-    ife_linearization_lut.init(m, sensor->linearization_lut.size(), 0x20,
+    assert(sensor->linearization_lut.size() == 36);
+    ife_linearization_lut.init(m, sensor->linearization_lut.size()*sizeof(uint32_t), 0x20,
                                CAM_MEM_FLAG_HW_READ_WRITE | CAM_MEM_FLAG_KMD_ACCESS | CAM_MEM_FLAG_UMD_ACCESS | CAM_MEM_FLAG_CMD_BUF_TYPE,
                                m->device_iommu, m->cdm_iommu);
     memcpy(ife_linearization_lut.ptr, sensor->linearization_lut.data(), ife_linearization_lut.size);
-    ife_vignetting_lut.init(m, sensor->vignetting_lut.size(), 0x20,
+    assert(sensor->vignetting_lut.size() == 221);
+    ife_vignetting_lut.init(m, sensor->vignetting_lut.size()*sizeof(uint32_t), 0x20,
                             CAM_MEM_FLAG_HW_READ_WRITE | CAM_MEM_FLAG_KMD_ACCESS | CAM_MEM_FLAG_UMD_ACCESS | CAM_MEM_FLAG_CMD_BUF_TYPE,
                             m->device_iommu, m->cdm_iommu, 2);
-    memcpy(ife_vignetting_lut.ptr, sensor->vignetting_lut.data(), ife_vignetting_lut.size*2);
+    for (int i = 0; i < 2; i++) {
+      memcpy(ife_vignetting_lut.ptr + ife_vignetting_lut.size*i, sensor->vignetting_lut.data(), ife_vignetting_lut.size);
+    }
   }
 
   config_ife(0, 1, true);
 }
 
 void SpectraCamera::configICP() {
-  if (!enabled) return;
-
   /*
     Configures both the ICP and BPS.
   */
@@ -1045,6 +1051,10 @@ void SpectraCamera::camera_close() {
 
     // release devices
     LOGD("-- Release devices");
+    if (icp_dev_handle > 0) {
+      ret = device_control(m->icp_fd, CAM_RELEASE_DEV, session_handle, icp_dev_handle);
+      LOGD("release icp: %d", ret);
+    }
     ret = device_control(m->isp_fd, CAM_RELEASE_DEV, session_handle, isp_dev_handle);
     LOGD("release isp: %d", ret);
     ret = device_control(csiphy_fd, CAM_RELEASE_DEV, session_handle, csiphy_dev_handle);

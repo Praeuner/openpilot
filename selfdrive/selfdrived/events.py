@@ -994,13 +994,6 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.),
   },
 
-  # TODO-SP: remove prior merging
-  EventName.silentPedalPressed: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.none),
-    ET.NO_ENTRY: NoEntryAlert("Pedal Pressed During Attempt",
-                              visual_alert=VisualAlert.brakePressed),
-  },
-
   EventName.silentLkasEnable: {
     ET.ENABLE: EngagementAlert(AudibleAlert.none),
   },
@@ -1062,6 +1055,19 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOWEST, VisualAlert.none, AudibleAlert.none, 0.),
     ET.NO_ENTRY: NoEntryAlert("Parking Brake Engaged"),
   },
+
+  EventName.controlsMismatchLateral: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Controls Mismatch: Lateral"),
+    ET.NO_ENTRY: NoEntryAlert("Controls Mismatch: Lateral"),
+  },
+
+  EventName.hyundaiRadarTracksConfirmed: {
+    ET.PERMANENT: NormalPermanentAlert("Radar tracks available. Restart the car to initialize")
+  },
+
+  EventName.experimentalModeSwitched: {
+    ET.WARNING: NormalPermanentAlert("Experimental Mode Switched", duration=1.5)
+  }
 
 }
 

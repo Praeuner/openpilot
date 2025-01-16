@@ -189,15 +189,17 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     lkasDisable @152;
     manualSteeringRequired @153;
     manualLongitudinalRequired @154;
-    silentPedalPressed @155;
-    silentLkasEnable @156;
-    silentLkasDisable @157;
-    silentBrakeHold @158;
-    silentWrongGear @159;
-    silentReverseGear @160;
-    silentDoorOpen @161;
-    silentSeatbeltNotLatched @162;
-    silentParkBrake @163;
+    silentLkasEnable @155;
+    silentLkasDisable @156;
+    silentBrakeHold @157;
+    silentWrongGear @158;
+    silentReverseGear @159;
+    silentDoorOpen @160;
+    silentSeatbeltNotLatched @161;
+    silentParkBrake @162;
+    controlsMismatchLateral @163;
+    hyundaiRadarTracksConfirmed @164;
+    experimentalModeSwitched @165;
 
     soundsUnavailableDEPRECATED @47;
   }
@@ -2513,6 +2515,14 @@ struct Microphone {
   filteredSoundPressureWeightedDb @2 :Float32;
 }
 
+struct Touch {
+  sec @0 :Int64;
+  usec @1 :Int64;
+  type @2 :UInt8;
+  code @3 :Int32;
+  value @4 :Int32;
+}
+
 struct Event {
   logMonoTime @0 :UInt64;  # nanoseconds
   valid @67 :Bool = true;
@@ -2593,6 +2603,9 @@ struct Event {
     logMessage @18 :Text;
     errorLogMessage @85 :Text;
 
+    # touch frame
+    touch @135 :List(Touch);
+
     # navigation
     navInstruction @82 :NavInstruction;
     navRoute @83 :NavRoute;
@@ -2621,8 +2634,8 @@ struct Event {
 
     # *********** Custom: reserved for forks ***********
     selfdriveStateSP @107 :Custom.SelfdriveStateSP;
-    customReserved1 @108 :Custom.CustomReserved1;
-    customReserved2 @109 :Custom.CustomReserved2;
+    modelManagerSP @108 :Custom.ModelManagerSP;
+    longitudinalPlanSP @109 :Custom.LongitudinalPlanSP;
     customReserved3 @110 :Custom.CustomReserved3;
     customReserved4 @111 :Custom.CustomReserved4;
     customReserved5 @112 :Custom.CustomReserved5;

@@ -49,10 +49,6 @@ AddOption('--ccflags',
           default='',
           help='pass arbitrary flags over the command line')
 
-AddOption('--snpe',
-          action='store_true',
-          help='use SNPE on PC')
-
 AddOption('--external-sconscript',
           action='store',
           metavar='FILE',
@@ -179,6 +175,8 @@ if arch != "Darwin":
   ldflags += ["-Wl,--as-needed", "-Wl,--no-undefined"]
 
 if not GetOption('stock_ui'):
+  cflags += ["-DSUNNYPILOT"]
+  cxxflags += ["-DSUNNYPILOT"]
   cflags += ["-DBLUEPILOT"]
   cxxflags += ["-DBLUEPILOT"]
 
@@ -247,7 +245,8 @@ if GetOption('compile_db'):
   env.CompilationDatabase('compile_commands.json')
 
 # Setup cache dir
-cache_dir = '/data/scons_cache' if AGNOS else '/tmp/scons_cache'
+default_cache_dir = '/data/scons_cache' if AGNOS else '/tmp/scons_cache'
+cache_dir = ARGUMENTS.get('cache_dir', default_cache_dir)
 CacheDir(cache_dir)
 Clean(["."], cache_dir)
 
@@ -394,6 +393,8 @@ if arch == "larch64":
 SConscript(['third_party/SConscript'])
 
 SConscript(['selfdrive/SConscript'])
+
+SConscript(['sunnypilot/SConscript'])
 
 if Dir('#tools/cabana/').exists() and GetOption('extras'):
   SConscript(['tools/replay/SConscript'])

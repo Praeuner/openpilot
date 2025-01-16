@@ -22,6 +22,7 @@ _services: dict[str, tuple] = {
   "temperatureSensor2": (True, 2., 200),
   "gpsNMEA": (True, 9.),
   "deviceState": (True, 2., 1),
+  "touch": (True, 20., 1),
   "can": (True, 100., 2053),  # decimation gives ~3 msgs in a full segment
   "controlsState": (True, 100., 10),
   "selfdriveState": (True, 100., 10),
@@ -29,7 +30,7 @@ _services: dict[str, tuple] = {
   "peripheralState": (True, 2., 1),
   "radarState": (True, 20., 5),
   "roadEncodeIdx": (False, 20., 1),
-  "liveTracks": (True, 5.),
+  "liveTracks": (True, 20.),
   "sendcan": (True, 100., 139),
   "logMessage": (True, 0.),
   "errorLogMessage": (True, 0., 1),
@@ -74,7 +75,9 @@ _services: dict[str, tuple] = {
   "microphone": (True, 10., 10),
 
   # sunnypilot
+  "modelManagerSP": (False, 1., 1),
   "selfdriveStateSP": (True, 100., 10),
+  "longitudinalPlanSP": (True, 20., 10),
 
   # debug
   "uiDebug": (True, 0., 1),

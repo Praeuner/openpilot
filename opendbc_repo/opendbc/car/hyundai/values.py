@@ -253,17 +253,17 @@ class CAR(Platforms):
     [HyundaiCarDocs("Hyundai Santa Fe 2021-23", "All", video_link="https://youtu.be/VnHzSTygTS4",
                     car_parts=CarParts.common([CarHarness.hyundai_l]))],
     HYUNDAI_SANTA_FE.specs,
-    flags=HyundaiFlags.CHECKSUM_CRC8,
+    flags=HyundaiFlags.MANDO_RADAR | HyundaiFlags.CHECKSUM_CRC8,
   )
   HYUNDAI_SANTA_FE_HEV_2022 = HyundaiPlatformConfig(
     [HyundaiCarDocs("Hyundai Santa Fe Hybrid 2022-23", "All", car_parts=CarParts.common([CarHarness.hyundai_l]))],
     HYUNDAI_SANTA_FE.specs,
-    flags=HyundaiFlags.CHECKSUM_CRC8 | HyundaiFlags.HYBRID,
+    flags=HyundaiFlags.MANDO_RADAR | HyundaiFlags.CHECKSUM_CRC8 | HyundaiFlags.HYBRID,
   )
   HYUNDAI_SANTA_FE_PHEV_2022 = HyundaiPlatformConfig(
     [HyundaiCarDocs("Hyundai Santa Fe Plug-in Hybrid 2022-23", "All", car_parts=CarParts.common([CarHarness.hyundai_l]))],
     HYUNDAI_SANTA_FE.specs,
-    flags=HyundaiFlags.CHECKSUM_CRC8 | HyundaiFlags.HYBRID,
+    flags=HyundaiFlags.MANDO_RADAR | HyundaiFlags.CHECKSUM_CRC8 | HyundaiFlags.HYBRID,
   )
   HYUNDAI_SONATA = HyundaiPlatformConfig(
     [HyundaiCarDocs("Hyundai Sonata 2020-23", "All", video_link="https://www.youtube.com/watch?v=ix63r9kE3Fw",
@@ -309,7 +309,7 @@ class CAR(Platforms):
   )
   HYUNDAI_IONIQ_5 = HyundaiCanFDPlatformConfig(
     [
-      HyundaiCarDocs("Hyundai Ioniq 5 (Non-US only) 2022-24", "All", car_parts=CarParts.common([CarHarness.hyundai_q])),
+      HyundaiCarDocs("Hyundai Ioniq 5 (Southeast Asia and Europe only) 2022-24", "All", car_parts=CarParts.common([CarHarness.hyundai_q])),
       HyundaiCarDocs("Hyundai Ioniq 5 (without HDA II) 2022-24", "Highway Driving Assist", car_parts=CarParts.common([CarHarness.hyundai_k])),
       HyundaiCarDocs("Hyundai Ioniq 5 (with HDA II) 2022-24", "Highway Driving Assist II", car_parts=CarParts.common([CarHarness.hyundai_q])),
     ],
@@ -532,6 +532,7 @@ class CAR(Platforms):
   )
   GENESIS_GV70_ELECTRIFIED_1ST_GEN = HyundaiCanFDPlatformConfig(
     [
+      HyundaiCarDocs("Genesis GV70 Electrified (Australia Only) 2022", "All", car_parts=CarParts.common([CarHarness.hyundai_q])),
       HyundaiCarDocs("Genesis GV70 Electrified (with HDA II) 2023", "Highway Driving Assist II", car_parts=CarParts.common([CarHarness.hyundai_q])),
     ],
     CarSpecs(mass=2260, wheelbase=2.87, steerRatio=17.1),

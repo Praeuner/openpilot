@@ -23,6 +23,7 @@ from openpilot.selfdrive.car.cruise import VCruiseHelper
 from openpilot.selfdrive.car.car_specific import MockCarState
 
 from openpilot.sunnypilot.mads.mads import MadsParams
+from openpilot.sunnypilot.selfdrive.car.interfaces import setup_car_interface_sp, initialize_car_interface_sp
 
 REPLAY = "REPLAY" in os.environ
 
@@ -100,6 +101,7 @@ class Car:
           cached_params = _cached_params
 
       self.CI = get_car(*self.can_callbacks, obd_callback(self.params), experimental_long_allowed, num_pandas, cached_params)
+      setup_car_interface_sp(self.CI.CP, self.params)
       self.RI = get_radar_interface(self.CI.CP)
       self.CP = self.CI.CP
 
@@ -116,9 +118,11 @@ class Car:
       self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.DISABLE_DISENGAGE_ON_GAS
 
     # mads
-    data_services = list(self.sm.data.keys()) + ['selfdriveStateSP']
-    self.sm = messaging.SubMaster(data_services, poll='selfdriveStateSP')
     MadsParams().set_alternative_experience(self.CP)
+    MadsParams().set_car_specific_params(self.CP)
+
+    # Dynamic Experimental Control
+    self.dynamic_experimental_control = self.params.get_bool("DynamicExperimentalControl")
 
     openpilot_enabled_toggle = self.params.get_bool("OpenpilotEnabledToggle")
 
@@ -231,6 +235,7 @@ class Car:
       # Initialize CarInterface, once controls are ready
       # TODO: this can make us miss at least a few cycles when doing an ECU knockout
       self.CI.init(self.CP, *self.can_callbacks)
+      initialize_car_interface_sp(self.CP, self.params, *self.can_callbacks)
       # signal pandad to switch to car safety mode
       self.params.put_bool_nonblocking("ControlsReady", True)
 
@@ -246,7 +251,7 @@ class Car:
     CS, RD = self.state_update()
 
     if self.sm['carControl'].enabled and not self.CC_prev.enabled:
-      self.v_cruise_helper.initialize_v_cruise(CS, self.experimental_mode)
+      self.v_cruise_helper.initialize_v_cruise(CS, self.experimental_mode,self.dynamic_experimental_control)
 
     self.state_publish(CS, RD)
 
@@ -261,6 +266,10 @@ class Car:
     while not evt.is_set():
       self.is_metric = self.params.get_bool("IsMetric")
       self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl
+
+      # sunnypilot
+      self.dynamic_experimental_control = self.params.get_bool("DynamicExperimentalControl")
+
       time.sleep(0.1)
 
   def card_thread(self):

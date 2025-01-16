@@ -24,6 +24,8 @@ from openpilot.selfdrive.controls.lib.latcontrol import MIN_LATERAL_CONTROL_SPEE
 from openpilot.system.version import get_build_metadata
 
 from openpilot.sunnypilot.mads.mads import ModularAssistiveDrivingSystem
+from openpilot.sunnypilot.selfdrive.car.car_specific import CarSpecificEventsSP
+from openpilot.sunnypilot.selfdrive.car.experimental_switcher import ExperimentalSwitcher
 
 REPLAY = "REPLAY" in os.environ
 SIMULATION = "SIMULATION" in os.environ
@@ -43,7 +45,7 @@ SafetyModel = car.CarParams.SafetyModel
 IGNORED_SAFETY_MODES = (SafetyModel.silent, SafetyModel.noOutput)
 
 
-class SelfdriveD:
+class SelfdriveD(ExperimentalSwitcher):
   def __init__(self, CP=None):
     self.params = Params()
 
@@ -139,6 +141,10 @@ class SelfdriveD:
     sock_services = list(self.pm.sock.keys()) + ['selfdriveStateSP']
     self.pm = messaging.PubMaster(sock_services)
 
+    self.car_events_sp = CarSpecificEventsSP(self.CP, self.params)
+
+    ExperimentalSwitcher.__init__(self, self.params)
+
   def update_events(self, CS):
     """Compute onroadEvents from carState"""
 
@@ -178,6 +184,9 @@ class SelfdriveD:
     if CS.canValid:
       car_events = self.car_events.update(CS, self.CS_prev, self.sm['carControl']).to_msg()
       self.events.add_from_msg(car_events)
+
+      car_events_sp = self.car_events_sp.update().to_msg()
+      self.events.add_from_msg(car_events_sp)
 
       if self.CP.notCar:
         # wait for everything to init first
@@ -250,7 +259,6 @@ class SelfdriveD:
       else:
         safety_mismatch = pandaState.safetyModel not in IGNORED_SAFETY_MODES
 
-      # TODO-SP: add controlsMismatchLat for controlsAllowedLat
       # safety mismatch allows some time for pandad to set the safety mode and publish it back from panda
       if (safety_mismatch and self.sm.frame*DT_CTRL > 10.) or pandaState.safetyRxChecksInvalid or self.mismatch_counter >= 200:
         self.events.add(EventName.controlsMismatch)
@@ -364,12 +372,18 @@ class SelfdriveD:
       if self.sm['modelV2'].frameDropPerc > 20:
         self.events.add(EventName.modeldLagging)
 
+    # toggle experimental mode once on distance button hold
+    if self.CP.openpilotLongitudinalControl:
+      ExperimentalSwitcher.update(self, CS, self.events, self.experimental_mode)
+
     # decrement personality on distance button press
     if self.CP.openpilotLongitudinalControl:
       if any(not be.pressed and be.type == ButtonType.gapAdjustCruise for be in CS.buttonEvents):
-        self.personality = (self.personality - 1) % 3
-        self.params.put_nonblocking('LongitudinalPersonality', str(self.personality))
-        self.events.add(EventName.personalityChanged)
+        if not self.experimental_mode_switched:
+          self.personality = (self.personality - 1) % 3
+          self.params.put_nonblocking('LongitudinalPersonality', str(self.personality))
+          self.events.add(EventName.personalityChanged)
+        self.experimental_mode_switched = False
 
   def data_sample(self):
     car_state = messaging.recv_one(self.car_state_sock)
@@ -478,7 +492,7 @@ class SelfdriveD:
     if not self.CP.passive and self.initialized:
       self.enabled, self.active = self.state_machine.update(self.events)
     if not self.CP.notCar:
-      self.mads.update(CS)
+      self.mads.update(CS, self.sm)
     self.update_alerts(CS)
 
     self.publish_selfdriveState(CS)
@@ -496,6 +510,9 @@ class SelfdriveD:
       self.is_metric = self.params.get_bool("IsMetric")
       self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl
       self.personality = self.read_personality_param()
+
+      self.mads.read_params()
+      self.car_events_sp.read_params()
       time.sleep(0.1)
 
   def run(self):

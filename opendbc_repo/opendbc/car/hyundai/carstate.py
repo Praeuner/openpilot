@@ -12,7 +12,6 @@ from opendbc.car.interfaces import CarStateBase
 
 from opendbc.sunnypilot.car.hyundai.escc import EsccCarStateBase
 from opendbc.sunnypilot.car.hyundai.mads import MadsCarState
-from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP
 
 ButtonType = structs.CarState.ButtonEvent.Type
 
@@ -28,7 +27,7 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
   def __init__(self, CP):
     CarStateBase.__init__(self, CP)
     EsccCarStateBase.__init__(self)
-    MadsCarState.__init__(self)
+    MadsCarState.__init__(self, CP)
     can_define = CANDefine(DBC[CP.carFingerprint][Bus.pt])
 
     self.cruise_buttons: deque = deque([Buttons.NONE] * PREV_BUTTON_SAMPLES, maxlen=PREV_BUTTON_SAMPLES)
@@ -40,11 +39,13 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
                           "GEAR_SHIFTER"
     if CP.flags & HyundaiFlags.CANFD:
       self.shifter_values = can_define.dv[self.gear_msg_canfd]["GEAR"]
+    elif CP.flags & (HyundaiFlags.HYBRID | HyundaiFlags.EV):
+      self.shifter_values = can_define.dv["ELECT_GEAR"]["Elect_Gear_Shifter"]
     elif self.CP.flags & HyundaiFlags.CLUSTER_GEARS:
       self.shifter_values = can_define.dv["CLU15"]["CF_Clu_Gear"]
     elif self.CP.flags & HyundaiFlags.TCU_GEARS:
       self.shifter_values = can_define.dv["TCU12"]["CUR_GR"]
-    else:  # preferred and elect gear methods use same definition
+    else:
       self.shifter_values = can_define.dv["LVR12"]["CF_Lvr_Gear"]
 
     self.accelerator_msg_canfd = "ACCELERATOR" if CP.flags & HyundaiFlags.EV else \
@@ -159,7 +160,7 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
 
     ret.gearShifter = self.parse_gear_shifter(self.shifter_values.get(gear))
 
-    if not self.CP.openpilotLongitudinalControl:
+    if not self.CP.openpilotLongitudinalControl or self.CP.flags & HyundaiFlags.CAMERA_SCC:
       aeb_src = "FCA11" if self.CP.flags & HyundaiFlags.USE_FCA.value else "SCC12"
       aeb_sig = "FCA_CmdAct" if self.CP.flags & HyundaiFlags.USE_FCA.value else "AEB_CmdAct"
       aeb_warning = cp_cruise.vl[aeb_src]["CF_VSM_Warn"] != 0
@@ -181,13 +182,11 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
     self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
     self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
 
-    prev_lkas_button = self.lkas_button
-    if self.CP.sunnypilotFlags & HyundaiFlagsSP.HAS_LFA_BUTTON:
-      self.lkas_button = cp.vl["BCM_PO_11"]["LFA_Pressed"]
+    MadsCarState.update_mads(self, ret, can_parsers)
 
     ret.buttonEvents = [*create_button_events(self.cruise_buttons[-1], prev_cruise_buttons, BUTTONS_DICT),
                         *create_button_events(self.main_buttons[-1], prev_main_buttons, {1: ButtonType.mainCruise}),
-                        *create_button_events(self.lkas_button, prev_lkas_button, {1: ButtonType.lkas})]
+                        *create_button_events(self.lkas_button, self.prev_lkas_button, {1: ButtonType.lkas})]
 
     if self.CP.openpilotLongitudinalControl:
       ret.cruiseState.available = self.get_main_cruise(ret)
@@ -255,7 +254,6 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
       ret.cruiseState.standstill = False
     else:
       cp_cruise_info = cp_cam if self.CP.flags & HyundaiFlags.CANFD_CAMERA_SCC else cp
-      ret.cruiseState.available = cp_cruise_info.vl["SCC_CONTROL"]["MainMode_ACC"] == 1
       ret.cruiseState.enabled = cp_cruise_info.vl["SCC_CONTROL"]["ACCMode"] in (1, 2)
       ret.cruiseState.standstill = cp_cruise_info.vl["SCC_CONTROL"]["CRUISE_STANDSTILL"] == 1
       ret.cruiseState.speed = cp_cruise_info.vl["SCC_CONTROL"]["VSetDis"] * speed_factor
@@ -279,13 +277,11 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
       self.hda2_lfa_block_msg = copy.copy(cp_cam.vl["CAM_0x362"] if self.CP.flags & HyundaiFlags.CANFD_HDA2_ALT_STEERING
                                           else cp_cam.vl["CAM_0x2a4"])
 
-    prev_lkas_button = self.lkas_button
-    lfa_button = "LFA_BTN" if self.CP.flags & HyundaiFlags.CANFD_ALT_BUTTONS else "LKAS_BTN"
-    self.lkas_button = cp.vl[self.cruise_btns_msg_canfd][lfa_button]
+    MadsCarState.update_mads_canfd(self, ret, can_parsers)
 
     ret.buttonEvents = [*create_button_events(self.cruise_buttons[-1], prev_cruise_buttons, BUTTONS_DICT),
                         *create_button_events(self.main_buttons[-1], prev_main_buttons, {1: ButtonType.mainCruise}),
-                        *create_button_events(self.lkas_button, prev_lkas_button, {1: ButtonType.lkas})]
+                        *create_button_events(self.lkas_button, self.prev_lkas_button, {1: ButtonType.lkas})]
 
     if self.CP.openpilotLongitudinalControl:
       ret.cruiseState.available = self.get_main_cruise(ret)
@@ -391,14 +387,11 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
     else:
       pt_messages.append(("LVR12", 100))
 
-    if CP.sunnypilotFlags & HyundaiFlagsSP.HAS_LFA_BUTTON:
-      pt_messages.append(("BCM_PO_11", 50))
-
     cam_messages = [
       ("LKAS11", 100)
     ]
 
-    if not CP.openpilotLongitudinalControl and CP.flags & HyundaiFlags.CAMERA_SCC:
+    if CP.flags & HyundaiFlags.CAMERA_SCC:
       cam_messages += [
         ("SCC11", 50),
         ("SCC12", 50),
@@ -407,6 +400,7 @@ class CarState(CarStateBase, EsccCarStateBase, MadsCarState):
       if CP.flags & HyundaiFlags.USE_FCA.value:
         cam_messages.append(("FCA11", 50))
 
+    MadsCarState.get_parser(CP, pt_messages)
 
     return {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], pt_messages, 0),

@@ -6,7 +6,6 @@
 
 #include <QDebug>
 
-#include "common/params.h"
 #include "common/watchdog.h"
 #include "common/util.h"
 #include "selfdrive/ui/qt/offroad/driverview.h"
@@ -17,12 +16,6 @@
 #include "selfdrive/ui/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
 
-#ifdef BLUEPILOT
-#include <iostream>
-#include "common/params.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/config_driven_panel.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/git_manager_panel.h"
-#endif
 
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon
@@ -47,6 +40,12 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       tr("Experimental Mode"),
       "",
       "../assets/img_experimental_white.svg",
+    },
+    {
+      "DynamicExperimentalControl",
+      tr("Enable Dynamic Experimental Control"),
+      tr("Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."),
+      "../assets/offroad/icon_blank.png",
     },
     {
       "DisengageOnAccelerator",
@@ -108,7 +107,9 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   }
 
   // Toggles with confirmation dialogs
+#ifndef SUNNYPILOT
   toggles["ExperimentalMode"]->setActiveIcon("../assets/img_experimental.svg");
+#endif
   toggles["ExperimentalMode"]->setConfirmation(true, true);
   toggles["ExperimentalLongitudinalEnabled"]->setConfirmation(true, false);
 
@@ -209,6 +210,11 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(pair_device);
 
+  QObject::connect(uiState()->prime_state, &PrimeState::changed, [this] (PrimeState::Type type) {
+    pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED);
+  });
+
+#ifndef SUNNYPILOT
   // offroad-only buttons
 
   auto dcamBtn = new ButtonControl(tr("Driver Camera"), tr("PREVIEW"),
@@ -220,6 +226,7 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
     dcamBtn->setEnabled(true);
   });
   addItem(dcamBtn);
+#endif
 
   auto resetCalibBtn = new ButtonControl(tr("Reset Calibration"), tr("RESET"), "");
   connect(resetCalibBtn, &ButtonControl::showDescriptionEvent, this, &DevicePanel::updateCalibDescription);
@@ -231,6 +238,7 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(resetCalibBtn);
 
+#ifndef SUNNYPILOT
   auto retrainingBtn = new ButtonControl(tr("Review Training Guide"), tr("REVIEW"), tr("Review the rules, features, and limitations of openpilot"));
   connect(retrainingBtn, &ButtonControl::clicked, [=]() {
     if (ConfirmationDialog::confirm(tr("Are you sure you want to review the training guide?"), tr("Review"), this)) {
@@ -261,9 +269,6 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   });
   addItem(translateBtn);
 
-  QObject::connect(uiState()->prime_state, &PrimeState::changed, [this] (PrimeState::Type type) {
-    pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED);
-  });
   QObject::connect(uiState(), &UIState::offroadTransition, [=](bool offroad) {
     for (auto btn : findChildren<ButtonControl *>()) {
       if (btn != pair_device) {
@@ -297,6 +302,7 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
     #poweroff_btn:pressed { background-color: #FF2424; }
   )");
   addItem(power_layout);
+#endif
 }
 
 void DevicePanel::updateCalibDescription() {
@@ -362,7 +368,7 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
 }
 
 SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
-
+#ifndef SUNNYPILOT
   // setup two main layouts
   sidebar_widget = new QWidget;
   QVBoxLayout *sidebar_layout = new QVBoxLayout(sidebar_widget);
@@ -398,23 +404,12 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &Networking::setPrimeType);
 
   QList<QPair<QString, QWidget *>> panels = {
-      {tr("Device"), device},
-      {tr("Network"), networking},
-      {tr("Toggles"), toggles},
-      {tr("Software"), new SoftwarePanel(this)},
-      {tr("Developer"), new DeveloperPanel(this)},
+    {tr("Device"), device},
+    {tr("Network"), networking},
+    {tr("Toggles"), toggles},
+    {tr("Software"), new SoftwarePanel(this)},
+    {tr("Developer"), new DeveloperPanel(this)},
   };
-
-	// Add the folowing BluePilot panels after the software panel: BluePilot, Utilities, Updater
-  #ifdef BLUEPILOT
-  // sunnypilot panel index is 5
-  panels.insert(4, {tr("BluePilot"), new ConfigDrivenPanel(this, "/bluepilot/menus/bp_menu_dev2.json")});
-  panels.insert(5, {tr("Utilities"), new ConfigDrivenPanel(this, "/bluepilot/menus/utilities_menu.json")});
-  panels.insert(6, {tr("Updater"), new GitManagerPanel(this)});
-
-
-  std::cout << "Adding BluePilot panels" << std::endl;
-  #endif
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel] : panels) {
@@ -473,4 +468,5 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
       border-radius: 30px;
     }
   )");
+#endif
 }

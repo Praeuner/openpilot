@@ -110,6 +110,10 @@ void Sidebar::updateState(const UIState &s) {
 
 void Sidebar::paintEvent(QPaintEvent *event) {
   QPainter p(this);
+  drawSidebar(p);
+}
+
+void Sidebar::drawSidebar(QPainter &p) {
   p.setPen(Qt::NoPen);
   p.setRenderHint(QPainter::Antialiasing);
 
@@ -136,8 +140,10 @@ void Sidebar::paintEvent(QPaintEvent *event) {
   const QRect r = QRect(58, 247, width() - 100, 50);
   p.drawText(r, Qt::AlignLeft | Qt::AlignVCenter, net_type);
 
+#ifndef SUNNYPILOT
   // metrics
   drawMetric(p, temp_status.first, temp_status.second, 338);
   drawMetric(p, panda_status.first, panda_status.second, 496);
   drawMetric(p, connect_status.first, connect_status.second, 654);
+#endif
 }
