@@ -89,6 +89,7 @@ private:
 
 std::unordered_map<std::string, uint32_t> keys = {
     {"AccessToken", CLEAR_ON_MANAGER_START | DONT_LOG},
+    {"AdbEnabled", PERSISTENT},
     {"AlwaysOnDM", PERSISTENT},
     {"ApiCache_Device", PERSISTENT},
     {"AssistNowToken", PERSISTENT},
@@ -119,6 +120,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"ExperimentalLongitudinalEnabled", PERSISTENT | DEVELOPMENT_ONLY | BACKUP},
     {"ExperimentalMode", PERSISTENT | BACKUP},
     {"ExperimentalModeConfirmed", PERSISTENT | BACKUP},
+    {"FirehoseMode", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
     {"FirmwareQueryDone", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
     {"ForcePowerDown", PERSISTENT},
     {"GitBranch", PERSISTENT},
@@ -202,8 +204,14 @@ std::unordered_map<std::string, uint32_t> keys = {
 
     // --- sunnypilot params --- //
     {"ApiCache_DriveStats", PERSISTENT},
+    {"CarParamsSP", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
+    {"CarParamsSPCache", CLEAR_ON_MANAGER_START},
+    {"CarParamsSPPersistent", PERSISTENT},
+    {"CarPlatformBundle", PERSISTENT},
     {"EnableGithubRunner", PERSISTENT | BACKUP},
     {"ModelRunnerTypeCache", CLEAR_ON_ONROAD_TRANSITION},
+    {"OffroadMode", CLEAR_ON_MANAGER_START},
+    {"OffroadMode_Status", CLEAR_ON_MANAGER_START},
 
     // MADS params
     {"Mads", PERSISTENT | BACKUP},

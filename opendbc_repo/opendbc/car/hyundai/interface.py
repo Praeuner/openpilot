@@ -1,9 +1,8 @@
-from panda import Panda
 from opendbc.car import Bus, get_safety_config, structs
 from opendbc.car.hyundai.hyundaicanfd import CanBus
 from opendbc.car.hyundai.values import HyundaiFlags, CAR, DBC, CANFD_RADAR_SCC_CAR, \
                                                    CANFD_UNSUPPORTED_LONGITUDINAL_CAR, \
-                                                   UNSUPPORTED_LONGITUDINAL_CAR
+                                                   UNSUPPORTED_LONGITUDINAL_CAR, HyundaiSafetyFlags
 from opendbc.car.hyundai.radar_interface import RADAR_START_ADDR
 from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.disable_ecu import disable_ecu
@@ -22,7 +21,7 @@ ENABLE_BUTTONS = (ButtonType.accelCruise, ButtonType.decelCruise, ButtonType.can
 class CarInterface(CarInterfaceBase):
   @staticmethod
   def _get_params(ret: structs.CarParams, candidate, fingerprint, car_fw, experimental_long, docs) -> structs.CarParams:
-    ret.carName = "hyundai"
+    ret.brand = "hyundai"
 
     cam_can = CanBus(None, fingerprint).CAM
     hda2 = 0x50 in fingerprint[cam_can] or 0x110 in fingerprint[cam_can]
@@ -62,13 +61,13 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs = cfgs
 
       if ret.flags & HyundaiFlags.CANFD_HDA2:
-        ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_CANFD_HDA2
+        ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_CANFD_HDA2.value
         if ret.flags & HyundaiFlags.CANFD_HDA2_ALT_STEERING:
-          ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_CANFD_HDA2_ALT_STEERING
+          ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_CANFD_HDA2_ALT_STEERING.value
       if ret.flags & HyundaiFlags.CANFD_ALT_BUTTONS:
-        ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_CANFD_ALT_BUTTONS
+        ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_CANFD_ALT_BUTTONS.value
       if ret.flags & HyundaiFlags.CANFD_CAMERA_SCC:
-        ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_CAMERA_SCC
+        ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_CAMERA_SCC.value
 
     else:
       # Shared configuration for non CAN-FD cars
@@ -83,10 +82,6 @@ class CarInterface(CarInterfaceBase):
       if 0x38d in fingerprint[0] or 0x38d in fingerprint[2]:
         ret.flags |= HyundaiFlags.USE_FCA.value
 
-      # TODO-SP: add route with ESCC message for process replay
-      if ESCC_MSG in fingerprint[0]:
-        ret.sunnypilotFlags |= HyundaiFlagsSP.ENHANCED_SCC.value
-
       if ret.flags & HyundaiFlags.LEGACY:
         # these cars require a special panda safety mode due to missing counters and checksums in the messages
         ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.hyundaiLegacy)]
@@ -94,10 +89,7 @@ class CarInterface(CarInterfaceBase):
         ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.hyundai, 0)]
 
       if ret.flags & HyundaiFlags.CAMERA_SCC:
-        ret.safetyConfigs[0].safetyParam |= Panda.FLAG_HYUNDAI_CAMERA_SCC
-
-      if 0x391 in fingerprint[0]:
-        ret.sunnypilotFlags |= HyundaiFlagsSP.HAS_LFA_BUTTON.value
+        ret.safetyConfigs[0].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_CAMERA_SCC.value
 
     # Common lateral control setup
 
@@ -107,7 +99,7 @@ class CarInterface(CarInterfaceBase):
     CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
     if ret.flags & HyundaiFlags.ALT_LIMITS:
-      ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_ALT_LIMITS
+      ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_ALT_LIMITS.value
 
     # Common longitudinal control setup
 
@@ -120,11 +112,11 @@ class CarInterface(CarInterfaceBase):
     ret.longitudinalActuatorDelay = 0.5
 
     if ret.openpilotLongitudinalControl:
-      ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_LONG
+      ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_LONG.value
     if ret.flags & HyundaiFlags.HYBRID:
-      ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_HYBRID_GAS
+      ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_HYBRID_GAS.value
     elif ret.flags & HyundaiFlags.EV:
-      ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_EV_GAS
+      ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_EV_GAS.value
 
     # Car specific configuration overrides
 
@@ -135,16 +127,29 @@ class CarInterface(CarInterfaceBase):
     # TODO: Optima Hybrid 2017 uses a different SCC12 checksum
     ret.dashcamOnly = candidate in {CAR.KIA_OPTIMA_H, }
 
-    if ret.sunnypilotFlags & HyundaiFlagsSP.ENHANCED_SCC:
-      ret.safetyConfigs[-1].safetyParam |= Panda.FLAG_HYUNDAI_ESCC
-      ret.radarUnavailable = False
+    return ret
+
+  @staticmethod
+  def _get_params_sp(stock_cp: structs.CarParams, ret: structs.CarParamsSP, candidate, fingerprint: dict[int, dict[int, int]],
+                     car_fw: list[structs.CarParams.CarFw], experimental_long: bool, docs: bool) -> structs.CarParamsSP:
+    if not stock_cp.flags & HyundaiFlags.CANFD:
+      # TODO-SP: add route with ESCC message for process replay
+      if ESCC_MSG in fingerprint[0]:
+        ret.flags |= HyundaiFlagsSP.ENHANCED_SCC.value
+
+      if 0x391 in fingerprint[0]:
+        ret.flags |= HyundaiFlagsSP.HAS_LFA_BUTTON.value
+
+    if ret.flags & HyundaiFlagsSP.ENHANCED_SCC:
+      stock_cp.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.FLAG_HYUNDAI_ESCC.value
+      stock_cp.radarUnavailable = False
 
     return ret
 
   @staticmethod
-  def init(CP, can_recv, can_send):
+  def init(CP, CP_SP, can_recv, can_send):
     if CP.openpilotLongitudinalControl and not ((CP.flags & (HyundaiFlags.CANFD_CAMERA_SCC | HyundaiFlags.CAMERA_SCC)) or
-                                                (CP.sunnypilotFlags & HyundaiFlagsSP.ENHANCED_SCC.value)):
+                                                (CP_SP.flags & HyundaiFlagsSP.ENHANCED_SCC)):
       addr, bus = 0x7d0, 0
       if CP.flags & HyundaiFlags.CANFD_HDA2.value:
         addr, bus = 0x730, CanBus(CP).ECAN
@@ -154,5 +159,5 @@ class CarInterface(CarInterfaceBase):
     if CP.flags & HyundaiFlags.ENABLE_BLINKERS:
       disable_ecu(can_recv, can_send, bus=CanBus(CP).ECAN, addr=0x7B1, com_cont_req=b'\x28\x83\x01')
 
-    if CP.sunnypilotFlags & HyundaiFlagsSP.ENABLE_RADAR_TRACKS:
+    if CP_SP.flags & HyundaiFlagsSP.ENABLE_RADAR_TRACKS:
       enable_radar_tracks(can_recv, can_send, bus=0, addr=0x7d0)

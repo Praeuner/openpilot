@@ -1,4 +1,5 @@
 import math
+import numpy as np
 from collections import deque  # used for moving averages
 import cereal.messaging as messaging
 from opendbc.can.packer import CANPacker
@@ -30,25 +31,25 @@ T_IDXS = [index_function(idx, max_val=10.0) for idx in range(IDX_N)]
 def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
   if v_ego_raw > 9:
-    apply_curvature = clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
+    apply_curvature = np.clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
                            current_curvature + CarControllerParams.CURVATURE_ERROR)
 
   # Curvature rate limit after driver torque limit
   apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, CarControllerParams)
 
-  return clip(apply_curvature, -CarControllerParams.CURVATURE_MAX, CarControllerParams.CURVATURE_MAX)
+  return float(np.clip(apply_curvature, -CarControllerParams.CURVATURE_MAX, CarControllerParams.CURVATURE_MAX))
 
 
 def apply_creep_compensation(accel: float, v_ego: float) -> float:
-  creep_accel = interp(v_ego, [1., 3.], [0.6, 0.])
-  creep_accel = interp(accel, [0., 0.2], [creep_accel, 0.])
+  creep_accel = np.interp(v_ego, [1., 3.], [0.6, 0.])
+  creep_accel = np.interp(accel, [0., 0.2], [creep_accel, 0.])
   accel -= creep_accel
-  return accel
+  return float(accel)
 
 
 class CarController(CarControllerBase):
-  def __init__(self, dbc_names, CP):
-    super().__init__(dbc_names, CP)
+  def __init__(self, dbc_names, CP, CP_SP):
+    super().__init__(dbc_names, CP, CP_SP)
 
     self.params = Params()
     # Allow the menu to be shown
@@ -135,7 +136,7 @@ class CarController(CarControllerBase):
     # check each param in helpers.SETTINGS_PARAMS to make sure they are set and if not sets them to the default values based on the car being driven
     initialize_param_defaults(self)
 
-  def update(self, CC, CS, now_nanos):
+  def update(self, CC, CC_SP, CS, now_nanos):
     can_sends = []
     self.sm.update(0)
 

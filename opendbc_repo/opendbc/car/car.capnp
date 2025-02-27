@@ -214,6 +214,7 @@ struct CarState {
 
   # button presses
   buttonEvents @11 :List(ButtonEvent);
+  buttonEnable @57 :Bool;  # user is requesting enable, usually one frame. set if pcmCruise=False
   leftBlinker @20 :Bool;
   rightBlinker @21 :Bool;
   genericToggle @23 :Bool;
@@ -353,9 +354,6 @@ struct CarControl {
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
 
-  madsEnabled @7 :Bool;
-  sunnypilotParams @8 :UInt32;
-
   struct Actuators {
     # lateral commands, mutually exclusive
     steer @2: Float32;  # [0.0, 1.0]
@@ -394,12 +392,15 @@ struct CarControl {
     lanesVisible @2: Bool;
     leadVisible @3: Bool;
     visualAlert @4: VisualAlert;
-    audibleAlert @5: AudibleAlert;
     rightLaneVisible @6: Bool;
     leftLaneVisible @7: Bool;
     rightLaneDepart @8: Bool;
     leftLaneDepart @9: Bool;
     leadDistanceBars @10: Int8;  # 1-3: 1 is closest, 3 is farthest. some ports may utilize 2-4 bars instead
+
+    # not used with the dash, TODO: separate structs for dash UI and device UI
+    audibleAlert @5: AudibleAlert;
+    
     alertType @11: Text;
     eventType @12: Text;
 
@@ -435,6 +436,8 @@ struct CarControl {
   gasDEPRECATED @1 :Float32;
   brakeDEPRECATED @2 :Float32;
   steeringTorqueDEPRECATED @3 :Float32;
+  activeDEPRECATED @7 :Bool;
+  rollDEPRECATED @8 :Float32;
   pitchDEPRECATED @9 :Float32;
   actuatorsOutputDEPRECATED @10 :Actuators;
 }
@@ -449,7 +452,7 @@ struct CarOutput {
 # ****** car param ******
 
 struct CarParams {
-  carName @0 :Text;
+  brand @0 :Text;  # Designates which group a platform falls under. Each folder in opendbc/car is assigned one brand string
   carFingerprint @1 :Text;
   fuzzyFingerprint @55 :Bool;
 
@@ -521,8 +524,6 @@ struct CarParams {
 
   secOcRequired @75 :Bool;  # Car requires SecOC message authentication to operate
   secOcKeyAvailable @76 :Bool;  # Stored SecOC key loaded from params
-
-  sunnypilotFlags @54 :UInt32;
 
   struct SafetyConfig {
     safetyModel @0 :SafetyModel;
@@ -722,6 +723,7 @@ struct CarParams {
   brakeMaxBPDEPRECATED @15 :List(Float32);
   brakeMaxVDEPRECATED @16 :List(Float32);
   directAccelControlDEPRECATED @30 :Bool;
+  maxSteeringAngleDegDEPRECATED @54 :Float32;
   longitudinalActuatorDelayLowerBoundDEPRECATED @61 :Float32;
   stoppingControlDEPRECATED @31 :Bool; # Does the car allow full control even at lows speeds when stopping
   radarTimeStepDEPRECATED @45: Float32 = 0.05;  # time delta between radar updates, 20Hz is very standard

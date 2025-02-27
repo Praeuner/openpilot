@@ -363,7 +363,7 @@ SConscript(['opendbc_repo/SConscript'], exports={'env': env_swaglog})
 SConscript(['cereal/SConscript'])
 
 Import('socketmaster', 'msgq')
-messaging = [socketmaster, msgq, 'zmq', 'capnp', 'kj',]
+messaging = [socketmaster, msgq, 'capnp', 'kj',]
 Export('messaging')
 
 
@@ -375,7 +375,6 @@ SConscript(['rednose/SConscript'])
 
 # Build system services
 SConscript([
-  'system/ui/SConscript',
   'system/proclogd/SConscript',
   'system/ubloxd/SConscript',
   'system/loggerd/SConscript',

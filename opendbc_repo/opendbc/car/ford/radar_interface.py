@@ -1,4 +1,3 @@
-import collections
 import numpy as np
 from typing import cast
 from collections import defaultdict
@@ -10,20 +9,17 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import DBC, RADAR
 from opendbc.car.interfaces import RadarInterfaceBase
-from openpilot.common.swaglog import cloudlog
 
 DELPHI_ESR_RADAR_MSGS = list(range(0x500, 0x540))
 
 DELPHI_MRR_RADAR_START_ADDR = 0x120
 DELPHI_MRR_RADAR_HEADER_ADDR = 0x174  # MRR_Header_SensorCoverage
 DELPHI_MRR_RADAR_MSG_COUNT = 64
-DELPHI_MRR_RADAR_MSG_COUNT_64 = 22
 
 DELPHI_MRR_RADAR_RANGE_COVERAGE = {0: 42, 1: 164, 2: 45, 3: 175}  # scan index to detection range (m)
 DELPHI_MRR_MIN_LONG_RANGE_DIST = 30  # meters
 DELPHI_MRR_CLUSTER_THRESHOLD = 5  # meters, lateral distance and relative velocity are weighted
 
-STEER_ASSIST_DATA_MSGS = 0x3d7
 
 @dataclass
 class Cluster:
@@ -92,22 +88,10 @@ def _create_delphi_mrr_radar_can_parser(CP) -> CANParser:
 
   return CANParser(RADAR.DELPHI_MRR, messages, CanBus(CP).radar)
 
-def _create_delphi_mrr_radar_can_parser_64(CP) -> CANParser:
-  messages = []
-
-  for i in range(1, DELPHI_MRR_RADAR_MSG_COUNT_64 + 1):
-    msg = f"MRR_Detection_{i:03d}"
-    messages += [(msg, 33)]
-
-  return CANParser(RADAR.DELPHI_MRR_64, messages, CanBus(CP).radar)
-
-def _create_steer_assist_data(CP) -> CANParser:
-  messages = [("Steer_Assist_Data", 20)]
-  return CANParser(RADAR.STEER_ASSIST_DATA, messages, CanBus(CP).camera)
 
 class RadarInterface(RadarInterfaceBase):
-  def __init__(self, CP):
-    super().__init__(CP)
+  def __init__(self, CP, CP_SP):
+    super().__init__(CP, CP_SP)
 
     self.points: list[list[float]] = []
     self.clusters: list[Cluster] = []
@@ -115,7 +99,7 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.track_id = 0
     self.radar = DBC[CP.carFingerprint].get(Bus.radar)
-    self.vRelCol = {}
+    self.invalid_cnt = 0
     if CP.radarUnavailable:
       self.rcp = None
     elif self.radar == RADAR.DELPHI_ESR:
@@ -125,12 +109,6 @@ class RadarInterface(RadarInterfaceBase):
     elif self.radar == RADAR.DELPHI_MRR:
       self.rcp = _create_delphi_mrr_radar_can_parser(CP)
       self.trigger_msg = DELPHI_MRR_RADAR_HEADER_ADDR
-    elif self.radar == RADAR.STEER_ASSIST_DATA:
-      self.rcp = _create_steer_assist_data(CP)
-      self.trigger_msg = STEER_ASSIST_DATA_MSGS
-    elif self.radar == RADAR.DELPHI_MRR_64:
-      self.rcp = _create_delphi_mrr_radar_can_parser_64(CP)
-      self.trigger_msg = DELPHI_MRR_RADAR_START_ADDR + DELPHI_MRR_RADAR_MSG_COUNT_64 - 1
     else:
       raise ValueError(f"Unsupported radar: {self.radar}")
 
@@ -156,75 +134,11 @@ class RadarInterface(RadarInterfaceBase):
       errors.extend(_errors)
       if not _update:
         return None
-    elif self.radar == RADAR.STEER_ASSIST_DATA:
-      self._update_steer_assist_data()
-    elif self.radar == RADAR.DELPHI_MRR_64:
-      _update, _errors = self._update_delphi_mrr_64()
-      errors.extend(_errors)
-      if not _update:
-        return None
-
-    cloudlog.info(f"pts len {len(self.pts)}")
 
     ret = structs.RadarData()
     ret.points = list(self.pts.values())
     ret.errors = errors
-    print(f"{ret.errors}")
     return ret
-
-  def _update_steer_assist_data(self):
-    msg = self.rcp.vl["Steer_Assist_Data"]
-    updated_msg = self.updated_messages
-
-    dRel = msg['CmbbObjDistLong_L_Actl']
-    confidence = msg['CmbbObjConfdnc_D_Stat']
-    new_track = False
-
-    # if dRel < 1022:
-    if confidence > 0:
-      if 0 not in self.pts:
-        self.pts[0] = structs.RadarData.RadarPoint.new_message()
-        self.pts[0].trackId = self.track_id
-        self.vRelCol[0] = collections.deque(maxlen=20)
-        self.track_id += 1
-        new_track = True
-
-      yRel = msg['CmbbObjDistLat_L_Actl']
-      vRel = msg['CmbbObjRelLong_V_Actl']
-      yvRel = msg['CmbbObjRelLat_V_Actl']
-      calc = 0
-      if not new_track:
-        # if this is a newly created track - we don't have historical data so skip it
-        # if we are on the same track
-        # Let's see if we are moving:
-        #   positive gap - lead is moving faster than us
-        #   negative gap - lead is moving slower than us
-        dDiff = dRel - self.pts[0].dRel
-        if (abs(vRel) < 1.0e-2):
-          self.vRelCol[0].append(dDiff)
-          vRel = sum(self.vRelCol[0])
-          calc = 1
-        else:
-          if len(self.vRelCol[0]) > 0:
-            self.vRelCol[0].clear()
-
-        if abs(self.pts[0].vRel - vRel) > 2 or abs(self.pts[0].dRel - dRel) > 5:
-          self.pts[0].trackId = self.track_id
-          if len(self.vRelCol[0]) > 0:
-            self.vRelCol[0].clear()
-          self.track_id += 1
-
-      self.pts[0].dRel = dRel  # from front of car
-      self.pts[0].yRel = yRel  # in car frame's y axis, left is positive
-      self.pts[0].vRel = vRel
-      self.pts[0].aRel = float('nan')
-      self.pts[0].yvRel = yvRel
-      self.pts[0].measured = True
-    else:
-      if 0 in self.pts:
-        del self.pts[0]
-        del self.vRelCol[0]
-
 
   def _update_delphi_esr(self):
     for ii in sorted(self.updated_messages):
@@ -264,6 +178,12 @@ class RadarInterface(RadarInterfaceBase):
 
     errors = []
     if DELPHI_MRR_RADAR_RANGE_COVERAGE[headerScanIndex] != int(self.rcp.vl["MRR_Header_SensorCoverage"]["CAN_RANGE_COVERAGE"]):
+      self.invalid_cnt += 1
+    else:
+      self.invalid_cnt = 0
+
+    # Rarely MRR_Header_InformationDetections can fail to send a message. The scan index is skipped in this case
+    if self.invalid_cnt >= 5:
       errors.append("wrongConfig")
 
     for ii in range(1, DELPHI_MRR_RADAR_MSG_COUNT + 1):
@@ -292,97 +212,6 @@ class RadarInterface(RadarInterfaceBase):
         yRel = -sin(azimuth) * dist                             # in car frame's y axis, left is positive
 
         self.points.append([dRel, yRel * 2, distRate * 2])
-
-    # Update once we've cycled through all 4 scan modes
-    if headerScanIndex != 3:
-      return False, []
-
-    # Cluster points from this cycle against the centroids from the previous cycle
-    prev_keys = [[p.dRel, p.yRel * 2, p.vRel * 2] for p in self.clusters]
-    labels = cluster_points(prev_keys, self.points, DELPHI_MRR_CLUSTER_THRESHOLD)
-
-    points_by_track_id = defaultdict(list)
-    for idx, label in enumerate(labels):
-      if label != -1:
-        points_by_track_id[self.clusters[label].trackId].append(self.points[idx])
-      else:
-        points_by_track_id[self.track_id].append(self.points[idx])
-        self.track_id += 1
-
-    self.clusters = []
-    for idx, (track_id, pts) in enumerate(points_by_track_id.items()):
-      dRel = [p[0] for p in pts]
-      min_dRel = min(dRel)
-      dRel = sum(dRel) / len(dRel)
-
-      yRel = [p[1] for p in pts]
-      yRel = sum(yRel) / len(yRel) / 2
-
-      vRel = [p[2] for p in pts]
-      vRel = sum(vRel) / len(vRel) / 2
-
-      # FIXME: creating capnp RadarPoint and accessing attributes are both expensive, so we store a dataclass and reuse the RadarPoint
-      self.clusters.append(Cluster(dRel=dRel, yRel=yRel, vRel=vRel, trackId=track_id))
-
-      if idx not in self.pts:
-        self.pts[idx] = structs.RadarData.RadarPoint(measured=True, aRel=float('nan'), yvRel=float('nan'))
-
-      self.pts[idx].dRel = min_dRel
-      self.pts[idx].yRel = yRel
-      self.pts[idx].vRel = vRel
-      self.pts[idx].trackId = track_id
-
-    for idx in range(len(points_by_track_id), len(self.pts)):
-      del self.pts[idx]
-
-    self.points = []
-
-    return True, errors
-
-  def _update_delphi_mrr_64(self):
-    # headerScanIndex = int(self.rcp.vl["MRR_Header_InformationDetections"]['CAN_SCAN_INDEX']) & 0b11
-    headerScanIndex = int(self.rcp.vl["MRR_Detection_001"]['CAN_SCAN_INDEX_2LSB_01_01'])
-
-    # Use points with Doppler coverage of +-60 m/s, reduces similar points
-    if headerScanIndex in (0, 1):
-      return False, []
-
-    errors = []
-    # if DELPHI_MRR_RADAR_RANGE_COVERAGE[headerScanIndex] != int(self.rcp.vl["MRR_Header_SensorCoverage"]["CAN_RANGE_COVERAGE"]):
-    #   errors.append("wrongConfig")
-
-    for ii in range(1, DELPHI_MRR_RADAR_MSG_COUNT_64 + 1):
-      msg = self.rcp.vl[f"MRR_Detection_{ii:03d}"]
-
-      maxRangeID = 7 if ii < 22 else 4
-      for iii in range(1,maxRangeID):
-
-        # SCAN_INDEX rotates through 0..3 on each message for different measurement modes
-        # Indexes 0 and 2 have a max range of ~40m, 1 and 3 are ~170m (MRR_Header_SensorCoverage->CAN_RANGE_COVERAGE)
-        # Indexes 0 and 1 have a Doppler coverage of +-71 m/s, 2 and 3 have +-60 m/s
-        scanIndex = msg[f"CAN_SCAN_INDEX_2LSB_{ii:02d}_{iii:02d}"]
-
-        # Throw out old measurements. Very unlikely to happen, but is proper behavior
-        if scanIndex != headerScanIndex:
-          continue
-
-        valid = bool(msg[f"CAN_DET_VALID_LEVEL_{ii:02d}_{iii:02d}"])
-
-        # Long range measurement mode is more sensitive and can detect the road surface
-        dist = msg[f"CAN_DET_RANGE_{ii:02d}_{iii:02d}"]  # m [0|255.984]
-        if scanIndex in (1, 3) and dist < DELPHI_MRR_MIN_LONG_RANGE_DIST:
-          valid = False
-          
-        # if msg[f"CAN_DET_CONFID_AZIMUTH_{ii:02d}_{iii:02d}"] < 2:
-        #  valid = False
-          
-        if valid:
-          azimuth = msg[f"CAN_DET_AZIMUTH_{ii:02d}_{iii:02d}"]              # rad [-3.1416|3.13964]
-          distRate = msg[f"CAN_DET_RANGE_RATE_{ii:02d}_{iii:02d}"]          # m/s [-128|127.984]
-          dRel = cos(azimuth) * dist                              # m from front of car
-          yRel = -sin(azimuth) * dist                             # in car frame's y axis, left is positive
-
-          self.points.append([dRel, yRel * 2, distRate * 2])
 
     # Update once we've cycled through all 4 scan modes
     if headerScanIndex != 3:

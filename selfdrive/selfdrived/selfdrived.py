@@ -5,9 +5,9 @@ import threading
 
 import cereal.messaging as messaging
 
-from cereal import car, log
+from cereal import car, log, custom
 from msgq.visionipc import VisionIpcClient, VisionStreamType
-from panda import ALTERNATIVE_EXPERIENCE
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 
 
 from openpilot.common.params import Params
@@ -25,12 +25,12 @@ from openpilot.system.version import get_build_metadata
 
 from openpilot.sunnypilot.mads.mads import ModularAssistiveDrivingSystem
 from openpilot.sunnypilot.selfdrive.car.car_specific import CarSpecificEventsSP
-from openpilot.sunnypilot.selfdrive.car.experimental_switcher import ExperimentalSwitcher
+from openpilot.sunnypilot.selfdrive.car.cruise_helpers import CruiseHelper
+from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 
 REPLAY = "REPLAY" in os.environ
 SIMULATION = "SIMULATION" in os.environ
 TESTING_CLOSET = "TESTING_CLOSET" in os.environ
-IGNORE_PROCESSES = {"loggerd", "encoderd", "statsd"}
 LONGITUDINAL_PERSONALITY_MAP = {v: k for k, v in log.LongitudinalPersonality.schema.enumerants.items()}
 
 ThermalStatus = log.DeviceState.ThermalStatus
@@ -45,8 +45,8 @@ SafetyModel = car.CarParams.SafetyModel
 IGNORED_SAFETY_MODES = (SafetyModel.silent, SafetyModel.noOutput)
 
 
-class SelfdriveD(ExperimentalSwitcher):
-  def __init__(self, CP=None):
+class SelfdriveD(CruiseHelper):
+  def __init__(self, CP=None, CP_SP=None):
     self.params = Params()
 
     # Ensure the current branch is cached, otherwise the first cycle lags
@@ -59,18 +59,23 @@ class SelfdriveD(ExperimentalSwitcher):
     else:
       self.CP = CP
 
+    if CP_SP is None:
+      cloudlog.info("selfdrived is waiting for CarParamsSP")
+      self.CP_SP = messaging.log_from_bytes(self.params.get("CarParamsSP", block=True), custom.CarParamsSP)
+      cloudlog.info("selfdrived got CarParamsSP")
+    else:
+      self.CP_SP = CP_SP
+
     self.car_events = CarSpecificEvents(self.CP)
     self.disengage_on_accelerator = not (self.CP.alternativeExperience & ALTERNATIVE_EXPERIENCE.DISABLE_DISENGAGE_ON_GAS)
 
     # Setup sockets
-    self.pm = messaging.PubMaster(['selfdriveState', 'onroadEvents'])
+    self.pm = messaging.PubMaster(['selfdriveState', 'onroadEvents'] + ['selfdriveStateSP', 'onroadEventsSP'])
 
     self.gps_location_service = get_gps_location_service(self.params)
     self.gps_packets = [self.gps_location_service]
     self.sensor_packets = ["accelerometer", "gyroscope"]
     self.camera_packets = ["roadCameraState", "driverCameraState", "wideRoadCameraState"]
-
-    self.hide_steer_saturated_alerts = self.params.get_bool("FordPrefHideSteerSaturatedAlerts")
 
     # TODO: de-couple selfdrived with card/conflate on carState without introducing controls mismatches
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
@@ -93,7 +98,7 @@ class SelfdriveD(ExperimentalSwitcher):
     self.is_metric = self.params.get_bool("IsMetric")
     self.is_ldw_enabled = self.params.get_bool("IsLdwEnabled")
 
-    car_recognized = self.CP.carName != 'mock'
+    car_recognized = self.CP.brand != 'mock'
 
     # cleanup old params
     if not self.CP.experimentalLongitudinalAvailable:
@@ -123,7 +128,7 @@ class SelfdriveD(ExperimentalSwitcher):
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
     # Determine startup event
-    self.startup_event = EventName.startup if build_metadata.openpilot.comma_remote and build_metadata.tested_channel else EventName.startup
+    self.startup_event = EventName.startup if build_metadata.openpilot.comma_remote and build_metadata.tested_channel else EventName.startupMaster
     if not car_recognized:
       self.startup_event = EventName.startupNoCar
     elif car_recognized and self.CP.passive:
@@ -137,18 +142,20 @@ class SelfdriveD(ExperimentalSwitcher):
     elif self.CP.passive:
       self.events.add(EventName.dashcamMode, static=True)
 
+    self.events_sp = EventsSP()
+    self.events_sp_prev = []
+
     self.mads = ModularAssistiveDrivingSystem(self)
-    sock_services = list(self.pm.sock.keys()) + ['selfdriveStateSP']
-    self.pm = messaging.PubMaster(sock_services)
 
     self.car_events_sp = CarSpecificEventsSP(self.CP, self.params)
 
-    ExperimentalSwitcher.__init__(self, self.params)
+    CruiseHelper.__init__(self, self.CP)
 
   def update_events(self, CS):
     """Compute onroadEvents from carState"""
 
     self.events.clear()
+    self.events_sp.clear()
 
     if self.sm['controlsState'].lateralControlState.which() == 'debugState':
       self.events.add(EventName.joystickDebug)
@@ -186,7 +193,7 @@ class SelfdriveD(ExperimentalSwitcher):
       self.events.add_from_msg(car_events)
 
       car_events_sp = self.car_events_sp.update().to_msg()
-      self.events.add_from_msg(car_events_sp)
+      self.events_sp.add_from_msg(car_events_sp)
 
       if self.CP.notCar:
         # wait for everything to init first
@@ -276,7 +283,7 @@ class SelfdriveD(ExperimentalSwitcher):
       if not_running != self.not_running_prev:
         cloudlog.event("process_not_running", not_running=not_running, error=True)
       self.not_running_prev = not_running
-    if self.sm.recv_frame['managerState'] and (not_running - IGNORE_PROCESSES):
+    if self.sm.recv_frame['managerState'] and not_running:
       self.events.add(EventName.processNotRunning)
     else:
       if not SIMULATION and not self.rk.lagging:
@@ -349,7 +356,7 @@ class SelfdriveD(ExperimentalSwitcher):
       undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2
       turning = abs(desired_lateral_accel) > 1.0
       good_speed = CS.vEgo > 5
-      if undershooting and turning and good_speed and lac.saturated and not self.hide_steer_saturated_alerts:
+      if undershooting and turning and good_speed and lac.saturated:
         self.events.add(EventName.steerSaturated)
 
     # Check for FCW
@@ -372,9 +379,11 @@ class SelfdriveD(ExperimentalSwitcher):
       if self.sm['modelV2'].frameDropPerc > 20:
         self.events.add(EventName.modeldLagging)
 
-    # toggle experimental mode once on distance button hold
-    if self.CP.openpilotLongitudinalControl:
-      ExperimentalSwitcher.update(self, CS, self.events, self.experimental_mode)
+    # mute canBusMissing event if in Park, as it sometimes may trigger a false alarm with MADS in Paused state
+    if CS.gearShifter == car.CarState.GearShifter.park and self.mads.enabled:
+      self.events.remove(EventName.canBusMissing)
+
+    CruiseHelper.update(self, CS, self.events_sp, self.experimental_mode)
 
     # decrement personality on distance button press
     if self.CP.openpilotLongitudinalControl:
@@ -440,9 +449,13 @@ class SelfdriveD(ExperimentalSwitcher):
       clear_event_types.add(ET.NO_ENTRY)
 
     pers = LONGITUDINAL_PERSONALITY_MAP[self.personality]
-    alerts = self.events.create_alerts(self.state_machine.current_alert_types, [self.CP, CS, self.sm, self.is_metric,
-                                                                                self.state_machine.soft_disable_timer, pers])
-    self.AM.add_many(self.sm.frame, alerts)
+    callback_args = [self.CP, CS, self.sm, self.is_metric,
+                     self.state_machine.soft_disable_timer, pers]
+
+    alerts = self.events.create_alerts(self.state_machine.current_alert_types, callback_args)
+    alerts_sp = self.events_sp.create_alerts(self.state_machine.current_alert_types, callback_args)
+
+    self.AM.add_many(self.sm.frame, alerts + alerts_sp)
     self.AM.process_alerts(self.sm.frame, clear_event_types)
 
   def publish_selfdriveState(self, CS):
@@ -463,6 +476,7 @@ class SelfdriveD(ExperimentalSwitcher):
     ss.alertStatus = self.AM.current_alert.alert_status
     ss.alertType = self.AM.current_alert.alert_type
     ss.alertSound = self.AM.current_alert.audible_alert
+    ss.alertHudVisual = self.AM.current_alert.visual_alert
 
     self.pm.send('selfdriveState', ss_msg)
 
@@ -486,13 +500,21 @@ class SelfdriveD(ExperimentalSwitcher):
 
     self.pm.send('selfdriveStateSP', ss_sp_msg)
 
+    # onroadEventsSP - logged every second or on change
+    if (self.sm.frame % int(1. / DT_CTRL) == 0) or (self.events_sp.names != self.events_sp_prev):
+      ce_send_sp = messaging.new_message('onroadEventsSP', len(self.events_sp))
+      ce_send_sp.valid = True
+      ce_send_sp.onroadEventsSP = self.events_sp.to_msg()
+      self.pm.send('onroadEventsSP', ce_send_sp)
+    self.events_sp_prev = self.events_sp.names.copy()
+
   def step(self):
     CS = self.data_sample()
     self.update_events(CS)
     if not self.CP.passive and self.initialized:
       self.enabled, self.active = self.state_machine.update(self.events)
     if not self.CP.notCar:
-      self.mads.update(CS, self.sm)
+      self.mads.update(CS)
     self.update_alerts(CS)
 
     self.publish_selfdriveState(CS)

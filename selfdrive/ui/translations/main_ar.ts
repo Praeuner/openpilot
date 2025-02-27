@@ -88,39 +88,6 @@
     </message>
 </context>
 <context>
-    <name>ConfigDrivenFullScreenDialog</name>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">إغلاق</translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenPanel</name>
-    <message>
-        <source>SELECT</source>
-        <translation type="obsolete">اختيار</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">إعادة التشغيل</translation>
-    </message>
-    <message>
-        <source>VIEW</source>
-        <translation type="obsolete">عرض</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">إغلاق</translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenParamViewerDialog</name>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">إغلاق</translation>
-    </message>
-</context>
-<context>
     <name>ConfirmationDialog</name>
     <message>
         <source>Ok</source>
@@ -170,6 +137,26 @@
     <message>
         <source>Longitudinal Maneuver Mode</source>
         <translation>وضع المناورة الطولية</translation>
+    </message>
+    <message>
+        <source>openpilot Longitudinal Control (Alpha)</source>
+        <translation>التحكم الطولي openpilot (ألفا)</translation>
+    </message>
+    <message>
+        <source>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</source>
+        <translation>تحذير: التحكم الطولي في openpilot في المرحلة ألفا لهذه السيارة، وسيقوم بتعطيل مكابح الطوارئ الآلية (AEB).</translation>
+    </message>
+    <message>
+        <source>On this car, openpilot defaults to the car&apos;s built-in ACC instead of openpilot&apos;s longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.</source>
+        <translation>في هذه السيارة يعمل openpilot افتراضياً بالشكل المدمج في التحكم التكيفي في السرعة بدلاً من التحكم الطولي. قم بتمكين هذا الخيار من أجل الانتقال إلى التحكم الطولي. يوصى بتمكين الوضع التجريبي عند استخدام وضع التحكم الطولي ألفا من openpilot.</translation>
+    </message>
+    <message>
+        <source>Enable ADB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ADB (Android Debug Bridge) allows connecting to your device over USB or over the network. See https://docs.comma.ai/how-to/connect-to-comma for more info.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hyundai: Enable Radar Tracks</source>
@@ -369,6 +356,34 @@
         <source>Power Off</source>
         <translation type="unfinished">إيقاف التشغيل</translation>
     </message>
+    <message>
+        <source>Offroad Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to exit Always Offroad mode?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <translation type="unfinished">تأكيد</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to enter Always Offroad mode?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disengage to Enter Always Offroad Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Always Offroad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Always Offroad</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>DriveStats</name>
@@ -566,21 +581,6 @@
     <message>
         <source>CHILL MODE ON</source>
         <translation>تشغيل وضع الراحة</translation>
-    </message>
-</context>
-<context>
-    <name>FordSettingsPanel</name>
-    <message>
-        <source>VIEW</source>
-        <translation type="obsolete">عرض</translation>
-    </message>
-    <message>
-        <source>SELECT</source>
-        <translation type="obsolete">اختيار</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">إعادة التشغيل</translation>
     </message>
 </context>
 <context>
@@ -890,29 +890,6 @@ This will completely remove and re-download the repository.</source>
     </message>
 </context>
 <context>
-    <name>GitManagerPanel</name>
-    <message>
-        <source>Reset</source>
-        <translation type="obsolete">إعادة الضبط</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation type="obsolete">موافق</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">إعادة التشغيل</translation>
-    </message>
-    <message>
-        <source>Are you sure you want to reboot?</source>
-        <translation type="obsolete">هل أنت متأكد  أنك تريد إعادة التشغيل؟</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">إغلاق</translation>
-    </message>
-</context>
-<context>
     <name>GitStatusWidget</name>
     <message>
         <source>Last Commit</source>
@@ -1055,6 +1032,17 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     </message>
 </context>
 <context>
+    <name>NetworkingSP</name>
+    <message>
+        <source>Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>OffroadAlert</name>
     <message>
         <source>Device temperature too high. System cooling down before starting. Current internal component temperature: %1</source>
@@ -1101,6 +1089,10 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     <message>
         <source>openpilot detected a change in the device&apos;s mounting position. Ensure the device is fully seated in the mount and the mount is firmly secured to the windshield.</source>
         <translation>لقد اكتشف openpilot تغييراً في موقع تركيب الجهاز. تأكد من تثبيت الجهاز بشكل كامل في موقعه وتثبيته بإحكام على الزجاج الأمامي.</translation>
+    </message>
+    <message>
+        <source>sunnypilot is now in Always Offroad mode. sunnypilot won&apos;t start until Always Offroad mode is disabled. Go to &quot;Settings&quot; -&gt; &quot;Device&quot; to exit Always Offroad mode.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1159,6 +1151,10 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
         <source>Bookmark connect.comma.ai to your home screen to use it like an app</source>
         <translation>اجعل لـconnect.comma.ai إشارة مرجعية على شاشتك  الرئيسية من أجل استخدامه مثل أي تطبيق</translation>
     </message>
+    <message>
+        <source>Please connect to Wi-Fi to complete initial pairing</source>
+        <translation>يرجى الاتصال بشبكة الواي فاي لإكمال الاقتران الأولي</translation>
+    </message>
 </context>
 <context>
     <name>ParamControl</name>
@@ -1180,6 +1176,61 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     <message>
         <source>Cancel</source>
         <translation type="unfinished">إلغاء</translation>
+    </message>
+</context>
+<context>
+    <name>PlatformSelector</name>
+    <message>
+        <source>Vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SEARCH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search your vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SEARCHING</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No vehicles found for query: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter model year (e.g., 2021) and model name (Toyota Corolla):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vehicle Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting will take effect once the device enters offroad state.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting will take effect immediately.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <translation type="unfinished">تأكيد</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">إلغاء</translation>
+    </message>
+    <message>
+        <source>REMOVE</source>
+        <translation type="unfinished">إزالة</translation>
     </message>
 </context>
 <context>
@@ -1761,12 +1812,20 @@ This may take up to a minute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>We STRONGLY suggest you to reset calibration. Would you like to do that now?</source>
+        <source>We STRONGLY suggest you to reset calibration.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Would you like to do that now?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reset Calibration</source>
         <translation type="unfinished">إعادة ضبط المعايرة</translation>
+    </message>
+    <message>
+        <source>Driving Model Selector</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Warning: You are on a metered connection!</source>
@@ -1779,6 +1838,10 @@ This may take up to a minute.</source>
     <message>
         <source>on Metered</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">إلغاء</translation>
     </message>
 </context>
 <context>
@@ -2018,18 +2081,6 @@ This will remove and re-download it.</source>
         <translation>عند تمكين هذه الميزة، فإن الضغط على دواسة الوقود سيؤدي إلى فك ارتباط openpilot.</translation>
     </message>
     <message>
-        <source>openpilot Longitudinal Control (Alpha)</source>
-        <translation>التحكم الطولي openpilot (ألفا)</translation>
-    </message>
-    <message>
-        <source>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</source>
-        <translation>تحذير: التحكم الطولي في openpilot في المرحلة ألفا لهذه السيارة، وسيقوم بتعطيل مكابح الطوارئ الآلية (AEB).</translation>
-    </message>
-    <message>
-        <source>On this car, openpilot defaults to the car&apos;s built-in ACC instead of openpilot&apos;s longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.</source>
-        <translation>في هذه السيارة يعمل openpilot افتراضياً بالشكل المدمج في التحكم التكيفي في السرعة بدلاً من التحكم الطولي. قم بتمكين هذا الخيار من أجل الانتقال إلى التحكم الطولي. يوصى بتمكين الوضع التجريبي عند استخدام وضع التحكم الطولي ألفا من openpilot.</translation>
-    </message>
-    <message>
         <source>Experimental Mode</source>
         <translation>الوضع التجريبي</translation>
     </message>
@@ -2103,6 +2154,14 @@ This will remove and re-download it.</source>
     </message>
     <message>
         <source>Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>FIREHOSE Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &lt;b&gt;FIREHOSE Mode&lt;/b&gt; to get your driving data in the training set.&lt;br&gt;&lt;br&gt;Follow these steps to get your device ready:&lt;br&gt;  1. Bring your device inside and connect to a good USB-C adapter&lt;br&gt;  2. Connect to Wi-Fi&lt;br&gt;  3. Enable this toggle&lt;br&gt;  4. Leave it connected for at least 30 minutes&lt;br&gt;&lt;br&gt;This toggle turns off once you restart your device. Repeat once a week for maximum effectiveness.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

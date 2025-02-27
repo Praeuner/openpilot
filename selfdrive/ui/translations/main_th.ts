@@ -88,39 +88,6 @@
     </message>
 </context>
 <context>
-    <name>ConfigDrivenFullScreenDialog</name>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">ปิด</translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenPanel</name>
-    <message>
-        <source>SELECT</source>
-        <translation type="obsolete">เลือก</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">รีบูต</translation>
-    </message>
-    <message>
-        <source>VIEW</source>
-        <translation type="obsolete">ดู</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">ปิด</translation>
-    </message>
-</context>
-<context>
-    <name>ConfigDrivenParamViewerDialog</name>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">ปิด</translation>
-    </message>
-</context>
-<context>
     <name>ConfirmationDialog</name>
     <message>
         <source>Ok</source>
@@ -172,6 +139,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Enables or disables the github runner service.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable GitHub runner service</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Hyundai: Enable Radar Tracks</source>
         <translation type="unfinished"></translation>
     </message>
@@ -180,12 +155,24 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Enable GitHub runner service</source>
+        <source>Enable ADB</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Enables or disables the github runner service.</source>
+        <source>ADB (Android Debug Bridge) allows connecting to your device over USB or over the network. See https://docs.comma.ai/how-to/connect-to-comma for more info.</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>openpilot Longitudinal Control (Alpha)</source>
+        <translation type="unfinished">ระบบควบคุมการเร่ง/เบรคโดย openpilot (Alpha)</translation>
+    </message>
+    <message>
+        <source>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</source>
+        <translation type="unfinished">คำเตือน: การควบคุมการเร่ง/เบรคโดย openpilot สำหรับรถคันนี้ยังอยู่ในสถานะ alpha และระบบเบรคฉุกเฉินอัตโนมัติ (AEB) จะถูกปิด</translation>
+    </message>
+    <message>
+        <source>On this car, openpilot defaults to the car&apos;s built-in ACC instead of openpilot&apos;s longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.</source>
+        <translation type="unfinished">โดยปกติสำหรับรถคันนี้ openpilot จะควบคุมการเร่ง/เบรคด้วยระบบ ACC จากโรงงาน แทนการควยคุมโดย openpilot เปิดสวิตซ์นี้เพื่อให้ openpilot ควบคุมการเร่ง/เบรค แนะนำให้เปิดโหมดทดลองเมื่อต้องการให้ openpilot ควบคุมการเร่ง/เบรค ซึ่งอยู่ในสถานะ alpha</translation>
     </message>
 </context>
 <context>
@@ -342,12 +329,16 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Regulatory</source>
-        <translation type="unfinished">ระเบียบข้อบังคับ</translation>
-    </message>
-    <message>
         <source>Language</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reboot</source>
+        <translation type="unfinished">รีบูต</translation>
+    </message>
+    <message>
+        <source>Regulatory</source>
+        <translation type="unfinished">ระเบียบข้อบังคับ</translation>
     </message>
     <message>
         <source>Are you sure you want to review the training guide?</source>
@@ -362,39 +353,63 @@
         <translation type="unfinished">เลือกภาษา</translation>
     </message>
     <message>
-        <source>Reboot</source>
-        <translation type="unfinished">รีบูต</translation>
-    </message>
-    <message>
         <source>Power Off</source>
         <translation type="unfinished">ปิดเครื่อง</translation>
+    </message>
+    <message>
+        <source>Offroad Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to exit Always Offroad mode?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <translation type="unfinished">ยืนยัน</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to enter Always Offroad mode?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disengage to Enter Always Offroad Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Always Offroad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Always Offroad</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>DriveStats</name>
     <message>
         <source>Drives</source>
-        <translation type="unfinished"></translation>
+        <translation>การขับขี่</translation>
     </message>
     <message>
         <source>Hours</source>
-        <translation type="unfinished"></translation>
+        <translation>ชั่วโมง</translation>
     </message>
     <message>
         <source>ALL TIME</source>
-        <translation type="unfinished"></translation>
+        <translation>ทั้งหมด</translation>
     </message>
     <message>
         <source>PAST WEEK</source>
-        <translation type="unfinished"></translation>
+        <translation>สัปดาห์ที่ผ่านมา</translation>
     </message>
     <message>
         <source>KM</source>
-        <translation type="unfinished"></translation>
+        <translation>กิโลเมตร</translation>
     </message>
     <message>
         <source>Miles</source>
-        <translation type="unfinished"></translation>
+        <translation>ไมล์</translation>
     </message>
 </context>
 <context>
@@ -566,21 +581,6 @@
     <message>
         <source>CHILL MODE ON</source>
         <translation>คุณกำลังใช้โหมดชิล</translation>
-    </message>
-</context>
-<context>
-    <name>FordSettingsPanel</name>
-    <message>
-        <source>VIEW</source>
-        <translation type="obsolete">ดู</translation>
-    </message>
-    <message>
-        <source>SELECT</source>
-        <translation type="obsolete">เลือก</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">รีบูต</translation>
     </message>
 </context>
 <context>
@@ -890,29 +890,6 @@ This will completely remove and re-download the repository.</source>
     </message>
 </context>
 <context>
-    <name>GitManagerPanel</name>
-    <message>
-        <source>Reset</source>
-        <translation type="obsolete">รีเซ็ต</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation type="obsolete">พอใช้</translation>
-    </message>
-    <message>
-        <source>Reboot</source>
-        <translation type="obsolete">รีบูต</translation>
-    </message>
-    <message>
-        <source>Are you sure you want to reboot?</source>
-        <translation type="obsolete">คุณแน่ใจหรือไม่ว่าต้องการรีบูต?</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="obsolete">ปิด</translation>
-    </message>
-</context>
-<context>
     <name>GitStatusWidget</name>
     <message>
         <source>Last Commit</source>
@@ -977,10 +954,6 @@ This will completely remove and re-download the repository.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Note: For vehicles without LFA/LKAS button, disabling this will prevent lateral control engagement.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Unified Engagement Mode (UEM)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1009,6 +982,10 @@ This will completely remove and re-download the repository.</source>
 
 Remain Active: ALC will remain active even after the brake pedal is pressed.
 Pause Steering: ALC will be paused after the brake pedal is manually pressed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Note: For vehicles without LFA/LKAS button, disabling this will prevent lateral control engagement.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1047,6 +1024,17 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     <message>
         <source>Wrong password</source>
         <translation>รหัสผ่านผิด</translation>
+    </message>
+</context>
+<context>
+    <name>NetworkingSP</name>
+    <message>
+        <source>Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1096,6 +1084,10 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     <message>
         <source>openpilot detected a change in the device&apos;s mounting position. Ensure the device is fully seated in the mount and the mount is firmly secured to the windshield.</source>
         <translation>openpilot ตรวจพบการเปลี่ยนแปลงของตำแหน่งที่ติดตั้ง กรุณาตรวจสอบว่าได้เลื่อนอุปกรณ์เข้ากับจุดติดตั้งจนสุดแล้ว และจุดติดตั้งได้ยึดติดกับกระจกหน้าอย่างแน่นหนา</translation>
+    </message>
+    <message>
+        <source>sunnypilot is now in Always Offroad mode. sunnypilot won&apos;t start until Always Offroad mode is disabled. Go to &quot;Settings&quot; -&gt; &quot;Device&quot; to exit Always Offroad mode.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1154,6 +1146,10 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
         <source>Bookmark connect.comma.ai to your home screen to use it like an app</source>
         <translation>จดจำ connect.comma.ai โดยการเพิ่มไปยังหน้าจอโฮม เพื่อใช้งานเหมือนเป็นแอปพลิเคชัน</translation>
     </message>
+    <message>
+        <source>Please connect to Wi-Fi to complete initial pairing</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ParamControl</name>
@@ -1170,11 +1166,66 @@ Pause Steering: ALC will be paused after the brake pedal is manually pressed.</s
     <name>ParamControlSP</name>
     <message>
         <source>Enable</source>
-        <translation type="unfinished">เปิดใช้งาน</translation>
+        <translation>เปิดใช้งาน</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>ยกเลิก</translation>
+    </message>
+</context>
+<context>
+    <name>PlatformSelector</name>
+    <message>
+        <source>Vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SEARCH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search your vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SEARCHING</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No vehicles found for query: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a vehicle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter model year (e.g., 2021) and model name (Toyota Corolla):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vehicle Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting will take effect once the device enters offroad state.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting will take effect immediately.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <translation type="unfinished">ยืนยัน</translation>
     </message>
     <message>
         <source>Cancel</source>
         <translation type="unfinished">ยกเลิก</translation>
+    </message>
+    <message>
+        <source>REMOVE</source>
+        <translation type="unfinished">ลบ</translation>
     </message>
 </context>
 <context>
@@ -1328,38 +1379,38 @@ This may take up to a minute.</source>
     <name>SettingsWindowSP</name>
     <message>
         <source>×</source>
-        <translation type="unfinished">×</translation>
+        <translation>×</translation>
     </message>
     <message>
         <source>Device</source>
-        <translation type="unfinished">อุปกรณ์</translation>
+        <translation>อุปกรณ์</translation>
     </message>
     <message>
         <source>Network</source>
-        <translation type="unfinished">เครือข่าย</translation>
+        <translation>เครือข่าย</translation>
+    </message>
+    <message>
+        <source>Toggles</source>
+        <translation>ตัวเลือก</translation>
+    </message>
+    <message>
+        <source>Software</source>
+        <translation>ซอฟต์แวร์</translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sunnypilot</source>
+        <translation>sunnypilot</translation>
     </message>
     <message>
         <source>sunnylink</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Toggles</source>
-        <translation type="unfinished">ตัวเลือก</translation>
-    </message>
-    <message>
-        <source>Software</source>
-        <translation type="unfinished">ซอฟต์แวร์</translation>
-    </message>
-    <message>
-        <source>sunnypilot</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Trips</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Developer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1669,15 +1720,31 @@ This may take up to a minute.</source>
 <context>
     <name>SoftwarePanelSP</name>
     <message>
-        <source>Current Model</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>SELECT</source>
         <translation type="unfinished">เลือก</translation>
     </message>
     <message>
-        <source>No custom model selected!</source>
+        <source>Reset Calibration</source>
+        <translation type="unfinished">รีเซ็ตการคาลิเบรท</translation>
+    </message>
+    <message>
+        <source>Warning: You are on a metered connection!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation type="unfinished">ดำเนินการต่อ</translation>
+    </message>
+    <message>
+        <source>on Metered</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 model [%2] pending...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1697,6 +1764,22 @@ This may take up to a minute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>%1 model [%2] download failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetching models...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model download has started in the background.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>%1 model [%2] %3</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1713,23 +1796,11 @@ This may take up to a minute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 model [%2] download failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 model [%2] pending...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fetching models...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Use Default</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select a Model</source>
+        <source>No custom model selected!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1737,27 +1808,19 @@ This may take up to a minute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Model download has started in the background.</source>
+        <source>Cancel</source>
+        <translation type="unfinished">ยกเลิก</translation>
+    </message>
+    <message>
+        <source>Driving Model Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>We STRONGLY suggest you to reset calibration. Would you like to do that now?</source>
+        <source>We STRONGLY suggest you to reset calibration.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Reset Calibration</source>
-        <translation type="unfinished">รีเซ็ตการคาลิเบรท</translation>
-    </message>
-    <message>
-        <source>Warning: You are on a metered connection!</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Continue</source>
-        <translation type="unfinished">ดำเนินการต่อ</translation>
-    </message>
-    <message>
-        <source>on Metered</source>
+        <source>Would you like to do that now?</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1890,11 +1953,11 @@ This will remove and re-download it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>🎉Welcome back! We&apos;re excited to see you&apos;ve enabled sunnylink again! 🚀</source>
-        <translation type="unfinished"></translation>
+        <source>N/A</source>
+        <translation type="unfinished">ไม่มี</translation>
     </message>
     <message>
-        <source>👋Not going to lie, it&apos;s sad to see you disabled sunnylink 😢, but we&apos;ll be here when you&apos;re ready to come back 🎉.</source>
+        <source>🎉Welcome back! We&apos;re excited to see you&apos;ve enabled sunnylink again! 🚀</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1902,22 +1965,22 @@ This will remove and re-download it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>N/A</source>
-        <translation type="unfinished">ไม่มี</translation>
+        <source>👋Not going to lie, it&apos;s sad to see you disabled sunnylink 😢, but we&apos;ll be here when you&apos;re ready to come back 🎉.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>SunnypilotPanel</name>
+    <message>
+        <source>Customize MADS</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <source>Modular Assistive Driving System (MADS)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Enable the beloved MADS feature. Disable toggle to revert back to stock openpilot engagement/disengagement.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Customize MADS</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2022,18 +2085,6 @@ This will remove and re-download it.</source>
         <translation>ระบบควบคุมการเร่ง/เบรคโดย openpilot อาจมาในการอัปเดตในอนาคต</translation>
     </message>
     <message>
-        <source>openpilot Longitudinal Control (Alpha)</source>
-        <translation>ระบบควบคุมการเร่ง/เบรคโดย openpilot (Alpha)</translation>
-    </message>
-    <message>
-        <source>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</source>
-        <translation>คำเตือน: การควบคุมการเร่ง/เบรคโดย openpilot สำหรับรถคันนี้ยังอยู่ในสถานะ alpha และระบบเบรคฉุกเฉินอัตโนมัติ (AEB) จะถูกปิด</translation>
-    </message>
-    <message>
-        <source>On this car, openpilot defaults to the car&apos;s built-in ACC instead of openpilot&apos;s longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.</source>
-        <translation>โดยปกติสำหรับรถคันนี้ openpilot จะควบคุมการเร่ง/เบรคด้วยระบบ ACC จากโรงงาน แทนการควยคุมโดย openpilot เปิดสวิตซ์นี้เพื่อให้ openpilot ควบคุมการเร่ง/เบรค แนะนำให้เปิดโหมดทดลองเมื่อต้องการให้ openpilot ควบคุมการเร่ง/เบรค ซึ่งอยู่ในสถานะ alpha</translation>
-    </message>
-    <message>
         <source>Aggressive</source>
         <translation>ดุดัน</translation>
     </message>
@@ -2083,6 +2134,14 @@ This will remove and re-download it.</source>
     </message>
     <message>
         <source>Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>FIREHOSE Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &lt;b&gt;FIREHOSE Mode&lt;/b&gt; to get your driving data in the training set.&lt;br&gt;&lt;br&gt;Follow these steps to get your device ready:&lt;br&gt;  1. Bring your device inside and connect to a good USB-C adapter&lt;br&gt;  2. Connect to Wi-Fi&lt;br&gt;  3. Enable this toggle&lt;br&gt;  4. Leave it connected for at least 30 minutes&lt;br&gt;&lt;br&gt;This toggle turns off once you restart your device. Repeat once a week for maximum effectiveness.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

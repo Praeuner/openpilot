@@ -8,7 +8,6 @@
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
 
 #include "common/watchdog.h"
-#include "selfdrive/ui/qt/offroad/driverview.h"
 #include "selfdrive/ui/qt/qt_window.h"
 
 DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
@@ -24,18 +23,24 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
     {"translateBtn", tr("Language")},
   };
 
+  int row = 0, col = 0;
   for (int i = 0; i < device_btns.size(); i++) {
+    if (device_btns[i].first == "regulatoryBtn" && !Hardware::TICI()) {
+      continue;
+    }
+
     auto *btn = new PushButtonSP(device_btns[i].second, 720, this);
-    device_grid_layout->addWidget(btn, i / 2, i % 2);
+    device_grid_layout->addWidget(btn, row, col);
     buttons[device_btns[i].first] = btn;
+
+    col++;
+    if (col > 1) {
+      col = 0;
+      row++;
+    }
   }
 
-  connect(buttons["dcamBtn"], &PushButtonSP::clicked, [this]() {
-    buttons["dcamBtn"]->setEnabled(false);
-    DriverViewDialog driver_view(this);
-    driver_view.exec();
-    buttons["dcamBtn"]->setEnabled(true);
-  });
+  connect(buttons["dcamBtn"], &PushButtonSP::clicked, [=]() { emit showDriverView(); });
 
   connect(buttons["retrainingBtn"], &PushButtonSP::clicked, [=]() {
     if (ConfirmationDialog::confirm(tr("Are you sure you want to review the training guide?"), tr("Review"), this)) {
@@ -48,8 +53,6 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
       const std::string txt = util::read_file("../assets/offroad/fcc.html");
       ConfirmationDialog::rich(QString::fromStdString(txt), this);
     });
-  } else {
-    buttons["regulatoryBtn"]->setEnabled(false);
   }
 
   connect(buttons["translateBtn"], &PushButtonSP::clicked, [=]() {
@@ -70,12 +73,12 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
   QHBoxLayout *power_layout = new QHBoxLayout();
   power_layout->setSpacing(5);
 
-  QPushButton *rebootBtn = new PushButtonSP(tr("Reboot"), 720, this);
+  PushButtonSP *rebootBtn = new PushButtonSP(tr("Reboot"), 720, this);
   rebootBtn->setStyleSheet(rebootButtonStyle);
   power_layout->addWidget(rebootBtn);
   QObject::connect(rebootBtn, &PushButtonSP::clicked, this, &DevicePanelSP::reboot);
 
-  QPushButton *poweroffBtn = new PushButtonSP(tr("Power Off"), 720, this);
+  PushButtonSP *poweroffBtn = new PushButtonSP(tr("Power Off"), 720, this);
   poweroffBtn->setStyleSheet(powerOffButtonStyle);
   power_layout->addWidget(poweroffBtn);
   QObject::connect(poweroffBtn, &PushButtonSP::clicked, this, &DevicePanelSP::poweroff);
@@ -84,5 +87,60 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
     connect(uiState(), &UIState::offroadTransition, poweroffBtn, &PushButtonSP::setVisible);
   }
 
-  addItem(power_layout);
+  offroadBtn = new PushButtonSP(tr("Offroad Mode"));
+  offroadBtn->setFixedWidth(power_layout->sizeHint().width());
+  QObject::connect(offroadBtn, &PushButtonSP::clicked, this, &DevicePanelSP::setOffroadMode);
+
+  QVBoxLayout *power_group_layout = new QVBoxLayout();
+  power_group_layout->setSpacing(30);
+  power_group_layout->addWidget(offroadBtn, 0, Qt::AlignHCenter);
+  power_group_layout->addLayout(power_layout);
+
+  addItem(power_group_layout);
+
+  QObject::connect(uiState(), &UIState::offroadTransition, [=](bool offroad) {
+    for (auto btn : findChildren<PushButtonSP*>()) {
+      if (btn != rebootBtn && btn != poweroffBtn && btn != offroadBtn) {
+        btn->setEnabled(offroad);
+      }
+    }
+  });
+}
+
+void DevicePanelSP::setOffroadMode() {
+  if (!uiState()->engaged()) {
+    if (params.getBool("OffroadMode")) {
+      if (ConfirmationDialog::confirm(tr("Are you sure you want to exit Always Offroad mode?"), tr("Confirm"), this)) {
+        // Check engaged again in case it changed while the dialog was open
+        if (!uiState()->engaged()) {
+          params.remove("OffroadMode");
+        }
+      }
+    } else {
+      if (ConfirmationDialog::confirm(tr("Are you sure you want to enter Always Offroad mode?"), tr("Confirm"), this)) {
+        // Check engaged again in case it changed while the dialog was open
+        if (!uiState()->engaged()) {
+          params.putBool("OffroadMode", true);
+        }
+      }
+    }
+  } else {
+    ConfirmationDialog::alert(tr("Disengage to Enter Always Offroad Mode"), this);
+  }
+
+  updateState();
+}
+
+void DevicePanelSP::showEvent(QShowEvent *event) {
+  updateState();
+}
+
+void DevicePanelSP::updateState() {
+  if (!isVisible()) {
+    return;
+  }
+
+  bool offroad_mode_param = params.getBool("OffroadMode");
+  offroadBtn->setText(offroad_mode_param ? tr("Exit Always Offroad") : tr("Always Offroad"));
+  offroadBtn->setStyleSheet(offroad_mode_param ? alwaysOffroadStyle : autoOffroadStyle);
 }

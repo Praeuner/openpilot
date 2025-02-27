@@ -14,9 +14,9 @@ TransmissionType = structs.CarParams.TransmissionType
 
 
 class CarState(CarStateBase, MadsCarState):
-  def __init__(self, CP):
-    CarStateBase.__init__(self, CP)
-    MadsCarState.__init__(self, CP)
+  def __init__(self, CP, CP_SP):
+    CarStateBase.__init__(self, CP, CP_SP)
+    MadsCarState.__init__(self, CP, CP_SP)
     can_define = CANDefine(DBC[CP.carFingerprint][Bus.pt])
     self.bluecruise_cluster_present = FordConfig.BLUECRUISE_CLUSTER_PRESENT # Sets the value of whether the car has the blue cruise cluster
     if CP.transmissionType == TransmissionType.automatic:
@@ -168,7 +168,7 @@ class CarState(CarStateBase, MadsCarState):
       return self.v_limit * speed_factor if self.v_limit not in (0, 255) else 0
 
   @staticmethod
-  def get_can_parsers(CP):
+  def get_can_parsers(CP, CP_SP):
     pt_messages = [
       # sig_address, frequency
       ("VehicleOperatingModes", 100),

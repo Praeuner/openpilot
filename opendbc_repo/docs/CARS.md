@@ -7,7 +7,7 @@
 |Acura|ILX 2016-19|AcuraWatch Plus|[Upstream](#upstream)|
 |Acura|Integra 2024|All|[Community](#community)|
 |Acura|RDX 2016-18|AcuraWatch Plus|[Upstream](#upstream)|
-|Acura|RDX 2019-22|All|[Upstream](#upstream)|
+|Acura|RDX 2019-21|All|[Upstream](#upstream)|
 |Audi|A3 2014-19|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
 |Audi|A3 Sportback e-tron 2017-18|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
 |Audi|A4 2016-24|All|[Not compatible](#flexray)|
@@ -36,9 +36,9 @@
 |Ford|Escape Plug-in Hybrid 2020-22|Co-Pilot360 Assist+|[Upstream](#upstream)|
 |Ford|Explorer 2020-24|Co-Pilot360 Assist+|[Upstream](#upstream)|
 |Ford|Explorer Hybrid 2020-24|Co-Pilot360 Assist+|[Upstream](#upstream)|
-|Ford|F-150 2022-23|Co-Pilot360 Active 2.0|[Under review](#under-review)|
-|Ford|F-150 Hybrid 2022-23|Co-Pilot360 Active 2.0|[Under review](#under-review)|
-|Ford|F-150 Lightning 2021-23|Co-Pilot360 Active 2.0|[Under review](#under-review)|
+|Ford|F-150 2022-23|Co-Pilot360 Assist 2.0|[Under review](#under-review)|
+|Ford|F-150 Hybrid 2022-23|Co-Pilot360 Assist 2.0|[Under review](#under-review)|
+|Ford|F-150 Lightning 2022-23|Co-Pilot360 Assist 2.0|[Under review](#under-review)|
 |Ford|Focus 2018|Adaptive Cruise Control with Lane Centering|[Upstream](#upstream)|
 |Ford|Focus Hybrid 2018|Adaptive Cruise Control with Lane Centering|[Upstream](#upstream)|
 |Ford|Kuga 2020-22|Adaptive Cruise Control with Lane Centering|[Upstream](#upstream)|
@@ -48,7 +48,7 @@
 |Ford|Maverick 2023-24|Co-Pilot360 Assist|[Upstream](#upstream)|
 |Ford|Maverick Hybrid 2022|LARIAT Luxury|[Upstream](#upstream)|
 |Ford|Maverick Hybrid 2023-24|Co-Pilot360 Assist|[Upstream](#upstream)|
-|Ford|Mustang Mach-E 2021-23|Co-Pilot360 Active 2.0|[Under review](#under-review)|
+|Ford|Mustang Mach-E 2021-23|All|[Under review](#under-review)|
 |Ford|Ranger 2024|Adaptive Cruise Control with Lane Centering|[Under review](#under-review)|
 |Genesis|G70 2018|All|[Upstream](#upstream)|
 |Genesis|G70 2019-21|All|[Upstream](#upstream)|
@@ -100,7 +100,7 @@
 |Hyundai|Elantra 2017-18|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|Elantra 2019|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|Elantra 2021-23|Smart Cruise Control (SCC)|[Upstream](#upstream)|
-|Hyundai|Elantra GT 2017-19|Smart Cruise Control (SCC)|[Upstream](#upstream)|
+|Hyundai|Elantra GT 2017-20|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|Elantra Hybrid 2021-23|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|Genesis 2015-16|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|i30 2017-19|Smart Cruise Control (SCC)|[Upstream](#upstream)|
@@ -141,7 +141,7 @@
 |Jeep|Grand Cherokee 2019-21|Adaptive Cruise Control (ACC)|[Upstream](#upstream)|
 |Kia|Carnival 2022-24|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Kia|Carnival (China only) 2023|Smart Cruise Control (SCC)|[Upstream](#upstream)|
-|Kia|Ceed 2019|Smart Cruise Control (SCC)|[Upstream](#upstream)|
+|Kia|Ceed 2019-21|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Kia|EV6 (Southeast Asia only) 2022-24|All|[Upstream](#upstream)|
 |Kia|EV6 (with HDA II) 2022-24|Highway Driving Assist II|[Upstream](#upstream)|
 |Kia|EV6 (without HDA II) 2022-24|Highway Driving Assist|[Upstream](#upstream)|
@@ -200,7 +200,7 @@
 |Lexus|RX Hybrid 2016|Lexus Safety System+|[Upstream](#upstream)|
 |Lexus|RX Hybrid 2017-19|All|[Upstream](#upstream)|
 |Lexus|RX Hybrid 2020-22|All|[Upstream](#upstream)|
-|Lexus|UX Hybrid 2019-23|All|[Upstream](#upstream)|
+|Lexus|UX Hybrid 2019-24|All|[Upstream](#upstream)|
 |Lincoln|Aviator 2020-24|Co-Pilot360 Plus|[Upstream](#upstream)|
 |Lincoln|Aviator Plug-in Hybrid 2020-24|Co-Pilot360 Plus|[Upstream](#upstream)|
 |MAN|eTGE 2020-24|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
@@ -250,8 +250,8 @@
 |Škoda|Octavia Scout 2017-19|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
 |Škoda|Scala 2020-23|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
 |Škoda|Superb 2015-22|Adaptive Cruise Control (ACC) & Lane Assist|[Upstream](#upstream)|
-|Tesla|Model 3|All|[Dashcam mode](#dashcam)|
-|Tesla|Model Y|All|[Dashcam mode](#dashcam)|
+|Tesla|Model 3 2019-24|Traffic Aware Cruise Control|[Dashcam mode](#dashcam)|
+|Tesla|Model Y 2020-24|Traffic Aware Cruise Control|[Dashcam mode](#dashcam)|
 |Toyota|Alphard 2019-20|All|[Upstream](#upstream)|
 |Toyota|Alphard Hybrid 2021|All|[Upstream](#upstream)|
 |Toyota|Avalon 2016|Toyota Safety Sense P|[Upstream](#upstream)|
@@ -299,7 +299,7 @@
 |Toyota|RAV4 Hybrid 2017-18|All|[Upstream](#upstream)|
 |Toyota|RAV4 Hybrid 2019-21|All|[Upstream](#upstream)|
 |Toyota|RAV4 Hybrid 2022|All|[Upstream](#upstream)|
-|Toyota|RAV4 Hybrid 2023-24|All|[Upstream](#upstream)|
+|Toyota|RAV4 Hybrid 2023-25|All|[Upstream](#upstream)|
 |Toyota|RAV4 Prime 2021-23|Any|[Community](#community)|
 |Toyota|RAV4 Prime 2024-25|Any|[Not compatible](#can-bus-security)|
 |Toyota|Sequoia 2023-25|Any|[Not compatible](#can-bus-security)|

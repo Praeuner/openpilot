@@ -1,7 +1,6 @@
 from cereal import log
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.realtime import DT_MDL
-from openpilot.common.params import Params
 
 LaneChangeState = log.LaneChangeState
 LaneChangeDirection = log.LaneChangeDirection
@@ -40,8 +39,6 @@ class DesireHelper:
     self.keep_pulse_timer = 0.0
     self.prev_one_blinker = False
     self.desire = log.Desire.none
-    self.params = Params()
-    self.enable_nudgeless_lane_change = self.params.get_bool("FordPrefAllowNudgelessLaneChange")
 
   def update(self, carstate, lateral_active, lane_change_prob):
     v_ego = carstate.vEgo
@@ -70,9 +67,6 @@ class DesireHelper:
         blindspot_detected = ((carstate.leftBlindspot and self.lane_change_direction == LaneChangeDirection.left) or
                               (carstate.rightBlindspot and self.lane_change_direction == LaneChangeDirection.right))
 
-        if self.enable_nudgeless_lane_change:
-          torque_applied = True
-
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
           self.lane_change_direction = LaneChangeDirection.none
@@ -99,9 +93,6 @@ class DesireHelper:
             self.lane_change_state = LaneChangeState.preLaneChange
           else:
             self.lane_change_state = LaneChangeState.off
-
-          if one_blinker and self.enable_nudgeless_lane_change:
-            self.lane_change_state = LaneChangeState.laneChangeFinishing
 
     if self.lane_change_state in (LaneChangeState.off, LaneChangeState.preLaneChange):
       self.lane_change_timer = 0.0

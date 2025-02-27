@@ -7,9 +7,9 @@
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/settings.h"
 
-#include "selfdrive/ui/qt/network/networking.h"
 #include "selfdrive/ui/sunnypilot/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
+#include "selfdrive/ui/sunnypilot/qt/network/networking.h"
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/software_panel.h"
@@ -70,12 +70,13 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   // setup panels
   DevicePanelSP *device = new DevicePanelSP(this);
   QObject::connect(device, &DevicePanelSP::reviewTrainingGuide, this, &SettingsWindowSP::reviewTrainingGuide);
+  QObject::connect(device, &DevicePanelSP::showDriverView, this, &SettingsWindowSP::showDriverView);
 
   TogglesPanelSP *toggles = new TogglesPanelSP(this);
   QObject::connect(this, &SettingsWindowSP::expandToggleDescription, toggles, &TogglesPanel::expandToggleDescription);
 
-  auto networking = new Networking(this);
-  QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &Networking::setPrimeType);
+  auto networking = new NetworkingSP(this);
+  QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &NetworkingSP::setPrimeType);
 
   QList<PanelInfo> panels = {
     PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),

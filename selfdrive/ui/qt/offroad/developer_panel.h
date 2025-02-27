@@ -14,11 +14,13 @@ public:
 
 private:
   Params params;
+  ParamControl* adbToggle;
   ParamControl* joystickToggle;
   ParamControl* longManeuverToggle;
+  ParamControl* experimentalLongitudinalToggle;
   ParamControl* hyundaiRadarTracksToggle;
   bool is_release;
-  bool offroad;
+  bool offroad = false;
 
 private slots:
   void updateToggles(bool _offroad);
