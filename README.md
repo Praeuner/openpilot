@@ -71,7 +71,7 @@ Please refer to [Recommended Branches](#-recommended-branches) to find your pref
 |    Branch    |         Installation URL         |
 |:------------:|:--------------------------------:|
 | `stable` | https://bit.ly/bp-stable |
-| `experimental` | https://bit.ly/bp-experimental |
+
 
 Requires further assistance with software installation? Join the [sunnypilot Discord server](https://discord.sunnypilot.com) and message us in the `#ford` channel.
 
@@ -96,12 +96,10 @@ In addition to all sunnypilot features, bluepilot incorporates the following For
 
 |    Tag    | Definition           | Description                                                                                                                                                                                 |
 |:---------:|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `stable` | stable branches     | Include features that are **verified** by trusted testers and the community. Ready to use. ✅                                                                                                |
-| `experimental` | experimental branches     | Include new features that are in testing, this branch might fail to boot, crash, or have unpredictable behavior.  Please test with caution ⚠                                                                                        
+| `stable` | stable branches     | Include features that are **verified** by trusted testers and the community. Ready to use. ✅                                                                                                |                                                                                      
 
 Example:
 * [`stable`](https://github.com/bluepilotdev/bluepilot/stable): Latest stable branch that is verified by trusted testers and the community. Ready to use.
-* [`experimental`](https://github.com/bluepilotdev/bluepilot/experimental): Latest development branch  that include all sunnypilot and experimental bluepilot features  Testing required with extreme caution
 
 </details>
 
@@ -112,7 +110,7 @@ Example:
 | Branch                                                                              | Definition                                              | Compatible Device |                                                                                |
 |:------------------------------------------------------------------------------------|---------------------------------------------------------|-------------------|--------------------------------------------------------------------------------------------|
 | [`stable`](https://github.com/bluepilotdev/bluepilot/stable)           | • Latest release/stable branch                          | comma three       | 
-| [`experimental`](https://github.com/bluepilotdev/bluepilot/experimental)                   | • Latest development branch with experimental features  | comma three       | 
+
 
 </details>
 
