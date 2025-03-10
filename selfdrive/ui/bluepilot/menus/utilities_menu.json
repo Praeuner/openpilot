@@ -3,21 +3,21 @@
   "menuName": "Utilities",
   "menuIcon": "icon_utilities.png",
   "menuDescription": "Utilities Panel",
-  "persistentParams": [],
-  "clearOnManagerStartParams": [],
-  "clearOnOnroadTransitionParams": [],
-  "clearOnOffroadTransitionParams": [],
+  "persistentParams": [ ],
+  "clearOnManagerStartParams": [ ],
+  "clearOnOnroadTransitionParams": [ ],
+  "clearOnOffroadTransitionParams": [ ],
   "groups": [
     {
       "groupName": "utilityCommandsGroup",
-      "title": "Utility Commands: (Tap item for desc)",
+      "title": "Utility Commands:",
       "enableResetButton": false,
       "controls": [
         {
           "type": "model_data_viewer",
           "title": "Model Data Viewer",
           "desc": "View model data",
-          "hidden": false
+          "hidden": true
         },
         {
           "type": "param_list_viewer",
@@ -38,8 +38,8 @@
           "cancel_button_text": "Cancel",
           "hidden": false,
           "conditions": {
-            "git_remote": ["ford-op/sp-dev-c3"],
-            "git_branch": []
+            "git_remote": [ "ford-op/sp-dev-c3" ],
+            "git_branch": [ ]
           }
         },
         {
@@ -53,8 +53,8 @@
           "hidden": false,
           "OnlyOnCommaDevice": true,
           "conditions": {
-            "git_remote": ["ford-op/sp-dev-c3"],
-            "git_branch": []
+            "git_remote": [ "ford-op/sp-dev-c3" ],
+            "git_branch": [ ]
           }
         },
         {
@@ -66,8 +66,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": []
+            "git_remote": [ "any" ],
+            "git_branch": [ ]
           }
         },
         {
@@ -80,8 +80,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": ["ford-op/sp-dev-c3"],
-            "git_branch": []
+            "git_remote": [ "ford-op/sp-dev-c3" ],
+            "git_branch": [ ]
           }
         },
         {
@@ -94,8 +94,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": ["ford-op/sp-dev-c3"],
-            "git_branch": []
+            "git_remote": [ "ford-op/sp-dev-c3" ],
+            "git_branch": [ ]
           }
         }
       ]

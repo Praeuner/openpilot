@@ -105,8 +105,24 @@ def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control):
   return packer.make_can_msg("Lane_Assist_Data1", CAN.main, {})
 
 
-def create_lat_ctl_msg(packer, CAN: CanBus, lat_active: bool, path_offset: float, path_angle: float, curvature: float,
-                       curvature_rate: float, ramp_type: int, precision_type: int):
+def create_lka3_msg(packer, CAN: CanBus):
+  """
+  Creates an empty CAN message for the Ford LKA Command.
+
+  This command can apply "Lane Keeping Aid" manoeuvres, which are subject to the PSCM lockout.
+
+  Frequency is 33Hz.
+  """
+  values = {
+    "LatCtlCpblty_D_Stat": 2,                   # Lateral Control Capability: 0=NoModeAvailable, 1=LimitedModeAvailable,
+                                                #            2=ExtendedModeAvailable, 3=Faulty [0|3]
+    "LaActAvail_D_Actl": 3,                      # Lane Keeping Aid Availability: 0=No, 1=Yes, 2=Faulty, 3=NotAvailable [0|3]
+  }
+  return packer.make_can_msg("Lane_Assist_Data3", CAN.main, values)
+
+
+def create_lat_ctl_msg(packer, CAN: CanBus, lat_active: bool, ramp_type: int, precision_type: int, path_offset: float, path_angle: float,
+                       curvature: float, curvature_rate: float):
   """
   Creates a CAN message for the Ford TJA/LCA Command.
 
@@ -145,8 +161,8 @@ def create_lat_ctl_msg(packer, CAN: CanBus, lat_active: bool, path_offset: float
   return packer.make_can_msg("LateralMotionControl", CAN.main, values)
 
 
-def create_lat_ctl2_msg(packer, CAN: CanBus, mode: int, path_offset: float, path_angle: float, curvature: float,
-                        curvature_rate: float, counter: int, ramp_type: int, precision_type: int):
+def create_lat_ctl2_msg(packer, CAN: CanBus, mode: int, ramp_type: int, precision_type: int, path_offset: float, path_angle: float, curvature: float,
+                        curvature_rate: float, counter: int):
   """
   Create a CAN message for the new Ford Lane Centering command.
 
@@ -177,7 +193,7 @@ def create_lat_ctl2_msg(packer, CAN: CanBus, mode: int, path_offset: float, path
   return packer.make_can_msg("LateralMotionControl2", CAN.main, values)
 
 
-def create_acc_msg(packer, CAN: CanBus, long_active: bool, gas: float, accel: float, stopping: bool, brake_request, v_ego_kph: float):
+def create_acc_msg(packer, CAN: CanBus, long_active: bool, gas: float, accel: float, stopping: bool, brake_actuator: bool, precharge_actuator: bool, v_ego_kph: float):
   """
   Creates a CAN message for the Ford ACC Command.
 
@@ -186,20 +202,22 @@ def create_acc_msg(packer, CAN: CanBus, long_active: bool, gas: float, accel: fl
 
   Frequency is 50Hz.
   """
+  # decel = accel < 0 and long_active
+  gas_pred = -5.0 if gas == -5.0 else accel
   values = {
     "AccBrkTot_A_Rq": accel,                          # Brake total accel request: [-20|11.9449] m/s^2
     "Cmbb_B_Enbl": 1 if long_active else 0,           # Enabled: 0=No, 1=Yes
     "AccPrpl_A_Rq": gas,                              # Acceleration request: [-5|5.23] m/s^2
     # No observed acceleration seen from this signal alone. During stock system operation, it appears to
     # be the raw acceleration request (AccPrpl_A_Rq when positive, AccBrkTot_A_Rq when negative)
-    "AccPrpl_A_Pred": -5.0,                           # Acceleration request: [-5|5.23] m/s^2
+    "AccPrpl_A_Pred": gas_pred,                           # Acceleration request: [-5|5.23] m/s^2
     "AccResumEnbl_B_Rq": 1 if long_active else 0,
     # No observed acceleration seen from this signal alone
     "AccVeh_V_Trg": v_ego_kph,                        # Target speed: [0|255] km/h
     # TODO: we may be able to improve braking response by utilizing pre-charging better
     # When setting these two bits without AccBrkTot_A_Rq, an initial jerk is observed and car may be able to brake temporarily with AccPrpl_A_Rq
-    "AccBrkPrchg_B_Rq": 1 if brake_request else 0,            # Pre-charge brake request: 0=No, 1=Yes
-    "AccBrkDecel_B_Rq": 1 if brake_request else 0,            # Deceleration request: 0=Inactive, 1=Active
+    "AccBrkPrchg_B_Rq": 1 if precharge_actuator else 0,            # Pre-charge brake request: 0=No, 1=Yes
+    "AccBrkDecel_B_Rq": 1 if brake_actuator else 0,            # Deceleration request: 0=Inactive, 1=Active
     "AccStopStat_B_Rq": 1 if stopping else 0,
   }
   return packer.make_can_msg("ACCDATA", CAN.main, values)
@@ -244,8 +262,8 @@ def create_acc_ui_msg(packer, CAN: CanBus, CP, main_on: bool, enabled: bool, fcw
     "AccStopStat_D_Dsply",       # ACC stopped status message
     "AccTrgDist2_D_Dsply",       # ACC target distance
     "AccStopRes_B_Dsply",
-    "TjaWarn_D_Rq",              # TJA warning
-    "TjaMsgTxt_D_Dsply",         # TJA text
+    #"TjaWarn_D_Rq",              # TJA warning
+    #"TjaMsgTxt_D_Dsply",         # TJA text
     "IaccLamp_D_Rq",             # iACC status icon
     "AccMsgTxt_D2_Rq",           # ACC text
     "FcwDeny_B_Dsply",           # FCW disabled

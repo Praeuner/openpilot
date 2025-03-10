@@ -21,16 +21,26 @@ if not GetOption('stock_ui'):
 
 bp_qt_src = [
   # BluePilot Panel and Widgets
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_utils.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_components.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_controls.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_dialogs.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_model_viewer.cc",
-  "bluepilot/qt/offroad/panels/dynamic/dynamic_panel_statistics.cc",
+  # "bluepilot/qt/offroad/panels/bp_panel.cc",
+  "bluepilot/qt/offroad/panels/bp_utils.cc",
+  "bluepilot/qt/offroad/panels/bp_panel_controls.cc",
+  "bluepilot/qt/offroad/panels/bp_panel_dialogs.cc",
+  "bluepilot/qt/offroad/panels/bp_panel_conditions.cc",
+
+  # BluePilot Views/Panels
+  # Base View
+  "bluepilot/qt/offroad/panels/bp_panel_base.cc",
+  "bluepilot/qt/offroad/panels/bp_base_view.cc",
+  "bluepilot/qt/offroad/panels/bp_nested_view.cc",
+  "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
+  "bluepilot/qt/offroad/panels/bp_routes_panel.cc",
+  "bluepilot/qt/offroad/panels/bp_managers.cc",
+
+  # BluePilot Statistics Panel
+  "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
 
   # BluePilot Git Directory Panel
-  "bluepilot/qt/offroad/panels/git/git_directory_panel.cc",
+  "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
 
   # BluePilot Onroad Widgets
   "bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc",

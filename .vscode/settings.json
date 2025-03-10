@@ -22,7 +22,7 @@
     "selfdrive/**",
     "system/**",
     "third_party/**",
-    "tools/**",
+    "tools/**"
   ],
   "files.associations": {
     "__bit_reference": "cpp",
@@ -84,5 +84,6 @@
     "vector": "cpp",
     "algorithm": "cpp",
     "regex": "cpp"
-  }
+  },
+  "C_Cpp.errorSquiggles": "disabled"
 }

@@ -10,35 +10,38 @@ params = Params()
 SETTINGS_PARAMS = [
   ["FordPrefSendHandsFreeCanMsg", "send_hands_free_cluster_msg", False, bool],
   ["FordPrefHumanTurnDetectionEnable", "enable_human_turn_detection", True, bool],
-  ["FordPrefEnablePathAngle", "enable_path_angle", False, bool],
   ["FordPrefLaneDepartCanMsg", "send_lane_depart_can_msg", False, bool],
   ["FordPrefDriverMonitorCanMsg", "send_driver_monitor_can_msg", False, bool],
+  ["FordLatTuningEnableAdvLatCtrl", "enable_AdvLatCtrl", True, bool],
+  ["FordLatTuningEnableLanefullMode", "enable_lanefull_mode", True, bool],
+  ["FordLatTuningProfile", "tuning_profile_UI", 2, int],
   ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
-  ["FordLatTuningPathAngleLowSpeedFactor", "path_angle_low_speed_factor", 0.15, float],
-  ["FordLatTuningPathAngleHighSpeedFactor", "path_angle_high_speed_factor", 3.0, float],
+  ["FordLatTuningLaneChangeFactorHighUI", "lane_change_factor_high", 0.60, float],
+  ["FordLatTuningPCBlendRatioUI", "pc_blend_ratio_UI", 0.40, float],
+  ["FordLatTuningPathAngleHighSpeedFactorUI", "path_angle_high_speed_factor_UI", 5.0, float],
+  ["FordLatTuningPathAngleHighCurvatureFactorUI", "path_angle_high_curvature_factor_UI", 0.17, float],
   ["FordLongTuningBrakeActuatorActivate", "brake_actuator_activate", None, float],
   ["FordLongTuningBrakeActuatorReleaseDelta", "brake_actuator_release_delta", None, float],
-  ["FordLongTuningPrechargeActuatorTargetDelta", "precharge_actuator_target_delta", None, float],
-  ["FordPrefEnableCustomLatLogic", "enable_custom_lat_logic", False, bool],
-  ["FordPrefHideSteerSaturatedAlerts", "hide_steer_saturated_alerts", False, bool],
-  # ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
-  # ["FordLimitsCurvatureError", "curvature_error", CarControllerParams.CURVATURE_ERROR, float],
+  ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
+  ["FordLimitsCurvatureError", "curvature_error", CarControllerParams.CURVATURE_ERROR, float],
 ]
 
 
 def load_initial_cc_pref_params(self_obj): # self_obj is the CarController object (self)
   self_obj.send_hands_free_cluster_msg = get_bool_param("FordPrefSendHandsFreeCanMsg", False)
   self_obj.enable_human_turn_detection = get_bool_param("FordPrefHumanTurnDetectionEnable", True)
-  self_obj.enable_path_angle = get_bool_param("FordPrefEnablePathAngle", False)
   self_obj.send_lane_depart_can_msg = get_bool_param("FordPrefLaneDepartCanMsg", False)
   self_obj.send_driver_monitor_can_msg = get_bool_param("FordPrefDriverMonitorCanMsg", False)
+  self_obj.enable_AdvLatCtrl = get_bool_param("FordLatTuningEnableAdvLatCtrl", True)
+  self_obj.enable_lanefull_mode = get_bool_param("FordLatTuningEnableLanefullMode", True)
+  self_obj.tuning_profile_UI = get_int_param("FordLatTuningProfile", 2)
   self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
-  self_obj.path_angle_low_speed_factor = get_float_param("FordLatTuningPathAngleLowSpeedFactor", 0.15)
-  self_obj.path_angle_high_speed_factor = get_float_param("FordLatTuningPathAngleHighSpeedFactor", 3.0)
-  self_obj.enable_custom_lat_logic = get_bool_param("FordPrefEnableCustomLatLogic", False)
-  self_obj.hide_steer_saturated_alerts = get_bool_param("FordPrefHideSteerSaturatedAlerts", False)
-  # self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
-  # self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
+  self_obj.pc_blend_ratio_UI = get_float_param("FordLatTuningPCBlendRatioUI", 0.40)
+  self_obj.path_angle_high_speed_factor_UI = get_float_param("FordLatTuningPathAngleHighSpeedFactorUI", 5.0)
+  self_obj.path_angle_high_curvature_factor_UI = get_float_param("FordLatTuningPathAngleHighCurvatureFactorUI", 0.17)
+  self_obj.lane_change_factor_high = get_float_param("FordLatTuningLaneChangeFactorHighUI", 0.60)
+  self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
+  self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
 
 
 def initialize_param_defaults(self_obj):
@@ -155,12 +158,12 @@ def get_ford_vehicle_tuning_carcontroller(carFingerprint):
     logDebug(f'CarController Tuning: {FORD_VEHICLE_TUNINGS[carFingerprint]}')
     tuning = FORD_VEHICLE_TUNINGS[carFingerprint]
     values = {
-      # "path_lookup_time": tuning.get("path_lookup_time"),
-      # "reset_lookup_time": tuning.get("reset_lookup_time"),
+      "path_lookup_time": tuning.get("path_lookup_time"),
+      "reset_lookup_time": tuning.get("reset_lookup_time"),
       "brake_actuator_activate": tuning.get("brake_actuator_activate"),
       "brake_actuator_release_delta": tuning.get("brake_actuator_release_delta"),
-      "precharge_actuator_target_delta": tuning.get("precharge_actuator_target_delta"),
-      # "lane_change_factor": tuning.get("lane_change_factor"),
+      "precharge_actuator_stdDevHigh": tuning.get("precharge_actuator_stdDevHigh"),
+      "lane_change_factor": tuning.get("lane_change_factor"),
     }
     logDebug(f'CarController Tuning Values: {values}')
     return values
@@ -185,45 +188,45 @@ def get_ford_vehicle_tuning_interface(candidate):
   return None
 
 
-# def hysteresis(current_value, old_value, target: float, delta: float):
-#   if target < current_value < min(target + delta, 0):
-#     result = old_value
-#   elif current_value <= target:
-#     result = 1
-#   elif current_value >= min(target + delta, 0):
-#     result = 0
+def hysteresis(current_value, old_value, target: float, delta: float):
+  if target < current_value < min(target + delta, 0):
+    result = old_value
+  elif current_value <= target:
+    result = 1
+  elif current_value >= min(target + delta, 0):
+    result = 0
 
-#   return result
+  return result
 
 
-# def actuators_calc(cc_self, brake): # cc_self is the CarController object (self)
-#   ts = cc_self.frame * DT_CTRL
+def actuators_calc(cc_self, brake): # cc_self is the CarController object (self)
+  ts = cc_self.frame * DT_CTRL
 
-#   brake_actuate = hysteresis(brake, cc_self.brake_actuate_last, cc_self.brake_actuator_activate, cc_self.brake_actuator_release_delta)
-#   cc_self.brake_actuate_last = brake_actuate
+  brake_actuate = hysteresis(brake, cc_self.brake_actuate_last, cc_self.brake_actuator_activate, cc_self.brake_actuator_release_delta)
+  cc_self.brake_actuate_last = brake_actuate
 
-#   precharge_actuate = hysteresis(
-#     brake, cc_self.precharge_actuate_last, (cc_self.brake_actuator_activate+cc_self.precharge_actuator_target_delta), (cc_self.brake_actuator_release_delta-cc_self.precharge_actuator_target_delta)
-#   )
+  precharge_actuate = hysteresis(
+    brake, cc_self.precharge_actuate_last, (cc_self.brake_actuator_activate+cc_self.precharge_actuator_target_delta), (cc_self.brake_actuator_release_delta-cc_self.precharge_actuator_target_delta)
+  )
 
-#   if precharge_actuate and not cc_self.precharge_actuate_last:
-#     cc_self.precharge_actuate_ts = ts
-#   elif not precharge_actuate:
-#     cc_self.precharge_actuate_ts = 0
+  if precharge_actuate and not cc_self.precharge_actuate_last:
+    cc_self.precharge_actuate_ts = ts
+  elif not precharge_actuate:
+    cc_self.precharge_actuate_ts = 0
 
-#   if (
-#     precharge_actuate
-#     and not brake_actuate
-#     and cc_self.precharge_actuate_ts > 0
-#     and brake > cc_self.brake_actuator_activate
-#     and (ts - cc_self.precharge_actuate_ts) > (200 * DT_CTRL)
-#   ):
-#     precharge_actuate = False
+  if (
+    precharge_actuate
+    and not brake_actuate
+    and cc_self.precharge_actuate_ts > 0
+    and brake > cc_self.brake_actuator_activate
+    and (ts - cc_self.precharge_actuate_ts) > (200 * DT_CTRL)
+  ):
+    precharge_actuate = False
 
-#   cc_self.precharge_actuate_last = precharge_actuate
-#   logDebug(f"actuators_calc: {brake}\t{precharge_actuate}\t{brake_actuate}")
+  cc_self.precharge_actuate_last = precharge_actuate
+  logDebug(f"actuators_calc: {brake}\t{precharge_actuate}\t{brake_actuate}")
 
-#   return precharge_actuate, brake_actuate
+  return precharge_actuate, brake_actuate
 
 def get_dm_driver_state(d_state):
   if d_state == "preDriverDistracted/permanent":
@@ -256,40 +259,80 @@ def get_dm_disable_state(d_state):
 
 
 def compute_dm_msg_values(hud_control, send_hands_free_cluster_msg):
-  # print(f"hud_control: {hud_control}")
-  # print(f"send_hands_free_cluster_msg: {send_hands_free_cluster_msg}")
-  tja_msg = 0
-  tja_warn = 0
-  if hud_control is None or hud_control.alertType is None:
+    tja_msg = 0
+    tja_warn = 0
+
+    disableState = get_dm_disable_state(hud_control.alertType)
+    driverState = get_dm_driver_state(hud_control.eventType)
+
+    if send_hands_free_cluster_msg:
+      if disableState == "noEntry":
+        tja_msg = 4  # BlueCruise not available
+      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+        tja_warn = 3  # Resume Control
+      elif disableState == "userDisable":
+        tja_warn = 1  # Cancelled
+      elif driverState == "preDistracted":
+        tja_warn = 6  # Watch The Road (no chime)
+      elif driverState == "promptDistracted":
+        tja_warn = 7  # Watch The Road (chime)
+      elif hud_control.leftLaneDepart:
+        tja_warn = 5  # Left Lane Departure (chime)
+      elif hud_control.rightLaneDepart:
+        tja_warn = 4  # Right Lane Departure (chime)
+      else:
+        tja_warn = 0
+    else:
+      if disableState == "noEntry":
+        tja_msg = 1  # Lane Centering Assist not available
+      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+        tja_warn = 3  # Resume Control
+      elif disableState == "userDisable":
+        tja_warn = 1  # Cancelled
+      else:
+        tja_warn = 0
+
     return tja_msg, tja_warn
-  disableState = get_dm_disable_state(hud_control.alertType)
-  driverState = get_dm_driver_state(hud_control.eventType)
 
-  if send_hands_free_cluster_msg:
-    if disableState == "noEntry":
-      tja_msg = 4  # BlueCruise not available
-    elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
-      tja_warn = 3  # Resume Control
-    elif disableState == "userDisable":
-      tja_warn = 1  # Cancelled
-    elif driverState == "preDistracted":
-      tja_warn = 6  # Watch The Road (no chime)
-    elif driverState == "promptDistracted":
-      tja_warn = 7  # Watch The Road (chime)
-    elif hud_control.leftLaneDepart:
-      tja_warn = 5  # Left Lane Departure (chime)
-    elif hud_control.rightLaneDepart:
-      tja_warn = 4  # Right Lane Departure (chime)
-    else:
-      tja_warn = 0
-  else:
-    if disableState == "noEntry":
-      tja_msg = 1  # Lane Centering Assist not available
-    elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
-      tja_warn = 3  # Resume Control
-    elif disableState == "userDisable":
-      tja_warn = 1  # Cancelled
-    else:
-      tja_warn = 0
+def get_hev_power_flow_text(mode_value):
+  # PwrFlowTxt_D_Dsply 15 "NotUsed7" 14 "NotUsed6" 13 "NotUsed5" 12 "NotUsed4" 11 "Disply_Rgen_Chrg_Txt" 10 "Disp_Fast_Charge_Txt" 9 "Disp_Fast_Charge_Cmplt_Txt" 8 "Disp_Charge_Cmplt_Txt" 7 "Disp_Remote_Start_Txt" 6 "Disp_Eng_Drv_Txt" 5 "Disp_Elec_Drv_Txt" 4 "Disp_Idle_with_Chrg_Txt" 3 "Disp_Idle_Txt" 2 "Disp_Charg_HV_Batt_Txt" 1 "Disp_Hyb_Drive_Txt" 0 "No_Text";
+  power_flow_modes = {
+    0: "",
+    1: "Hybrid Drive",
+    2: "Charging HV Battery",
+    3: "Idle",
+    4: "Idle with Charging",
+    5: "Electric Drive",
+    6: "Engine Drive",
+    7: "Remote Start",
+    8: "Charge Complete",
+    9: "Fast Charge Complete",
+    10: "Fast Charging",
+    11: "Regenerative Charging",
+    12: "Not Used",
+    13: "Not Used",
+    14: "Not Used",
+    15: "Not Used",
+  }
+  return power_flow_modes.get(int(mode_value), "Unknown")
 
-  return tja_msg, tja_warn
+
+def get_hev_engine_on_reason_text(reason_value):
+  # EngOnMsg1_D_Dsply 14 "_0xE_to_1F_NotUsed" 12 "Battery_Temperature" 11 "Hill_Decent_Control" 10 "Fuel_Maintenance" 9 "Oil_Maintenance" 8 "Normal_Operation" 7 "Low_Gear" 6 "Batt_Charging" 5 "Engine_Cold" 4 "Neutral_Gear" 3 "Heater_Setting" 2 "High_Speed" 1 "Acceleration" 0 "No_Display" 13 "Drive_Mode_Selection";
+  engine_on_reasons = {
+    0: "",
+    1: "Acceleration",
+    2: "High Speed",
+    3: "Heater Setting",
+    4: "Neutral Gear",
+    5: "Engine Cold",
+    6: "Battery Charging",
+    7: "Low Gear",
+    8: "Normal Operation",
+    9: "Oil Maintenance",
+    10: "Fuel Maintenance",
+    11: "Hill Descent Control",
+    12: "Battery Temperature",
+    13: "Drive Mode",
+  }
+  return engine_on_reasons.get(int(reason_value), "Unknown")

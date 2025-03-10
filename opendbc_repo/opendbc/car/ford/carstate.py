@@ -2,11 +2,13 @@ from opendbc.can.can_define import CANDefine
 from opendbc.can.parser import CANParser
 from opendbc.car import Bus, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
+from openpilot.common.params import Params
 from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import DBC, CarControllerParams, FordConfig, FordFlags
 from opendbc.car.interfaces import CarStateBase
 
-from opendbc.sunnypilot.car.ford.mads import MadsCarState
+# from openpilot.selfdrive.car.ford.fordcanparser import FordCanParser
+from openpilot.selfdrive.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text
 
 ButtonType = structs.CarState.ButtonEvent.Type
 GearShifter = structs.CarState.GearShifter
@@ -18,6 +20,9 @@ class CarState(CarStateBase, MadsCarState):
     CarStateBase.__init__(self, CP, CP_SP)
     MadsCarState.__init__(self, CP, CP_SP)
     can_define = CANDefine(DBC[CP.carFingerprint][Bus.pt])
+    self.params = Params()
+    # self.ford_can_parser = FordCanParser(CP)
+
     self.bluecruise_cluster_present = FordConfig.BLUECRUISE_CLUSTER_PRESENT # Sets the value of whether the car has the blue cruise cluster
     if CP.transmissionType == TransmissionType.automatic:
       if CP.flags & FordFlags.CANFD:
@@ -32,10 +37,31 @@ class CarState(CarStateBase, MadsCarState):
     self.distance_button = 0
     self.lc_button = 0
 
+    # Save the HEV data available flag to a param
+    if CP.flags & FordFlags.HEV_CLUSTER_DATA:
+      self.params.put_bool("FordPrefHevDataAvailable", True)
+    else:
+      self.params.put_bool("FordPrefHevDataAvailable", False)
+
+    if CP.flags & FordFlags.HEV_BATTERY_DATA:
+      self.params.put_bool("FordPrefHevBattDataAvailable", True)
+    else:
+      self.params.put_bool("FordPrefHevBattDataAvailable", False)
+
+    self.hev_data_available = CP.flags & FordFlags.HEV_CLUSTER_DATA
+	
+	
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
     cp_cam = can_parsers[Bus.cam]
 
+	# Publish CAN data first so any parsing errors don't affect critical CarState updates
+    # if(self.params.get_bool("FordPrefStreamCanData")):
+    #   try:
+    #     self.ford_can_parser.publish_can_data(cp, cp_cam, self.CP.carFingerprint)
+    #   except Exception as e:
+    #     print(f"Error publishing Ford CAN data: {e}")
+	
     ret = structs.CarState()
 
     if self.CP.flags & FordFlags.ALT_STEER_ANGLE:
@@ -88,7 +114,7 @@ class CarState(CarStateBase, MadsCarState):
       ret.steerFaultTemporary |= cp.vl["Lane_Assist_Data3_FD1"]["LatCtlSte_D_Stat"] not in (1, 2, 3)
 
     # cruise state
-    is_metric = cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else False
+    is_metric = cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else cp_cam.vl["IPMA_Data2"]["IsaVLimUnit_D_Rq"] == 1
     ret.cruiseState.speed = cp.vl["EngBrakeData"]["Veh_V_DsplyCcSet"] * (CV.KPH_TO_MS if is_metric else CV.MPH_TO_MS)
     ret.cruiseState.enabled = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (4, 5)
     ret.cruiseState.available = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (3, 4, 5)
@@ -158,6 +184,56 @@ class CarState(CarStateBase, MadsCarState):
       *create_button_events(self.distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise}),
       *create_button_events(self.lc_button, prev_lc_button, {1: ButtonType.lkas}),
     ]
+	
+	ret.hevDataAvailable = False
+    ret.hevThrottleDemandPercent = 0
+    ret.hevThrottleThresholdPercent = 0
+    ret.hevPowerFlowMode = ""
+    ret.hevEngineOnReason = ""
+
+    ret.hevBattDataAvailable = False
+    ret.hevBattVoltHighLimit = 0.0
+    ret.hevBattVoltLowLimit = 0.0
+    ret.hevBattVoltActual = 0.0
+    ret.hevBattAmpsActual = 0.0
+    ret.hevBattSocMinPerc = 0.0
+    ret.hevBattSocMaxPerc = 0.0
+    ret.hevBattSocActual = 0.0
+
+    try:
+      if self.CP.flags & FordFlags.HEV_CLUSTER_DATA:
+        # print("F150 HEV Cluster_HEV_Data2 signal detected (carstate update)")
+        hev_data = cp.vl["Cluster_HEV_Data2"]
+
+        ret.hevDataAvailable = hev_data is not None
+        if ret.hevDataAvailable:
+          ret.hevThrottleDemandPercent = hev_data["EffWhlLvl2_Pc_Dsply"]
+          ret.hevThrottleThresholdPercent = hev_data["EffWhlThres_Pc_Dsply"]
+          ret.hevPowerFlowMode = get_hev_power_flow_text(hev_data["PwrFlowTxt_D_Dsply"])
+          ret.hevEngineOnReason = get_hev_engine_on_reason_text(hev_data["EngOnMsg1_D_Dsply"])
+    except (KeyError, AttributeError):
+      # print("KeyError or AttributeError (carstate update)")
+      pass
+
+    try:
+      if self.CP.flags & FordFlags.HEV_BATTERY_DATA:
+        batt_data1 = cp.vl["Battery_Traction_1_FD1"]
+        batt_data3 = cp.vl["Battery_Traction_3_FD1"]
+        batt_data4 = cp.vl["Battery_Traction_4_FD1"]
+        ret.hevBattDataAvailable = batt_data1 is not None and batt_data3 is not None and batt_data4 is not None
+        if ret.hevBattDataAvailable:
+          ret.hevBattVoltHighLimit = batt_data1["BattTrac_U_LimHi"]
+          ret.hevBattVoltLowLimit = batt_data1["BattTrac_U_LimLo"]
+          ret.hevBattVoltActual = batt_data1["BattTrac_U_Actl"]
+          ret.hevBattAmpsActual = batt_data1["BattTrac_I_Actl"]
+          ret.hevBattSocMinPerc = batt_data3["BattTracSoc_Pc_MnPrtct"]
+          ret.hevBattSocMaxPerc = batt_data3["BattTracSoc_Pc_MxPrtct"]
+          ret.hevBattSocActual = batt_data4["BattTracSoc2_Pc_Actl"]
+
+    except (KeyError, AttributeError):
+      # print("KeyError or AttributeError (carstate update)")
+      pass
+
     return ret
 
   def update_traffic_signals(self, cp_cam):
@@ -188,6 +264,19 @@ class CarState(CarStateBase, MadsCarState):
       ("BodyInfo_3_FD1", 2),
       ("RCMStatusMessage2_FD1", 10),
     ]
+
+    # Try to add HEV message to parser config
+    if CP.flags & FordFlags.HEV_CLUSTER_DATA:
+      print("Cluster_HEV_Data2 signal exists (get_can_parser)")
+      pt_messages.append(("Cluster_HEV_Data2", 10))
+
+    if CP.flags & FordFlags.HEV_BATTERY_DATA:
+      print("Battery_Traction_1_FD1 signal exists (get_can_parser)")
+      pt_messages.append(("Battery_Traction_1_FD1", 10))
+      print("Battery_Traction_3_FD1 signal exists (get_can_parser)")
+      pt_messages.append(("Battery_Traction_3_FD1", 10))
+      print("Battery_Traction_4_FD1 signal exists (get_can_parser)")
+      pt_messages.append(("Battery_Traction_4_FD1", 10))
 
     if CP.flags & FordFlags.ALT_STEER_ANGLE:
       pt_messages += [
@@ -240,6 +329,7 @@ class CarState(CarStateBase, MadsCarState):
     if CP.flags & FordFlags.CANFD:
       cam_messages += [
         ("Traffic_RecognitnData", 1),
+        ("IPMA_Data2", 1),
       ]
 
     if CP.enableBsm and CP.flags & FordFlags.CANFD:

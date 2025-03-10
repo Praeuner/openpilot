@@ -289,6 +289,21 @@ struct CarState {
     }
   }
 
+  # Hybrid Drive Data
+  hevDataAvailable @62 :Bool;                 # Whether the data is available
+  hevThrottleDemandPercent @63 :Float32;      # Engine demand/effort in percentage (EffWhlLvl2_Pc_Dsply)
+  hevThrottleThresholdPercent @64 :Float32;   # EV throttle threshold in percentage (EffWhlThres_Pc_Dsply)
+  hevPowerFlowMode @65 :Text;                 # Power flow status (PwrFlowTxt_D_Dsply)
+  hevEngineOnReason @66 :Text;                # Why engine is running (EngOnMsg1_D_Dsply)
+  hevBattDataAvailable @67 :Bool;             # Whether the battery data is available
+  hevBattVoltHighLimit @68 :Float32;          # Battery voltage high limit (BattTrac_U_LimHi)
+  hevBattVoltLowLimit @69 :Float32;           # Battery voltage low limit (BattTrac_U_LimLo)
+  hevBattVoltActual @70 :Float32;             # Battery voltage actual (BattTrac_U_Actl)
+  hevBattAmpsActual @71 :Float32;             # Battery amps actual (BattTrac_I_Actl)
+  hevBattSocMinPerc @72 :Float32;             # Battery SOC min percent (BattTracSoc_Pc_MnPrtct)
+  hevBattSocMaxPerc @73 :Float32;             # Battery SOC max percent (BattTracSoc_Pc_MxPrtct)
+  hevBattSocActual @74 :Float32;              # Battery SOC actual percent (BattTracSoc2_Pc_Actl)
+
   # deprecated
   errorsDEPRECATED @0 :List(OnroadEventDEPRECATED.EventName);
   brakeLightsDEPRECATED @19 :Bool;
@@ -370,6 +385,47 @@ struct CarControl {
     brake @1: Float32; # [0.0, 1.0]
     torqueOutputCan @8: Float32;   # value sent over can to the car
     speed @6: Float32;  # m/s
+    
+    fordVariables @9: FordVariables;
+
+    struct FordVariables {
+      applyCurvature02 @0 :Float32;
+      currentCurvature01 @1 :Float32;
+      desiredCurvature01 @2 :Float32;
+      desiredCurvatureRate01 @3 :Float32;
+      desiredCurvatureRate02 @4 :Float32;
+      maxAbsPredictedCurvature01 @5 :Float32;
+      pathAngle01 @6 :Float32;
+      pathAngle02 @7 :Float32;
+      pathLookupTime01 @8 :Float32;
+      pathOffset01 @9 :Float32;
+      pathOffset02 @10 :Float32;
+      poScalingFactor01 @11 :Float32;
+      predictedCurvature01 @12 :Float32;
+      predictedPathCurvature01 @13 :Float32;
+      steeringLimited01 @14 :Float32;
+      brakeActive @15 :Bool;
+      preChargeActive @16 :Bool;
+      requestedCurvature01 @17: Float32;
+      pathOffsetPosition01 @18: Float32;
+      pathOffsetAdjustment01 @19: Float32;
+      latAccel01 @20: Float32;
+      customPathOffset01 @21: Float32;
+      pathOffsetModel01 @22: Float32;
+      laneChangeFactor01 @23: Float32;
+      pathOffsetTotal01 @24: Float32;
+      pathAngleModel01 @25: Float32;
+      applyCurvatureRaw01 @26: Float32;
+      steerAnglePathOffset01 @27: Float32;
+      steeringWheelDelta01 @28: Float32;
+      pathAngleSpeedFactor01 @29: Float32;
+      pathOffsetLanelines01 @30: Float32;
+      lanelineWidth01 @31: Float32;
+      lanelineWidthTolerance01 @32: Float32;
+      lanelineConfidence01 @33: Float32;
+      lanelinePathOffsetScale01 @34: Float32;
+      pathAngleCurvatureFactor01 @35: Float32;
+    }
 
     enum LongControlState @0xe40f3a917d908282{
       off @0;

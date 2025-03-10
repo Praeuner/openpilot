@@ -21,11 +21,13 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def _get_params(ret: structs.CarParams, candidate, fingerprint, car_fw, experimental_long, docs) -> structs.CarParams:
+    logDebug(f'candidate (interface): {candidate}')
     ret.brand = "ford"
     ret.dashcamOnly = not (ret.flags & FordFlags.CANFD)
     # logDebug(f'Dashcam Only Mode: {ret.dashcamOnly}')
     ret.radarUnavailable = Bus.radar not in DBC[candidate]
     logDebug(f'Radard Unavailable: {ret.radarUnavailable}')
+
     FordConfig.BLUECRUISE_CLUSTER_PRESENT = any(fw.ecu == Ecu.hud for fw in car_fw) # Check for blue cruise cluster
     logDebug(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
 
@@ -37,7 +39,10 @@ class CarInterface(CarInterfaceBase):
     ret.steerLimitTimer = 1.0
 
     ret.longitudinalTuning.kiBP = [0.]
+    ret.longitudinalTuning.kpV = [0.]
     ret.longitudinalTuning.kiV = [0.5]
+    ret.longitudinalTuning.deadzoneBPDEPRECATED = [0.]
+    ret.longitudinalTuning.deadzoneVDEPRECATED = [.15]
 
     if not ret.radarUnavailable and DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR:
       # average of 33.3 Hz radar timestep / 4 scan modes = 60 ms
@@ -107,6 +112,14 @@ class CarInterface(CarInterfaceBase):
     # BSM: Side_Detect_L_Stat, Side_Detect_R_Stat
     # TODO: detect bsm in car_fw?
     ret.enableBsm = 0x3A6 in fingerprint[CAN.main] and 0x3A7 in fingerprint[CAN.main]
+
+    if 0x365 in fingerprint[CAN.main]:  # F150 HEV Cluster_HEV_Data2 signal (869 = 0x365)
+      ret.flags |= int(FordFlags.HEV_CLUSTER_DATA)
+      print('HEV_CLUSTER_DATA signal detected (interface.py)')
+    # Check for HEV battery data signals
+    if 0x07A in fingerprint[CAN.main] and 0x24B in fingerprint[CAN.main] and 0x24C in fingerprint[CAN.main]:  # 122, 587, 588
+      ret.flags |= int(FordFlags.HEV_BATTERY_DATA)
+      print('HEV_BATTERY_DATA signal detected (interface.py)')
 
     # LCA can steer down to zero
     ret.minSteerSpeed = 0.

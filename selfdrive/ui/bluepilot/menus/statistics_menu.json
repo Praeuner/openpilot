@@ -10,9 +10,10 @@
   "groups": [
     {
       "groupName": "statisticsGroup",
-      "title": "Statistics",
+      "title": "",
       "enableResetButton": false,
       "keepScreenAwake": true,
+      "hideDividers": true,
       "controls": [
         {
           "type": "stats_card_system",

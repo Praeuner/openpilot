@@ -1,0 +1,122 @@
+// bp_base_view.cc
+
+#include "bp_base_view.h"
+#include <QScrollArea>
+#include <QVBoxLayout>
+#include <iostream>
+
+BPBaseView::BPBaseView(QWidget *parent) : BPPanelBase(parent) { setupBaseViewStyle(); }
+
+BPBaseView::~BPBaseView() { cleanupNestedViews(); }
+
+bool BPBaseView::initialize(const QString &configPath) {
+  currentConfigPath = configPath;
+  if (!loadConfig(configPath)) {
+    std::cerr << "Failed to initialize BPBaseView with config: " << configPath.toStdString() << std::endl;
+    return false;
+  }
+  return true;
+}
+
+void BPBaseView::setupBaseViewStyle() {
+  // Base view specific styling
+  setStyleSheet(QString(R"(
+        BPBaseView {
+            background: transparent;
+        }
+        QScrollArea {
+            background: transparent;
+            border: none;
+        }
+        QScrollBar:vertical {
+            width: 24px;
+            margin: 0px;
+            padding: 2px;
+            background: transparent;
+        }
+        QScrollBar::handle:vertical {
+            background: #666666;
+            min-height: 100px;
+            border-radius: 12px;
+            margin: 0 4px;
+        }
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar::add-page:vertical,
+        QScrollBar::sub-page:vertical {
+            background: none;
+        }
+    )"));
+
+  // Ensure proper sizing
+  setMinimumWidth(1000);
+  setMaximumWidth(1920);
+  setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+}
+
+void BPBaseView::showEvent(QShowEvent *event) {
+  std::cout << "BPBaseView::showEvent" << std::endl;
+  try {
+    // Clean up any lingering nested views first
+    cleanupNestedViews();
+    BPPanelBase::showEvent(event);
+    refresh();
+  } catch (const std::exception &e) {
+    std::cerr << "Exception in BPBaseView::showEvent: " << e.what() << std::endl;
+  }
+}
+
+void BPBaseView::hideEvent(QHideEvent *event) {
+  std::cout << "BPBaseView::hideEvent" << std::endl;
+  cleanupNestedViews();
+  BPPanelBase::hideEvent(event);
+}
+
+void BPBaseView::cleanupNestedViews() {
+  QList<BPNestedView *> nestedViews = findChildren<BPNestedView *>();
+  for (auto *view : nestedViews) {
+    if (view) {
+      // Disconnect all signals first
+      view->disconnect();
+      // Set parent to nullptr to prevent double deletion
+      view->setParent(nullptr);
+      // Delete immediately instead of using deleteLater()
+      delete view;
+    }
+  }
+}
+
+void BPBaseView::createGroup(const QJsonObject &group) {
+  // First call base implementation
+  BPPanelBase::createGroup(group);
+
+  // Add any base view specific group handling
+  QString groupName = group["groupName"].toString();
+  auto it = groups.find(groupName);
+  if (it != groups.end()) {
+    QGroupBox *groupBox = it->second.groupBox;
+    if (groupBox) {
+      // Additional base view specific group setup if needed
+      groupBox->setMaximumWidth(1920);
+    }
+  }
+}
+
+QGroupBox *BPBaseView::createStyledGroupBox(const QString &title) {
+  // First call base implementation
+  QGroupBox *groupBox = BPPanelBase::createStyledGroupBox(title);
+
+  // Add any base view specific styling
+  QString additionalStyle = R"(
+        QGroupBox {
+            margin-left: 20px;
+            margin-right: 20px;
+        }
+    )";
+
+  groupBox->setStyleSheet(groupBox->styleSheet() + additionalStyle);
+
+  return groupBox;
+}

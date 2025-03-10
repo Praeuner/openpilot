@@ -59,6 +59,8 @@ class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
   ALT_STEER_ANGLE = 2
+  HEV_CLUSTER_DATA = 4
+  HEV_BATTERY_DATA = 8
 
 
 class RADAR:
@@ -199,12 +201,11 @@ class CAR(Platforms):
 # Custom Ford Vehicle Tuning Params (per-fingerprint)
 FORD_VEHICLE_TUNINGS = {
   "FORD_F_150_MK14": {
-    "brake_actuator_activate": -0.14, # when to activate the brake actuator
-    "brake_actuator_release_delta": 0.08, # how big to be the gap between activation and release of the brake actuator
-    "precharge_actuator_target_delta": 0.02, # how much earlier to activate the precharge actuator to reach the target pressure
+    "brake_actuator_activate": -0.14,
+    "brake_actuator_release_delta": 0.08,
     "path_lookup_time": 0.25,
     "reset_lookup_time": 0.5,
-    "steerActuatorDelay": 0.05,
+    "steerActuatorDelay": 0.2,
     "steerLimitTimer": 1.5,
     "stoppingControl": True,
     "startingState": True,
@@ -218,9 +219,8 @@ FORD_VEHICLE_TUNINGS = {
     "lane_change_factor": 0.65,
   },
   "FORD_F_150_LIGHTNING_MK1": {
-    "brake_actuator_activate": -0.14, # when to activate the brake actuator
-    "brake_actuator_release_delta": 0.08, # how big to be the gap between activation and release of the brake actuator
-    "precharge_actuator_target_delta": 0.02, # how much earlier to activate the precharge actuator to reach the target pressure
+    "brake_actuator_activate": -0.14,
+    "brake_actuator_release_delta": 0.08,
     "path_lookup_time": 0.5,
     "reset_lookup_time": 0.5,
     "steerActuatorDelay": 0.2,
@@ -237,9 +237,8 @@ FORD_VEHICLE_TUNINGS = {
     "lane_change_factor": 0.65,
   },
   "FORD_MUSTANG_MACH_E_MK1": {
-    "brake_actuator_activate": -0.14,  # when to activate the brake actuator
-    "brake_actuator_release_delta": 0.08, # how big to be the gap between activation and release of the brake actuator
-    "precharge_actuator_target_delta": 0.02, # how much earlier to activate the precharge actuator to reach the target pressure
+    "brake_actuator_activate": -0.14,
+    "brake_actuator_release_delta": 0.08,
     "path_lookup_time": 0.5,
     "reset_lookup_time": 0.5,
     "steerActuatorDelay": 0.2,
@@ -254,7 +253,25 @@ FORD_VEHICLE_TUNINGS = {
       "kiV": [0],
     },
     "lane_change_factor": 0.65,
-  }
+  },
+  "FORD_RANGER_MK2": {
+    "brake_actuator_activate": -0.14,
+    "brake_actuator_release_delta": 0.08,
+    "path_lookup_time": 0.25,
+    "reset_lookup_time": 0.5,
+    "steerActuatorDelay": 0.2,
+    "steerLimitTimer": 1.5,
+    "stoppingControl": True,
+    "startingState": True,
+    "startAccel": 1.0,
+    "stoppingDecelRate": 0.8,
+    "longitudinalTuning": {
+      "kpBP": [0.0],
+      "kpV": [0.0],
+      "kiV": [0.0],
+    },
+    "lane_change_factor": 0.65,
+  },
 }
 
 # FW response contains a combined software and part number
@@ -297,7 +314,24 @@ def get_platform_codes(fw_versions: list[bytes] | set[bytes]) -> set[tuple[bytes
   return codes
 
 
+collected_fw_data = {
+  "candidates": [],
+  "vin": None,
+}
+
+
+# Save the collected_fw_data to a json file
+def save_fw_data():
+  try:
+    with open('/data/export/fw_data/collected_fw_data.json', 'w') as f:
+      json.dump(collected_fw_data, f, indent=2, default=str)
+  except Exception as e:
+    print(f"Error saving collected_fw_data: {e}")
+
+
 def match_fw_to_car_fuzzy(live_fw_versions: LiveFwVersions, vin: str, offline_fw_versions: OfflineFwVersions) -> set[str]:
+  # Store data for this pass
+  collected_fw_data["vin"] = vin
   candidates: set[str] = set()
 
   for candidate, fws in offline_fw_versions.items():
@@ -326,8 +360,7 @@ def match_fw_to_car_fuzzy(live_fw_versions: LiveFwVersions, vin: str, offline_fw
 
       # Check any model year hint within range in the database. Note that some models have more than one
       # platform code per ECU which we don't consider as separate ranges
-      if not any(min(expected_model_year_hints) <= found_model_year_hint <= max(expected_model_year_hints) for
-                 found_model_year_hint in found_model_year_hints):
+      if not any(min(expected_model_year_hints) <= found_model_year_hint <= max(expected_model_year_hints) for found_model_year_hint in found_model_year_hints):
         break
 
       valid_found_ecus.add(addr)
@@ -335,6 +368,9 @@ def match_fw_to_car_fuzzy(live_fw_versions: LiveFwVersions, vin: str, offline_fw
     # If all live ECUs pass all checks for candidate, add it as a match
     if valid_expected_ecus.issubset(valid_found_ecus):
       candidates.add(candidate)
+
+  # Push the candidates to the collected_fw_data["candidates"]
+  collected_fw_data["candidates"].append(candidates)
 
   return candidates
 
@@ -386,13 +422,16 @@ FW_QUERY_CONFIG = FwQueryConfig(
       bus=0,
       auxiliary=True,
     ),
-    *[Request(
-      [StdQueries.TESTER_PRESENT_REQUEST, ford_asbuilt_block_request(block_id)],
-      [StdQueries.TESTER_PRESENT_RESPONSE, ford_asbuilt_block_response(block_id)],
-      whitelist_ecus=ecus,
-      bus=0,
-      logging=True,
-    ) for block_id, ecus in ASBUILT_BLOCKS],
+    *[
+      Request(
+        [StdQueries.TESTER_PRESENT_REQUEST, ford_asbuilt_block_request(block_id)],
+        [StdQueries.TESTER_PRESENT_RESPONSE, ford_asbuilt_block_response(block_id)],
+        whitelist_ecus=ecus,
+        bus=0,
+        logging=True,
+      )
+      for block_id, ecus in ASBUILT_BLOCKS
+    ],
   ],
   extra_ecus=[
     (Ecu.engine, 0x7e0, None),        # Powertrain Control Module

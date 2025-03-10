@@ -26,6 +26,51 @@
   "clearOnOffroadTransitionParams": [],
   "groups": [
     {
+      "groupName": "settingsTabs",
+      "type": "tabPanel",
+      "hidden": false,
+      "tabs": [
+        {
+          "name": "Basic",
+          "groups": [
+            {
+              "groupName": "vehicleGroup",
+              "title": "Vehicle Settings",
+              "controls": [
+                {
+                  "type": "toggle",
+                  "param": "EnableQuietMode",
+                  "title": "Quiet Mode",
+                  "desc": "Reduce system sounds"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Advanced",
+          "groups": [
+            {
+              "groupName": "tuningGroup",
+              "title": "Tuning Parameters",
+              "controls": [
+                {
+                  "type": "float",
+                  "param": "SteeringRatio",
+                  "title": "Steering Ratio",
+                  "desc": "Adjust steering sensitivity",
+                  "min": 0.1,
+                  "max": 2.0,
+                  "increment": 0.1,
+                  "division": 10.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "groupName": "mainTabs",
       "type": "tabPanel",
       "hidden": true,
@@ -83,6 +128,40 @@
                     { "name": "Medium", "value": "2" },
                     { "name": "High", "value": "3" },
                     { "name": "Custom", "value": "4" }
+                  ]
+                },
+                {
+                  "type": "nested_controls_button",
+                  "title": "",
+                  "panel_title": "Advanced Settings",
+                  "button_icon": "../assets/offroad/icon_reset.png",
+                  "desc": "Configure advanced settings",
+                  "button_text": "CONFIGURE Settings",
+                  "groups": [
+                    {
+                      "groupName": "advancedGroup1",
+                      "title": "Advanced Group 1",
+                      "controls": [
+                        {
+                          "type": "toggle",
+                          "param": "AdvancedParam1",
+                          "title": "Advanced Setting 1",
+                          "desc": "Description for advanced setting 1"
+                        },
+                        {
+                          "type": "toggle",
+                          "param": "AdvancedParam2",
+                          "title": "Advanced Setting 2",
+                          "desc": "Description for advanced setting 2"
+                        },
+                        {
+                          "type": "toggle",
+                          "param": "AdvancedParam3",
+                          "title": "Advanced Setting 3",
+                          "desc": "Description for advanced setting 3"
+                        }
+                      ]
+                    }
                   ]
                 }
               ]
@@ -278,6 +357,27 @@
       "title": "System Preferences: (Tap item for desc)",
       "enableResetButton": false,
       "controls": [
+        {
+          "type": "selection",
+          "param": "FordSelectedVehicleModel",
+          "title": "Vehicle Model",
+          "desc": "Select your vehicle model",
+          "hidden": false,
+          "options": [
+            {
+              "name": "F-150 14th Gen (21-23)",
+              "value": "FORD_F_150_MK14"
+            },
+            {
+              "name": "F-150 Lightning 1st Gen",
+              "value": "FORD_F_150_LIGHTNING_MK1"
+            },
+            {
+              "name": "Mustang Mach-E 1st Gen",
+              "value": "FORD_MUSTANG_MACH_E_MK1"
+            }
+          ]
+        },
         {
           "type": "toggle",
           "param": "FordPrefQuietDrive",

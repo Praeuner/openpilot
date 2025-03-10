@@ -23,8 +23,11 @@
 #ifdef BLUEPILOT
 #include <iostream>
 #include "common/params.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/dynamic/dynamic_panel.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/git/git_directory_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_base_view.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
 #endif
 
 
@@ -94,16 +97,20 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     PanelInfo("   " + tr("Developer"), new DeveloperPanel(this), "../assets/offroad/icon_shell.png"),
   };
 
-   // Add the folowing BluePilot panels after the sunnypilot panel: BluePilot, Utilities, Updater
-  #ifdef BLUEPILOT
+  // Add the folowing BluePilot panels after the sunnypilot panel: BluePilot, Utilities, Updater
+#ifdef BLUEPILOT
   // sunnypilot panel index is 5
-  panels.insert(6, PanelInfo("   " + tr("Bluepilot"), new DynamicPanel(this, "/selfdrive/ui/bluepilot/menus/bp_menu_internal_dev.json"), "../assets/offroad/icon_ford.png"));
-  panels.insert(7, PanelInfo("   " + tr("Utilities"), new DynamicPanel(this, "/selfdrive/ui/bluepilot/menus/utilities_menu.json"), "../assets/offroad/icon_utilities.png"));
-  panels.insert(8, PanelInfo("   " + tr("Statistics"), new DynamicPanel(this, "/selfdrive/ui/bluepilot/menus/statistics_menu.json"), "../assets/offroad/icon_statistics.png"));
-  panels.insert(9, PanelInfo("   " + tr("Updater"), new GitDirectoryPanel(this), "../assets/offroad/icon_updater.png"));
+  BPNavBarView *bpNavBarView = new BPNavBarView(this);
+  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_menu_new.json");
+  panels.insert(6, PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"));
+
+  // panels.insert(7 , PanelInfo("   " + tr("Utilities"), utilsView, "../assets/offroad/icon_utilities.png"));
+  panels.insert(7, PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"));
+  // panels.insert(8, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
+  panels.insert(8, PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
 
   std::cout << "Adding BluePilot panels" << std::endl;
-  #endif
+#endif
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel, icon] : panels) {
