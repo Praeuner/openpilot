@@ -18,6 +18,22 @@ bool BPBaseView::initialize(const QString &configPath) {
   return true;
 }
 
+bool BPBaseView::initialize(const QJsonObject &config) {
+  // Store the config JSON
+  configJson = config;
+
+  QString panelName = config.contains("menuName") && !config["menuName"].isNull() ? config["menuName"].toString() : "Unnamed Panel";
+  setObjectName(panelName);
+
+  // Process groups in the config
+  QJsonArray groupsArray = config["groups"].toArray();
+  for (const auto &groupValue : groupsArray) {
+    createGroup(groupValue.toObject());
+  }
+
+  return true;
+}
+
 void BPBaseView::setupBaseViewStyle() {
   // Base view specific styling
   setStyleSheet(QString(R"(

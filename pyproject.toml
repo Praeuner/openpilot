@@ -223,6 +223,7 @@ lint.select = [
   "PLR1704",
 ]
 lint.ignore = [
+  "E501",
   "E741",
   "E402",
   "C408",

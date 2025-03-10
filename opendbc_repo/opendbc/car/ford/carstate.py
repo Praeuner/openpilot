@@ -292,6 +292,7 @@ class CarState(CarStateBase, MadsCarState):
         pt_messages += [
           ("PowertrainData_10",10)
         ]
+		
     if CP.flags & FordFlags.CANFD:
       pt_messages += [
         ("Lane_Assist_Data3_FD1", 33),

@@ -1,15 +1,14 @@
 import math
+import numpy as np
 from collections import deque  # used for moving averages
-import numpy as np  # used for calculationg predicted curvatures
-from collections import deque  # used for moving averages
-import cereal.messaging as messaging
-from openpilot.common.filter_simple import FirstOrderFilter
 from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
 from opendbc.car.ford import fordcan
 from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from openpilot.common.params import Params
+from openpilot.common.filter_simple import FirstOrderFilter
+from openpilot.common.numpy_fast import clip, interp
 from opendbc.car.ford.helpers import (
   initialize_param_defaults,
   update_settings_params,
@@ -19,6 +18,8 @@ from opendbc.car.ford.helpers import (
   compute_dm_msg_values,
   logDebug,
 )
+from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
+from openpilot.selfdrive.modeld.constants import ModelConstants
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -31,12 +32,6 @@ EARTH_G = 9.81
 AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, 6% superelevation
 MAX_LATERAL_ACCEL = ISO_LATERAL_ACCEL - (EARTH_G * AVERAGE_ROAD_ROLL)  # ~2.4 m/s^2
 
-def index_function(idx, max_val=192, max_idx=32):
-  return (max_val) * ((idx/max_idx)**2)
-
-CONTROL_N = 17
-IDX_N = 33
-T_IDXS = [index_function(idx, max_val=10.0) for idx in range(IDX_N)]
 
 def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
@@ -58,10 +53,10 @@ def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_c
 
 
 def apply_creep_compensation(accel: float, v_ego: float) -> float:
-  creep_accel = interp(v_ego, [2., 3.], [0.3, 0.])
-  if accel < 0.:
-    accel -= creep_accel
-  return accel
+  creep_accel = np.interp(v_ego, [1., 3.], [0.6, 0.])
+  creep_accel = np.interp(accel, [0., 0.2], [creep_accel, 0.])
+  accel -= creep_accel
+  return float(accel)
 
 
 class CarController(CarControllerBase):
@@ -70,10 +65,8 @@ class CarController(CarControllerBase):
 
     self.params = Params()  # create a shortcut for params object
 
-	# print(f'Car Fingerprint (CarController): {CP.carFingerprint}')
+    # print(f'Car Fingerprint (CarController): {CP.carFingerprint}')
 
-	self.CP = CP
-	self.VM = VM
     self.packer = CANPacker(dbc_names[Bus.pt])
     self.CAN = fordcan.CanBus(CP)
     self.frame = 0
@@ -83,6 +76,8 @@ class CarController(CarControllerBase):
 
     self.apply_curvature_last = 0  # previous value of apply_curvature
     self.accel = 0.0
+    self.gas = 0.0
+    self.brake_request = False
     self.main_on_last = False  # previous main cruise control state
     self.lkas_enabled_last = False  # previous lkas state
     self.steer_alert_last = False  # previous status of steering alert
@@ -97,7 +92,7 @@ class CarController(CarControllerBase):
     self.last_log_frame = 0
     self.log_frames = 0
 
-    # when to activate the brake actuator
+    # Default brake actuation parameters
     self.brake_actuator_activate = -0.14
     # how big to be the gap between activation and release of the brake actuator
     self.brake_actuator_release_delta = 0.08
@@ -133,7 +128,7 @@ class CarController(CarControllerBase):
     self.pc_blend_ratio_mid = 0.40 # 40% Predicted Curvature and 60% Desired Curvature
     self.pc_blend_ratio_high = 0.30 # 30% Predicted Curvature and 70% Desired Curvature
     self.pc_blend_ratio_UI = 0.40 # 40% Predicted Curvature and 60% Desired Curvature
-    self.curvature_lookup_time =  CP.steerActuatorDelay # how far into the future do we need to look for curvature signal
+    self.curvature_lookup_time = CP.steerActuatorDelay # how far into the future do we need to look for curvature signal
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -284,7 +279,7 @@ class CarController(CarControllerBase):
             'desired_curvature_rate': new_curvature_rate
         }
 
-        # Exit transition state after 40 frames
+        # Exit transition state after 160 frames
         if self.post_lane_change_timer >= 160:
             self.post_lane_change_active = False
 
@@ -294,11 +289,12 @@ class CarController(CarControllerBase):
 
   def update(self, CC, CC_SP, CS, now_nanos):
     can_sends = []
+    model_data = None
     self.sm.update(0)
 
     if self.sm.updated['modelV2']:
-      self.model = self.sm["modelV2"]
-      # print(f"{self.model}\n")
+      model_data = self.sm["modelV2"]
+      # print(f"{model_data}\n")
 
     # Trigger the update of the settings params defined in helpers.SETTINGS_PARAMS
     update_settings_params(self)
@@ -312,8 +308,6 @@ class CarController(CarControllerBase):
     main_on = CS.out.cruiseState.available  # main cruise control button status
     steer_alert = 0  # alerts on screen and dashboard
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw  # alert on screen and dashboard
-
-    # Compute the DM message values
     tja_msg = 0
     tja_warn = 0
     if self.send_driver_monitor_can_msg:
@@ -525,8 +519,8 @@ class CarController(CarControllerBase):
             path_angle_model = 0.0
           self.fordVariables.pathAngleModel01 = float(path_angle_model)
 
-        # large turn logic
-         # calculate lookup time based on the max predicted curvature
+          # large turn logic
+          # calculate lookup time based on the max predicted curvature
           self.path_lookup_time = interp(max_abs_predicted_curvature, self.path_bp, self.path_lookup_time_v)
           self.fordVariables.pathLookupTime01 = float(self.path_lookup_time)
 
@@ -624,19 +618,9 @@ class CarController(CarControllerBase):
       if self.CP.flags & FordFlags.CANFD:
         mode = 1 if CC.latActive else 0
         counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
-        if self.CP.spFlags & FordFlagsSP.SP_ENHANCED_LAT_CONTROL.value:
-          can_sends.append(
-            fordcan.create_lat_ctl2_msg(
-              self.packer, self.CAN, mode, ramp_type, self.precision_type, -path_offset, -path_angle, -apply_curvature, -desired_curvature_rate, counter
-            )
-          )
-        else:
-          can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, 0.0, 0.0, 0.0, 0.0, -apply_curvature, 0.0, counter))
-
+        can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, ramp_type, self.precision_type, -path_offset, -path_angle, -apply_curvature, -desired_curvature_rate, counter))
       else:
-        can_sends.append(
-          fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, ramp_type, 1, -path_offset, -path_angle, -apply_curvature, -desired_curvature_rate)
-        )
+        can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, ramp_type, self.precision_type, -path_offset, -path_angle, -apply_curvature, -desired_curvature_rate))
 
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
@@ -645,40 +629,43 @@ class CarController(CarControllerBase):
     ### longitudinal control ###
     # send acc msg at 50Hz
     if self.CP.openpilotLongitudinalControl and (self.frame % CarControllerParams.ACC_CONTROL_STEP) == 0:
-      # Compensate for engine creep at low speed.
-      # Either the ABS does not account for engine creep, or the correction is very slow
-      # TODO: whitelist more cars
-      self.accel = actuators.accel
+      accel = actuators.accel
+      gas = accel
+
       if CC.longActive:
-        self.accel = apply_creep_compensation(self.accel, CS.out.vEgo)
-      self.accel = clip(self.accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
+        # Compensate for engine creep at low speed.
+        # Either the ABS does not account for engine creep, or the correction is very slow
+        # TODO: verify this applies to EV/hybrid
+        accel = apply_creep_compensation(accel, CS.out.vEgo)
+
+        # The stock system has been seen rate limiting the brake accel to 5 m/s^3,
+        # however even 3.5 m/s^3 causes some overshoot with a step response.
+        accel = max(accel, self.accel - (3.5 * CarControllerParams.ACC_CONTROL_STEP * DT_CTRL))
+
+      accel = float(np.clip(accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX))
+      gas = float(np.clip(gas, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX))
 
       # Both gas and accel are in m/s^2, accel is used solely for braking
-      gas = self.accel
       if not CC.longActive or gas < CarControllerParams.MIN_GAS:
         gas = CarControllerParams.INACTIVE_GAS
+
+      # PCM applies pitch compensation to gas/accel, but we need to compensate for the brake/pre-charge bits
+      accel_due_to_pitch = 0.0
+      if len(CC.orientationNED) == 3:
+        accel_due_to_pitch = math.sin(CC.orientationNED[1]) * ACCELERATION_DUE_TO_GRAVITY
+
+      accel_pitch_compensated = accel + accel_due_to_pitch
+      if accel_pitch_compensated > 0.3 or not CC.longActive:
+        self.brake_request = False
+      elif accel_pitch_compensated < 0.0:
+        self.brake_request = True
+
       stopping = CC.actuators.longControlState == LongCtrlState.stopping
+      # TODO: look into using the actuators packet to send the desired speed
+      can_sends.append(fordcan.create_acc_msg(self.packer, self.CAN, CC.longActive, gas, accel, stopping, self.brake_request, v_ego_kph=V_CRUISE_MAX))
 
-      precharge_actuate, brake_actuate = actuators_calc(self, self.accel)
-      brake = self.accel
-      # if brake < 0 and brake_actuate:
-      #   brake = interp(
-      #     accel,
-      #     [CarControllerParams.ACCEL_MIN, self.brake_converge_at, self.brake_clip],
-      #     [CarControllerParams.ACCEL_MIN, self.brake_converge_at, self.brake_0_point],
-      #   )
-
-      self.fordVariables.brakeActive = True if brake_actuate == 1 else False
-      self.fordVariables.preChargeActive = True if precharge_actuate == 1 else False
-
-      # Calculate targetSpeed
-      targetSpeed = clip(actuators.speed * self.target_speed_multiplier, 0, V_CRUISE_MAX)
-      if not CC.longActive and hud_control.setSpeed:
-        targetSpeed = hud_control.setSpeed
-
-      can_sends.append(
-        fordcan.create_acc_msg(self.packer, self.CAN, CC.longActive, gas, brake, stopping, brake_actuate, precharge_actuate, v_ego_kph=targetSpeed)
-      )
+      self.accel = accel
+      self.gas = gas
 
     ### ui ###
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
@@ -733,6 +720,7 @@ class CarController(CarControllerBase):
     new_actuators = actuators.as_builder()
     new_actuators.curvature = float(self.apply_curvature_last)
     new_actuators.accel = self.accel
+    new_actuators.gas = self.gas
     new_actuators.fordVariables = self.fordVariables
 
     self.frame += 1

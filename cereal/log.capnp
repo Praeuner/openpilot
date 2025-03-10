@@ -2556,7 +2556,7 @@ struct Event {
     uiDebug @102 :UIDebug;
 
     # Ford CAN data
-    vehicleCanData @130 :VehicleCanData;
+    vehicleCanData @146 :VehicleCanData;
 
     # *********** debug ***********
     testJoystick @52 :Joystick;
