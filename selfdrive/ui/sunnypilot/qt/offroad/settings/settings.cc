@@ -9,6 +9,7 @@
 
 #include "selfdrive/ui/sunnypilot/qt/widgets/scrollview.h"
 #include "selfdrive/ui/qt/offroad/developer_panel.h"
+#include "selfdrive/ui/qt/offroad/firehose.h"
 #include "selfdrive/ui/sunnypilot/qt/network/networking.h"
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
@@ -16,6 +17,8 @@
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnylink_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnypilot_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/trips_panel.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle_panel.h"
+
 
 #ifdef BLUEPILOT
 #include <iostream>
@@ -86,6 +89,8 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     PanelInfo("   " + tr("Software"), new SoftwarePanelSP(this), "../../sunnypilot/selfdrive/assets/offroad/icon_software.png"),
     PanelInfo("   " + tr("sunnypilot"), new SunnypilotPanel(this), "../assets/images/button_home.png"),
     PanelInfo("   " + tr("Trips"), new TripsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_trips.png"),
+    PanelInfo("   " + tr("Vehicle"), new VehiclePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png"),
+    PanelInfo("   " + tr("Firehose"), new FirehosePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_firehose.svg"),
     PanelInfo("   " + tr("Developer"), new DeveloperPanel(this), "../assets/offroad/icon_shell.png"),
   };
 

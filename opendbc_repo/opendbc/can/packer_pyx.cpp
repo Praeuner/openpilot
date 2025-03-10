@@ -13,7 +13,7 @@
         "language": "c++",
         "name": "opendbc.can.packer_pyx",
         "sources": [
-            "/Users/anthony/Desktop/work_sp/ford-op-sp-dev/opendbc_repo/opendbc/can/packer_pyx.pyx"
+            "/Users/anthony/Documents/GitHub/ford-op-sp-dev/opendbc_repo/opendbc/can/packer_pyx.pyx"
         ]
     },
     "module_name": "opendbc.can.packer_pyx"

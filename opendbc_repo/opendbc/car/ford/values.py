@@ -3,10 +3,10 @@ import re
 from dataclasses import dataclass, field, replace
 from enum import Enum, IntFlag
 
-from opendbc.car import AngleRateLimit, Bus, CarSpecs, DbcDict, PlatformConfig, Platforms, uds
+from opendbc.car import AngleSteeringLimits, Bus, CarSpecs, DbcDict, PlatformConfig, Platforms, uds
 from opendbc.car.structs import CarParams
 from opendbc.car.docs_definitions import CarFootnote, CarHarness, CarDocs, CarParts, Column, \
-                                                     Device, SupportType
+                                                     Device
 from opendbc.car.fw_query_definitions import FwQueryConfig, LiveFwVersions, OfflineFwVersions, Request, StdQueries, p16
 
 Ecu = CarParams.Ecu
@@ -23,12 +23,19 @@ class CarControllerParams:
   CURVATURE_MAX = 0.02  # Max curvature for steering command, m^-1
   STEER_DRIVER_ALLOWANCE = 1.0  # Driver intervention threshold, Nm
 
-  # Curvature rate limits
-  # The curvature signal is limited to 0.003 to 0.009 m^-1/sec by the EPS depending on speed and direction
-  # Limit to ~2 m/s^3 up, ~3 m/s^3 down at 75 mph
-  # Worst case, the low speed limits will allow 4.3 m/s^3 up, 4.9 m/s^3 down at 75 mph
-  ANGLE_RATE_LIMIT_UP = AngleRateLimit(speed_bp=[5, 25], angle_v=[0.0006, 0.0004]) # windup limit
-  ANGLE_RATE_LIMIT_DOWN = AngleRateLimit(speed_bp=[5, 25], angle_v=[0.0006, 0.0006]) # unwind limit
+
+  # ANGLE_RATE_LIMIT_UP = AngleRateLimit(speed_bp=[5, 25], angle_v=[0.0006, 0.0004]) # windup limit
+  # ANGLE_RATE_LIMIT_DOWN = AngleRateLimit(speed_bp=[5, 25], angle_v=[0.0006, 0.0006]) # unwind limit
+  ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
+    0.02,  # Max curvature for steering command, m^-1
+    # Curvature rate limits
+    # Max curvature is limited by the EPS to an equivalent of ~2.0 m/s^2 at all speeds,
+    #  however max curvature rate linearly decreases as speed increases:
+    #  ~0.009 m^-1/sec at 7 m/s, ~0.002 m^-1/sec at 35 m/s
+    # Limit to ~2 m/s^3 up, ~3.3 m/s^3 down at 75 mph and match EPS limit at low speed
+    ([5, 25], [0.00045, 0.0001]),
+    ([5, 25], [0.00045, 0.00015])
+  )
   CURVATURE_ERROR = 0.004  # ~6 degrees at 10 m/s, ~10 degrees at 35 m/s
 
   ACCEL_MAX = 2.0               # m/s^2 max acceleration
@@ -44,10 +51,10 @@ class FordConfig:
   BLUECRUISE_CLUSTER_PRESENT = False
 
 class FordSafetyFlags(IntFlag):
-  FLAG_FORD_LONG_CONTROL = 1
-  FLAG_FORD_CANFD = 2
-  
-  
+  LONG_CONTROL = 1
+  CANFD = 2
+
+
 class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
@@ -77,7 +84,15 @@ class FordCarDocs(CarDocs):
 
   def init_make(self, CP: CarParams):
     harness = CarHarness.ford_q4 if CP.flags & FordFlags.CANFD else CarHarness.ford_q3
-    if CP.carFingerprint in (CAR.FORD_BRONCO_SPORT_MK1, CAR.FORD_MAVERICK_MK1, CAR.FORD_F_150_MK14, CAR.FORD_F_150_LIGHTNING_MK1, CAR.FORD_ESCAPE_MK4_23REFRESH):
+    if CP.carFingerprint in (
+      CAR.FORD_BRONCO_SPORT_MK1,
+      CAR.FORD_MAVERICK_MK1,
+      CAR.FORD_F_150_MK14,
+      CAR.FORD_F_150_LIGHTNING_MK1,
+      CAR.FORD_ESCAPE_MK4_23REFRESH,
+      CAR.FORD_MUSTANG_MACH_E_MK1,
+      CAR.FORD_RANGER_MK2,
+    ):
       self.car_parts = CarParts([Device.threex_angled_mount, harness])
     else:
       self.car_parts = CarParts([Device.threex, harness])
@@ -112,6 +127,14 @@ class FordCANFDPlatformConfig(FordPlatformConfig):
     super().init()
     self.flags |= FordFlags.CANFD
 
+@dataclass
+class FordF150LightningPlatform(FordCANFDPlatformConfig):
+  def init(self):
+    super().init()
+
+    # Don't show in docs until this issue is resolved. See https://github.com/commaai/openpilot/issues/30302
+    self.car_docs = []
+
 
 class CAR(Platforms):
   FORD_BRONCO_SPORT_MK1 = FordPlatformConfig(
@@ -145,11 +168,11 @@ class CAR(Platforms):
     CarSpecs(mass=2050, wheelbase=3.025, steerRatio=16.8),
   )
   FORD_F_150_MK14 = FordCANFDPlatformConfig(
-    [FordCarDocs("Ford F-150 2022-23", "Co-Pilot360 Assist 2.0", hybrid=True, support_type=SupportType.REVIEW)],
+    [FordCarDocs("Ford F-150 2021-23", "Co-Pilot360 Assist 2.0", hybrid=True)],
     CarSpecs(mass=2000, wheelbase=3.69, steerRatio=17.0),
   )
-  FORD_F_150_LIGHTNING_MK1 = FordCANFDPlatformConfig(
-    [FordCarDocs("Ford F-150 Lightning 2022-23", "Co-Pilot360 Assist 2.0", support_type=SupportType.REVIEW)],
+  FORD_F_150_LIGHTNING_MK1 = FordF150LightningPlatform(
+    [FordCarDocs("Ford F-150 Lightning 2022-23", "Co-Pilot360 Assist 2.0")],
     CarSpecs(mass=2948, wheelbase=3.70, steerRatio=16.9),
   )
   FORD_FOCUS_MK4 = FordPlatformConfig(
@@ -164,11 +187,11 @@ class CAR(Platforms):
     CarSpecs(mass=1650, wheelbase=3.076, steerRatio=17.0),
   )
   FORD_MUSTANG_MACH_E_MK1 = FordCANFDPlatformConfig(
-    [FordCarDocs("Ford Mustang Mach-E 2021-23", "All", support_type=SupportType.REVIEW)],
+    [FordCarDocs("Ford Mustang Mach-E 2021-23", "All")],
     CarSpecs(mass=2200, wheelbase=2.984, steerRatio=17.0),  # TODO: check steer ratio
   )
   FORD_RANGER_MK2 = FordCANFDPlatformConfig(
-    [FordCarDocs("Ford Ranger 2024", "Adaptive Cruise Control with Lane Centering", support_type=SupportType.REVIEW)],
+    [FordCarDocs("Ford Ranger 2024", "Adaptive Cruise Control with Lane Centering")],
     CarSpecs(mass=2000, wheelbase=3.27, steerRatio=17.0),
   )
 

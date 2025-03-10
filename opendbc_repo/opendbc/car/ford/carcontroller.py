@@ -6,7 +6,6 @@ from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
 from opendbc.car.ford import fordcan
 from opendbc.car.ford.values import CarControllerParams, FordFlags
-from opendbc.car.common.numpy_fast import clip, interp
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from openpilot.common.params import Params
 from opendbc.car.ford.helpers import (
@@ -21,6 +20,14 @@ from opendbc.car.ford.helpers import (
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
+# ISO 11270
+ISO_LATERAL_ACCEL = 3.0  # m/s^2  # TODO: import from test lateral limits file?
+
+# Limit to average banked road since safety doesn't have the roll
+EARTH_G = 9.81
+AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, 6% superelevation
+MAX_LATERAL_ACCEL = ISO_LATERAL_ACCEL - (EARTH_G * AVERAGE_ROAD_ROLL)  # ~2.4 m/s^2
+
 def index_function(idx, max_val=192, max_idx=32):
   return (max_val) * ((idx/max_idx)**2)
 
@@ -28,16 +35,23 @@ CONTROL_N = 17
 IDX_N = 33
 T_IDXS = [index_function(idx, max_val=10.0) for idx in range(IDX_N)]
 
-def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw):
+def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
   if v_ego_raw > 9:
     apply_curvature = np.clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
-                           current_curvature + CarControllerParams.CURVATURE_ERROR)
+                              current_curvature + CarControllerParams.CURVATURE_ERROR)
 
   # Curvature rate limit after driver torque limit
-  apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, CarControllerParams)
+  apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, steering_angle, lat_active, CarControllerParams.ANGLE_LIMITS)
 
-  return float(np.clip(apply_curvature, -CarControllerParams.CURVATURE_MAX, CarControllerParams.CURVATURE_MAX))
+  # Ford Q4/CAN FD has more torque available compared to Q3/CAN so we limit it based on lateral acceleration.
+  # Safety is not aware of the road roll so we subtract a conservative amount at all times
+  if CP.flags & FordFlags.CANFD:
+    # Limit curvature to conservative max lateral acceleration
+    curvature_accel_limit = MAX_LATERAL_ACCEL / (max(v_ego_raw, 1) ** 2)
+    apply_curvature = float(np.clip(apply_curvature, -curvature_accel_limit, curvature_accel_limit))
+
+  return apply_curvature
 
 
 def apply_creep_compensation(accel: float, v_ego: float) -> float:
