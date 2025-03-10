@@ -1,6 +1,6 @@
 [submodule "panda"]
   path = panda
-	url = git@github.com:ford-op/panda-sp-dev.git
+	url = git@github.com:sunnypilot/panda.git
 [submodule "msgq"]
   path = msgq_repo
   url = https://github.com/sunnypilot/msgq.git
