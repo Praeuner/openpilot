@@ -5,6 +5,7 @@
 #include "selfdrive/ui/qt/onroad/driver_monitoring.h"
 #include "selfdrive/ui/qt/onroad/model.h"
 #include "selfdrive/ui/qt/widgets/cameraview.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/widgets/hybrid_drive_gauge.h"
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/buttons.h"
@@ -19,7 +20,7 @@ class AnnotatedCameraWidget : public CameraWidget {
   Q_OBJECT
 
 public:
-  explicit AnnotatedCameraWidget(VisionStreamType type, QWidget* parent = 0);
+  explicit AnnotatedCameraWidget(VisionStreamType type, QWidget *parent = 0);
   virtual ~AnnotatedCameraWidget() = default;
   virtual void updateState(const UIState &s);
 
@@ -33,6 +34,23 @@ private:
 
   int skip_frame_count = 0;
   bool wide_cam_requested = false;
+
+  // Hybrid Drive Data
+  bool hevDataAvailable;
+  float hevThrottleDemandPercent;
+  float hevThrottleThresholdPercent;
+  QString hevPowerFlowMode;
+  QString hevEngineOnReason;
+
+  // Hybrid Battery Data
+  bool hevBattDataAvailable;
+  float hevBattAmpsActual;
+  float hevBattVoltActual;
+  float hevBattVoltLowLimit;
+  float hevBattVoltHighLimit;
+  float hevBattSocActual;
+  float hevBattSocMinPerc;
+  float hevBattSocMaxPerc;
 
 protected:
   void paintGL() override;
