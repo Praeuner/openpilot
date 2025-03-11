@@ -15,18 +15,14 @@
 #define BACKLIGHT_DT 0.05
 #define BACKLIGHT_TS 10.00
 
-void update_sockets(UIState *s) {
-  s->sm->update(0);
-}
+void update_sockets(UIState *s) { s->sm->update(0); }
 
 void update_state(UIState *s) {
   SubMaster &sm = *(s->sm);
   UIScene &scene = s->scene;
 
   if (sm.updated("liveCalibration")) {
-    auto list2rot = [](const capnp::List<float>::Reader &rpy_list) ->Eigen::Matrix3f {
-      return euler2rot({rpy_list[0], rpy_list[1], rpy_list[2]}).cast<float>();
-    };
+    auto list2rot = [](const capnp::List<float>::Reader &rpy_list) -> Eigen::Matrix3f { return euler2rot({rpy_list[0], rpy_list[1], rpy_list[2]}).cast<float>(); };
 
     auto live_calib = sm["liveCalibration"].getLiveCalibration();
     if (live_calib.getCalStatus() == cereal::LiveCalibrationData::Status::CALIBRATED) {
@@ -45,12 +41,12 @@ void update_state(UIState *s) {
 
       if (scene.pandaType != cereal::PandaState::PandaType::UNKNOWN) {
         scene.ignition = false;
-        for (const auto& pandaState : pandaStates) {
+        for (const auto &pandaState : pandaStates) {
           scene.ignition |= pandaState.getIgnitionLine() || pandaState.getIgnitionCan();
         }
       }
     }
-  } else if ((s->sm->frame - s->sm->rcv_frame("pandaStates")) > 5*UI_FREQ) {
+  } else if ((s->sm->frame - s->sm->rcv_frame("pandaStates")) > 5 * UI_FREQ) {
     scene.pandaType = cereal::PandaState::PandaType::UNKNOWN;
   }
   if (sm.updated("wideRoadCameraState")) {
@@ -66,6 +62,10 @@ void update_state(UIState *s) {
 void ui_update_params(UIState *s) {
   auto params = Params();
   s->scene.is_metric = params.getBool("IsMetric");
+  s->scene.show_hybrid_drive_overlay = params.getBool("FordPrefHybridDriveOverlay"); // && params.getBool("FordPrefHevDataAvailable");
+  s->scene.hybrid_drive_gauge_size = std::atoi(params.get("FordPrefHybridDriveGaugeSize").c_str());
+  s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
+  s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
 }
 
 void UIState::updateStatus() {
@@ -103,10 +103,21 @@ void UIState::updateStatus() {
 }
 
 UIState::UIState(QObject *parent) : QObject(parent) {
-  sm = std::make_unique<SubMaster>(std::vector<const char*>{
-    "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState",
-    "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
-    "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
+  sm = std::make_unique<SubMaster>(std::vector<const char *>{
+      "modelV2",
+      "controlsState",
+      "liveCalibration",
+      "radarState",
+      "deviceState",
+      "pandaStates",
+      "carParams",
+      "driverMonitoringState",
+      "carState",
+      "driverStateV2",
+      "wideRoadCameraState",
+      "managerState",
+      "selfdriveState",
+      "longitudinalPlan",
   });
   prime_state = new PrimeState(this);
   language = QString::fromStdString(Params().get("LanguageSetting"));

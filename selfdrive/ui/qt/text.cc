@@ -9,6 +9,7 @@
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/qt_window.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
 
 int main(int argc, char *argv[]) {
   initApp(argc, argv);
@@ -27,16 +28,19 @@ int main(int argc, char *argv[]) {
   main_layout->addWidget(scroll, 0, 0, Qt::AlignTop);
 
   // Scroll to the bottom
-  QObject::connect(scroll->verticalScrollBar(), &QAbstractSlider::rangeChanged, [=]() {
-    scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
+  QObject::connect(scroll->verticalScrollBar(), &QAbstractSlider::rangeChanged, [=]() { scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum()); });
+
+  QPushButton *updaterBtn = new QPushButton();
+  updaterBtn->setText(QObject::tr("BP Updater"));
+  QObject::connect(updaterBtn, &QPushButton::clicked, [&window]() {
+    BPUpdaterPanel *panel = new BPUpdaterPanel(&window);
+    panel->show();
   });
 
   QPushButton *btn = new QPushButton();
 #ifdef __aarch64__
   btn->setText(QObject::tr("Reboot"));
-  QObject::connect(btn, &QPushButton::clicked, [=]() {
-    Hardware::reboot();
-  });
+  QObject::connect(btn, &QPushButton::clicked, [=]() { Hardware::reboot(); });
 #else
   btn->setText(QObject::tr("Exit"));
   QObject::connect(btn, &QPushButton::clicked, &a, &QApplication::quit);

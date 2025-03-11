@@ -17,11 +17,15 @@ ExperimentalButtonSP::ExperimentalButtonSP(QWidget *parent) : ExperimentalButton
 void ExperimentalButtonSP::updateState(const UIState &s) {
   ExperimentalButton::updateState(s);
   const auto long_plan_sp = (*s.sm)["longitudinalPlanSP"].getLongitudinalPlanSP();
+  const auto car_state = (*s.sm)["carState"].getCarState();
+  showAnimatedWheel = s.scene.show_animated_wheel_angle;
+  float angle = car_state.getSteeringAngleDeg();
 
   int mode = int(long_plan_sp.getDec().getState());
   if ((long_plan_sp.getDec().getActive() != dynamic_experimental_control) || (mode != dec_mpc_mode)) {
     dynamic_experimental_control = long_plan_sp.getDec().getActive();
     dec_mpc_mode = mode;
+    steeringAngle = showAnimatedWheel ? angle : 0;
     update();
   }
 }
