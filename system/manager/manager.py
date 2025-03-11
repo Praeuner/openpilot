@@ -54,8 +54,17 @@ def manager_init() -> None:
   ]
 
   ford_default_params: list[tuple[str, str | bytes]] = [
+    # FORD SETTING Params
     ("FordPrefQuietDrive", "0"),
     ("FordPrefHideSteerSaturatedAlerts", "0"),
+    ("FordPrefEnableDebugLogs", "0"),
+    ("FordPrefSendHandsFreeCanMsg", "0"),
+    ("FordPrefLaneDepartCanMsg", "0"),
+    ("FordPrefDriverMonitorCanMsg", "0"),
+    ("FordPrefHumanTurnDetectionEnable", "1"),
+    ("FordPrefHybridDriveOverlay", "0"),
+    ("FordPrefHybridBatteryOverlay", "0"),
+    ("FordPrefShowAnimatedWheelAngle", "1"),
   ]
 
   if params.get_bool("RecordFrontLock"):
