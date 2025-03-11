@@ -95,13 +95,11 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   // #ifdef BLUEPILOT
   // sunnypilot panel index is 5
   BPNavBarView *bpNavBarView = new BPNavBarView(this);
-  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_menu_new.json");
+  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_2_menu.json");
   panels.insert(6, PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"));
-
-  // panels.insert(7 , PanelInfo("   " + tr("Utilities"), utilsView, "../assets/offroad/icon_utilities.png"));
   panels.insert(7, PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"));
-  // panels.insert(8, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
   panels.insert(8, PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
+  // panels.insert(9, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
 
   std::cout << "Adding BluePilot panels" << std::endl;
   // #endif

@@ -7,12 +7,13 @@ import wave
 from cereal import car, messaging
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.filter_simple import FirstOrderFilter
-from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.retry import retry
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.system import micd
+
+from openpilot.selfdrive.ui.sunnypilot.quietmode import QuietDriveManager
 
 SAMPLE_RATE = 48000
 SAMPLE_BUFFER = 4096 # (approx 100ms)
@@ -63,19 +64,13 @@ class Soundd:
 
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
 
-    self.param_s = Params()
-    self.quiet_drive = self.param_s.get_bool("FordPrefQuietDrive")
-
-    self._frame = 0
+    self.quiet_drive_manager = QuietDriveManager()
 
   def load_param(self):
-    self._frame += 1
-    if self._frame == 50:
-      self.quiet_drive = self.param_s.get_bool("FordPrefQuietDrive")
+    self.quiet_drive_manager.load_param()
 
   def should_play_sound(self):
-    return (self.current_alert == AudibleAlert.warningSoft or self.current_alert == AudibleAlert.warningImmediate or
-      self.current_alert == AudibleAlert.promptDistracted or self.current_alert == AudibleAlert.promptRepeat) or (not self.quiet_drive and self.current_alert != AudibleAlert.none)
+    return self.quiet_drive_manager.should_play_sound(self.current_alert)
 
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
@@ -157,7 +152,6 @@ class Soundd:
 
       cloudlog.info(f"soundd stream started: {stream.samplerate=} {stream.channels=} {stream.dtype=} {stream.device=}, {stream.blocksize=}")
       while True:
-        self.load_param()
         sm.update(0)
 
         if sm.updated['microphone'] and self.current_alert == AudibleAlert.none: # only update volume filter when not playing alert
