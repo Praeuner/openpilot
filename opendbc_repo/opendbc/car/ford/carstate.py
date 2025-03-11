@@ -7,8 +7,10 @@ from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import DBC, CarControllerParams, FordConfig, FordFlags
 from opendbc.car.interfaces import CarStateBase
 
-# from openpilot.selfdrive.car.ford.fordcanparser import FordCanParser
-from openpilot.selfdrive.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text
+from opendbc.sunnypilot.car.ford.mads import MadsCarState
+
+# from opendbc.car.ford.fordcanparser import FordCanParser
+from opendbc.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text
 
 ButtonType = structs.CarState.ButtonEvent.Type
 GearShifter = structs.CarState.GearShifter
@@ -49,8 +51,8 @@ class CarState(CarStateBase, MadsCarState):
       self.params.put_bool("FordPrefHevBattDataAvailable", False)
 
     self.hev_data_available = CP.flags & FordFlags.HEV_CLUSTER_DATA
-	
-	
+
+
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
     cp_cam = can_parsers[Bus.cam]
@@ -61,7 +63,7 @@ class CarState(CarStateBase, MadsCarState):
     #     self.ford_can_parser.publish_can_data(cp, cp_cam, self.CP.carFingerprint)
     #   except Exception as e:
     #     print(f"Error publishing Ford CAN data: {e}")
-	
+
     ret = structs.CarState()
 
     if self.CP.flags & FordFlags.ALT_STEER_ANGLE:
@@ -184,8 +186,8 @@ class CarState(CarStateBase, MadsCarState):
       *create_button_events(self.distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise}),
       *create_button_events(self.lc_button, prev_lc_button, {1: ButtonType.lkas}),
     ]
-	
-	ret.hevDataAvailable = False
+
+    ret.hevDataAvailable = False
     ret.hevThrottleDemandPercent = 0
     ret.hevThrottleThresholdPercent = 0
     ret.hevPowerFlowMode = ""
@@ -292,7 +294,7 @@ class CarState(CarStateBase, MadsCarState):
         pt_messages += [
           ("PowertrainData_10",10)
         ]
-		
+
     if CP.flags & FordFlags.CANFD:
       pt_messages += [
         ("Lane_Assist_Data3_FD1", 33),

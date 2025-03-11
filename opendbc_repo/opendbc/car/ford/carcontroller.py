@@ -8,7 +8,6 @@ from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from openpilot.common.params import Params
 from openpilot.common.filter_simple import FirstOrderFilter
-from openpilot.common.numpy_fast import clip, interp
 from opendbc.car.ford.helpers import (
   initialize_param_defaults,
   update_settings_params,
@@ -254,19 +253,19 @@ class CarController(CarControllerBase):
         self.post_lane_change_timer += 1
 
         # Apply smooth transition using rate limiting
-        new_path_angle = clip(
+        new_path_angle = np.clip(
             path_angle,
             self.pre_lane_change_values['path_angle'] - self.max_path_angle_change,
             self.pre_lane_change_values['path_angle'] + self.max_path_angle_change
         )
 
-        new_path_offset = clip(
+        new_path_offset = np.clip(
             path_offset,
             self.pre_lane_change_values['path_offset'] - self.max_path_offset_change,
             self.pre_lane_change_values['path_offset'] + self.max_path_offset_change
         )
 
-        new_curvature_rate = clip(
+        new_curvature_rate = np.clip(
             desired_curvature_rate,
             self.pre_lane_change_values['desired_curvature_rate'] - self.max_curvature_rate_change,
             self.pre_lane_change_values['desired_curvature_rate'] + self.max_curvature_rate_change
@@ -375,7 +374,7 @@ class CarController(CarControllerBase):
           self.fordVariables.maxAbsPredictedCurvature01 = float(max_abs_predicted_curvature)
 
           # calculate predicted curvature used for the curvature and curvature_rate variables
-          predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
+          predicted_curvature = np.interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
           self.fordVariables.predictedCurvature01 = float(predicted_curvature)
 
           # equate apply_curvature to a blend of desired and predicted_curvature and apply curvature limits
@@ -392,7 +391,7 @@ class CarController(CarControllerBase):
             self.lane_change = False
 
           # determine lane_change_factor based on speed
-          lane_change_factor = interp(CS.out.vEgoRaw, self.lane_change_factor_bp, [self.lane_change_factor_low, self.lane_change_factor_high])
+          lane_change_factor = np.interp(CS.out.vEgoRaw, self.lane_change_factor_bp, [self.lane_change_factor_low, self.lane_change_factor_high])
           self.fordVariables.laneChangeFactor01 = float(lane_change_factor)
 
           # if changing lanes, modify curvature to smooth out the lane change
@@ -455,7 +454,7 @@ class CarController(CarControllerBase):
           ramp_type = 2
 
           # get path offset from model.position.y
-          path_offset_position = interp(self.offset_lookup_time, ModelConstants.T_IDXS, model_data.position.y)
+          path_offset_position = np.interp(self.offset_lookup_time, ModelConstants.T_IDXS, model_data.position.y)
           self.fordVariables.pathOffsetPosition01 = float(path_offset_position)
 
           # now get path offset from lanelines
@@ -465,7 +464,7 @@ class CarController(CarControllerBase):
           # determinie laneline width tolerance scaling factor
           laneline_width = model_data.laneLines[2].y[0] + (-model_data.laneLines[1].y[0]) # laneLines[1] is a negative value because it is left of the vehicle.
           self.fordVariables.lanelineWidth01 = float(laneline_width)
-          laneline_width_tolerance = interp(laneline_width, [3.75,4.25], [0.81, 0.59]) # 3.7 is the width of standard US lane in meters
+          laneline_width_tolerance = np.interp(laneline_width, [3.75,4.25], [0.81, 0.59]) # 3.7 is the width of standard US lane in meters
           self.fordVariables.lanelineWidthTolerance01 = float(laneline_width_tolerance)
 
           # determine laneline confidence
@@ -475,7 +474,7 @@ class CarController(CarControllerBase):
           self.fordVariables.lanelineConfidence01 = float(laneline_confidence)
 
           # determine laneline path offset scale
-          laneline_path_offset_scale = interp(laneline_confidence, self.min_laneline_confidence_bp, [0.0, 1.0])
+          laneline_path_offset_scale = np.interp(laneline_confidence, self.min_laneline_confidence_bp, [0.0, 1.0])
           self.fordVariables.lanelinePathOffsetScale01 = float(laneline_path_offset_scale)
 
           # trap custom path offset for analysis in trends
@@ -495,11 +494,11 @@ class CarController(CarControllerBase):
 
           # calcualte the path_angle_speed_factor
           path_angle_speed_v = [self.path_angle_low_speed_factor, self.path_angle_high_speed_factor]  # what should the range on path_angle_speed_factor be at low and high speed
-          path_angle_speed_factor = interp(abs(CS.out.vEgoRaw), self.path_angle_speed_bp, path_angle_speed_v)
+          path_angle_speed_factor = np.interp(abs(CS.out.vEgoRaw), self.path_angle_speed_bp, path_angle_speed_v)
           self.fordVariables.pathAngleSpeedFactor01 = float(path_angle_speed_factor)
 
           # calculate the path_angle_curvature_factor
-          path_angle_curvature_factor = interp(abs(apply_curvature), self.path_angle_curvature_factor_bp, [self.path_angle_low_curvature_factor, self.path_angle_high_curvature_factor])
+          path_angle_curvature_factor = np.interp(abs(apply_curvature), self.path_angle_curvature_factor_bp, [self.path_angle_low_curvature_factor, self.path_angle_high_curvature_factor])
           self.fordVariables.pathAngleCurvatureFactor01 = float(path_angle_curvature_factor)
 
           # calculate steering angle associated with the base path (predicted_curvature)
@@ -521,17 +520,17 @@ class CarController(CarControllerBase):
 
           # large turn logic
           # calculate lookup time based on the max predicted curvature
-          self.path_lookup_time = interp(max_abs_predicted_curvature, self.path_bp, self.path_lookup_time_v)
+          self.path_lookup_time = np.interp(max_abs_predicted_curvature, self.path_bp, self.path_lookup_time_v)
           self.fordVariables.pathLookupTime01 = float(self.path_lookup_time)
 
           # calcualte the curvature used for the path_angle and path_offset variables.
-          predicted_path_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
+          predicted_path_curvature = np.interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
           self.fordVariables.predictedPathCurvature01 = float(predicted_path_curvature)
 
           # path_offset and path_angle signals have a linear relationship with the amount of curvature
           # they produce, so they are calculated based on the desired curvature.
           # These values were determined from injection testing data in a F-150.
-          po_scaling_factor = interp(abs(predicted_path_curvature), self.path_bp, self.path_v)
+          po_scaling_factor = np.interp(abs(predicted_path_curvature), self.path_bp, self.path_v)
           self.fordVariables.poScalingFactor01 = float(po_scaling_factor)
           path_offset_linear = (68.44 * predicted_path_curvature - 1.17) * po_scaling_factor
           path_angle_linear = (6.84 * predicted_path_curvature - 0.117) * po_scaling_factor
@@ -543,10 +542,10 @@ class CarController(CarControllerBase):
           self.fordVariables.pathAngle01 = float(path_angle)
 
           # clip all values
-          apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
-          desired_curvature_rate = clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
-          path_offset = clip(path_offset, -self.path_offset_max, self.path_offset_max)
-          path_angle = clip(path_angle, -self.path_angle_max, self.path_angle_max)
+          apply_curvature = np.clip(apply_curvature, -self.curvature_max, self.curvature_max)
+          desired_curvature_rate = np.clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
+          path_offset = np.clip(path_offset, -self.path_offset_max, self.path_offset_max)
+          path_angle = np.clip(path_angle, -self.path_angle_max, self.path_angle_max)
 
           # Apply post lane change transition logic
           path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
@@ -554,8 +553,8 @@ class CarController(CarControllerBase):
           )
 
           # rate limit path_angle
-          # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
-          # path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+          # path_angle_roc = np.interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
+          # path_angle = np.clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
 
           # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
           if not self.enable_AdvLatCtrl:
