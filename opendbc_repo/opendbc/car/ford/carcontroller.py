@@ -1,4 +1,5 @@
 import math
+import cereal.messaging as messaging
 import numpy as np
 from collections import deque  # used for moving averages
 from opendbc.can.packer import CANPacker
@@ -61,6 +62,9 @@ def apply_creep_compensation(accel: float, v_ego: float) -> float:
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP, CP_SP):
     super().__init__(dbc_names, CP, CP_SP)
+
+    self.sm = messaging.SubMaster(['modelV2'])
+
 
     self.params = Params()  # create a shortcut for params object
 

@@ -1,5 +1,7 @@
 import copy
 import re
+import os
+import json
 from dataclasses import dataclass, field, replace
 from enum import Enum, IntFlag
 
@@ -323,7 +325,10 @@ collected_fw_data = {
 # Save the collected_fw_data to a json file
 def save_fw_data():
   try:
-    with open('/data/export/fw_data/collected_fw_data.json', 'w') as f:
+    # Create the directory path if it doesn't exist
+    os.makedirs('/data/exports/fw_data', exist_ok=True)
+
+    with open('/data/exports/fw_data/collected_fw_data.json', 'w') as f:
       json.dump(collected_fw_data, f, indent=2, default=str)
   except Exception as e:
     print(f"Error saving collected_fw_data: {e}")
