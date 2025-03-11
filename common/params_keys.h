@@ -155,6 +155,8 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"HyundaiRadarTracksToggle", PERSISTENT},
 
                                                                 {"DynamicExperimentalControl", PERSISTENT},
+                                                                // FORD VEHICLE MODEL PARAMS
+                                                                {"FordSelectedVehicleModel", PERSISTENT | BACKUP},
 
                                                                 // FORD PREFERENCE SETTING PARAMS
                                                                 {"FordPrefSendHandsFreeCanMsg", PERSISTENT | BACKUP},
