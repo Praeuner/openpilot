@@ -13,9 +13,9 @@ import os
 import cereal.messaging as messaging
 from opendbc.can.parser import CANParser
 from opendbc.can.can_define import CANDefine
-from openpilot.selfdrive.car.ford.values import DBC
+from opendbc.car.ford.values import DBC
 # from openpilot.common.swaglog import cloudlog
-from openpilot.selfdrive.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text  # noqa: F401
+from opendbc.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text  # noqa: F401
 
 
 class SignalType(Enum):

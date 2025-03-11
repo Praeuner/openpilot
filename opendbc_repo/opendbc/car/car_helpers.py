@@ -11,7 +11,7 @@ from opendbc.car.fw_versions import ObdCallback, get_fw_versions_ordered, get_pr
 from opendbc.car.mock.values import CAR as MOCK
 from opendbc.car.values import BRANDS
 from opendbc.car.vin import get_vin, is_valid_vin, VIN_UNKNOWN
-from openpilot.selfdrive.car.ford.values import save_fw_data
+from opendbc.car.ford.values import save_fw_data
 
 FRAME_FINGERPRINT = 100  # 1s
 
