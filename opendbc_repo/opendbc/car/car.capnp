@@ -354,7 +354,7 @@ struct CarControl {
   enabled @0 :Bool;
   latActive @11: Bool;
   longActive @12: Bool;
-  vCruise @17 :Float32;  # actual set speed
+  vCruise @18 :Float32;  # actual set speed
 
   # Final actuator commands
   actuators @6 :Actuators;
@@ -365,7 +365,7 @@ struct CarControl {
 
   orientationNED @13 :List(Float32);
   angularVelocity @14 :List(Float32);
-  currentCurvature @18 :Float32;  # From vehicle model
+  currentCurvature @17 :Float32;  # From vehicle model
 
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;

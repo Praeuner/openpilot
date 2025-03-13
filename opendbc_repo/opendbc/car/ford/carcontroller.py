@@ -89,7 +89,7 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = None
     self.distance_bar_frame = 0
 
-     # Variables to initialize (these get updated every scan as part of the control code)
+    # Variables to initialize (these get updated every scan as part of the control code)
     self.accel_pitch_compensated = 0.0
     self.path_lookup_time = 0.5  # how far into the future to we need to look for our path_angle signals.
     self.precision_type = 1  # precise or comfort
@@ -431,6 +431,7 @@ class CarController(CarControllerBase):
     if not self.send_bars_last and send_bars:
       # Save the frame # for the last flip from False to True
       self.send_bars_ts_last = self.frame
+      self.distance_bar_frame = self.frame
 
     # keep sending the bars for 4 seconds (400 at 100Hz)
     if ( self.send_bars_ts_last > 0 and (self.frame - self.send_bars_ts_last) <= (400)):

@@ -9,8 +9,9 @@
 #include "selfdrive/ui/qt/util.h"
 
 // Window that shows camera view and variety of info drawn on top
-AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
-  pm = std::make_unique<PubMaster>(std::vector<const char *>{"uiDebug"});
+AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent)
+    : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
+  pm = std::make_unique<PubMaster>(std::vector<const char*>{"uiDebug"});
 
   main_layout = new QVBoxLayout(this);
   main_layout->setMargin(UI_BORDER_SIZE);
@@ -48,10 +49,10 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
 
 void AnnotatedCameraWidget::initializeGL() {
   CameraWidget::initializeGL();
-  qInfo() << "OpenGL version:" << QString((const char *)glGetString(GL_VERSION));
-  qInfo() << "OpenGL vendor:" << QString((const char *)glGetString(GL_VENDOR));
-  qInfo() << "OpenGL renderer:" << QString((const char *)glGetString(GL_RENDERER));
-  qInfo() << "OpenGL language version:" << QString((const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
+  qInfo() << "OpenGL version:" << QString((const char*)glGetString(GL_VERSION));
+  qInfo() << "OpenGL vendor:" << QString((const char*)glGetString(GL_VENDOR));
+  qInfo() << "OpenGL renderer:" << QString((const char*)glGetString(GL_RENDERER));
+  qInfo() << "OpenGL language version:" << QString((const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
 
   prev_draw_t = millis_since_boot();
   setBackgroundColor(bg_colors[STATUS_DISENGAGED]);
@@ -69,7 +70,7 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   const auto &intrinsic_matrix = wide_cam ? ECAM_INTRINSIC_MATRIX : FCAM_INTRINSIC_MATRIX;
   const auto &calibration = wide_cam ? s->scene.view_from_wide_calib : s->scene.view_from_calib;
 
-  // Compute the calibration transformation matrix
+   // Compute the calibration transformation matrix
   const auto calib_transform = intrinsic_matrix * calibration;
 
   float zoom = wide_cam ? 2.0 : 1.1;
@@ -89,30 +90,20 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   // 1) Put (0, 0) in the middle of the video
   // 2) Apply same scaling as video
   // 3) Put (0, 0) in top left corner of video
-  Eigen::Matrix3f video_transform =
-      (Eigen::Matrix3f() << zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom), 0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom), 0.0f, 0.0f, 1.0f).finished();
+  Eigen::Matrix3f video_transform =(Eigen::Matrix3f() <<
+    zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom),
+    0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom),
+    0.0f, 0.0f, 1.0f).finished();
 
   model.setTransform(video_transform * calib_transform);
 
   float zx = zoom * 2 * center_x / w;
   float zy = zoom * 2 * center_y / h;
   return mat4{{
-      zx,
-      0.0,
-      0.0,
-      -x_offset / w * 2,
-      0.0,
-      zy,
-      0.0,
-      y_offset / h * 2,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
+    zx, 0.0, 0.0, -x_offset / w * 2,
+    0.0, zy, 0.0, y_offset / h * 2,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0,
   }};
 }
 

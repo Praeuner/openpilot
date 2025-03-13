@@ -19,64 +19,64 @@
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon
   std::vector<std::tuple<QString, QString, QString, QString>> toggle_defs{
-      {
-          "OpenpilotEnabledToggle",
-          tr("Enable openpilot"),
-          tr("Use the openpilot system for adaptive cruise control and lane keep driver assistance. Your attention is required at all times to use this feature. Changing this "
-             "setting takes effect when the car is powered off."),
-          "../assets/img_chffr_wheel.png",
-      },
-      {
-          "ExperimentalMode",
-          tr("Experimental Mode"),
-          "",
-          "../assets/img_experimental_white.svg",
-      },
-      {
-          "DynamicExperimentalControl",
-          tr("Enable Dynamic Experimental Control"),
-          tr("Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."),
-          "../assets/offroad/icon_blank.png",
-      },
-      {
-          "DisengageOnAccelerator",
-          tr("Disengage on Accelerator Pedal"),
-          tr("When enabled, pressing the accelerator pedal will disengage openpilot."),
-          "../assets/offroad/icon_disengage_on_accelerator.svg",
-      },
-      {
-          "IsLdwEnabled",
-          tr("Enable Lane Departure Warnings"),
-          tr("Receive alerts to steer back into the lane when your vehicle drifts over a detected lane line without a turn signal activated while driving over 31 mph (50 km/h)."),
-          "../assets/offroad/icon_warning.png",
-      },
-      {
-          "AlwaysOnDM",
-          tr("Always-On Driver Monitoring"),
-          tr("Enable driver monitoring even when openpilot is not engaged."),
-          "../assets/offroad/icon_monitoring.png",
-      },
-      {
-          "RecordFront",
-          tr("Record and Upload Driver Camera"),
-          tr("Upload data from the driver facing camera and help improve the driver monitoring algorithm."),
-          "../assets/offroad/icon_monitoring.png",
-      },
-      {
-          "IsMetric",
-          tr("Use Metric System"),
-          tr("Display speed in km/h instead of mph."),
-          "../assets/offroad/icon_metric.png",
-      },
+    {
+      "OpenpilotEnabledToggle",
+      tr("Enable openpilot"),
+      tr("Use the openpilot system for adaptive cruise control and lane keep driver assistance. Your attention is required at all times to use this feature. Changing this setting takes effect when the car is powered off."),
+      "../assets/img_chffr_wheel.png",
+    },
+    {
+      "ExperimentalMode",
+      tr("Experimental Mode"),
+      "",
+      "../assets/img_experimental_white.svg",
+    },
+    {
+      "DynamicExperimentalControl",
+      tr("Enable Dynamic Experimental Control"),
+      tr("Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."),
+      "../assets/offroad/icon_blank.png",
+    },
+    {
+      "DisengageOnAccelerator",
+      tr("Disengage on Accelerator Pedal"),
+      tr("When enabled, pressing the accelerator pedal will disengage openpilot."),
+      "../assets/offroad/icon_disengage_on_accelerator.svg",
+    },
+    {
+      "IsLdwEnabled",
+      tr("Enable Lane Departure Warnings"),
+      tr("Receive alerts to steer back into the lane when your vehicle drifts over a detected lane line without a turn signal activated while driving over 31 mph (50 km/h)."),
+      "../assets/offroad/icon_warning.png",
+    },
+    {
+      "AlwaysOnDM",
+      tr("Always-On Driver Monitoring"),
+      tr("Enable driver monitoring even when openpilot is not engaged."),
+      "../assets/offroad/icon_monitoring.png",
+    },
+    {
+      "RecordFront",
+      tr("Record and Upload Driver Camera"),
+      tr("Upload data from the driver facing camera and help improve the driver monitoring algorithm."),
+      "../assets/offroad/icon_monitoring.png",
+    },
+    {
+      "IsMetric",
+      tr("Use Metric System"),
+      tr("Display speed in km/h instead of mph."),
+      "../assets/offroad/icon_metric.png",
+    },
   };
 
+
   std::vector<QString> longi_button_texts{tr("Aggressive"), tr("Standard"), tr("Relaxed")};
-  long_personality_setting =
-      new ButtonParamControl("LongitudinalPersonality", tr("Driving Personality"),
-                             tr("Standard is recommended. In aggressive mode, openpilot will follow lead cars closer and be more aggressive with the gas and brake. "
-                                "In relaxed mode openpilot will stay further away from lead cars. On supported cars, you can cycle through these personalities with "
-                                "your steering wheel distance button."),
-                             "../assets/offroad/icon_speed_limit.png", longi_button_texts);
+  long_personality_setting = new ButtonParamControl("LongitudinalPersonality", tr("Driving Personality"),
+                                          tr("Standard is recommended. In aggressive mode, openpilot will follow lead cars closer and be more aggressive with the gas and brake. "
+                                             "In relaxed mode openpilot will stay further away from lead cars. On supported cars, you can cycle through these personalities with "
+                                             "your steering wheel distance button."),
+                                          "../assets/offroad/icon_speed_limit.png",
+                                          longi_button_texts);
 
   // set up uiState update for personality setting
   QObject::connect(uiState(), &UIState::uiUpdate, this, &TogglesPanel::updateState);
@@ -115,27 +115,28 @@ void TogglesPanel::updateState(const UIState &s) {
   }
 }
 
-void TogglesPanel::expandToggleDescription(const QString &param) { toggles[param.toStdString()]->showDescription(); }
+void TogglesPanel::expandToggleDescription(const QString &param) {
+  toggles[param.toStdString()]->showDescription();
+}
 
-void TogglesPanel::showEvent(QShowEvent *event) { updateToggles(); }
+void TogglesPanel::showEvent(QShowEvent *event) {
+  updateToggles();
+}
 
 void TogglesPanel::updateToggles() {
   auto experimental_mode_toggle = toggles["ExperimentalMode"];
-  const QString e2e_description =
-      QString("%1<br>"
-              "<h4>%2</h4><br>"
-              "%3<br>"
-              "<h4>%4</h4><br>"
-              "%5<br>")
-          .arg(tr("openpilot defaults to driving in <b>chill mode</b>. Experimental mode enables <b>alpha-level features</b> that aren't ready for chill mode. Experimental "
-                  "features are listed below:"))
-          .arg(tr("End-to-End Longitudinal Control"))
-          .arg(tr("Let the driving model control the gas and brakes. openpilot will drive as it thinks a human would, including stopping for red lights and stop signs. "
-                  "Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; "
-                  "mistakes should be expected."))
-          .arg(tr("New Driving Visualization"))
-          .arg(tr("The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be "
-                  "shown in the top right corner."));
+  const QString e2e_description = QString("%1<br>"
+                                          "<h4>%2</h4><br>"
+                                          "%3<br>"
+                                          "<h4>%4</h4><br>"
+                                          "%5<br>")
+                                  .arg(tr("openpilot defaults to driving in <b>chill mode</b>. Experimental mode enables <b>alpha-level features</b> that aren't ready for chill mode. Experimental features are listed below:"))
+                                  .arg(tr("End-to-End Longitudinal Control"))
+                                  .arg(tr("Let the driving model control the gas and brakes. openpilot will drive as it thinks a human would, including stopping for red lights and stop signs. "
+                                          "Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; "
+                                          "mistakes should be expected."))
+                                  .arg(tr("New Driving Visualization"))
+                                  .arg(tr("The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be shown in the top right corner."));
 
   const bool is_release = params.getBool("IsReleaseBranch");
   auto cp_bytes = params.get("CarParamsPersistent");
@@ -157,7 +158,8 @@ void TogglesPanel::updateToggles() {
 
       const QString unavailable = tr("Experimental mode is currently unavailable on this car since the car's stock ACC is used for longitudinal control.");
 
-      QString long_desc = unavailable + " " + tr("openpilot longitudinal control may come in a future update.");
+      QString long_desc = unavailable + " " + \
+                          tr("openpilot longitudinal control may come in a future update.");
       if (CP.getExperimentalLongitudinalAvailable()) {
         if (is_release) {
           long_desc = unavailable + " " + tr("An alpha version of openpilot longitudinal control can be tested, along with Experimental mode, on non-release branches.");
@@ -179,20 +181,23 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   addItem(new LabelControl(tr("Dongle ID"), getDongleId().value_or(tr("N/A"))));
   addItem(new LabelControl(tr("Serial"), params.get("HardwareSerial").c_str()));
 
-  pair_device = new ButtonControl(tr("Pair Device"), tr("PAIR"), tr("Pair your device with comma connect (connect.comma.ai) and claim your comma prime offer."));
+  pair_device = new ButtonControl(tr("Pair Device"), tr("PAIR"),
+                                  tr("Pair your device with comma connect (connect.comma.ai) and claim your comma prime offer."));
   connect(pair_device, &ButtonControl::clicked, [=]() {
     PairingPopup popup(this);
     popup.exec();
   });
   addItem(pair_device);
 
-  QObject::connect(uiState()->prime_state, &PrimeState::changed, [this](PrimeState::Type type) { pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED); });
+  QObject::connect(uiState()->prime_state, &PrimeState::changed, [this] (PrimeState::Type type) {
+    pair_device->setVisible(type == PrimeState::PRIME_TYPE_UNPAIRED);
+  });
 
 #ifndef SUNNYPILOT
   // offroad-only buttons
 
-  auto dcamBtn =
-      new ButtonControl(tr("Driver Camera"), tr("PREVIEW"), tr("Preview the driver facing camera to ensure that driver monitoring has good visibility. (vehicle must be off)"));
+  auto dcamBtn = new ButtonControl(tr("Driver Camera"), tr("PREVIEW"),
+                                   tr("Preview the driver facing camera to ensure that driver monitoring has good visibility. (vehicle must be off)"));
   connect(dcamBtn, &ButtonControl::clicked, [=]() { emit showDriverView(); });
   addItem(dcamBtn);
 #endif
@@ -277,8 +282,9 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
 }
 
 void DevicePanel::updateCalibDescription() {
-  QString desc = tr("openpilot requires the device to be mounted within 4° left or right and "
-                    "within 5° up or 9° down. openpilot is continuously calibrating, resetting is rarely required.");
+  QString desc =
+      tr("openpilot requires the device to be mounted within 4° left or right and "
+         "within 5° up or 9° down. openpilot is continuously calibrating, resetting is rarely required.");
   std::string calib_bytes = params.get("CalibrationParams");
   if (!calib_bytes.empty()) {
     try {
@@ -289,7 +295,8 @@ void DevicePanel::updateCalibDescription() {
         double pitch = calib.getRpyCalib()[1] * (180 / M_PI);
         double yaw = calib.getRpyCalib()[2] * (180 / M_PI);
         desc += tr(" Your device is pointed %1° %2 and %3° %4.")
-                    .arg(QString::number(std::abs(pitch), 'g', 1), pitch > 0 ? tr("down") : tr("up"), QString::number(std::abs(yaw), 'g', 1), yaw > 0 ? tr("left") : tr("right"));
+                    .arg(QString::number(std::abs(pitch), 'g', 1), pitch > 0 ? tr("down") : tr("up"),
+                         QString::number(std::abs(yaw), 'g', 1), yaw > 0 ? tr("left") : tr("right"));
       }
     } catch (kj::Exception) {
       qInfo() << "invalid CalibrationParams";
@@ -324,7 +331,9 @@ void DevicePanel::poweroff() {
   }
 }
 
-void SettingsWindow::showEvent(QShowEvent *event) { setCurrentPanel(0); }
+void SettingsWindow::showEvent(QShowEvent *event) {
+  setCurrentPanel(0);
+}
 
 void SettingsWindow::setCurrentPanel(int index, const QString &param) {
   if (!param.isEmpty()) {
@@ -332,7 +341,7 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
     if (param.endsWith("Panel")) {
       QString panelName = param;
       panelName.chop(5); // Remove "Panel" suffix
-
+      
       // Find the panel by name
       for (int i = 0; i < nav_btns->buttons().size(); i++) {
         if (nav_btns->buttons()[i]->text() == tr(panelName.toStdString().c_str())) {
@@ -344,7 +353,7 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
       emit expandToggleDescription(param);
     }
   }
-
+  
   panel_widget->setCurrentIndex(index);
   nav_btns->buttons()[index]->setChecked(true);
 }
@@ -387,12 +396,12 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &Networking::setPrimeType);
 
   QList<QPair<QString, QWidget *>> panels = {
-      {tr("Device"), device},
-      {tr("Network"), networking},
-      {tr("Toggles"), toggles},
-      {tr("Software"), new SoftwarePanel(this)},
-      {tr("Firehose"), new FirehosePanel(this)},
-      {tr("Developer"), new DeveloperPanel(this)},
+    {tr("Device"), device},
+    {tr("Network"), networking},
+    {tr("Toggles"), toggles},
+    {tr("Software"), new SoftwarePanel(this)},
+    {tr("Firehose"), new FirehosePanel(this)},
+    {tr("Developer"), new DeveloperPanel(this)},
   };
 
   nav_btns = new QButtonGroup(this);
@@ -419,7 +428,7 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
     nav_btns->addButton(btn);
     sidebar_layout->addWidget(btn, 0, Qt::AlignRight);
 
-    const int lr_margin = name != tr("Network") ? 50 : 0; // Network panel handles its own margins
+    const int lr_margin = name != tr("Network") ? 50 : 0;  // Network panel handles its own margins
     panel->setContentsMargins(lr_margin, 25, lr_margin, 25);
 
     ScrollView *panel_frame = new ScrollView(panel, this);
