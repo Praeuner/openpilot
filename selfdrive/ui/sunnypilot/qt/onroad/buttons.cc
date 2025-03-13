@@ -21,11 +21,19 @@ void ExperimentalButtonSP::updateState(const UIState &s) {
   showAnimatedWheel = s.scene.show_animated_wheel_angle;
   float angle = car_state.getSteeringAngleDeg();
 
+  // Always update the steering angle if animation is enabled
+  if (showAnimatedWheel && steeringAngle != angle) {
+    steeringAngle = angle;
+    update();
+  } else if (!showAnimatedWheel && steeringAngle != 0) {
+    steeringAngle = 0;
+    update();
+  }
+
   int mode = int(long_plan_sp.getDec().getState());
   if ((long_plan_sp.getDec().getActive() != dynamic_experimental_control) || (mode != dec_mpc_mode)) {
     dynamic_experimental_control = long_plan_sp.getDec().getActive();
     dec_mpc_mode = mode;
-    steeringAngle = showAnimatedWheel ? angle : 0;
     update();
   }
 }
