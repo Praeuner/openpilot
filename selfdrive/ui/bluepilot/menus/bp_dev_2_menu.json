@@ -25,6 +25,17 @@
                 "git_remote": ["any"],
                 "git_branch": []
               }
+            },
+            {
+              "type": "toggle",
+              "param": "RainbowMode",
+              "title": "Enable Tesla Rainbow Mode",
+              "desc": "This mode will change the color of the path based on the speed of the car.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
             }
           ]
         },
