@@ -11,6 +11,24 @@
       "icon": "../assets/offroad/icon_user_prefs.png",
       "groups": [
         {
+          "groupName": "systemPreferencesGroup",
+          "title": "System Preferences:",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "QuietDrive",
+              "title": "Quiet Drive - Warnings/Alerts Only",
+              "desc": "BluePilot displays alerts but only plays important warning sounds.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            }
+          ]
+        },
+        {
           "groupName": "visualOnroadPreferencesGroup",
           "title": "Visual Onroad Preferences:",
           "enableResetButton": false,

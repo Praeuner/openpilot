@@ -127,7 +127,7 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"ModelRunnerTypeCache", CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"OffroadMode", CLEAR_ON_MANAGER_START},
                                                                 {"OffroadMode_Status", CLEAR_ON_MANAGER_START},
-                                                                {"QuietDrive", PERSISTENT},
+                                                                {"QuietDrive", PERSISTENT | BACKUP},
 
                                                                 // MADS params
                                                                 {"Mads", PERSISTENT | BACKUP},
@@ -175,8 +175,6 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"FordPrefHybridDriveGaugeSize", PERSISTENT | BACKUP},
                                                                 {"FordPrefHybridBatteryOverlay", PERSISTENT | BACKUP},
                                                                 {"FordPrefHybridBatteryOverlay_default", PERSISTENT | BACKUP},
-                                                                {"FordPrefQuietDrive_default", PERSISTENT | BACKUP},
-                                                                {"FordPrefQuietDrive", PERSISTENT | BACKUP},
                                                                 {"FordPrefHideSteerSaturatedAlerts", PERSISTENT | BACKUP},
                                                                 {"FordPrefHideSteerSaturatedAlerts_default", PERSISTENT | BACKUP},
 
