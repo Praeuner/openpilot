@@ -178,6 +178,13 @@ void BPRoutesPanel::setupUI() {
   syncAllButton = new QPushButton(tr("Sync All"), headerWidget);
   viewLogButton = new QPushButton(tr("View Sync Log"), headerWidget);
 
+  // Hide all header buttons
+  refreshButton->setVisible(false);
+  cleanupButton->setVisible(false);
+  settingsButton->setVisible(false);
+  syncAllButton->setVisible(false);
+  viewLogButton->setVisible(false);
+
   // Set button styles
   QList<QPushButton *> buttons = {refreshButton, cleanupButton, settingsButton, syncAllButton, viewLogButton};
   for (auto button : buttons) {
@@ -472,7 +479,7 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
       color: #888888;
     }
   )")
-                           .arg(bgColor, hoverColor, disabledColor));
+                           .arg(bgColor, hoverColor, "#404040"));
     return btn;
   };
 
@@ -481,8 +488,11 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
   auto deleteBtn = createActionButton(tr("Delete"), "#F44336", "#D32F2F");  // Red
 
   concatBtn->setEnabled(!onRoad);
+  concatBtn->setVisible(false);
   routeSyncBtn->setEnabled(!onRoad);
+  routeSyncBtn->setVisible(false);
   deleteBtn->setEnabled(!onRoad);
+  // deleteBtn->setVisible(false);
 
   // Add them to the layout
   actionButtonsLayout->addWidget(concatBtn);
@@ -534,6 +544,7 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
     // Use the custom colors for each video button
     auto videoBtn = createVideoButton(videoLabels[i], videoColors[i].second.first, videoColors[i].second.second);
     videoBtn->setEnabled(!onRoad);
+    videoBtn->setVisible(false);
     connect(videoBtn, &QPushButton::clicked, [=]() {
       // Call your concatenated video playback function
       playRouteVideoConcatenated(route.baseName, videoFiles[i]);
