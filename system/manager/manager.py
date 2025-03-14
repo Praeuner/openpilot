@@ -54,7 +54,7 @@ def manager_init() -> None:
   ]
 
   ford_default_params: list[tuple[str, str | bytes]] = [
-    ("CustomModelPathColor", "stock"),
+    ("CustomModelPathColor", "Stock"),
     # FORD SETTING Params
     ("FordPrefHideSteerSaturatedAlerts", "0"),
     ("FordPrefEnableDebugLogs", "0"),

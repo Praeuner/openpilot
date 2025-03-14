@@ -117,7 +117,7 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
   // Get the current time in seconds for dynamic effect (speed of rainbow movement)
   float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
 
-  if (pathColor == "rainbow") { // Rainbow Mode
+  if (pathColor == "Rainbow") { // Rainbow Mode
     // Rainbow mode logic (existing code)
     const int max_len = track_vertices.length();
     bg.setSpread(QGradient::PadSpread);
@@ -167,37 +167,37 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       // Skip a point, unless next is last
       i += (i + 2) < max_len ? 1 : 0;
     }
-  } else if (pathColor == "blue") {
+  } else if (pathColor == "Blue") {
     // Blue gradient
     bg.setColorAt(0.0, QColor::fromHslF(210.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "green") {
+  } else if (pathColor == "Green") {
     // Green gradient
     bg.setColorAt(0.0, QColor::fromHslF(120.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "purple") {
+  } else if (pathColor == "Purple") {
     // Purple gradient
     bg.setColorAt(0.0, QColor::fromHslF(270.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "orange") {
+  } else if (pathColor == "Orange") {
     // Orange gradient
     bg.setColorAt(0.0, QColor::fromHslF(30.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "red") {
+  } else if (pathColor == "Red") {
     // Red gradient
     bg.setColorAt(0.0, QColor::fromHslF(0.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "cyan") {
+  } else if (pathColor == "Cyan") {
     // Cyan gradient
     bg.setColorAt(0.0, QColor::fromHslF(180.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.35));
     bg.setColorAt(1.0, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "yellow") {
+  } else if (pathColor == "Yellow") {
     // Yellow gradient
     bg.setColorAt(0.0, QColor::fromHslF(60.0 / 360.0, 0.94, 0.51, 0.4));
     bg.setColorAt(0.5, QColor::fromHslF(60.0 / 360.0, 1.0, 0.68, 0.35));
