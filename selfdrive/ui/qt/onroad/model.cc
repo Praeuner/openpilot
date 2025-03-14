@@ -116,31 +116,7 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
 
   // Get the current time in seconds for dynamic effect (speed of rainbow movement)
   float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
-
-  if (pathColor == "Rainbow") { // Rainbow Mode
-    // Rainbow mode logic (existing code)
-    const int max_len = track_vertices.length();
-    bg.setSpread(QGradient::PadSpread);
-
-    for (int i = 0; i < max_len; i += 2) {
-      if (track_vertices[i].y() < 0 || track_vertices[i].y() > height)
-        continue;
-
-      float lin_grad_point = (height - track_vertices[i].y()) / height;
-
-      // Use easing for smoother color transitions
-      float eased_point = pow(lin_grad_point, 1.5f); // Ease-in effect
-
-      // Dynamic hue with subtle, smooth animation
-      float path_hue = fmod(eased_point * 360.0 + (v_ego * 20.0) + (time_offset * 100.0), 360.0);
-
-      // Smooth alpha transition with longer fade
-      float alpha = util::map_val(eased_point, 0.2f, 0.75f, 0.8f, 0.0f);
-
-      // Use soft lightness for a premium feel
-      bg.setColorAt(eased_point, QColor::fromHslF(path_hue / 360.0, 1.0f, 0.55f, alpha));
-    }
-  } else if (experimental_mode) {
+  if (experimental_mode) {
     // Experimental mode logic (existing code)
     const auto &acceleration = model.getAcceleration().getX();
     const int max_len = std::min<int>(track_vertices.length() / 2, acceleration.size());
@@ -167,6 +143,30 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       // Skip a point, unless next is last
       i += (i + 2) < max_len ? 1 : 0;
     }
+  } else if (pathColor == "Rainbow") { // Rainbow Mode
+    // Rainbow mode logic (existing code)
+    const int max_len = track_vertices.length();
+    bg.setSpread(QGradient::PadSpread);
+
+    for (int i = 0; i < max_len; i += 2) {
+      if (track_vertices[i].y() < 0 || track_vertices[i].y() > height)
+        continue;
+
+      float lin_grad_point = (height - track_vertices[i].y()) / height;
+
+      // Use easing for smoother color transitions
+      float eased_point = pow(lin_grad_point, 1.5f); // Ease-in effect
+
+      // Dynamic hue with subtle, smooth animation
+      float path_hue = fmod(eased_point * 360.0 + (v_ego * 20.0) + (time_offset * 100.0), 360.0);
+
+      // Smooth alpha transition with longer fade
+      float alpha = util::map_val(eased_point, 0.2f, 0.75f, 0.8f, 0.0f);
+
+      // Use soft lightness for a premium feel
+      bg.setColorAt(eased_point, QColor::fromHslF(path_hue / 360.0, 1.0f, 0.55f, alpha));
+    }
+
   } else if (pathColor == "Blue") {
     // Blue gradient
     bg.setColorAt(0.0, QColor::fromHslF(210.0 / 360.0, 0.94, 0.51, 0.4));
