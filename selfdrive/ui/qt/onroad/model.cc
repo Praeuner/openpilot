@@ -167,41 +167,41 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       bg.setColorAt(eased_point, QColor::fromHslF(path_hue / 360.0, 1.0f, 0.55f, alpha));
     }
 
-  } else if (pathColor == "Blue") {
-    // Blue gradient
-    bg.setColorAt(0.0, QColor::fromHslF(210.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Green") {
+  } else if (pathColor == "blue") {
+    // Blue gradient with RGB values
+    bg.setColorAt(0.0, QColor(0, 102, 204, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(51, 153, 255, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(51, 153, 255, 0));  // 0% opacity
+  } else if (pathColor == "green") {
     // Green gradient
-    bg.setColorAt(0.0, QColor::fromHslF(120.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Purple") {
+    bg.setColorAt(0.0, QColor(0, 204, 102, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(51, 255, 153, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(51, 255, 153, 0));  // 0% opacity
+  } else if (pathColor == "purple") {
     // Purple gradient
-    bg.setColorAt(0.0, QColor::fromHslF(270.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Orange") {
+    bg.setColorAt(0.0, QColor(153, 51, 204, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(178, 102, 255, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(178, 102, 255, 0));  // 0% opacity
+  } else if (pathColor == "orange") {
     // Orange gradient
-    bg.setColorAt(0.0, QColor::fromHslF(30.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Red") {
+    bg.setColorAt(0.0, QColor(255, 128, 0, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(255, 153, 51, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(255, 153, 51, 0));  // 0% opacity
+  } else if (pathColor == "red") {
     // Red gradient
-    bg.setColorAt(0.0, QColor::fromHslF(0.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Cyan") {
+    bg.setColorAt(0.0, QColor(204, 0, 0, 102));  // 40% opacity
+    bg.setColorAt(0.5, QColor(255, 51, 51, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(255, 51, 51, 0));  // 0% opacity
+  } else if (pathColor == "cyan") {
     // Cyan gradient
-    bg.setColorAt(0.0, QColor::fromHslF(180.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.0));
-  } else if (pathColor == "Yellow") {
+    bg.setColorAt(0.0, QColor(0, 204, 204, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(51, 255, 255, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(51, 255, 255, 0));  // 0% opacity
+  } else if (pathColor == "yellow") {
     // Yellow gradient
-    bg.setColorAt(0.0, QColor::fromHslF(60.0 / 360.0, 0.94, 0.51, 0.4));
-    bg.setColorAt(0.5, QColor::fromHslF(60.0 / 360.0, 1.0, 0.68, 0.35));
-    bg.setColorAt(1.0, QColor::fromHslF(60.0 / 360.0, 1.0, 0.68, 0.0));
+    bg.setColorAt(0.0, QColor(204, 204, 0, 102)); // 40% opacity
+    bg.setColorAt(0.5, QColor(255, 255, 51, 89)); // 35% opacity
+    bg.setColorAt(1.0, QColor(255, 255, 51, 0));  // 0% opacity
   } else {
     // Stock or default
     updatePathGradient(bg);
