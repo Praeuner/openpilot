@@ -57,51 +57,6 @@ def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control):
   )
 
   """
-  # values = {}
-
-  # if hud_control is not None:
-  #   actvStats = 7 # LDW_Suppress_Right_Left
-  #   actvStatsD2 = 0 # LkaNoInterv
-
-  #   if lat_active and hud_control.lanesVisible:
-  #     actvStats = 0 # LDW_Idle
-  #     actvStatsD2 = 0 # LkaNoInterv
-
-  #     if hud_control.leftLaneVisible and hud_control.rightLaneVisible:
-  #       if(hud_control.leftLaneDepart):
-  #         actvStats = 2 # LDW_Warning_Left
-  #         actvStatsD2 = 2 # LkaIncrIntervLeft
-  #       elif(hud_control.rightLaneDepart):
-  #         actvStats = 4 # LDW_Warning_Right
-  #         actvStatsD2 = 4 # LkaStandIntervRight
-  #       else:
-  #         actvStats = 0 # LDW_Idle
-  #         actvStatsD2 = 0 # LkaNoInterv
-  #     elif hud_control.leftLaneVisible and not hud_control.rightLaneVisible:
-  #       if(hud_control.leftLaneDepart):
-  #         actvStats = 2 # LDW_Warning_Left
-  #         actvStatsD2 = 2 # LkaIncrIntervLeft
-  #       else:
-  #         actvStats = 5 # LDW_Suppress_Right
-  #         actvStatsD2 = 5 # LkaSupprRight
-  #     elif not hud_control.leftLaneVisible and hud_control.rightLaneVisible:
-  #       if(hud_control.rightLaneDepart):
-  #         actvStats = 4 # LDW_Warning_Right
-  #         actvStatsD2 = 4 # LkaStandIntervRight
-  #       else:
-  #         actvStats = 3 # LDW_Suppress_Left
-  #         actvStatsD2 = 3 # LkaSupprLeft
-
-  #   values.update({
-  #     "LdwActvStats_D_Req": actvStats,  # LKA status: 0=LDW_Idle, 1=LDW_DemoVibration, 2=LDW_Warning_Left, 3=LDW_Suppress_Left, 4=LDW_Warning_Right, 5=LDW_Suppress_Right, 6=Not_Used2, 7=LDW_Suppress_Right_Left
-  #     "LkwActvStats_D2_Req": actvStatsD2, # 7=Not Used, 6=LkaIncrIntervRight, 5=LkaSupprRight, 4=LkaStandIntervRight, 3=LkaSupprLeft, 2=LkaStandIntervLeft, 1=LkaIncrIntervLeft, 0=LkaNoInterv
-  #     "LdwActvIntns_D_Req": 2,  # LKA intervention: 0=None, 1=Low, 2=Medium, 3=High
-  #   })
-
-  #write the values to the console as well as lat_active, and hud_control
-  # print(f'values: {values}')
-  # print(f'lat_active: {lat_active}')
-  # print(f'hud_control: {hud_control}')
   return packer.make_can_msg("Lane_Assist_Data1", CAN.main, {})
 
 
