@@ -128,7 +128,7 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"OffroadMode", CLEAR_ON_MANAGER_START},
                                                                 {"OffroadMode_Status", CLEAR_ON_MANAGER_START},
                                                                 {"QuietDrive", PERSISTENT | BACKUP},
-                                                                {"RainbowMode", PERSISTENT | BACKUP},
+                                                                {"CustomModelPathColor", PERSISTENT | BACKUP},
 
                                                                 // MADS params
                                                                 {"Mads", PERSISTENT | BACKUP},

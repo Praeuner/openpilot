@@ -17,8 +17,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   auto *s = uiState();
   auto &sm = *(s->sm);
   // Check if data is up-to-date
-  if (sm.rcv_frame("liveCalibration") < s->scene.started_frame ||
-      sm.rcv_frame("modelV2") < s->scene.started_frame) {
+  if (sm.rcv_frame("liveCalibration") < s->scene.started_frame || sm.rcv_frame("modelV2") < s->scene.started_frame) {
     return;
   }
 
@@ -111,16 +110,19 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
   auto &sm = *(s->sm);
 
   float v_ego = sm["carState"].getCarState().getVEgo();
-  bool rainbow = Params().getBool("RainbowMode");
+
+  // Get the custom path color parameter
+  QString pathColor = QString::fromStdString(Params().get("CustomModelPathColor"));
 
   // Get the current time in seconds for dynamic effect (speed of rainbow movement)
   float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
 
-  if (rainbow) { // Rainbow Mode
+  if (pathColor == "rainbow") { // Rainbow Mode
+    // Rainbow mode logic (existing code)
     const int max_len = track_vertices.length();
-    bg.setSpread(QGradient::PadSpread); // Pad for a smooth gradient fade
+    bg.setSpread(QGradient::PadSpread);
 
-    for (int i = 0; i < max_len; i += 2) { // Skip every other point for performance
+    for (int i = 0; i < max_len; i += 2) {
       if (track_vertices[i].y() < 0 || track_vertices[i].y() > height)
         continue;
 
@@ -139,14 +141,15 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       bg.setColorAt(eased_point, QColor::fromHslF(path_hue / 360.0, 1.0f, 0.55f, alpha));
     }
   } else if (experimental_mode) {
-    // The first half of track_vertices are the points for the right side of the path
+    // Experimental mode logic (existing code)
     const auto &acceleration = model.getAcceleration().getX();
     const int max_len = std::min<int>(track_vertices.length() / 2, acceleration.size());
 
     for (int i = 0; i < max_len; ++i) {
       // Some points are out of frame
-      int track_idx = max_len - i - 1;  // flip idx to start from bottom right
-      if (track_vertices[track_idx].y() < 0 || track_vertices[track_idx].y() > height) continue;
+      int track_idx = max_len - i - 1; // flip idx to start from bottom right
+      if (track_vertices[track_idx].y() < 0 || track_vertices[track_idx].y() > height)
+        continue;
 
       // Flip so 0 is bottom of frame
       float lin_grad_point = (height - track_vertices[track_idx].y()) / height;
@@ -157,15 +160,50 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       path_hue = int(path_hue * 100 + 0.5) / 100;
 
       float saturation = fmin(fabs(acceleration[i] * 1.5), 1);
-      float lightness = util::map_val(saturation, 0.0f, 1.0f, 0.95f, 0.62f);        // lighter when grey
-      float alpha = util::map_val(lin_grad_point, 0.75f / 2.f, 0.75f, 0.4f, 0.0f);  // matches previous alpha fade
+      float lightness = util::map_val(saturation, 0.0f, 1.0f, 0.95f, 0.62f);       // lighter when grey
+      float alpha = util::map_val(lin_grad_point, 0.75f / 2.f, 0.75f, 0.4f, 0.0f); // matches previous alpha fade
       bg.setColorAt(lin_grad_point, QColor::fromHslF(path_hue / 360., saturation, lightness, alpha));
 
       // Skip a point, unless next is last
       i += (i + 2) < max_len ? 1 : 0;
     }
-
+  } else if (pathColor == "blue") {
+    // Blue gradient
+    bg.setColorAt(0.0, QColor::fromHslF(210.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(210.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "green") {
+    // Green gradient
+    bg.setColorAt(0.0, QColor::fromHslF(120.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(120.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "purple") {
+    // Purple gradient
+    bg.setColorAt(0.0, QColor::fromHslF(270.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(270.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "orange") {
+    // Orange gradient
+    bg.setColorAt(0.0, QColor::fromHslF(30.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(30.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "red") {
+    // Red gradient
+    bg.setColorAt(0.0, QColor::fromHslF(0.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(0.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "cyan") {
+    // Cyan gradient
+    bg.setColorAt(0.0, QColor::fromHslF(180.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(180.0 / 360.0, 1.0, 0.68, 0.0));
+  } else if (pathColor == "yellow") {
+    // Yellow gradient
+    bg.setColorAt(0.0, QColor::fromHslF(60.0 / 360.0, 0.94, 0.51, 0.4));
+    bg.setColorAt(0.5, QColor::fromHslF(60.0 / 360.0, 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(60.0 / 360.0, 1.0, 0.68, 0.0));
   } else {
+    // Stock or default
     updatePathGradient(bg);
   }
 
@@ -174,10 +212,8 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
 }
 
 void ModelRenderer::updatePathGradient(QLinearGradient &bg) {
-  static const QColor throttle_colors[] = {
-      QColor::fromHslF(148. / 360., 0.94, 0.51, 0.4),
-      QColor::fromHslF(112. / 360., 1.0, 0.68, 0.35),
-      QColor::fromHslF(112. / 360., 1.0, 0.68, 0.0)};
+  static const QColor throttle_colors[] = {QColor::fromHslF(148. / 360., 0.94, 0.51, 0.4), QColor::fromHslF(112. / 360., 1.0, 0.68, 0.35),
+                                           QColor::fromHslF(112. / 360., 1.0, 0.68, 0.0)};
 
   static const QColor no_throttle_colors[] = {
       QColor::fromHslF(148. / 360., 0.0, 0.95, 0.4),
@@ -209,16 +245,13 @@ void ModelRenderer::updatePathGradient(QLinearGradient &bg) {
 }
 
 QColor ModelRenderer::blendColors(const QColor &start, const QColor &end, float t) {
-  if (t == 1.0f) return end;
-  return QColor::fromRgbF(
-      (1 - t) * start.redF() + t * end.redF(),
-      (1 - t) * start.greenF() + t * end.greenF(),
-      (1 - t) * start.blueF() + t * end.blueF(),
-      (1 - t) * start.alphaF() + t * end.alphaF());
+  if (t == 1.0f)
+    return end;
+  return QColor::fromRgbF((1 - t) * start.redF() + t * end.redF(), (1 - t) * start.greenF() + t * end.greenF(), (1 - t) * start.blueF() + t * end.blueF(),
+                          (1 - t) * start.alphaF() + t * end.alphaF());
 }
 
-void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data,
-                             const QPointF &vd, const QRect &surface_rect) {
+void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect) {
   const float speedBuff = 10.;
   const float leadBuff = 40.;
   const float d_rel = lead_data.getDRel();
@@ -258,14 +291,14 @@ bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out
   return clip_region.contains(*out);
 }
 
-void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off,
-                                     QPolygonF *pvd, int max_idx, bool allow_invert) {
+void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
   const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
   QPointF left, right;
   pvd->clear();
   for (int i = 0; i <= max_idx; i++) {
     // highly negative x positions  are drawn above the frame and cause flickering, clip to zy plane of camera
-    if (line_x[i] < 0) continue;
+    if (line_x[i] < 0)
+      continue;
 
     bool l = mapToScreen(line_x[i], line_y[i] - y_off, line_z[i] + z_off, &left);
     bool r = mapToScreen(line_x[i], line_y[i] + y_off, line_z[i] + z_off, &right);

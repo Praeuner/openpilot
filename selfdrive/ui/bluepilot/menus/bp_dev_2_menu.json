@@ -48,11 +48,22 @@
               }
             },
             {
-              "type": "toggle",
-              "param": "RainbowMode",
-              "title": "Enable Tesla Rainbow Mode",
-              "desc": "This mode will cycle path colors as a gradient rainbow.",
+              "type": "selection",
+              "param": "CustomModelPathColor",
+              "title": "Custom Model Path Color",
+              "desc": "Customize the color of the driving path overlay",
               "hidden": false,
+              "options": [
+                { "name": "Stock", "value": "stock" },
+                { "name": "Rainbow", "value": "rainbow" },
+                { "name": "Blue", "value": "blue" },
+                { "name": "Green", "value": "green" },
+                { "name": "Purple", "value": "purple" },
+                { "name": "Orange", "value": "orange" },
+                { "name": "Red", "value": "red" },
+                { "name": "Cyan", "value": "cyan" },
+                { "name": "Yellow", "value": "yellow" }
+              ],
               "conditions": {
                 "git_remote": ["any"],
                 "git_branch": []
