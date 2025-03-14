@@ -342,7 +342,7 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
   // Output Text
   outputText = new QTextEdit(this);
   outputText->setReadOnly(true);
-  outputText->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse);
+  outputText->setTextInteractionFlags(Qt::NoTextInteraction);
   outputText->setStyleSheet(R"(
     QTextEdit {
       font-family: monospace;
@@ -359,6 +359,10 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
     }
     ...
   )");
+
+  // Add touch scrolling capabilities
+  QScroller::grabGesture(outputText->viewport(), QScroller::LeftMouseButtonGesture);
+
   main_layout->addWidget(outputText);
 
   // Button row
@@ -669,6 +673,11 @@ void BPFileViewerDialog::setupUI(const QString &title) {
   if (!contentText) {
     contentText = new QTextEdit(this);
     contentText->setReadOnly(true);
+    // Disable text selection
+    contentText->setTextInteractionFlags(Qt::NoTextInteraction);
+    // Add touch scrolling gesture
+    QScroller::grabGesture(contentText->viewport(), QScroller::LeftMouseButtonGesture);
+
     // Use your stylesheet for contentText if needed
     contentText->setStyleSheet(R"(
       QTextEdit {
