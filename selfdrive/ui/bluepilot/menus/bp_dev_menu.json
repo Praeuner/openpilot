@@ -29,6 +29,28 @@
                 ]
               }
             },
+	    {
+              "type": "selection",
+              "param": "CustomModelPathColor",
+              "title": "Custom Model Path Color",
+              "desc": "Customize the color of the driving path overlay",
+              "hidden": false,
+              "options": [
+                { "name": "Stock", "value": "Stock" },
+                { "name": "Rainbow", "value": "Rainbow" },
+                { "name": "Blue", "value": "Blue" },
+                { "name": "Green", "value": "Green" },
+                { "name": "Purple", "value": "Purple" },
+                { "name": "Orange", "value": "Orange" },
+                { "name": "Red", "value": "Red" },
+                { "name": "Cyan", "value": "Cyan" },
+                { "name": "Yellow", "value": "Yellow" }
+              ],
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
             {
               "type": "toggle",
               "param": "FordPrefHybridDriveOverlay",

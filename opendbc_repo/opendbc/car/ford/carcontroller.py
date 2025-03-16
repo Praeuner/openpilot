@@ -80,12 +80,9 @@ class CarController(CarControllerBase):
     self.distance_bar_frame = 0
 
     # Additional variables
-    self.accel_pitch_compensated = 0.0
     self.precision_type = 1
     self.human_turn_frames = 0
     self.human_turn = False
-    self.steer_warning = False
-    self.steer_warning_count = 0
 
     logDebug(f'Car Fingerprint (CarController): {CP.carFingerprint}')
     # Ford Model Specific Tuning
@@ -212,10 +209,10 @@ class CarController(CarControllerBase):
       if len(CC.orientationNED) == 3:
         accel_due_to_pitch = math.sin(CC.orientationNED[1]) * ACCELERATION_DUE_TO_GRAVITY
 
-      self.accel_pitch_compensated = accel + accel_due_to_pitch
-      if self.accel_pitch_compensated > 0.3 or not CC.longActive:
+      accel_pitch_compensated = accel + accel_due_to_pitch
+      if accel_pitch_compensated > 0.3 or not CC.longActive:
         self.brake_request = False
-      elif self.accel_pitch_compensated < 0.0:
+      elif accel_pitch_compensated < 0.0:
         self.brake_request = True
 
       stopping = CC.actuators.longControlState == LongCtrlState.stopping

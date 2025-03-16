@@ -60,21 +60,6 @@ def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control):
   return packer.make_can_msg("Lane_Assist_Data1", CAN.main, {})
 
 
-def create_lka3_msg(packer, CAN: CanBus):
-  """
-  Creates an empty CAN message for the Ford LKA Command.
-
-  This command can apply "Lane Keeping Aid" manoeuvres, which are subject to the PSCM lockout.
-
-  Frequency is 33Hz.
-  """
-  values = {
-    "LatCtlCpblty_D_Stat": 2,                   # Lateral Control Capability: 0=NoModeAvailable, 1=LimitedModeAvailable,
-                                                #            2=ExtendedModeAvailable, 3=Faulty [0|3]
-    "LaActAvail_D_Actl": 3,                      # Lane Keeping Aid Availability: 0=No, 1=Yes, 2=Faulty, 3=NotAvailable [0|3]
-  }
-  return packer.make_can_msg("Lane_Assist_Data3", CAN.main, values)
-
 
 def create_lat_ctl_msg(packer, CAN: CanBus, lat_active: bool, ramp_type: int, precision_type: int, path_offset: float, path_angle: float,
                        curvature: float, curvature_rate: float):
