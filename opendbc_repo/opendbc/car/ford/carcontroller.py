@@ -1,5 +1,7 @@
 import math
+import cereal.messaging as messaging
 import numpy as np
+from collections import deque
 from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
 from opendbc.car.ford import fordcan
@@ -27,11 +29,11 @@ AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, 6% superelevation
 MAX_LATERAL_ACCEL = ISO_LATERAL_ACCEL - (EARTH_G * AVERAGE_ROAD_ROLL)  # ~2.4 m/s^2
 
 
-def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
+def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle=0., lat_active=True, CP=None):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
   if v_ego_raw > 9:
     apply_curvature = np.clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
-                              current_curvature + CarControllerParams.CURVATURE_ERROR)
+                             current_curvature + CarControllerParams.CURVATURE_ERROR)
 
   # Curvature rate limit after driver torque limit
   apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, steering_angle, lat_active, CarControllerParams.ANGLE_LIMITS)
@@ -65,6 +67,7 @@ class CarController(CarControllerBase):
     # Load the initial preference settings parameters
     load_initial_cc_pref_params(self)
 
+    # Initialize control variables
     self.apply_curvature_last = 0
     self.accel = 0.0
     self.gas = 0.0
@@ -78,13 +81,15 @@ class CarController(CarControllerBase):
     self.send_bars_last = False  # previous state of ACC Gap elements
     self.lead_distance_bars_last = None
     self.distance_bar_frame = 0
+    self.accel_pitch_compensated = 0.0
 
-    # Additional variables
-    self.precision_type = 1
-    self.human_turn_frames = 0
+    # Human turn detection variables
     self.human_turn = False
+    self.precision_type = 1
 
+    # Logging variables
     logDebug(f'Car Fingerprint (CarController): {CP.carFingerprint}')
+
     # Ford Model Specific Tuning
     if CP.flags & FordFlags.CANFD:
       # Check FORD_VEHICLE_TUNINGS has a key for the carFingerprint
@@ -96,7 +101,7 @@ class CarController(CarControllerBase):
           if ford_tuning[key] is not None:
             setattr(self, key, ford_tuning[key])
 
-    # check each param in helpers.SETTINGS_PARAMS to make sure they are set and if not sets them to the default values
+    # Check each param in helpers.SETTINGS_PARAMS to make sure they are set and if not sets them to the default values
     initialize_param_defaults(self)
 
   def update(self, CC, CC_SP, CS, now_nanos):
@@ -107,7 +112,6 @@ class CarController(CarControllerBase):
 
     actuators = CC.actuators
     hud_control = CC.hudControl
-
     main_on = CS.out.cruiseState.available
 
     # Calculate steer_alert and fcw_alert
@@ -144,16 +148,26 @@ class CarController(CarControllerBase):
       current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
 
       # Human turn detection
-      if  self.enable_human_turn_detection:
-        if CS.out.steeringPressed and abs(CS.out.steeringAngleDeg) > 45:
-          self.human_turn = True
-        else:
-          self.human_turn = False
+      if CS.out.steeringPressed and abs(CS.out.steeringAngleDeg) > 45 and self.enable_human_turn_detection:
+        self.human_turn = True
+      else:
+        self.human_turn = False
 
       reset_steering = 1 if self.human_turn else 0
 
-      self.apply_curvature_last = apply_ford_curvature_limits(actuators.curvature, self.apply_curvature_last, current_curvature,
-                                                              CS.out.vEgoRaw, 0., CC.latActive, self.CP)
+      # CRITICAL FIX: Pass all necessary parameters to apply_ford_curvature_limits
+      self.apply_curvature_last = apply_ford_curvature_limits(
+        actuators.curvature,
+        self.apply_curvature_last,
+        current_curvature,
+        CS.out.vEgoRaw,
+        CS.out.steeringAngleDeg,
+        CC.latActive,
+        self.CP
+      )
+
+      lat_active = CC.latActive and not self.human_turn
+      ramp_type = 3 if reset_steering == 1 else 2  # 3=Immediate for reset, 2=Fast for normal operation
 
       if self.CP.flags & FordFlags.CANFD:
         # TODO: extended mode
@@ -162,17 +176,21 @@ class CarController(CarControllerBase):
         # steer actuation, the other three signals are necessary. Ford controls vehicles differently than most other makes.
         # A detailed explanation on ford control can be found here:
         # https://www.f150gen14.com/forum/threads/introducing-bluepilot-a-ford-specific-fork-for-comma3x-openpilot.24241/#post-457706
-        mode = 1 if CC.latActive and not self.human_turn else 0
-        ramp_type = 3 if reset_steering == 1 else 2
+        mode = 1 if lat_active else 0
         counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
         path_offset = 0.0
         path_angle = 0.0
         curvature_rate = 0.0
-        can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, path_offset, path_angle, -self.apply_curvature_last, curvature_rate, counter, ramp_type, self.precision_type))
+        can_sends.append(fordcan.create_lat_ctl2_msg(
+          self.packer, self.CAN, mode, path_offset, path_angle,
+          -self.apply_curvature_last, curvature_rate, counter, ramp_type, self.precision_type
+        ))
       else:
-        lat_active = CC.latActive and not self.human_turn
-        ramp_type = 3 if reset_steering == 1 else 2
-        can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, lat_active, ramp_type, self.precision_type, 0., 0., -self.apply_curvature_last, 0.))
+        # Ford non-CANFD lateral control
+        can_sends.append(fordcan.create_lat_ctl_msg(
+          self.packer, self.CAN, lat_active, ramp_type, self.precision_type,
+          0.0, 0.0, -self.apply_curvature_last, 0.0
+        ))
 
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
@@ -221,6 +239,7 @@ class CarController(CarControllerBase):
 
       self.accel = accel
       self.gas = gas
+      self.accel_pitch_compensated = accel_pitch_compensated
 
     ### ui ###
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
@@ -261,7 +280,7 @@ class CarController(CarControllerBase):
           send_ui,
           send_bars,
           tja_warn,
-          tja_msg
+          tja_msg,
         )
       )
 
