@@ -115,7 +115,7 @@ class CarController(CarControllerBase):
     main_on = CS.out.cruiseState.available
 
     # Calculate steer_alert and fcw_alert
-    steer_alert = 0
+    steer_alert = False
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
 
     # Compute the DM message values
