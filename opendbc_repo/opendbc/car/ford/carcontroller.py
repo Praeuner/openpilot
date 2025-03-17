@@ -109,8 +109,21 @@ class CarController(CarControllerBase):
     hud_control = CC.hudControl
 
     main_on = CS.out.cruiseState.available
-    steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
+
+    # Calculate steer_alert and fcw_alert
+    steer_alert = 0
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
+
+    # Compute the DM message values
+    tja_msg = 0
+    tja_warn = 0
+    if self.send_driver_monitor_can_msg:
+      if self.send_hands_free_cluster_msg:
+        # print(f'HudControl: {hud_control}')
+        # print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn}')
+        tja_msg, tja_warn = compute_dm_msg_values(hud_control, self.send_hands_free_cluster_msg)
+    else:
+      steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
 
     ### acc buttons ###
     if CC.cruiseControl.cancel:
@@ -129,6 +142,16 @@ class CarController(CarControllerBase):
     if (self.frame % CarControllerParams.STEER_STEP) == 0:
       # apply rate limits, curvature error limit, and clip to signal range
       current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
+
+      # Human turn detection
+      if  self.enable_human_turn_detection:
+        if CS.out.steeringPressed and abs(CS.out.steeringAngleDeg) > 45:
+          self.human_turn = True
+        else:
+          self.human_turn = False
+
+      reset_steering = 1 if self.human_turn else 0
+
       self.apply_curvature_last = apply_ford_curvature_limits(actuators.curvature, self.apply_curvature_last, current_curvature,
                                                               CS.out.vEgoRaw, 0., CC.latActive, self.CP)
 
@@ -139,15 +162,24 @@ class CarController(CarControllerBase):
         # steer actuation, the other three signals are necessary. Ford controls vehicles differently than most other makes.
         # A detailed explanation on ford control can be found here:
         # https://www.f150gen14.com/forum/threads/introducing-bluepilot-a-ford-specific-fork-for-comma3x-openpilot.24241/#post-457706
-        mode = 1 if CC.latActive else 0
+        mode = 1 if CC.latActive and not self.human_turn else 0
+        ramp_type = 3 if reset_steering == 1 else 2
         counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
-        can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, 0., 0., -self.apply_curvature_last, 0., counter))
+        path_offset = 0.0
+        path_angle = 0.0
+        curvature_rate = 0.0
+        can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, path_offset, path_angle, -self.apply_curvature_last, curvature_rate, counter, ramp_type, self.precision_type))
       else:
-        can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
+        lat_active = CC.latActive and not self.human_turn
+        ramp_type = 3 if reset_steering == 1 else 2
+        can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, lat_active, ramp_type, self.precision_type, 0., 0., -self.apply_curvature_last, 0.))
 
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN))
+      lka_hud_control = None
+      if self.send_lane_depart_can_msg:
+        lka_hud_control = hud_control
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control))
 
     ### longitudinal control ###
     # send acc msg at 50Hz
