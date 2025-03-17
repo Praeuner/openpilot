@@ -145,9 +145,11 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 // sunnylink params
                                                                 {"EnableSunnylinkUploader", PERSISTENT | BACKUP},
                                                                 {"LastSunnylinkPingTime", CLEAR_ON_MANAGER_START},
-                                                                {"SunnylinkDongleId", PERSISTENT},
-                                                                {"SunnylinkdPid", PERSISTENT},
-                                                                {"SunnylinkEnabled", PERSISTENT},
+    {"SunnylinkCache_Roles", PERSISTENT},
+    {"SunnylinkCache_Users", PERSISTENT},
+    {"SunnylinkDongleId", PERSISTENT},
+    {"SunnylinkdPid", PERSISTENT},
+    {"SunnylinkEnabled", PERSISTENT},
 
                                                                 // sunnypilot car specific params
                                                                 {"HyundaiRadarTracks", PERSISTENT},
