@@ -45,12 +45,12 @@ void update_state(UIState *s) {
 
       if (scene.pandaType != cereal::PandaState::PandaType::UNKNOWN) {
         scene.ignition = false;
-        for (const auto &pandaState : pandaStates) {
+        for (const auto& pandaState : pandaStates) {
           scene.ignition |= pandaState.getIgnitionLine() || pandaState.getIgnitionCan();
         }
       }
     }
-  } else if ((s->sm->frame - s->sm->rcv_frame("pandaStates")) > 5 * UI_FREQ) {
+  } else if ((s->sm->frame - s->sm->rcv_frame("pandaStates")) > 5*UI_FREQ) {
     scene.pandaType = cereal::PandaState::PandaType::UNKNOWN;
   }
   if (sm.updated("wideRoadCameraState")) {
