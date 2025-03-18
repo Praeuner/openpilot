@@ -182,8 +182,8 @@ class CarController(CarControllerBase):
         path_angle = 0.0
         curvature_rate = 0.0
         can_sends.append(fordcan.create_lat_ctl2_msg(
-          self.packer, self.CAN, mode, path_offset, path_angle,
-          -self.apply_curvature_last, curvature_rate, counter, ramp_type, self.precision_type
+          self.packer, self.CAN, mode, ramp_type, self.precision_type, path_offset, path_angle,
+          -self.apply_curvature_last, curvature_rate, counter
         ))
       else:
         # Ford non-CANFD lateral control
