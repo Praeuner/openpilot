@@ -5,6 +5,7 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.ford.carcontroller import CarController
 from opendbc.car.ford.carstate import CarState
 from opendbc.car.ford.fordcan import CanBus
+from opendbc.car.ford.radar_interface import RadarInterface
 from opendbc.car.ford.values import CarControllerParams, DBC, Ecu, FordFlags, FordConfig, RADAR, FordSafetyFlags
 from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.ford.helpers import get_ford_vehicle_tuning_interface, initialize_param_defaults, logDebug, logWarn, logError
