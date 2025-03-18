@@ -148,6 +148,7 @@ class RadarInterface(RadarInterfaceBase):
       if not _update:
         return None
     elif self.radar == RADAR.DELPHI_MRR_64:
+      _update = self._update_delphi_mrr_64(ret)
       if not _update:
         return None
 
