@@ -674,10 +674,10 @@ class CarController(CarControllerBase):
     self.fcw_alert_last = fcw_alert
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
-    # new_actuators = actuators.as_builder()
-    # new_actuators.curvature = apply_curvature
-    # new_actuators.accel = self.accel
-    # new_actuators.gas = self.gas
+    new_actuators = actuators.as_builder()
+    new_actuators.curvature = float(apply_curvature)
+    new_actuators.accel = float(self.accel)
+    new_actuators.gas = float(self.gas)
 
     self.frame += 1
     return new_actuators, can_sends
