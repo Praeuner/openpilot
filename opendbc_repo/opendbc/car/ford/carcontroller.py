@@ -1,16 +1,16 @@
 import math
 import cereal.messaging as messaging
 import numpy as np
-from openpilot.common.numpy_fast import clip, interp  # used for lots of interpolations and clipping
+from common.numpy_fast import clip, interp  # Updated import
 from collections import deque
-from openpilot.common.filter_simple import FirstOrderFilter
+from common.filter_simple import FirstOrderFilter
 from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
 from opendbc.car.ford import fordcan
 from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
-from openpilot.common.params import Params
-from openpilot.selfdrive.modeld.constants import ModelConstants  # for calculations
+from common.params import Params
+from selfdrive.modeld.constants import ModelConstants  # for calculations
 from opendbc.car.ford.helpers import (
   initialize_param_defaults,
   update_settings_params,
