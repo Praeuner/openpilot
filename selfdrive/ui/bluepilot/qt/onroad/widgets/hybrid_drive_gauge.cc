@@ -380,12 +380,17 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   QColor textBgColor(0, 0, 0, 200);
   p.setBrush(textBgColor);
 
+  // FIX: Adjust text background rect to prevent overlapping with main border
+  // Inset the rectangle by the border width to avoid overlap
+  int borderWidth = qRound(2 * scaleFactor);
+  QRect adjustedTextRect = textRect2.adjusted(borderWidth, 0, -borderWidth, -borderWidth);
+
   // Create a path for text background with only bottom corners rounded.
   QPainterPath textBgPath;
   textBgPath.setFillRule(Qt::WindingFill);
-  textBgPath.addRoundedRect(textRect2, cornerRadius, cornerRadius);
+  textBgPath.addRoundedRect(adjustedTextRect, cornerRadius, cornerRadius);
   // "Unround" the top corners.
-  QRectF topRect = textRect2.adjusted(0, 0, 0, -cornerRadius);
+  QRectF topRect = adjustedTextRect.adjusted(0, 0, 0, -cornerRadius);
   textBgPath.addRect(topRect);
   p.fillPath(textBgPath, p.brush());
 
@@ -394,7 +399,7 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   QString ampText = QString("%1%2A").arg(battAmpsActual < 0 ? "+" : "-").arg(QString::number(qAbs(battAmpsActual), 'f', 1));
 
   // Use a scaled margin.
-  QRect metricsRect = textRect2.adjusted(textMargin, 0, -textMargin, 0);
+  QRect metricsRect = adjustedTextRect.adjusted(textMargin, 0, -textMargin, 0);
 
   // Set font for voltage text with scaled size.
   int textFontSize = qRound(24 * scaleFactor);

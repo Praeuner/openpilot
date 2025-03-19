@@ -36,14 +36,20 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   drawLaneLines(painter);
   drawPath(painter, model, surface_rect.height());
 
-  if (longitudinal_control && sm.alive("radarState")) {
+  // Check if we should show radar overlay regardless of longitudinal control
+  bool showRadarOverlay = !experimental_mode && Params().getBool("FordPrefShowRadarLeadOverlay");
+
+  // Modified condition: show leads if longitudinal_control is enabled OR if radar overlay
+  // is enabled by the user preference
+  if ((longitudinal_control || showRadarOverlay) && sm.alive("radarState")) {
     update_leads(radar_state, model.getPosition());
     const auto &lead_two = radar_state.getLeadTwo();
+
     if (lead_one.getStatus()) {
-      drawLead(painter, lead_one, lead_vertices[0], surface_rect);
+      drawLead(painter, lead_one, lead_vertices[0], surface_rect, lead_radar_assisted[0]);
     }
     if (lead_two.getStatus() && (std::abs(lead_one.getDRel() - lead_two.getDRel()) > 3.0)) {
-      drawLead(painter, lead_two, lead_vertices[1], surface_rect);
+      drawLead(painter, lead_two, lead_vertices[1], surface_rect, lead_radar_assisted[1]);
     }
   }
 
@@ -55,7 +61,26 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
     if (lead_data.getStatus()) {
       float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
-      mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &lead_vertices[i]);
+
+      QPointF current_pos;
+      mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &current_pos);
+
+      // Apply smoothing if we have valid previous positions
+      if (prev_lead_positions[i] != QPointF(0, 0)) {
+        float smoothing_factor = 0.2; // Lower = more smoothing
+        QPointF smoothed_pos;
+        smoothed_pos.setX(prev_lead_positions[i].x() * (1.0 - smoothing_factor) + current_pos.x() * smoothing_factor);
+        smoothed_pos.setY(prev_lead_positions[i].y() * (1.0 - smoothing_factor) + current_pos.y() * smoothing_factor);
+        lead_vertices[i] = smoothed_pos;
+      } else {
+        lead_vertices[i] = current_pos;
+      }
+
+      // Store current position for next frame
+      prev_lead_positions[i] = lead_vertices[i];
+
+      // Get radar flag directly from the lead data
+      lead_radar_assisted[i] = lead_data.getRadar();
     }
   }
 }
@@ -251,44 +276,110 @@ QColor ModelRenderer::blendColors(const QColor &start, const QColor &end, float 
                           (1 - t) * start.alphaF() + t * end.alphaF());
 }
 
-void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect) {
-  const float speedBuff = 10.;
-  const float leadBuff = 40.;
+void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect, bool isRadarAssisted) {
   const float d_rel = lead_data.getDRel();
-  const float v_rel = lead_data.getVRel();
+  const float v_lead = lead_data.getVLead();
 
-  float fillAlpha = 0;
-  if (d_rel < leadBuff) {
-    fillAlpha = 255 * (1.0 - (d_rel / leadBuff));
-    if (v_rel < 0) {
-      fillAlpha += 255 * (-1 * (v_rel / speedBuff));
-    }
-    fillAlpha = (int)(fmin(fillAlpha, 255));
+  // Apply smoothing to reduce jitter in position
+  // Static variables to remember previous positions for smoothing
+  static QPointF prev_pos = vd;
+  static float smoothing_factor = 0.2; // Lower = more smoothing
+
+  // Apply exponential smoothing
+  QPointF smoothed_pos;
+  smoothed_pos.setX(prev_pos.x() * (1.0 - smoothing_factor) + vd.x() * smoothing_factor);
+  smoothed_pos.setY(prev_pos.y() * (1.0 - smoothing_factor) + vd.y() * smoothing_factor);
+
+  // Store current position for next frame
+  prev_pos = smoothed_pos;
+
+  // Calculate sizes based on distance for responsive design
+  float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
+  float x = std::clamp<float>(smoothed_pos.x(), 0.f, surface_rect.width() - sz / 2);
+  float y = std::min<float>(smoothed_pos.y(), surface_rect.height() - sz * 0.6);
+
+  // Convert measurements for display
+  float distance_m = d_rel;
+  float lead_speed_mph = v_lead * 2.237;
+
+  // Create the chevron polygon centered on the smoothed position
+  QPolygonF chevronPolygon;
+  chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
+
+  // Create gradient based on radar assistance
+  QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
+  if (isRadarAssisted) {
+    chevGradient.setColorAt(0, QColor(60, 170, 255, 230));
+    chevGradient.setColorAt(1, QColor(30, 144, 255, 200));
+  } else {
+    chevGradient.setColorAt(0, QColor(230, 60, 60, 230));
+    chevGradient.setColorAt(1, QColor(200, 30, 30, 200));
   }
 
-  float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 2.35;
-  float x = std::clamp<float>(vd.x(), 0.f, surface_rect.width() - sz / 2);
-  float y = std::min<float>(vd.y(), surface_rect.height() - sz * 0.6);
+  // Draw chevron with gradient
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(chevGradient);
+  painter.drawPolygon(chevronPolygon);
 
-  float g_xo = sz / 5;
-  float g_yo = sz / 10;
+  // Draw chevron border
+  painter.setPen(QPen(QColor(255, 255, 255, 80), 1.5));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawPolygon(chevronPolygon);
 
-  QPointF glow[] = {{x + (sz * 1.35) + g_xo, y + sz + g_yo}, {x, y - g_yo}, {x - (sz * 1.35) - g_xo, y + sz + g_yo}};
-  painter.setBrush(QColor(218, 202, 37, 255));
-  painter.drawPolygon(glow, std::size(glow));
+  // Position info panel centered below the lead vehicle
+  // Anchor panel to the chevron's bottom center point
+  float panel_width = 300;
+  float panel_height = 60;
+  float panel_top = y + sz + 15;
 
-  // chevron
-  QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
-  painter.setBrush(QColor(201, 34, 49, fillAlpha));
-  painter.drawPolygon(chevron, std::size(chevron));
-}
+  // Center panel horizontally with the chevron
+  QRectF infoPanel(x - panel_width / 2, panel_top, panel_width, panel_height);
 
-// Projects a point in car to space to the corresponding point in full frame image space.
-bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
-  Eigen::Vector3f input(in_x, in_y, in_z);
-  auto pt = car_space_transform * input;
-  *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
-  return clip_region.contains(*out);
+  // Make sure the panel stays within the surface bounds
+  if (panel_top + panel_height > surface_rect.height()) {
+    float available_height = surface_rect.height() - panel_top - 5;
+    if (available_height < 45) {
+      return;
+    }
+    infoPanel.setHeight(available_height);
+  }
+
+  // Horizontal bounds checking
+  if (infoPanel.left() < 0) {
+    infoPanel.moveLeft(0);
+  } else if (infoPanel.right() > surface_rect.width()) {
+    infoPanel.moveRight(surface_rect.width());
+  }
+
+  // Draw a semi-transparent panel with a subtle gradient
+  QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
+  panelGradient.setColorAt(0, QColor(20, 20, 20, 220));
+  panelGradient.setColorAt(1, QColor(40, 40, 40, 220));
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(panelGradient);
+  painter.drawRoundedRect(infoPanel, 15, 15);
+
+  // Add a subtle border
+  painter.setPen(QPen(QColor(150, 150, 150, 120), 1));
+  painter.drawRoundedRect(infoPanel, 15, 15);
+
+  // Set up text formatting with larger size
+  QFont infoFont = painter.font();
+  infoFont.setPixelSize(33);
+  infoFont.setWeight(QFont::DemiBold);
+  painter.setFont(infoFont);
+
+  // Format distance and speed text
+  QString distText = QString("%1 m").arg(qRound(distance_m));
+  QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
+
+  // Display distance and speed on the same line
+  painter.setPen(Qt::white);
+  QString combinedText = distText + "  |  " + speedText;
+
+  // Center the text in the panel
+  QRectF textRect = infoPanel.adjusted(7, 7, -7, -7);
+  painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
 void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
@@ -311,4 +402,11 @@ void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float
       pvd->push_front(right);
     }
   }
+}
+
+bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
+  Eigen::Vector3f input(in_x, in_y, in_z);
+  auto pt = car_space_transform * input;
+  *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
+  return clip_region.contains(*out);
 }
