@@ -249,6 +249,7 @@ class RadarInterface(RadarInterfaceBase):
 
   def _update_delphi_mrr_64(self, ret: structs.RadarData):
     # There is not discovered MRR_Header_InformationDetections message in CANFD
+    # headerScanIndex = int(self.rcp.vl["MRR_Header_InformationDetections"]['CAN_SCAN_INDEX']) & 0b11
     headerScanIndex = int(self.rcp.vl["MRR_Detection_001"]['CAN_SCAN_INDEX_2LSB_01_01'])
 
     # In reverse, the radar continually sends the last messages. Mark this as invalid
@@ -310,7 +311,7 @@ class RadarInterface(RadarInterfaceBase):
 
     # Cluster and publish using stored points once we've cycled through all 4 scan modes
     if headerScanIndex != 3:
-      return False # MRR_Detection_* messages in CANFD are at 20Hz, services.py expects liveTracks to be at 20Hz - we'll send messages to meet the 20Hz
+      return True # MRR_Detection_* messages in CANFD are at 20Hz, services.py expects liveTracks to be at 20Hz - we'll send messages to meet the 20Hz
 
     return self.do_clustering(ret)
 
