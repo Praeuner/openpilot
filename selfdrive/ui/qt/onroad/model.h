@@ -40,4 +40,11 @@ private:
   bool lead_radar_assisted[2] = {false, false}; // Track which leads are radar-assisted
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
+
+  // Lane offset data
+  float left_lane_offset = 0.0f;
+  float right_lane_offset = 0.0f;
+
+  // Method to draw lane offset indicators
+  void drawLaneOffsets(QPainter &painter);
 };

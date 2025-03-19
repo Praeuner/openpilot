@@ -82,6 +82,24 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
     mapLineToPolygon(lane_lines[i], 0.025 * lane_line_probs[i], 0, &lane_line_vertices[i], max_idx);
   }
 
+  // Calculate lane offsets (distance from car to lane lines)
+  if (!lane_line_vertices[1].isEmpty() && !lane_line_vertices[2].isEmpty()) {
+    // Find the closest point to the car for lane lines 1 (left) and 2 (right)
+    // Assuming the path center is at y=0 in car space coordinates
+    int bottom_idx_1 = lane_line_vertices[1].size() - 1;
+    int bottom_idx_2 = lane_line_vertices[2].size() - 1;
+
+    if (bottom_idx_1 >= 0 && bottom_idx_2 >= 0) {
+      // Get the y-values of the lane lines at the point closest to the car
+      float left_y = -lane_lines[1].getY()[0]; // Negate because of coordinate system
+      float right_y = lane_lines[2].getY()[0];
+
+      // Store the lane offsets
+      left_lane_offset = std::abs(left_y);
+      right_lane_offset = std::abs(right_y);
+    }
+  }
+
   // update road edges
   const auto &road_edges = model.getRoadEdges();
   const auto &edge_stds = model.getRoadEdgeStds();
@@ -218,6 +236,8 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
 
   painter.setBrush(bg);
   painter.drawPolygon(track_vertices);
+
+  drawLaneOffsets(painter);
 }
 
 void ModelRenderer::updatePathGradient(QLinearGradient &bg) {
@@ -372,4 +392,120 @@ bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out
   auto pt = car_space_transform * input;
   *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
   return clip_region.contains(*out);
+}
+
+void ModelRenderer::drawLaneOffsets(QPainter &painter) {
+  // Only draw if we have valid lane data
+  if (lane_line_vertices[1].isEmpty() || lane_line_vertices[2].isEmpty()) {
+    return;
+  }
+
+  // Format offset values in feet (convert from meters)
+  QString left_text = QString::number(left_lane_offset * 3.281, 'f', 1) + " ft";
+  QString right_text = QString::number(right_lane_offset * 3.281, 'f', 1) + " ft";
+
+  // Get viewport for screen dimensions
+  QRect screen_rect = painter.viewport();
+
+  // Find the bottom points of the lane lines
+  QPointF left_lane_bottom;
+  QPointF right_lane_bottom;
+
+  // Find bottom points of lane line 1 (left line)
+  float max_y_left = 0;
+  for (int i = 0; i < lane_line_vertices[1].size(); i++) {
+    if (lane_line_vertices[1][i].y() > max_y_left && lane_line_vertices[1][i].y() < screen_rect.height() - 10) {
+      max_y_left = lane_line_vertices[1][i].y();
+      left_lane_bottom = lane_line_vertices[1][i];
+    }
+  }
+
+  // Find bottom points of lane line 2 (right line)
+  float max_y_right = 0;
+  for (int i = 0; i < lane_line_vertices[2].size(); i++) {
+    if (lane_line_vertices[2][i].y() > max_y_right && lane_line_vertices[2][i].y() < screen_rect.height() - 10) {
+      max_y_right = lane_line_vertices[2][i].y();
+      right_lane_bottom = lane_line_vertices[2][i];
+    }
+  }
+
+  // Fall back to fixed positions if we couldn't find the lane lines
+  if (max_y_left < 10 || max_y_right < 10) {
+    int center_x = screen_rect.width() / 2;
+    int offset_from_center = screen_rect.width() / 6;
+    left_lane_bottom = QPointF(center_x - offset_from_center, 0);
+    right_lane_bottom = QPointF(center_x + offset_from_center, 0);
+  }
+
+  // Lock vertical position to fixed distance from bottom
+  int fixed_bottom_y = screen_rect.height() - 60; // 60px from bottom of screen
+
+  // Calculate horizontal positions - move slightly inward from lane lines
+  float left_x = left_lane_bottom.x() + 30;   // Move right from left lane
+  float right_x = right_lane_bottom.x() - 30; // Move left from right lane
+
+  // Apply smoothing to reduce jitter (if needed)
+  // You would need to add static variables to keep track of previous positions
+  static float prev_left_x = left_x;
+  static float prev_right_x = right_x;
+
+  // Simple exponential smoothing with 0.2 weight for new values
+  left_x = prev_left_x * 0.8 + left_x * 0.2;
+  right_x = prev_right_x * 0.8 + right_x * 0.2;
+
+  // Update previous values for next frame
+  prev_left_x = left_x;
+  prev_right_x = right_x;
+
+  // Function to draw pill shape with text
+  auto drawPill = [&](float x, const QString &text, bool isLeft) {
+    // Pill dimensions
+    const int width = 80;
+    const int height = 40;
+    const int radius = height / 2;
+
+    // Set pill position
+    QRectF pillRect = QRectF(x - width / 2, fixed_bottom_y - height / 2, width, height);
+
+    // Set color based on distance
+    float distance = isLeft ? left_lane_offset : right_lane_offset;
+    QColor baseColor;
+
+    if (distance < 0.5) {
+      // Red when very close
+      baseColor = QColor(255, 60, 60, 230);
+    } else if (distance < 1.0) {
+      // Orange/Yellow for medium distance
+      baseColor = QColor(255, 165, 0, 230);
+    } else {
+      // Green for safe distance
+      baseColor = QColor(60, 200, 60, 230);
+    }
+
+    // Create gradient for pill
+    QLinearGradient grad(pillRect.topLeft(), pillRect.bottomLeft());
+    grad.setColorAt(0, baseColor);
+    grad.setColorAt(1, baseColor.darker(120));
+
+    // Draw pill (rounded rectangle)
+    painter.setPen(QPen(Qt::white, 1.5));
+    painter.setBrush(grad);
+    painter.drawRoundedRect(pillRect, radius, radius);
+
+    // Draw text with larger font
+    QFont font = painter.font();
+    font.setPixelSize(20);
+    font.setBold(true);
+    painter.setFont(font);
+
+    // Draw text with shadow for better visibility
+    painter.setPen(Qt::black);
+    painter.drawText(pillRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, text);
+    painter.setPen(Qt::white);
+    painter.drawText(pillRect, Qt::AlignCenter, text);
+  };
+
+  // Draw the pill indicators
+  drawPill(left_x, left_text, true);
+  drawPill(right_x, right_text, false);
 }
