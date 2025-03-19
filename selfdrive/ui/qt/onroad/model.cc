@@ -112,10 +112,33 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
     max_distance = std::clamp((float)(lead_d - fmin(lead_d * 0.35, 10.)), 0.0f, max_distance);
   }
   max_idx = get_path_length_idx(model_position, max_distance);
-  mapLineToPolygon(model_position, 0.9, path_offset_z, &track_vertices, max_idx, false);
+
+  // Store the current track vertices for smoothing
+  QPolygonF current_track_vertices;
+  mapLineToPolygon(model_position, 0.9, path_offset_z, &current_track_vertices, max_idx, false);
+
+  // Apply smoothing if we have previous vertices
+  if (!prev_track_vertices.isEmpty() && prev_track_vertices.size() == current_track_vertices.size()) {
+    track_vertices.clear();
+    for (int i = 0; i < current_track_vertices.size(); i++) {
+      QPointF smoothed_point;
+      smoothed_point.setX(prev_track_vertices[i].x() * (1.0 - path_smoothing_factor) + current_track_vertices[i].x() * path_smoothing_factor);
+      smoothed_point.setY(prev_track_vertices[i].y() * (1.0 - path_smoothing_factor) + current_track_vertices[i].y() * path_smoothing_factor);
+      track_vertices.append(smoothed_point);
+    }
+  } else {
+    // If sizes don't match or it's the first frame, just use current vertices
+    track_vertices = current_track_vertices;
+  }
+
+  // Store current vertices for next frame
+  prev_track_vertices = current_track_vertices;
 }
 
 void ModelRenderer::drawLaneLines(QPainter &painter) {
+  // Enable anti-aliasing for lane lines
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
   // lanelines
   for (int i = 0; i < std::size(lane_line_vertices); ++i) {
     painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, std::clamp<float>(lane_line_probs[i], 0.0, 0.7)));
@@ -129,7 +152,75 @@ void ModelRenderer::drawLaneLines(QPainter &painter) {
   }
 }
 
+void ModelRenderer::drawSmoothPath(QPainter &painter) {
+  // If not enough points or the path is empty, just return
+  if (track_vertices.size() < 4) {
+    painter.drawPolygon(track_vertices);
+    return;
+  }
+
+  // Path should be drawn as two sides (left and right edge of the lane)
+  // The track_vertices polygon is structured with right side going from bottom to top
+  // followed by left side going from top to bottom
+  int midPoint = track_vertices.size() / 2;
+
+  // Create separate polygons for the right and left sides
+  QVector<QPointF> rightSide;
+  QVector<QPointF> leftSide;
+
+  // Extract the right and left sides
+  for (int i = 0; i < midPoint; i++) {
+    rightSide.append(track_vertices[i]);
+  }
+
+  for (int i = midPoint; i < track_vertices.size(); i++) {
+    leftSide.append(track_vertices[i]);
+  }
+
+  // Now create a path that preserves the lane shape
+  QPainterPath smoothPath;
+
+  // Start with the first point on the right side (bottom)
+  if (!rightSide.isEmpty()) {
+    smoothPath.moveTo(rightSide.first());
+
+    // Draw right side (going upward)
+    for (int i = 1; i < rightSide.size(); i++) {
+      smoothPath.lineTo(rightSide[i]);
+    }
+  }
+
+  // Connect to left side
+  if (!leftSide.isEmpty()) {
+    // If we have points on the right side, connect to the first point on the left side
+    if (!rightSide.isEmpty()) {
+      smoothPath.lineTo(leftSide.first());
+    } else {
+      smoothPath.moveTo(leftSide.first());
+    }
+
+    // Draw left side (going downward)
+    for (int i = 1; i < leftSide.size(); i++) {
+      smoothPath.lineTo(leftSide[i]);
+    }
+  }
+
+  // Close the path by connecting back to the start
+  if (!rightSide.isEmpty() && !leftSide.isEmpty()) {
+    smoothPath.lineTo(rightSide.first());
+  }
+
+  // Draw the path
+  painter.drawPath(smoothPath);
+}
+
 void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, int height) {
+  // Enable anti-aliasing for path
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Set higher quality composition mode
+  painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
   QLinearGradient bg(0, height, 0, 0);
   auto *s = uiState();
   auto &sm = *(s->sm);
@@ -233,7 +324,12 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
   }
 
   painter.setBrush(bg);
-  painter.drawPolygon(track_vertices);
+
+  // Use anti-aliased pen for smoother edges
+  painter.setPen(Qt::NoPen);
+
+  // Draw using the smoother path function
+  drawSmoothPath(painter);
 }
 
 void ModelRenderer::updatePathGradient(QLinearGradient &bg) {
@@ -301,6 +397,9 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   // Convert measurements for display
   float distance_m = d_rel;
   float lead_speed_mph = v_lead * 2.237;
+
+  // Enable anti-aliasing for smoother lead indicator
+  painter.setRenderHint(QPainter::Antialiasing, true);
 
   // Create the chevron polygon centered on the smoothed position
   QPolygonF chevronPolygon;

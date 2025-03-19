@@ -2,6 +2,7 @@
 
 #include <QPainter>
 #include <QPolygonF>
+#include <QPainterPath>
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/ui.h"
@@ -25,6 +26,7 @@ private:
   void drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, int height);
   void updatePathGradient(QLinearGradient &bg);
   QColor blendColors(const QColor &start, const QColor &end, float t);
+  void drawSmoothPath(QPainter &painter);
 
   bool longitudinal_control = false;
   bool experimental_mode = false;
@@ -34,6 +36,8 @@ private:
   float road_edge_stds[2] = {};
   float path_offset_z = 1.22f;
   QPolygonF track_vertices;
+  QPolygonF prev_track_vertices;
+  float path_smoothing_factor = 0.2;
   QPolygonF lane_line_vertices[4] = {};
   QPolygonF road_edge_vertices[2] = {};
   QPointF lead_vertices[2] = {};
