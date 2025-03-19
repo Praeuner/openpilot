@@ -262,7 +262,6 @@ QColor ModelRenderer::blendColors(const QColor &start, const QColor &end, float 
 
 void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect, bool isRadarAssisted) {
   const float d_rel = lead_data.getDRel();
-  const float v_rel = lead_data.getVRel();
   const float v_lead = lead_data.getVLead(); // Get absolute lead speed
 
   // Calculate sizes based on distance for responsive design
@@ -272,11 +271,11 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
 
   // Convert measurements for display
   float distance_ft = d_rel * 3.281;     // Convert to feet
-  float rel_speed_mph = v_rel * 2.237;   // Convert to mph
   float lead_speed_mph = v_lead * 2.237; // Convert absolute lead speed to mph
 
-  // Draw improved chevron with gradient
-  QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
+  // Manually create polygon for the chevron
+  QPolygonF chevronPolygon;
+  chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
   // Create gradient based on radar assistance
   QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
@@ -293,23 +292,23 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   // Draw chevron with gradient
   painter.setPen(Qt::NoPen);
   painter.setBrush(chevGradient);
-  painter.drawPolygon(QPolygonF(QVector<QPointF>(std::begin(chevron), std::end(chevron))));
+  painter.drawPolygon(chevronPolygon);
 
   // Draw chevron border
   painter.setPen(QPen(QColor(255, 255, 255, 80), 1.5));
   painter.setBrush(Qt::NoBrush);
-  painter.drawPolygon(QPolygonF(QVector<QPointF>(std::begin(chevron), std::end(chevron))));
+  painter.drawPolygon(chevronPolygon);
 
-  // Create info panel BELOW the chevron
-  float panel_top = y + sz + 10; // Position below the chevron with a small gap
-  QRectF infoPanel(x - 80, panel_top, 160, 60);
+  // Create wider info panel BELOW the chevron
+  float panel_top = y + sz + 10;                 // Position below the chevron with a small gap
+  QRectF infoPanel(x - 100, panel_top, 200, 40); // Wider panel (200px) with single line height
 
   // Make sure the panel stays within the surface bounds
-  if (panel_top + 60 > surface_rect.height()) {
+  if (panel_top + 40 > surface_rect.height()) {
     // If panel would go off-screen, adjust position or reduce height
     float available_height = surface_rect.height() - panel_top - 5;
     if (available_height < 30) {
-      // Not enough space below, abort showing panel or show minimal info
+      // Not enough space below, abort showing panel
       return;
     }
     infoPanel.setHeight(available_height);
@@ -317,45 +316,33 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
 
   // Draw a semi-transparent panel with a subtle gradient
   QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
-  panelGradient.setColorAt(0, QColor(20, 20, 20, 200));
-  panelGradient.setColorAt(1, QColor(40, 40, 40, 200));
+  panelGradient.setColorAt(0, QColor(20, 20, 20, 220)); // Slightly more opaque
+  panelGradient.setColorAt(1, QColor(40, 40, 40, 220));
   painter.setPen(Qt::NoPen);
   painter.setBrush(panelGradient);
   painter.drawRoundedRect(infoPanel, 10, 10);
 
   // Add a subtle border
-  painter.setPen(QPen(QColor(150, 150, 150, 100), 1));
+  painter.setPen(QPen(QColor(150, 150, 150, 120), 1));
   painter.drawRoundedRect(infoPanel, 10, 10);
 
-  // Set up text formatting
+  // Set up text formatting with larger size
   QFont infoFont = painter.font();
-  infoFont.setPixelSize(16);
+  infoFont.setPixelSize(22); // Larger text
   infoFont.setWeight(QFont::DemiBold);
   painter.setFont(infoFont);
 
-  // First row: Distance and rel speed side by side
-  painter.setPen(Qt::white);
+  // Format distance and speed text
   QString distText = QString("%1 ft").arg(qRound(distance_ft));
+  QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
 
-  QColor relSpeedColor = (rel_speed_mph > 0) ? QColor(100, 230, 100) : (rel_speed_mph < 0) ? QColor(230, 100, 100) : Qt::white;
-  QString relSpeedText = QString("%1%2").arg(rel_speed_mph > 0 ? "+" : "").arg(qRound(rel_speed_mph));
+  // Display distance and speed on the same line
+  painter.setPen(Qt::white);
+  QString combinedText = distText + "  |  " + speedText;
 
-  // Draw distance prominently on first line
-  QRectF firstRow(infoPanel.left() + 10, infoPanel.top() + 5, infoPanel.width() - 20, 25);
-  painter.drawText(firstRow, Qt::AlignHCenter, distText);
-
-  // Draw relative speed on second line with color
-  painter.setPen(relSpeedColor);
-  QRectF secondRow(infoPanel.left() + 10, infoPanel.top() + 30, infoPanel.width() - 20, 25);
-  painter.drawText(secondRow, Qt::AlignHCenter, QString("Δ %1 mph").arg(relSpeedText));
-
-  // If we have room for the third line (absolute speed)
-  if (infoPanel.height() >= 60) {
-    painter.setPen(Qt::white);
-    QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
-    QRectF thirdRow(infoPanel.left() + 10, infoPanel.top() + 55, infoPanel.width() - 20, 25);
-    painter.drawText(thirdRow, Qt::AlignHCenter, speedText);
-  }
+  // Center the text in the panel
+  QRectF textRect = infoPanel.adjusted(5, 5, -5, -5);
+  painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
 void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
