@@ -41,10 +41,5 @@ private:
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
 
-  // Lane offset data
-  float left_lane_offset = 0.0f;
-  float right_lane_offset = 0.0f;
-
-  // Method to draw lane offset indicators
-  void drawLaneOffsets(QPainter &painter);
+  QPointF prev_lead_positions[2] = {QPointF(0, 0), QPointF(0, 0)};
 };

@@ -61,7 +61,23 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
     if (lead_data.getStatus()) {
       float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
-      mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &lead_vertices[i]);
+
+      QPointF current_pos;
+      mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &current_pos);
+
+      // Apply smoothing if we have valid previous positions
+      if (prev_lead_positions[i] != QPointF(0, 0)) {
+        float smoothing_factor = 0.2; // Lower = more smoothing
+        QPointF smoothed_pos;
+        smoothed_pos.setX(prev_lead_positions[i].x() * (1.0 - smoothing_factor) + current_pos.x() * smoothing_factor);
+        smoothed_pos.setY(prev_lead_positions[i].y() * (1.0 - smoothing_factor) + current_pos.y() * smoothing_factor);
+        lead_vertices[i] = smoothed_pos;
+      } else {
+        lead_vertices[i] = current_pos;
+      }
+
+      // Store current position for next frame
+      prev_lead_positions[i] = lead_vertices[i];
 
       // Get radar flag directly from the lead data
       lead_radar_assisted[i] = lead_data.getRadar();
@@ -80,24 +96,6 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
   for (int i = 0; i < std::size(lane_line_vertices); i++) {
     lane_line_probs[i] = line_probs[i];
     mapLineToPolygon(lane_lines[i], 0.025 * lane_line_probs[i], 0, &lane_line_vertices[i], max_idx);
-  }
-
-  // Calculate lane offsets (distance from car to lane lines)
-  if (!lane_line_vertices[1].isEmpty() && !lane_line_vertices[2].isEmpty()) {
-    // Find the closest point to the car for lane lines 1 (left) and 2 (right)
-    // Assuming the path center is at y=0 in car space coordinates
-    int bottom_idx_1 = lane_line_vertices[1].size() - 1;
-    int bottom_idx_2 = lane_line_vertices[2].size() - 1;
-
-    if (bottom_idx_1 >= 0 && bottom_idx_2 >= 0) {
-      // Get the y-values of the lane lines at the point closest to the car
-      float left_y = -lane_lines[1].getY()[0]; // Negate because of coordinate system
-      float right_y = lane_lines[2].getY()[0];
-
-      // Store the lane offsets
-      left_lane_offset = std::abs(left_y);
-      right_lane_offset = std::abs(right_y);
-    }
   }
 
   // update road edges
@@ -236,8 +234,6 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
 
   painter.setBrush(bg);
   painter.drawPolygon(track_vertices);
-
-  drawLaneOffsets(painter);
 }
 
 void ModelRenderer::updatePathGradient(QLinearGradient &bg) {
@@ -282,29 +278,40 @@ QColor ModelRenderer::blendColors(const QColor &start, const QColor &end, float 
 
 void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect, bool isRadarAssisted) {
   const float d_rel = lead_data.getDRel();
-  const float v_lead = lead_data.getVLead(); // Get absolute lead speed
+  const float v_lead = lead_data.getVLead();
+
+  // Apply smoothing to reduce jitter in position
+  // Static variables to remember previous positions for smoothing
+  static QPointF prev_pos = vd;
+  static float smoothing_factor = 0.2; // Lower = more smoothing
+
+  // Apply exponential smoothing
+  QPointF smoothed_pos;
+  smoothed_pos.setX(prev_pos.x() * (1.0 - smoothing_factor) + vd.x() * smoothing_factor);
+  smoothed_pos.setY(prev_pos.y() * (1.0 - smoothing_factor) + vd.y() * smoothing_factor);
+
+  // Store current position for next frame
+  prev_pos = smoothed_pos;
 
   // Calculate sizes based on distance for responsive design
-  float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 2.35;
-  float x = std::clamp<float>(vd.x(), 0.f, surface_rect.width() - sz / 2);
-  float y = std::min<float>(vd.y(), surface_rect.height() - sz * 0.6);
+  float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
+  float x = std::clamp<float>(smoothed_pos.x(), 0.f, surface_rect.width() - sz / 2);
+  float y = std::min<float>(smoothed_pos.y(), surface_rect.height() - sz * 0.6);
 
   // Convert measurements for display
-  float distance_ft = d_rel * 3.281;     // Convert to feet
-  float lead_speed_mph = v_lead * 2.237; // Convert absolute lead speed to mph
+  float distance_m = d_rel;
+  float lead_speed_mph = v_lead * 2.237;
 
-  // Manually create polygon for the chevron
+  // Create the chevron polygon centered on the smoothed position
   QPolygonF chevronPolygon;
   chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
   // Create gradient based on radar assistance
   QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
   if (isRadarAssisted) {
-    // Blue gradient for radar-assisted leads
     chevGradient.setColorAt(0, QColor(60, 170, 255, 230));
     chevGradient.setColorAt(1, QColor(30, 144, 255, 200));
   } else {
-    // Red gradient for non-radar-assisted leads
     chevGradient.setColorAt(0, QColor(230, 60, 60, 230));
     chevGradient.setColorAt(1, QColor(200, 30, 30, 200));
   }
@@ -319,41 +326,51 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
 
-  // Create wider info panel BELOW the chevron
-  float panel_top = y + sz + 10;                 // Position below the chevron with a small gap
-  QRectF infoPanel(x - 100, panel_top, 200, 40); // Wider panel (200px) with single line height
+  // Position info panel centered below the lead vehicle
+  // Anchor panel to the chevron's bottom center point
+  float panel_width = 300;
+  float panel_height = 60;
+  float panel_top = y + sz + 15;
+
+  // Center panel horizontally with the chevron
+  QRectF infoPanel(x - panel_width / 2, panel_top, panel_width, panel_height);
 
   // Make sure the panel stays within the surface bounds
-  if (panel_top + 40 > surface_rect.height()) {
-    // If panel would go off-screen, adjust position or reduce height
+  if (panel_top + panel_height > surface_rect.height()) {
     float available_height = surface_rect.height() - panel_top - 5;
-    if (available_height < 30) {
-      // Not enough space below, abort showing panel
+    if (available_height < 45) {
       return;
     }
     infoPanel.setHeight(available_height);
   }
 
+  // Horizontal bounds checking
+  if (infoPanel.left() < 0) {
+    infoPanel.moveLeft(0);
+  } else if (infoPanel.right() > surface_rect.width()) {
+    infoPanel.moveRight(surface_rect.width());
+  }
+
   // Draw a semi-transparent panel with a subtle gradient
   QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
-  panelGradient.setColorAt(0, QColor(20, 20, 20, 220)); // Slightly more opaque
+  panelGradient.setColorAt(0, QColor(20, 20, 20, 220));
   panelGradient.setColorAt(1, QColor(40, 40, 40, 220));
   painter.setPen(Qt::NoPen);
   painter.setBrush(panelGradient);
-  painter.drawRoundedRect(infoPanel, 10, 10);
+  painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Add a subtle border
   painter.setPen(QPen(QColor(150, 150, 150, 120), 1));
-  painter.drawRoundedRect(infoPanel, 10, 10);
+  painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Set up text formatting with larger size
   QFont infoFont = painter.font();
-  infoFont.setPixelSize(22); // Larger text
+  infoFont.setPixelSize(33);
   infoFont.setWeight(QFont::DemiBold);
   painter.setFont(infoFont);
 
   // Format distance and speed text
-  QString distText = QString("%1 ft").arg(qRound(distance_ft));
+  QString distText = QString("%1 m").arg(qRound(distance_m));
   QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
 
   // Display distance and speed on the same line
@@ -361,7 +378,7 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   QString combinedText = distText + "  |  " + speedText;
 
   // Center the text in the panel
-  QRectF textRect = infoPanel.adjusted(5, 5, -5, -5);
+  QRectF textRect = infoPanel.adjusted(7, 7, -7, -7);
   painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
@@ -392,120 +409,4 @@ bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out
   auto pt = car_space_transform * input;
   *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
   return clip_region.contains(*out);
-}
-
-void ModelRenderer::drawLaneOffsets(QPainter &painter) {
-  // Only draw if we have valid lane data
-  if (lane_line_vertices[1].isEmpty() || lane_line_vertices[2].isEmpty()) {
-    return;
-  }
-
-  // Format offset values in feet (convert from meters)
-  QString left_text = QString::number(left_lane_offset * 3.281, 'f', 1) + " ft";
-  QString right_text = QString::number(right_lane_offset * 3.281, 'f', 1) + " ft";
-
-  // Get viewport for screen dimensions
-  QRect screen_rect = painter.viewport();
-
-  // Find the bottom points of the lane lines
-  QPointF left_lane_bottom;
-  QPointF right_lane_bottom;
-
-  // Find bottom points of lane line 1 (left line)
-  float max_y_left = 0;
-  for (int i = 0; i < lane_line_vertices[1].size(); i++) {
-    if (lane_line_vertices[1][i].y() > max_y_left && lane_line_vertices[1][i].y() < screen_rect.height() - 10) {
-      max_y_left = lane_line_vertices[1][i].y();
-      left_lane_bottom = lane_line_vertices[1][i];
-    }
-  }
-
-  // Find bottom points of lane line 2 (right line)
-  float max_y_right = 0;
-  for (int i = 0; i < lane_line_vertices[2].size(); i++) {
-    if (lane_line_vertices[2][i].y() > max_y_right && lane_line_vertices[2][i].y() < screen_rect.height() - 10) {
-      max_y_right = lane_line_vertices[2][i].y();
-      right_lane_bottom = lane_line_vertices[2][i];
-    }
-  }
-
-  // Fall back to fixed positions if we couldn't find the lane lines
-  if (max_y_left < 10 || max_y_right < 10) {
-    int center_x = screen_rect.width() / 2;
-    int offset_from_center = screen_rect.width() / 6;
-    left_lane_bottom = QPointF(center_x - offset_from_center, 0);
-    right_lane_bottom = QPointF(center_x + offset_from_center, 0);
-  }
-
-  // Lock vertical position to fixed distance from bottom
-  int fixed_bottom_y = screen_rect.height() - 60; // 60px from bottom of screen
-
-  // Calculate horizontal positions - move slightly inward from lane lines
-  float left_x = left_lane_bottom.x() + 30;   // Move right from left lane
-  float right_x = right_lane_bottom.x() - 30; // Move left from right lane
-
-  // Apply smoothing to reduce jitter (if needed)
-  // You would need to add static variables to keep track of previous positions
-  static float prev_left_x = left_x;
-  static float prev_right_x = right_x;
-
-  // Simple exponential smoothing with 0.2 weight for new values
-  left_x = prev_left_x * 0.8 + left_x * 0.2;
-  right_x = prev_right_x * 0.8 + right_x * 0.2;
-
-  // Update previous values for next frame
-  prev_left_x = left_x;
-  prev_right_x = right_x;
-
-  // Function to draw pill shape with text
-  auto drawPill = [&](float x, const QString &text, bool isLeft) {
-    // Pill dimensions
-    const int width = 80;
-    const int height = 40;
-    const int radius = height / 2;
-
-    // Set pill position
-    QRectF pillRect = QRectF(x - width / 2, fixed_bottom_y - height / 2, width, height);
-
-    // Set color based on distance
-    float distance = isLeft ? left_lane_offset : right_lane_offset;
-    QColor baseColor;
-
-    if (distance < 0.5) {
-      // Red when very close
-      baseColor = QColor(255, 60, 60, 230);
-    } else if (distance < 1.0) {
-      // Orange/Yellow for medium distance
-      baseColor = QColor(255, 165, 0, 230);
-    } else {
-      // Green for safe distance
-      baseColor = QColor(60, 200, 60, 230);
-    }
-
-    // Create gradient for pill
-    QLinearGradient grad(pillRect.topLeft(), pillRect.bottomLeft());
-    grad.setColorAt(0, baseColor);
-    grad.setColorAt(1, baseColor.darker(120));
-
-    // Draw pill (rounded rectangle)
-    painter.setPen(QPen(Qt::white, 1.5));
-    painter.setBrush(grad);
-    painter.drawRoundedRect(pillRect, radius, radius);
-
-    // Draw text with larger font
-    QFont font = painter.font();
-    font.setPixelSize(20);
-    font.setBold(true);
-    painter.setFont(font);
-
-    // Draw text with shadow for better visibility
-    painter.setPen(Qt::black);
-    painter.drawText(pillRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, text);
-    painter.setPen(Qt::white);
-    painter.drawText(pillRect, Qt::AlignCenter, text);
-  };
-
-  // Draw the pill indicators
-  drawPill(left_x, left_text, true);
-  drawPill(right_x, right_text, false);
 }
