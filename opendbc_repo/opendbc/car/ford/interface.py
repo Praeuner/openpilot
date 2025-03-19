@@ -33,10 +33,10 @@ class CarInterface(CarInterfaceBase):
     ret.dashcamOnly = not (ret.flags & FordFlags.CANFD)
     # logDebug(f'Dashcam Only Mode: {ret.dashcamOnly}')
     ret.radarUnavailable = Bus.radar not in DBC[candidate]
-    logInfo(f'Radar Unavailable: {ret.radarUnavailable}')
+    # logInfo(f'Radar Unavailable: {ret.radarUnavailable}')
 
     FordConfig.BLUECRUISE_CLUSTER_PRESENT = any(fw.ecu == Ecu.hud for fw in car_fw) # Check for blue cruise cluster
-    logInfo(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
+    # logInfo(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
 
     for fw in car_fw:
       logDebug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}')
