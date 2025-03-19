@@ -39,11 +39,12 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   if (longitudinal_control && sm.alive("radarState")) {
     update_leads(radar_state, model.getPosition());
     const auto &lead_two = radar_state.getLeadTwo();
+
     if (lead_one.getStatus()) {
-      drawLead(painter, lead_one, lead_vertices[0], surface_rect);
+      drawLead(painter, lead_one, lead_vertices[0], surface_rect, lead_radar_assisted[0]);
     }
     if (lead_two.getStatus() && (std::abs(lead_one.getDRel() - lead_two.getDRel()) > 3.0)) {
-      drawLead(painter, lead_two, lead_vertices[1], surface_rect);
+      drawLead(painter, lead_two, lead_vertices[1], surface_rect, lead_radar_assisted[1]);
     }
   }
 
@@ -56,6 +57,9 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
     if (lead_data.getStatus()) {
       float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
       mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &lead_vertices[i]);
+
+      // Get radar flag directly from the lead data
+      lead_radar_assisted[i] = lead_data.getRadar();
     }
   }
 }
@@ -251,7 +255,7 @@ QColor ModelRenderer::blendColors(const QColor &start, const QColor &end, float 
                           (1 - t) * start.alphaF() + t * end.alphaF());
 }
 
-void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect) {
+void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect, bool isRadarAssisted) {
   const float speedBuff = 10.;
   const float leadBuff = 40.;
   const float d_rel = lead_data.getDRel();
@@ -273,22 +277,72 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   float g_xo = sz / 5;
   float g_yo = sz / 10;
 
+  // Draw the glow
   QPointF glow[] = {{x + (sz * 1.35) + g_xo, y + sz + g_yo}, {x, y - g_yo}, {x - (sz * 1.35) - g_xo, y + sz + g_yo}};
   painter.setBrush(QColor(218, 202, 37, 255));
   painter.drawPolygon(glow, std::size(glow));
 
-  // chevron
-  QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
-  painter.setBrush(QColor(201, 34, 49, fillAlpha));
-  painter.drawPolygon(chevron, std::size(chevron));
-}
+  // Check for the FordPrefsShowRadarOverlay parameter only for non-experimental mode
+  bool showRadarOverlay = !experimental_mode && Params().getBool("FordPrefsShowRadarOverlay");
 
-// Projects a point in car to space to the corresponding point in full frame image space.
-bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
-  Eigen::Vector3f input(in_x, in_y, in_z);
-  auto pt = car_space_transform * input;
-  *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
-  return clip_region.contains(*out);
+  if (experimental_mode && isRadarAssisted) {
+    // For experimental mode with radar-assisted lead:
+    // Draw a blue circle around the chevron
+    painter.setPen(QPen(QColor(30, 144, 255, fillAlpha), 3)); // Blue pen for outline
+    float circle_radius = sz * 1.4;
+    painter.drawEllipse(QPointF(x, y + sz / 2), circle_radius, circle_radius);
+    painter.setPen(Qt::NoPen); // Reset pen
+
+    // Draw the chevron in blue
+    QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
+    painter.setBrush(QColor(30, 144, 255, fillAlpha)); // Blue chevron
+    painter.drawPolygon(chevron, std::size(chevron));
+  } else if (showRadarOverlay) {
+    // For non-experimental mode with FordPrefsShowRadarOverlay enabled
+    // Calculate distance and speed
+    float distance = d_rel * 3.281;  // Convert to feet
+    float rel_speed = v_rel * 2.237; // Convert to mph
+
+    // Create info panel above the lead
+    QRectF infoPanel(x - 70, y - 80, 140, 50);
+
+    // Draw panel background
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 150));
+    painter.drawRoundedRect(infoPanel, 10, 10);
+
+    // Set up text
+    QFont font = painter.font();
+    font.setPixelSize(18);
+    painter.setFont(font);
+    painter.setPen(Qt::white);
+
+    // Draw distance
+    QString distText = QString("%1 ft").arg(qRound(distance));
+    painter.drawText(QRectF(infoPanel.left(), infoPanel.top(), infoPanel.width(), 25), Qt::AlignCenter, distText);
+
+    // Draw speed
+    QString speedText = QString("%1 mph").arg(qRound(rel_speed));
+    if (rel_speed > 0) {
+      speedText = "+" + speedText;
+      painter.setPen(Qt::green);
+    } else if (rel_speed < 0) {
+      painter.setPen(Qt::red);
+    }
+    painter.drawText(QRectF(infoPanel.left(), infoPanel.top() + 25, infoPanel.width(), 25), Qt::AlignCenter, speedText);
+    painter.setPen(Qt::NoPen);
+
+    // Draw chevron with color based on radar assistance
+    QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
+    QColor chevronColor = isRadarAssisted ? QColor(30, 144, 255, fillAlpha) : QColor(201, 34, 49, fillAlpha);
+    painter.setBrush(chevronColor);
+    painter.drawPolygon(chevron, std::size(chevron));
+  } else {
+    // Standard chevron for all other cases
+    QPointF chevron[] = {{x + (sz * 1.25), y + sz}, {x, y}, {x - (sz * 1.25), y + sz}};
+    painter.setBrush(QColor(201, 34, 49, fillAlpha));
+    painter.drawPolygon(chevron, std::size(chevron));
+  }
 }
 
 void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
@@ -311,4 +365,11 @@ void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float
       pvd->push_front(right);
     }
   }
+}
+
+bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
+  Eigen::Vector3f input(in_x, in_y, in_z);
+  auto pt = car_space_transform * input;
+  *out = QPointF(pt.x() / pt.z(), pt.y() / pt.z());
+  return clip_region.contains(*out);
 }

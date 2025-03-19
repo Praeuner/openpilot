@@ -17,9 +17,8 @@ public:
 
 private:
   bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
-  void mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off,
-                        QPolygonF *pvd, int max_idx, bool allow_invert = true);
-  void drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect);
+  void mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert = true);
+  void drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect, bool isRadarAssisted);
   void update_leads(const cereal::RadarState::Reader &radar_state, const cereal::XYZTData::Reader &line);
   void update_model(const cereal::ModelDataV2::Reader &model, const cereal::RadarState::LeadData::Reader &lead);
   void drawLaneLines(QPainter &painter);
@@ -38,6 +37,7 @@ private:
   QPolygonF lane_line_vertices[4] = {};
   QPolygonF road_edge_vertices[2] = {};
   QPointF lead_vertices[2] = {};
+  bool lead_radar_assisted[2] = {false, false}; // Track which leads are radar-assisted
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
 };

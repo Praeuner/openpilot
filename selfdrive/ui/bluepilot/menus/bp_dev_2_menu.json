@@ -71,6 +71,17 @@
             },
             {
               "type": "toggle",
+              "param": "FordPrefShowRadarLeadOverlay",
+              "title": "Show Radar Lead Vehicle Overlay",
+              "desc": "Displays radar data lead vehicle overlay.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
               "param": "FordPrefHybridDriveOverlay",
               "title": "Show Hybrid Electric Data Overlays",
               "desc": "Displays hybrid electric vehicle data.",
