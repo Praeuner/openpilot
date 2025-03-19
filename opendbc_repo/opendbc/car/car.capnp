@@ -394,47 +394,6 @@ struct CarControl {
     torqueOutputCan @8: Float32;   # value sent over can to the car
     speed @6: Float32;  # m/s
 
-    fordVariables @9: FordVariables;
-
-    struct FordVariables {
-      applyCurvature02 @0 :Float32;
-      currentCurvature01 @1 :Float32;
-      desiredCurvature01 @2 :Float32;
-      desiredCurvatureRate01 @3 :Float32;
-      desiredCurvatureRate02 @4 :Float32;
-      maxAbsPredictedCurvature01 @5 :Float32;
-      pathAngle01 @6 :Float32;
-      pathAngle02 @7 :Float32;
-      pathLookupTime01 @8 :Float32;
-      pathOffset01 @9 :Float32;
-      pathOffset02 @10 :Float32;
-      poScalingFactor01 @11 :Float32;
-      predictedCurvature01 @12 :Float32;
-      predictedPathCurvature01 @13 :Float32;
-      steeringLimited01 @14 :Float32;
-      brakeActive @15 :Bool;
-      preChargeActive @16 :Bool;
-      requestedCurvature01 @17: Float32;
-      pathOffsetPosition01 @18: Float32;
-      pathOffsetAdjustment01 @19: Float32;
-      latAccel01 @20: Float32;
-      customPathOffset01 @21: Float32;
-      pathOffsetModel01 @22: Float32;
-      laneChangeFactor01 @23: Float32;
-      pathOffsetTotal01 @24: Float32;
-      pathAngleModel01 @25: Float32;
-      applyCurvatureRaw01 @26: Float32;
-      steerAnglePathOffset01 @27: Float32;
-      steeringWheelDelta01 @28: Float32;
-      pathAngleSpeedFactor01 @29: Float32;
-      pathOffsetLanelines01 @30: Float32;
-      lanelineWidth01 @31: Float32;
-      lanelineWidthTolerance01 @32: Float32;
-      lanelineConfidence01 @33: Float32;
-      lanelinePathOffsetScale01 @34: Float32;
-      pathAngleCurvatureFactor01 @35: Float32;
-    }
-
     enum LongControlState @0xe40f3a917d908282{
       off @0;
       pid @1;

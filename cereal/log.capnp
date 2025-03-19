@@ -2452,10 +2452,6 @@ struct Microphone {
   filteredSoundPressureWeightedDb @2 :Float32;
 }
 
-struct VehicleCanData {
-  data @0 :Text;  # JSON string containing CAN data and metadata
-}
-
 struct Touch {
   sec @0 :Int64;
   usec @1 :Int64;
@@ -2556,9 +2552,6 @@ struct Event {
     # UI services
     userFlag @93 :UserFlag;
     uiDebug @102 :UIDebug;
-
-    # Ford CAN data
-    vehicleCanData @146 :VehicleCanData;
 
     # *********** debug ***********
     testJoystick @52 :Joystick;
