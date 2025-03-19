@@ -16,6 +16,7 @@
 #include <QPoint>
 #include <QString>
 #include <iostream>
+#include <cmath>
 #include "common/params.h"
 
 class CommaTools {
