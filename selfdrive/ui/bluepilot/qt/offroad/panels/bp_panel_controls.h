@@ -561,11 +561,14 @@ public:
     // Create 3D container for numeric controls
     QFrame *numericContainer = new QFrame(this);
     numericContainer->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // Increase the container's minimum size
+    numericContainer->setMinimumWidth(300);  // Increased from default
+    numericContainer->setMinimumHeight(200); // Increased from default
     numericContainer->setStyleSheet(R"(
         QFrame {
             background-color: #363636;  /* Lighter than background for better contrast */
             border-radius: 20px;
-            padding: 1px;
+            padding: 5px; /* Increased padding */
             border: 1px solid #404040;  /* Subtle border for definition */
         }
         QFrame:disabled {
@@ -584,21 +587,21 @@ public:
 
     // Container for numeric controls
     QVBoxLayout *controlLayout = new QVBoxLayout(numericContainer);
-    controlLayout->setSpacing(10);
-    controlLayout->setContentsMargins(20, 10, 20, 10);
+    controlLayout->setSpacing(15);                    // Reduced spacing to decrease padding between min/max and bottom
+    controlLayout->setContentsMargins(25, 15, 25, 5); // Reduced bottom margin to decrease padding at bottom
 
     QHBoxLayout *numericLayout = new QHBoxLayout();
-    numericLayout->setSpacing(15);
+    numericLayout->setSpacing(25); // Increased spacing
 
-    // Decrement button
+    // Decrement button - make it larger with bigger text
     decrementBtn = new QPushButton("-");
-    decrementBtn->setFixedSize(60, 60);
+    decrementBtn->setFixedSize(80, 80); // Increased from 60x60
     decrementBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #404040;  /* Lighter than container for contrast */
-            border-radius: 30px;
+            border-radius: 40px; /* Increased to match larger size */
             color: white;
-            font-size: 25px;
+            font-size: 48px; /* Increased font size for +/- text */
             font-weight: bold;
             border: 1px solid #505050;  /* Subtle border */
         }
@@ -617,13 +620,13 @@ public:
         }
     )");
 
-    // Value display
+    // Value display - make it larger
     valueLabel = new QLabel();
     valueLabel->setStyleSheet(R"(
         QLabel {
-            font-size: 40px;
+            font-size: 48px; /* Increased from 40px */
             color: #2196F3;
-            min-width: 120px;
+            min-width: 150px; /* Increased from 120px */
         }
         QLabel:disabled {
             color: #666666;
@@ -631,9 +634,9 @@ public:
     )");
     valueLabel->setAlignment(Qt::AlignCenter);
 
-    // Increment button
+    // Increment button - make it larger
     incrementBtn = new QPushButton("+");
-    incrementBtn->setFixedSize(60, 60);
+    incrementBtn->setFixedSize(80, 80); // Increased from 60x60
     incrementBtn->setStyleSheet(decrementBtn->styleSheet());
 
     numericLayout->addWidget(decrementBtn);
@@ -642,15 +645,16 @@ public:
 
     controlLayout->addLayout(numericLayout);
 
-    // Min/Max labels
+    // Min/Max labels - make them larger
     QHBoxLayout *labelsLayout = new QHBoxLayout();
+    labelsLayout->setContentsMargins(0, 0, 0, 0); // Remove margins to reduce spacing
     minLabel = new QLabel(QString("Min: %1").arg(min));
     maxLabel = new QLabel(QString("Max: %1").arg(max));
 
     minLabel->setStyleSheet(R"(
         QLabel {
             color: #ff7c30;
-            font-size: 30px;
+            font-size: 34px; /* Increased font size */
         }
         QLabel:disabled {
             color: #666666;
@@ -660,7 +664,7 @@ public:
     maxLabel->setStyleSheet(R"(
         QLabel {
             color: #50d332;
-            font-size: 30px;
+            font-size: 34px; /* Increased font size */
         }
         QLabel:disabled {
             color: #666666;
@@ -676,6 +680,8 @@ public:
     // Left side layout with numeric container
     QVBoxLayout *leftLayout = new QVBoxLayout();
     leftLayout->addWidget(numericContainer);
+    // Increase the padding around the numeric container
+    leftLayout->setContentsMargins(10, 10, 10, 10);
     layout->addLayout(leftLayout);
 
     // Right side - title and description with vertical centering
@@ -717,6 +723,9 @@ public:
     QWidget *textContainer = new QWidget;
     textContainer->setLayout(textLayout);
     layout->addWidget(textContainer, 1);
+
+    // Increase the minimum height of the whole control
+    setMinimumHeight(200); // Increased from 150px in the base style
 
     // Setup button behavior
     decrementBtn->setAutoRepeat(true);
