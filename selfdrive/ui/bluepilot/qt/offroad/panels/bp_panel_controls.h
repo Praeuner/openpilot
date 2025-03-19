@@ -257,9 +257,13 @@ public:
       }
     )");
 
-    // Connect toggle changes to param updates
+    // Initialize param with default if not found
+    ParamUtils::initializeParam(paramName);
+
     QObject::connect(toggle, &QAbstractButton::toggled, [this](bool checked) {
+      bool oldValue = params.getBool(paramName);
       params.putBool(paramName, checked);
+      ParamUtils::logParamChange(paramName, oldValue ? "On" : "Off", checked ? "On" : "Off");
       emit toggleFlipped(checked);
     });
 
@@ -508,16 +512,19 @@ public:
       }
     )");
 
-    // Check if param exists and set default if it doesn't
-    std::string currentValue = params.get(paramName);
-    if (currentValue.empty() && !defaultValue.isEmpty()) {
-      // Set the default value in params
+    // Initialize param with default if not found
+    if (!ParamUtils::initializeParam(paramName) && !defaultValue.isEmpty()) {
+      // If no default was found and constructor default is available
       params.put(paramName, defaultValue.toStdString());
+      std::cout << "Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from constructor default)" << std::endl;
     }
 
     // Handle button clicks
     connect(buttonGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), [this](int id) {
-      params.put(paramName, optionMap[id].toStdString());
+      std::string oldValue = params.get(paramName);
+      std::string newValue = optionMap[id].toStdString();
+      params.put(paramName, newValue);
+      ParamUtils::logParamChange(paramName, oldValue, newValue);
       emit valueChanged();
     });
 
@@ -731,6 +738,9 @@ public:
     decrementBtn->setAutoRepeat(true);
     incrementBtn->setAutoRepeat(true);
 
+    // Initialize or validate numeric parameter
+    ParamUtils::initializeNumericParam(paramName, min, max, isFloatType, div);
+
     connect(decrementBtn, &QPushButton::clicked, [this]() { updateValue(-inc); });
     connect(incrementBtn, &QPushButton::clicked, [this]() { updateValue(inc); });
 
@@ -739,20 +749,19 @@ public:
 
   void refresh() {
     if (isFloatType) {
-      // Get stored value and convert to display value by dividing by div
-      double storedValue = QString::fromStdString(params.get(paramName)).toDouble();
-      double displayValue = storedValue / div;
+      // Get the actual stored value (no division applied)
+      double value = QString::fromStdString(params.get(paramName)).toDouble();
 
-      // Determine number of decimal places based on division factor
+      // Determine number of decimal places based on division factor (for display formatting only)
       int decimals = 0;
       if (div > 1.0) {
-        // Calculate the number of decimal places needed
         decimals = static_cast<int>(log10(div));
       }
 
-      valueLabel->setText(QString::number(displayValue, 'f', decimals));
+      // Format the number with proper decimal places
+      valueLabel->setText(QString::number(value, 'f', decimals));
     } else {
-      // For integer values, no division needed
+      // For integer values
       int value = QString::fromStdString(params.get(paramName)).toInt();
       valueLabel->setText(QString::number(value));
     }
@@ -763,24 +772,25 @@ signals:
 
 private:
   void updateValue(double change) {
-    // First, get the current display value
-    double currentDisplayValue;
+    // Get the current value
+    double currentValue;
     if (isFloatType) {
-      double storedValue = QString::fromStdString(params.get(paramName)).toDouble();
-      currentDisplayValue = storedValue / div; // Convert to display value
+      currentValue = QString::fromStdString(params.get(paramName)).toDouble();
     } else {
-      currentDisplayValue = QString::fromStdString(params.get(paramName)).toInt();
+      currentValue = QString::fromStdString(params.get(paramName)).toInt();
     }
 
-    // Calculate new display value
-    double newDisplayValue = std::clamp(currentDisplayValue + change, min, max);
+    // Calculate new value with appropriate bounds
+    double newValue = std::clamp(currentValue + change, min, max);
 
+    // Log parameter change
+    ParamUtils::logNumericParamChange(paramName, currentValue, newValue, isFloatType, div);
+
+    // Store the actual value
     if (isFloatType) {
-      // Convert display value back to storage value
-      double newStorageValue = newDisplayValue * div;
-      params.putFloat(paramName, newStorageValue);
+      params.putFloat(paramName, newValue);
     } else {
-      params.putInt(paramName, static_cast<int>(newDisplayValue));
+      params.putInt(paramName, static_cast<int>(newValue));
     }
 
     refresh();

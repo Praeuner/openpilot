@@ -386,3 +386,143 @@ private:
   TimerManager() {}
   QMap<QString, QTimer *> timers;
 };
+
+class ParamUtils {
+public:
+  // Initialize a parameter if it doesn't exist, using default value if available
+  static bool initializeParam(const std::string &paramName) {
+    Params params;
+    std::string currentValue = params.get(paramName);
+
+    if (currentValue.empty()) {
+      // Check for default value
+      DefaultParams &defaults = DefaultParams::getInstance();
+      QString defaultKey = QString::fromStdString(paramName);
+      QString defaultValue = defaults.getDefault(defaultKey);
+
+      if (!defaultValue.isEmpty()) {
+        // Apply the default value
+        params.put(paramName, defaultValue.toStdString());
+        std::cout << "Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from default)" << std::endl;
+        return true;
+      }
+    }
+    return false; // No initialization was needed or no default available
+  }
+
+  // Initialize a numeric parameter with range validation
+  static bool initializeNumericParam(const std::string &paramName, double min, double max, bool isFloat, double div = 1.0, const QString &constructorDefault = "") {
+    Params params;
+    bool initialized = false;
+    bool valueOutOfRange = false;
+    std::string currentValue = params.get(paramName);
+
+    // Check if param exists
+    bool paramExists = !currentValue.empty();
+
+    // If it exists, check if it's within range
+    if (paramExists) {
+      if (isFloat) {
+        double numValue = QString::fromStdString(currentValue).toDouble();
+        valueOutOfRange = (numValue < min || numValue > max);
+      } else {
+        int numValue = QString::fromStdString(currentValue).toInt();
+        valueOutOfRange = (numValue < min || numValue > max);
+      }
+    }
+
+    // If parameter doesn't exist or is out of range, check for default
+    if (!paramExists || valueOutOfRange) {
+      DefaultParams &defaults = DefaultParams::getInstance();
+      QString defaultKey = QString::fromStdString(paramName);
+      QString defaultValue = defaults.getDefault(defaultKey);
+
+      if (!defaultValue.isEmpty()) {
+        // Apply default value (ensure it's within range)
+        if (isFloat) {
+          double defaultNumeric = defaultValue.toDouble();
+          defaultNumeric = std::clamp(defaultNumeric, min, max);
+          params.putFloat(paramName, defaultNumeric);
+
+          int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
+          std::cout << "Parameter ";
+          if (!paramExists) {
+            std::cout << "initialized";
+          } else {
+            std::cout << "adjusted (out of range)";
+          }
+          std::cout << " - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from default)" << std::endl;
+        } else {
+          int defaultNumeric = defaultValue.toInt();
+          defaultNumeric = std::clamp(defaultNumeric, static_cast<int>(min), static_cast<int>(max));
+          params.putInt(paramName, defaultNumeric);
+
+          std::cout << "Parameter ";
+          if (!paramExists) {
+            std::cout << "initialized";
+          } else {
+            std::cout << "adjusted (out of range)";
+          }
+          std::cout << " - " << paramName << ": " << defaultNumeric << " (from default)" << std::endl;
+        }
+        initialized = true;
+      } else if (!constructorDefault.isEmpty() && !paramExists) {
+        // Use constructor-provided default
+        if (isFloat) {
+          double defaultNumeric = constructorDefault.toDouble();
+          defaultNumeric = std::clamp(defaultNumeric, min, max);
+          params.putFloat(paramName, defaultNumeric);
+
+          int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
+          std::cout << "Parameter initialized - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from constructor default)"
+                    << std::endl;
+        } else {
+          int defaultNumeric = constructorDefault.toInt();
+          defaultNumeric = std::clamp(defaultNumeric, static_cast<int>(min), static_cast<int>(max));
+          params.putInt(paramName, defaultNumeric);
+
+          std::cout << "Parameter initialized - " << paramName << ": " << defaultNumeric << " (from constructor default)" << std::endl;
+        }
+        initialized = true;
+      } else if (valueOutOfRange) {
+        // No default but value is out of range - clamp it
+        if (isFloat) {
+          double numValue = QString::fromStdString(currentValue).toDouble();
+          double clampedValue = std::clamp(numValue, min, max);
+          params.putFloat(paramName, clampedValue);
+
+          int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
+          std::cout << "Parameter adjusted (clamped) - " << paramName << ": " << QString::number(numValue, 'f', decimals).toStdString() << " -> "
+                    << QString::number(clampedValue, 'f', decimals).toStdString() << std::endl;
+        } else {
+          int numValue = QString::fromStdString(currentValue).toInt();
+          int clampedValue = std::clamp(numValue, static_cast<int>(min), static_cast<int>(max));
+          params.putInt(paramName, clampedValue);
+
+          std::cout << "Parameter adjusted (clamped) - " << paramName << ": " << numValue << " -> " << clampedValue << std::endl;
+        }
+        initialized = true;
+      }
+    }
+
+    return initialized;
+  }
+
+  // Log parameter changes for toggles and selection controls
+  static void logParamChange(const std::string &paramName, const std::string &oldValue, const std::string &newValue) {
+    std::cout << "Parameter changed - " << paramName << ": " << oldValue << " -> " << newValue << std::endl;
+  }
+
+  // Log numeric parameter changes with proper formatting
+  static void logNumericParamChange(const std::string &paramName, double oldValue, double newValue, bool isFloat, double div = 1.0) {
+    if (isFloat) {
+      int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
+      std::cout << "Parameter changed - " << paramName << ": " << QString::number(oldValue, 'f', decimals).toStdString() << " -> "
+                << QString::number(newValue, 'f', decimals).toStdString() << std::endl;
+    } else {
+      int intOldValue = static_cast<int>(oldValue);
+      int intNewValue = static_cast<int>(newValue);
+      std::cout << "Parameter changed - " << paramName << ": " << intOldValue << " -> " << intNewValue << std::endl;
+    }
+  }
+};
