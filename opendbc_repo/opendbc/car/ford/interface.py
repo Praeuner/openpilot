@@ -33,10 +33,10 @@ class CarInterface(CarInterfaceBase):
     ret.dashcamOnly = not (ret.flags & FordFlags.CANFD)
     # logDebug(f'Dashcam Only Mode: {ret.dashcamOnly}')
     ret.radarUnavailable = Bus.radar not in DBC[candidate]
-    logDebug(f'Radard Unavailable: {ret.radarUnavailable}')
+    logInfo(f'Radar Unavailable: {ret.radarUnavailable}')
 
     FordConfig.BLUECRUISE_CLUSTER_PRESENT = any(fw.ecu == Ecu.hud for fw in car_fw) # Check for blue cruise cluster
-    logDebug(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
+    logInfo(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
 
     for fw in car_fw:
       logDebug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}')
@@ -66,7 +66,7 @@ class CarInterface(CarInterfaceBase):
       cfgs.insert(0, get_safety_config(structs.CarParams.SafetyModel.noOutput))
     ret.safetyConfigs = cfgs
 
-    ret.experimentalLongitudinalAvailable = ret.radarUnavailable
+    ret.experimentalLongitudinalAvailable = True
     if experimental_long or not ret.radarUnavailable:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
