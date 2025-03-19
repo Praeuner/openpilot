@@ -1,7 +1,7 @@
 import math
 import cereal.messaging as messaging
 import numpy as np
-from common.numpy_fast import clip, interp  # Updated import
+from numpy import clip, interp
 from collections import deque
 from common.filter_simple import FirstOrderFilter
 from opendbc.can.packer import CANPacker
