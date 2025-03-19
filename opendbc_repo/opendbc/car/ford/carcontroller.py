@@ -200,6 +200,11 @@ class CarController(CarControllerBase):
         'desired_curvature_rate': 0.0
     }
 
+    # Maximum allowed changes per frame
+    self.max_path_angle_change = 0.00125
+    self.max_path_offset_change = 0.00125
+    self.max_curvature_rate_change = 0.0001
+
     # Check each param in helpers.SETTINGS_PARAMS to make sure they are set and if not sets them to the default values
     initialize_param_defaults(self)
     self.sm = messaging.SubMaster(['modelV2'])
