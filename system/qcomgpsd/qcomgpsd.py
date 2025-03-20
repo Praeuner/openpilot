@@ -357,7 +357,7 @@ def main() -> NoReturn:
       gps.bearingAccuracyDeg = report["q_FltHeadingUncRad"] * 180/math.pi if (report["q_FltHeadingUncRad"] != 0) else 180
       gps.speedAccuracy = math.sqrt(sum([x**2 for x in vNEDsigma]))
       # quectel gps verticalAccuracy is clipped to 500, set invalid if so
-      gps.hasFix = gps.verticalAccuracy != 500  # Always report valid fix
+      gps.hasFix = gps.verticalAccuracy != 500
       if gps.hasFix:
         want_assistance = False
         stop_download_event.set()
