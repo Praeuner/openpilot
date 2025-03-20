@@ -345,6 +345,11 @@ class CarController(CarControllerBase):
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_UI
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_UI
 
+        # hard code values for the moment, until UI is worked out
+        self.pc_blend_ratio = 0.0
+        self.path_angle_high_speed_factor = 1.8
+        self.path_angle_high_curvature_factor = 0.05
+
         # determine if we are using Advanced Lateral Control
         if not self.enable_AdvLatCtrl:
           self.pc_blend_ratio = 0.0 # 0% Predicted Curvature and 100% Desired Curvature
@@ -503,9 +508,9 @@ class CarController(CarControllerBase):
           )
 
           # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
-          if not self.enable_AdvLatCtrl:
-            path_angle = 0.0
-            path_offset = 0.0
+          # if not self.enable_AdvLatCtrl:
+            # path_angle = 0.0
+            # path_offset = 0.0
 
           # Determine if a human is making a turn and trap the value
           # if a human turn is active, reset steering to prevent windup
