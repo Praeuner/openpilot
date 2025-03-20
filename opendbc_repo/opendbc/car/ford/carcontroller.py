@@ -565,9 +565,6 @@ class CarController(CarControllerBase):
         # https://www.f150gen14.com/forum/threads/introducing-bluepilot-a-ford-specific-fork-for-comma3x-openpilot.24241/#post-457706
         mode = 1 if lat_active else 0
         counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
-        path_offset = 0.0
-        path_angle = 0.0
-        curvature_rate = 0.0
         can_sends.append(fordcan.create_lat_ctl2_msg(
           self.packer, self.CAN, mode, ramp_type, self.precision_type, -path_offset, -path_angle,
           -apply_curvature, -desired_curvature_rate, counter
