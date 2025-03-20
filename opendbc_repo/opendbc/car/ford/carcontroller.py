@@ -113,10 +113,10 @@ class CarController(CarControllerBase):
     self.lane_change_factor_low = 1.0 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 1.0 # updated from UI: lane_change_factor at 40.23 m/s
     self.requested_curvature_filtered = FirstOrderFilter(0.0, 0.3, 0.05)  # filter for apply_curvature
-    self.pc_blend_ratio_low = 1.0 # 50% Predicted Curvature and 50% Desired Curvature
-    self.pc_blend_ratio_mid = 1.0 # 40% Predicted Curvature and 60% Desired Curvature
-    self.pc_blend_ratio_high = 1.0 # 30% Predicted Curvature and 70% Desired Curvature
-    self.pc_blend_ratio_UI = 1.0 # 40% Predicted Curvature and 60% Desired Curvature
+    self.pc_blend_ratio_low = 0.7 # 50% Predicted Curvature and 50% Desired Curvature
+    self.pc_blend_ratio_mid = 0.8 # 40% Predicted Curvature and 60% Desired Curvature
+    self.pc_blend_ratio_high = 0.9 # 30% Predicted Curvature and 70% Desired Curvature
+    self.pc_blend_ratio_UI = 0.8 # 40% Predicted Curvature and 60% Desired Curvature
     self.curvature_lookup_time =  CP.steerActuatorDelay # how far into the future do we need to look for curvature signal
 
     # Curvature rate variables
@@ -127,7 +127,7 @@ class CarController(CarControllerBase):
     self.custom_path_offset = 0.0 # updated from UI: applies a custom offset to help with in-lane positioning
     self.lane_width_tolerance_factor = 0.75
     self.min_laneline_confidence_bp = [0.6, 0.8]
-    self.enable_lanefull_mode = False
+    self.enable_lanefull_mode = True
 
     # path angle variables
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
@@ -135,13 +135,13 @@ class CarController(CarControllerBase):
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_speed_bp = [4.4, 40.23]  # what speeds to adjust path_angle_speed_factor over.
     self.path_angle_low_speed_factor = 0.05 # path_angle_speed_factor at 4.45 m/s
-    self.path_angle_high_speed_factor_low = 2.5 # path_angle_speed_factor at 40.23 m/s
+    self.path_angle_high_speed_factor_low = 1.8 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_mid = 5.0 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_high = 7.5 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_UI = 5.0 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_curvature_factor_bp = [0.00025, 0.001] # what curvature to adjust path_angle.
     self.path_angle_low_curvature_factor = 1.0 # path_angle_curvature_factor at 0.001
-    self.path_angle_high_curvature_factor_low = 0.20 # path_angle_curvature_factor at 0.002
+    self.path_angle_high_curvature_factor_low = 0.1 # path_angle_curvature_factor at 0.002
     self.path_angle_high_curvature_factor_mid = 0.25 # path_angle_curvature_factor at 0.002
     self.path_angle_high_curvature_factor_high = 0.30 # path_angle_curvature_factor at 0.002
     self.path_angle_high_curvature_factor_UI = 0.25 # path_angle_curvature_factor at 0.002
@@ -345,14 +345,9 @@ class CarController(CarControllerBase):
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_UI
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_UI
 
-        # hard code values for the moment, until UI is worked out
-        self.pc_blend_ratio = 0.0
-        self.path_angle_high_speed_factor = 1.8
-        self.path_angle_high_curvature_factor = 0.05
-
         # determine if we are using Advanced Lateral Control
         if not self.enable_AdvLatCtrl:
-          self.pc_blend_ratio = 0.0 # 0% Predicted Curvature and 100% Desired Curvature
+          self.pc_blend_ratio = 0.1 #   10% Predicted Curvature and 90% Desired Curvature
 
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
@@ -508,9 +503,9 @@ class CarController(CarControllerBase):
           )
 
           # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
-          # if not self.enable_AdvLatCtrl:
-            # path_angle = 0.0
-            # path_offset = 0.0
+          if not self.enable_AdvLatCtrl:
+            path_angle = 0.0
+            path_offset = 0.0
 
           # Determine if a human is making a turn and trap the value
           # if a human turn is active, reset steering to prevent windup
@@ -520,7 +515,7 @@ class CarController(CarControllerBase):
             self.human_turn = False
 
           # Determine when to reset steering
-          if (self.human_turn): # and self.enable_human_turn_detection:
+          if (self.human_turn) and self.enable_human_turn_detection:
             reset_steering = 1
           else:
             reset_steering = 0
