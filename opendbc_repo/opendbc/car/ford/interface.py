@@ -42,7 +42,7 @@ class CarInterface(CarInterfaceBase):
       logDebug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}')
 
     ret.steerControlType = structs.CarParams.SteerControlType.angle
-    ret.steerActuatorDelay = 0.2
+    ret.steerActuatorDelay = 0.05
     ret.steerLimitTimer = 1.0
 
     ret.longitudinalTuning.kiBP = [0.]
