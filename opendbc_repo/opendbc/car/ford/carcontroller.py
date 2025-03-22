@@ -11,7 +11,7 @@ from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from common.params import Params
 from selfdrive.modeld.constants import ModelConstants  # for calculations
-from selfdrive.controls.lib.pid import PIDController # PID control of lateral
+from common.pid import PIDController # PID control of lateral
 from opendbc.car.ford.helpers import (
   initialize_param_defaults,
   update_settings_params,
