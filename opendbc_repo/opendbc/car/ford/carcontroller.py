@@ -463,7 +463,7 @@ class CarController(CarControllerBase):
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
 
           # calculate wheel angle from path_offset
-          steerAnglePathOffset = steering_wheel_delta * self.path_angle_high_speed_factor # * self.path_angle_wheel_angle_conversion * path_angle_speed_factor * path_angle_curvature_factor
+          steerAnglePathOffset = steering_wheel_delta * self.path_angle_high_speed_factor * self.path_angle_wheel_angle_conversion # * path_angle_speed_factor * path_angle_curvature_factor
 
           # filter path_angle for smoothing
           self.path_angle_deque.append(steerAnglePathOffset)
