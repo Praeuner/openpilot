@@ -104,7 +104,7 @@ class CarController(CarControllerBase):
     # self.steer_warning = False # warning for steering limits exceeded
     # self.steer_warning_count = 0 # count how many cycles the warning has existed
     self.enable_AdvLatCtrl = True # Updated form UI: enable Advanced Lane Control
-    self.tuning_profile_UI = 1 # 1: Low, 2: Mid, 3: High, 4: UI
+    self.tuning_profile_UI = 4 # 1: Low, 2: Mid, 3: High, 4: UI
     self.pc_blend_ratio = 0.1
     self.path_angle_high_speed_factor = 5.0
     self.path_angle_high_curvature_factor = 0.17
@@ -149,8 +149,8 @@ class CarController(CarControllerBase):
 
 
     # path angle PID tuning
-    self.path_angle_k_p = 3.5
-    self.path_angle_k_i = 0.001
+    self.path_angle_k_p = self.path_angle_high_curvature_factor_UI
+    self.path_angle_k_i = self.path_angle_low_speed_factor / 100
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
     ## High curvature path_angle / path_offset tuning stars here ##
