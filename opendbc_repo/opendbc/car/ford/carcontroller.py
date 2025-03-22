@@ -474,7 +474,7 @@ class CarController(CarControllerBase):
 
           # use PID to calcualte path_angle
           self.path_angle_k_p = self.path_angle_high_curvature_factor_UI * 10
-          self.path_angle_k_i = self.path_angle_high_curvature_factor_high / 100
+          self.path_angle_k_i = self.path_angle_high_curvature_factor_high / 10
           path_angle_PID = self.path_angle_pid_controller.update(steerAnglePathOffset)
 
           # filter path_angle for smoothing
