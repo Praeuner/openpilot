@@ -507,6 +507,11 @@ class CarController(CarControllerBase):
             path_angle = 0.0
             path_offset = 0.0
 
+
+          # for testing angle only control, minimize curvature and curvature rate
+          apply_curvature = apply_curvature * 0.001
+          desired_curvature_rate = desired_curvature_rate * 0.001
+
           # Determine if a human is making a turn and trap the value
           # if a human turn is active, reset steering to prevent windup
           if steeringPressed and abs(steeringAngleDeg_PV) > 45:
