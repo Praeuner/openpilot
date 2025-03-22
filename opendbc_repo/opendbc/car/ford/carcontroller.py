@@ -463,15 +463,15 @@ class CarController(CarControllerBase):
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
 
           # calculate wheel angle from path_offset
-          steerAnglePathOffset = steering_wheel_delta * self.path_angle_wheel_angle_conversion * path_angle_speed_factor * path_angle_curvature_factor
+          steerAnglePathOffset = steering_wheel_delta * self.path_angle_high_speed_factor # * self.path_angle_wheel_angle_conversion * path_angle_speed_factor * path_angle_curvature_factor
 
           # filter path_angle for smoothing
           self.path_angle_deque.append(steerAnglePathOffset)
           path_angle_model = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
 
           # zero path_angle during lane changes
-          if self.lane_change:
-            path_angle_model = 0.0
+          # if self.lane_change:
+            # path_angle_model = 0.0
 
         # large turn logic
          # calculate lookup time based on the max predicted curvature
@@ -488,8 +488,8 @@ class CarController(CarControllerBase):
           path_offset_linear = (68.44 * predicted_path_curvature - 1.17) * po_scaling_factor
 
           #combine large turn logic with standard lane control logic
-          path_offset = path_offset_total + path_offset_linear
-          path_angle = path_angle_model + path_angle_linear
+          path_offset = path_offset_total # + path_offset_linear
+          path_angle = path_angle_model # + path_angle_linear
 
           # clip all values
           apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
@@ -498,14 +498,14 @@ class CarController(CarControllerBase):
           path_angle = clip(path_angle, -self.path_angle_max, self.path_angle_max)
 
           # Apply post lane change transition logic
-          path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
-              path_angle, path_offset, desired_curvature_rate
-          )
+          # path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
+              #path_angle, path_offset, desired_curvature_rate
+          # )
 
           # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
-          if not self.enable_AdvLatCtrl:
-            path_angle = 0.0
-            path_offset = 0.0
+          # if not self.enable_AdvLatCtrl:
+            # path_angle = 0.0
+            # path_offset = 0.0
 
 
           # for testing angle only control, minimize curvature and curvature rate
