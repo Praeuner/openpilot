@@ -5,12 +5,12 @@
  * See the LICENSE.md file in the root directory for more details.
  */
 
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnypilot_panel.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/lateral_panel.h"
 
 #include "common/util.h"
 #include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
 
-SunnypilotPanel::SunnypilotPanel(SettingsWindowSP *parent) : QFrame(parent) {
+LateralPanel::LateralPanel(SettingsWindowSP *parent) : QFrame(parent) {
   main_layout = new QStackedLayout(this);
   ListWidget *list = new ListWidget(this, false);
 
@@ -22,7 +22,7 @@ SunnypilotPanel::SunnypilotPanel(SettingsWindowSP *parent) : QFrame(parent) {
   madsToggle = new ParamControl(
     "Mads",
     tr("Modular Assistive Driving System (MADS)"),
-    tr("Enable the beloved MADS feature. Disable toggle to revert back to stock openpilot engagement/disengagement."),
+    tr("Enable the beloved MADS feature. Disable toggle to revert back to stock sunnypilot engagement/disengagement."),
     "");
   madsToggle->setConfirmation(true, false);
   list->addItem(madsToggle);
@@ -45,7 +45,7 @@ SunnypilotPanel::SunnypilotPanel(SettingsWindowSP *parent) : QFrame(parent) {
   toggleOffroadOnly = {
     madsToggle,
   };
-  QObject::connect(uiState(), &UIState::offroadTransition, this, &SunnypilotPanel::updateToggles);
+  QObject::connect(uiState(), &UIState::offroadTransition, this, &LateralPanel::updateToggles);
 
   sunnypilotScroller = new ScrollViewSP(list, this);
   vlayout->addWidget(sunnypilotScroller);
@@ -71,15 +71,15 @@ SunnypilotPanel::SunnypilotPanel(SettingsWindowSP *parent) : QFrame(parent) {
   main_layout->setCurrentWidget(sunnypilotScreen);
 }
 
-void SunnypilotPanel::showEvent(QShowEvent *event) {
+void LateralPanel::showEvent(QShowEvent *event) {
   updateToggles(offroad);
 }
 
-void SunnypilotPanel::hideEvent(QHideEvent *event) {
+void LateralPanel::hideEvent(QHideEvent *event) {
   main_layout->setCurrentWidget(sunnypilotScreen);
 }
 
-void SunnypilotPanel::updateToggles(bool _offroad) {
+void LateralPanel::updateToggles(bool _offroad) {
   for (auto *toggle : toggleOffroadOnly) {
     toggle->setEnabled(_offroad);
   }

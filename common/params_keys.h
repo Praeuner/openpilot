@@ -133,7 +133,7 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 // MADS params
                                                                 {"Mads", PERSISTENT | BACKUP},
                                                                 {"MadsMainCruiseAllowed", PERSISTENT | BACKUP},
-                                                                {"MadsPauseLateralOnBrake", PERSISTENT | BACKUP},
+    {"MadsSteeringMode", PERSISTENT | BACKUP},
                                                                 {"MadsUnifiedEngagementMode", PERSISTENT | BACKUP},
 
                                                                 // Model Manager params
@@ -151,11 +151,15 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"SunnylinkdPid", PERSISTENT},
                                                                 {"SunnylinkEnabled", PERSISTENT},
 
-                                                                // sunnypilot car specific params
-                                                                {"HyundaiRadarTracks", PERSISTENT},
-                                                                {"HyundaiRadarTracksConfirmed", PERSISTENT},
-                                                                {"HyundaiRadarTracksPersistent", PERSISTENT},
-                                                                {"HyundaiRadarTracksToggle", PERSISTENT},
+    // Backup Manager params
+    {"BackupManager_CreateBackup", PERSISTENT},
+    {"BackupManager_RestoreVersion", PERSISTENT},
+
+    // sunnypilot car specific params
+    {"HyundaiRadarTracks", PERSISTENT},
+    {"HyundaiRadarTracksConfirmed", PERSISTENT},
+    {"HyundaiRadarTracksPersistent", PERSISTENT},
+    {"HyundaiRadarTracksToggle", PERSISTENT},
 
                                                                 {"DynamicExperimentalControl", PERSISTENT},
                                                                 // FORD VEHICLE MODEL PARAMS
