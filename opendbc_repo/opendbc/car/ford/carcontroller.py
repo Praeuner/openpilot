@@ -11,6 +11,7 @@ from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from common.params import Params
 from selfdrive.modeld.constants import ModelConstants  # for calculations
+from selfdrive.controls.lib.pid import PIDController # PID control of lateral
 from opendbc.car.ford.helpers import (
   initialize_param_defaults,
   update_settings_params,
@@ -145,6 +146,12 @@ class CarController(CarControllerBase):
     self.path_angle_high_curvature_factor_mid = 0.25 # path_angle_curvature_factor at 0.002
     self.path_angle_high_curvature_factor_high = 0.30 # path_angle_curvature_factor at 0.002
     self.path_angle_high_curvature_factor_UI = 0.25 # path_angle_curvature_factor at 0.002
+
+
+    # path angle PID tuning
+    self.path_angle_k_p = 3.5
+    self.path_angle_k_i = 0.001
+    self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
     ## High curvature path_angle / path_offset tuning stars here ##
 
@@ -463,10 +470,14 @@ class CarController(CarControllerBase):
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
 
           # calculate wheel angle from path_offset
-          steerAnglePathOffset = steering_wheel_delta * self.path_angle_high_speed_factor * self.path_angle_wheel_angle_conversion # * path_angle_speed_factor * path_angle_curvature_factor
+          steerAnglePathOffset = steering_wheel_delta * self.path_angle_wheel_angle_conversion # * path_angle_speed_factor * path_angle_curvature_factor
+
+          # use PID to calcualte path_angle
+          path_angle_PID = self.path_angle_pid_controller.update(steerAnglePathOffset)
 
           # filter path_angle for smoothing
-          self.path_angle_deque.append(steerAnglePathOffset)
+          # self.path_angle_deque.append(steerAnglePathOffset)
+          self.path_angle_deque.append(path_angle_PID)
           path_angle_model = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
 
           # zero path_angle during lane changes
