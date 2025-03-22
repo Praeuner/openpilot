@@ -473,6 +473,8 @@ class CarController(CarControllerBase):
           steerAnglePathOffset = steering_wheel_delta * self.path_angle_wheel_angle_conversion # * path_angle_speed_factor * path_angle_curvature_factor
 
           # use PID to calcualte path_angle
+          self.path_angle_k_p = self.path_angle_high_curvature_factor_UI
+          self.path_angle_k_i = self.path_angle_high_curvature_factor_high / 100
           path_angle_PID = self.path_angle_pid_controller.update(steerAnglePathOffset)
 
           # filter path_angle for smoothing
