@@ -149,8 +149,8 @@ class CarController(CarControllerBase):
 
 
     # path angle PID tuning
-    self.path_angle_k_p = 6 # self.path_angle_high_curvature_factor_UI
-    self.path_angle_k_i = 5.0
+    self.path_angle_k_p = 4
+    self.path_angle_k_i = 0.5
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
     ## High curvature path_angle / path_offset tuning stars here ##
