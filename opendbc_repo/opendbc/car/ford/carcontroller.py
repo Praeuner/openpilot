@@ -481,8 +481,8 @@ class CarController(CarControllerBase):
           path_angle_model = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
 
           # zero path_angle during lane changes
-          # if self.lane_change:
-            # path_angle_model = 0.0
+          if self.lane_change:
+            path_angle_model = 0.0
 
         # large turn logic
          # calculate lookup time based on the max predicted curvature
@@ -520,8 +520,8 @@ class CarController(CarControllerBase):
 
 
           # for testing angle only control, minimize curvature and curvature rate
-          apply_curvature = apply_curvature * 0.001
-          desired_curvature_rate = desired_curvature_rate * 0.001
+          # apply_curvature = apply_curvature * 0.001
+          # desired_curvature_rate = desired_curvature_rate * 0.001
 
           # Determine if a human is making a turn and trap the value
           # if a human turn is active, reset steering to prevent windup
