@@ -201,12 +201,29 @@
             },
             {
               "type": "float",
-              "param": "FordLatTuningLaneChangeFactorHighUI",
-              "title": "Lane Change Factor",
-              "desc": "Lower numbers for less aggressive lane change",
+              "param": "FordLatTuningPIDGain",
+              "title": "PID Gain Factor",
+              "desc": "Lower numbers for less twitchy steering",
               "hidden": false,
-              "min": 0.4,
-              "max": 1.0,
+              "min": 0.0,
+              "max": 10.0,
+              "increment": 0.1,
+              "division": 100.0,
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] }
+                ]
+              }
+            },
+            {
+              "type": "float",
+              "param": "FordLatTuningPIDReset",
+              "title": "PID Reset Factor",
+              "desc": "Lower numbers for less filtering",
+              "hidden": false,
+              "min": 0.0,
+              "max": 2.0,
               "increment": 0.05,
               "division": 100.0,
               "conditions": {
@@ -228,48 +245,6 @@
               }
             },
             {
-              "type": "segmented_control",
-              "param": "FordLatTuningProfile",
-              "title": "Tuning Profile",
-              "desc": "Adjusts the tuning aggressiveness profile",
-              "hidden": false,
-              "options": [
-                { "name": "Low", "value": "1", "default": true },
-                { "name": "Medium", "value": "2" },
-                { "name": "High", "value": "3" },
-                { "name": "Custom", "value": "4" }
-              ],
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  {
-                    "paramValueEquals": {
-                      "FordLatTuningEnableAdvLatCtrl": "1"
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "type": "toggle",
-              "param": "FordLatTuningEnableLanefullMode",
-              "title": "Enable Legacy Style Lanefull Mode",
-              "desc": "Enables auto lanefull mode similar to legacy SunnyPilot",
-              "hidden": false,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  {
-                    "paramValueEquals": {
-                      "FordLatTuningEnableAdvLatCtrl": "1"
-                    }
-                  }
-                ]
-              }
-            },
-            {
               "type": "float",
               "param": "FordLatTuningCustomPathOffset",
               "title": "In Lane Offset",
@@ -283,75 +258,6 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  {
-                    "paramValueEquals": {
-                      "FordLatTuningEnableAdvLatCtrl": "1"
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningPCBlendRatioUI",
-              "title": "Predicted Curvature Blend Ratio",
-              "desc": "Higher numbers to reduce ping pong, lower numbers to reduce wandering",
-              "hidden": false,
-              "min": 0.0,
-              "max": 1.0,
-              "increment": 0.01,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningProfile": "4" } },
-                  {
-                    "paramValueEquals": {
-                      "FordLatTuningEnableAdvLatCtrl": "1"
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningPathAngleHighSpeedFactorUI",
-              "title": "Path Angle Amplitude",
-              "desc": "Lower numbers to reduce twitchy steering, higher numbers decrease wandering or slow ping pong",
-              "hidden": false,
-              "min": 0.0,
-              "max": 50.0,
-              "increment": 0.1,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningProfile": "4" } },
-                  {
-                    "paramValueEquals": {
-                      "FordLatTuningEnableAdvLatCtrl": "1"
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningPathAngleHighCurvatureFactorUI",
-              "title": "Path Angle in-Curve ReductionFactor",
-              "desc": "Lower numbers to reduce twitchy steering, higher numbers decrease wandering or slow ping pong",
-              "hidden": false,
-              "min": 0.0,
-              "max": 1.0,
-              "increment": 0.05,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningProfile": "4" } },
                   {
                     "paramValueEquals": {
                       "FordLatTuningEnableAdvLatCtrl": "1"
