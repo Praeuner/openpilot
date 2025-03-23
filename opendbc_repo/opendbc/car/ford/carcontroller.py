@@ -228,9 +228,6 @@ class CarController(CarControllerBase):
           # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
           curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
 
-          # calculate predicted curvature used for the curvature and curvature_rate variables
-          predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
-
           # filter curvature before calculating rate
           requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
 
