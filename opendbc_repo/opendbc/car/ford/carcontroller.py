@@ -268,7 +268,25 @@ class CarController(CarControllerBase):
             desired_curvature_rate = 0.0
 
           # get path offset from model.position.y
-          path_offset = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
+          path_offset_position = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
+
+          # now get path offset from lanelines
+          path_offset_lanelines = (self.model.laneLines[1].y[0] + self.model.laneLines[2].y[0]) / 2
+
+          # determinie laneline width tolerance scaling factor
+          laneline_width = self.model.laneLines[2].y[0] + (-self.model.laneLines[1].y[0]) # laneLines[1] is a negative value because it is left of the vehicle.
+          laneline_width_tolerance = interp(laneline_width, [3.75,4.25], [0.81, 0.59]) # 3.7 is the width of standard US lane in meters
+
+          # determine laneline confidence
+          laneline_confidence = min(self.model.laneLineProbs[1], self.model.laneLineProbs[2], laneline_width_tolerance)
+          if not self.enable_lanefull_mode:
+            laneline_confidence = 0.0
+
+          # determine laneline path offset scale
+          laneline_path_offset_scale = interp(laneline_confidence, self.min_laneline_confidence_bp, [0.0, 1.0])
+
+          # get the total path_offset combining model and lanelines
+          path_offset = (path_offset_position * (1-laneline_path_offset_scale) + (path_offset_lanelines * laneline_path_offset_scale)) + self.custom_path_offset
 
           # no path_offset during lane changes (it will fight you until it swaps to new lane if you don't set to zero)
           if self.lane_change:
