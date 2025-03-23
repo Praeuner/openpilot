@@ -246,6 +246,12 @@ class CarController(CarControllerBase):
           #remove the next line for public release
           apply_curvature = requested_curvature
 
+           # determine if a lane change is active
+          if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
+            self.lane_change = True
+          else:
+            self.lane_change = False
+
           # compute curvature rate
           self.curvature_rate_deque.append(apply_curvature)
           if len(self.curvature_rate_deque) > 1:
