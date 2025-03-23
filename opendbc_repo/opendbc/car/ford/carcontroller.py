@@ -112,7 +112,7 @@ class CarController(CarControllerBase):
     self.curvature_rate_deque = deque(maxlen=int(round(self.curvature_rate_delta_t / 0.05)))  # 0.3 seconds at 20Hz
 
     # path offset variables
-    self.custom_path_offset = 0.0 # updated from UI: applies a custom offset to help with in-lane positioning
+    self.custom_path_offset = -0.1 # updated from UI: applies a custom offset to help with in-lane positioning
     self.lane_width_tolerance_factor = 0.75
     self.min_laneline_confidence_bp = [0.6, 0.8]
     self.enable_lanefull_mode = True
