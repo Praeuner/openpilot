@@ -105,6 +105,7 @@ class CarController(CarControllerBase):
 
     # Curvature variables
     self.requested_curvature_filtered = FirstOrderFilter(0.0, 0.3, 0.05)  # filter for apply_curvature
+    self.curvature_lookup_time = 0.05
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
