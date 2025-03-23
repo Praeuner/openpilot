@@ -124,7 +124,7 @@ class CarController(CarControllerBase):
     self.path_angle_k_p = 5.5
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
-    self.wheel_angle_speed_bp = [2.5, 10] # what speed to adjust wheel_angle
+    self.wheel_angle_speed_bp = [3.5, 13.5] # what speed to adjust wheel_angle
     self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
     self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
