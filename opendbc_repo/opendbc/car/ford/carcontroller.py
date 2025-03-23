@@ -299,13 +299,13 @@ class CarController(CarControllerBase):
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
 
           # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
-          steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high]) * steering_wheel_delta
+          steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
 
           # However we need to add it back if we hit a curve at low speeds
-          steering_wheel_delta_curvAdj = 1 # interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high]) * steering_wheel_delta_speedAdj
+          # steering_wheel_delta_curvAdj = steering_wheel_delta_speedAdj # * interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
 
           # Apply scaling factor to path_angle
-          steerAngleAdjusted = steering_wheel_delta_curvAdj * self.path_angle_wheel_angle_conversion
+          steerAngleAdjusted = steering_wheel_delta_speedAdj * self.path_angle_wheel_angle_conversion
 
           # use PID to calcualte path_angle
           path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
