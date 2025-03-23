@@ -272,10 +272,10 @@ class CarController(CarControllerBase):
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
 
           # Apply scaling factor to path_angle
-          steerAnggleAdjusted = steering_wheel_delta * self.path_angle_wheel_angle_conversion
+          steerAngleAdjusted = steering_wheel_delta * self.path_angle_wheel_angle_conversion
 
           # use PID to calcualte path_angle
-          path_angle_PID = self.path_angle_pid_controller.update(steerAnggleAdjusted)
+          path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
 
           # filter path_angle for smoothing
           self.path_angle_deque.append(path_angle_PID)
