@@ -273,8 +273,11 @@ class CarController(CarControllerBase):
           # Use path_angle to help with centering vehicle in lane, derive path_angle from the models desired steering wheel position
           # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
 
+          # filter steering angle
+          steeringAngleDeg_SP_filtered = self.steerAngleFilterSP.update(steeringAngleDeg_SP)
+
           # calculate steering angle associated with the base path (predicted_curvature)
-          steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
+          steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP_filtered
 
           # Apply scaling factor to path_angle
           steerAngleAdjusted = steering_wheel_delta * self.path_angle_wheel_angle_conversion
