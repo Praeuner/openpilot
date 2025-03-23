@@ -126,6 +126,12 @@ class CarController(CarControllerBase):
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
     self.steerAngleFilterTimeConstant = 0.3
     self.steerAngleFilterSP = FirstOrderFilter(0.0, self.steerAngleFilterTimeConstant, 0.05) # filter for steerAngle
+    self.wheel_angle_speed_bp = [3.5, 13.5] # what speed to adjust wheel_angle
+    self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
+    self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
+    self.wheel_angle_curv_bp = [0.0, 0.01] # what curvature to adjust wheel_angle
+    self.wheel_angle_curv_low = 0.1 # wheel_angle mulitplier at 0.0 curvature
+    self.wheel_angle_curv_high = 1.0 # wheel_angle mulitplier at 0.01 curvature
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -279,8 +285,14 @@ class CarController(CarControllerBase):
           # calculate steering angle associated with the base path (predicted_curvature)
           steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP_filtered
 
+          # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
+          steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high]) * steering_wheel_delta
+
+          # However we need to add it back if we hit a curve at low speeds
+          steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high]) * steering_wheel_delta_speedAdj
+
           # Apply scaling factor to path_angle
-          steerAngleAdjusted = steering_wheel_delta * self.path_angle_wheel_angle_conversion
+          steerAngleAdjusted = steering_wheel_delta_curvAdj * self.path_angle_wheel_angle_conversion
 
           # use PID to calcualte path_angle
           path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
