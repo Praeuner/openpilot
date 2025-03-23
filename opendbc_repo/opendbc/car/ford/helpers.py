@@ -16,6 +16,7 @@ SETTINGS_PARAMS = [
   ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
   ["FordLatTuningPIDGain", "path_angle_k_p", 5.50, float],
   ["FordLatTuningPIDReset", "path_angle_k_i", 0.05, float],
+  ["FordLatTuningSteerAngleFilterTimeConstant", "steerAngleFilterTimeConstant", 0.3, float],
   ["FordLongTuningBrakeActuatorActivate", "brake_actuator_activate", None, float],
   ["FordLongTuningBrakeActuatorReleaseDelta", "brake_actuator_release_delta", None, float],
   ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
@@ -32,6 +33,7 @@ def load_initial_cc_pref_params(self_obj): # self_obj is the CarController objec
   self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
   self_obj.path_angle_k_p = get_float_param("FordLatTuningPIDGain", 5.5)
   self_obj.path_angle_k_i = get_float_param("FordLatTuningPIDReset", 0.05)
+  self_obj.steerAngleFilterTimeConstant = get_float_param("FordLatTuningSteerAngleFilterTimeConstant", 0.3)
   self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
   self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
 

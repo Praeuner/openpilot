@@ -124,7 +124,8 @@ class CarController(CarControllerBase):
     self.path_angle_k_p = 5.5
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
-
+    self.steerAngleFilterTimeConstant = 0.3
+    self.steerAngleFilterSP = FirstOrderFilter(0.0, self.steerAngleFilterTimeConstant, 0.05) # filter for steerAngle
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files

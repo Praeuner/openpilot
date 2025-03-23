@@ -204,6 +204,8 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"FordLatTuningPIDReset_default", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningEnableAdvLatCtrl", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningEnableAdvLatCtrl_default", PERSISTENT | BACKUP},
+                                                                {"FordLatTuningSteerAngleFilterTimeConstant", PERSISTENT | BACKUP},
+                                                                {"FordLatTuningSteerAngleFilterTimeConstant_default", PERSISTENT | BACKUP},
 
                                                                 // FORG LONG SETTING PARAMS
                                                                 {"FordLongTuningBrakeActuatorActivate", PERSISTENT | BACKUP},
