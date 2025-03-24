@@ -62,7 +62,6 @@ VehiclePanel::VehiclePanel(QWidget *parent) : QFrame(parent) {
 
   // Add the vehicle screen to the main layout
   main_layout->addWidget(vehicleScreen);
-  main_layout->setCurrentWidget(vehicleScreen);
 }
 
 void VehiclePanel::showEvent(QShowEvent *event) {
@@ -71,7 +70,6 @@ void VehiclePanel::showEvent(QShowEvent *event) {
 
 void VehiclePanel::updatePanel(bool _offroad) {
   platformSelector->refresh(_offroad);
-
   offroad = _offroad;
 }
 
