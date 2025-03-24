@@ -46,5 +46,7 @@ private:
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
 
-  QPointF prev_lead_positions[2] = {QPointF(0, 0), QPointF(0, 0)};
+  QPointF prev_lead_positions[2] = {QPointF(0, 0), QPointF(0, 0)}; // Track previous lead positions
+  float smoothed_yRel[2] = {0.0f, 0.0f};                           // Smoothed lateral positions for two leads
+  bool prev_lead_status[2] = {false, false};                       // Previous status of each lead
 };

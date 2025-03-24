@@ -59,38 +59,30 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
 void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, const cereal::XYZTData::Reader &line) {
   for (int i = 0; i < 2; ++i) {
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
-    if (lead_data.getStatus()) {
-      // Get path Z-coordinate at the lead distance for proper perspective
-      float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
-
-      // Map lead vehicle to screen coordinates
-      // Use the exact relative Y position from radar data
-      QPointF current_pos;
-      // Adjust yRel calculation to ensure the lead is centered on the path
-      float yRel = lead_data.getYRel();
-
-      // Map to screen with proper depth and relative position
-      mapToScreen(lead_data.getDRel(), -yRel, z + path_offset_z, &current_pos);
-
-      // Apply smoothing only if we have valid previous data
-      // Use a lower smoothing factor for more responsive tracking
-      if (prev_lead_positions[i] != QPointF(0, 0) && current_pos != QPointF(0, 0)) {
-        float smoothing_factor = 0.4; // Higher value = more responsive (less lag)
-        QPointF smoothed_pos;
-        smoothed_pos.setX(prev_lead_positions[i].x() * (1.0 - smoothing_factor) + current_pos.x() * smoothing_factor);
-        smoothed_pos.setY(prev_lead_positions[i].y() * (1.0 - smoothing_factor) + current_pos.y() * smoothing_factor);
-        lead_vertices[i] = smoothed_pos;
+    bool current_status = lead_data.getStatus();
+    if (current_status) {
+      float raw_yRel = lead_data.getYRel();
+      if (prev_lead_status[i]) {
+        // Keep smoothing with a low alpha for smoothness
+        float alpha = 0.1f; // Adjust this value (e.g., 0.1 or lower) to control smoothness
+        smoothed_yRel[i] = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
       } else {
-        // First frame or invalid position - use raw position
-        lead_vertices[i] = current_pos;
+        smoothed_yRel[i] = raw_yRel;
       }
-
-      // Store current position for next frame
-      prev_lead_positions[i] = current_pos;
-
-      // Get radar flag directly from the lead data
+      // Get the path's y-coordinate at the lead's distance
+      int idx = get_path_length_idx(line, lead_data.getDRel());
+      float path_y = line.getY()[idx];
+      // Increase beta to pull the chevron toward the path center
+      float beta = 0.3f; // Adjust this value (e.g., 0.5 or higher) to center better
+      float adjusted_yRel = beta * path_y + (1.0f - beta) * smoothed_yRel[i];
+      float z = line.getZ()[idx];
+      QPointF current_pos;
+      // Adjust based on coordinate system: try without the negative sign first
+      mapToScreen(lead_data.getDRel(), adjusted_yRel, z + path_offset_z, &current_pos);
+      lead_vertices[i] = current_pos;
       lead_radar_assisted[i] = lead_data.getRadar();
     }
+    prev_lead_status[i] = current_status;
   }
 }
 
@@ -416,10 +408,49 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.setBrush(chevGradient);
   painter.drawPolygon(chevronPolygon);
 
-  // Draw improved white border for chevron (thicker and more visible)
-  painter.setPen(QPen(QColor(255, 255, 255, 220), 2.5)); // White border with higher opacity
+  // Draw border with color based on radar assistance
+  // Change: Use white for radar-assisted, black for vision-only
+  if (isRadarAssisted) {
+    painter.setPen(QPen(QColor(255, 255, 255, 220), 2.5)); // White border
+  } else {
+    painter.setPen(QPen(QColor(0, 0, 0, 220), 2.5)); // Black border
+  }
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
+
+  // Draw icon in the center of the chevron
+  // Calculate icon size based on chevron size
+  float icon_size = sz * 0.8;
+
+  // For a chevron, the vertical center is roughly at y + sz/2
+  // Move it down a bit more to visually center it in the chevron shape
+  float icon_center_y = y + sz * 0.6; // Adjusted to move the icon down in the chevron
+
+  QRectF iconRect(x - icon_size / 2,             // Horizontal center
+                  icon_center_y - icon_size / 2, // Vertical center, adjusted for chevron shape
+                  icon_size, icon_size);
+
+  // Load and draw the appropriate icon
+  QPixmap icon;
+  if (isRadarAssisted) {
+    icon.load("../assets/img_radar.png");
+  } else {
+    icon.load("../assets/img_vision.png");
+  }
+
+  if (!icon.isNull()) {
+    if (isRadarAssisted) {
+      // Rotate radar-assisted icon by 90 degrees
+      painter.save();
+      painter.translate(iconRect.center()); // Move origin to icon center
+      painter.rotate(90);                   // Rotate 90 degrees clockwise
+      painter.drawPixmap(QRectF(-iconRect.width() / 2, -iconRect.height() / 2, iconRect.width(), iconRect.height()), icon, icon.rect());
+      painter.restore();
+    } else {
+      // Draw vision icon without rotation
+      painter.drawPixmap(iconRect, icon, icon.rect());
+    }
+  }
 
   // Position info panel centered below the lead vehicle
   // Anchor panel to the chevron's bottom center point
