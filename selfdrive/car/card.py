@@ -74,7 +74,7 @@ class Car:
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents', 'modelV2'] + ['carControlSP'])
-    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'liveTracks'] + ['carParamsSP'])
+    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'liveTracks', 'carStateBP'] + ['carParamsSP'])
 
     self.can_rcv_cum_timeout_counter = 0
 
@@ -109,6 +109,11 @@ class Car:
 
       self.CI = get_car(*self.can_callbacks, obd_callback(self.params), experimental_long_allowed, num_pandas, cached_params, fixed_fingerprint)
       sunnypilot_interfaces.setup_car_interface_sp(self.CI.CP, self.CI.CP_SP, self.params)
+      sunnypilot_interfaces.set_hyundai_long_tune_flag(self.CI.CP_SP, self.params)
+
+      if self.CI.CP.brand == 'hyundai':
+        self.CI.apply_longitudinal_tuning()
+
       self.RI = interfaces[self.CI.CP.carFingerprint].RadarInterface(self.CI.CP, self.CI.CP_SP)
       self.CP = self.CI.CP
       self.CP_SP = self.CI.CP_SP
@@ -239,6 +244,11 @@ class Car:
       cp_send.valid = True
       cp_send.carParams = self.CP
       self.pm.send('carParams', cp_send)
+
+    if hasattr(self.CI.CS, "car_state_bp_msg"):
+      # print("carStateBP message available")
+      # print(self.CI.CS.car_state_bp_msg)
+      self.pm.send("carStateBP", self.CI.CS.car_state_bp_msg)
 
     # publish new carOutput
     co_send = messaging.new_message('carOutput')

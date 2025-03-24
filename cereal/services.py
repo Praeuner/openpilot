@@ -83,6 +83,9 @@ _services: dict[str, tuple] = {
   "carParamsSP": (True, 0.02, 1),
   "carControlSP": (True, 100., 10),
 
+  # bluepilot
+  "carStateBP": (True, 100., 10),
+
   # debug
   "uiDebug": (True, 0., 1),
   "testJoystick": (True, 0.),

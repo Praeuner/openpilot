@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 #include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
@@ -23,27 +24,39 @@ AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *par
 
 void AnnotatedCameraWidget::updateState(const UIState &s) {
   // update engageability/experimental mode button
-
   const SubMaster &sm = *(s.sm);
-  const auto car_state = sm["carState"].getCarState();
   experimental_btn->updateState(s);
+  // std::cout << "carStateBP updateState" << std::endl;
+  if (sm.updated("carStateBP")) {
+    // std::cout << "carStateBP updated" << std::endl;
+    if (sm.valid("carStateBP")) {
+      // std::cout << "carStateBP message received and valid" << std::endl;
+      // std::cout << "carStateBP message received" << std::endl;
+      const auto car_state_bp = sm["carStateBP"].getCarStateBP();
+      experimental_btn->updateState(s);
 
-  // Hybrid Drive Data
-  hevDataAvailable = car_state.getHevDataAvailable();
-  hevThrottleDemandPercent = car_state.getHevThrottleDemandPercent();
-  hevThrottleThresholdPercent = car_state.getHevThrottleThresholdPercent();
-  hevPowerFlowMode = QString::fromStdString(car_state.getHevPowerFlowMode());
-  hevEngineOnReason = QString::fromStdString(car_state.getHevEngineOnReason());
+      // Hybrid Drive Data
+      hevDataAvailable = car_state_bp.getHybridDrive().getDataAvailable();
+      hevThrottleDemandPercent = car_state_bp.getHybridDrive().getThrottleDemandPercent();
+      hevThrottleThresholdPercent = car_state_bp.getHybridDrive().getThrottleThresholdPercent();
+      hevPowerFlowMode = QString::fromStdString(car_state_bp.getHybridDrive().getPowerFlowMode());
+      hevEngineOnReason = QString::fromStdString(car_state_bp.getHybridDrive().getEngineOnReason());
 
-  // Hybrid Battery Data
-  hevBattDataAvailable = car_state.getHevBattDataAvailable();
-  hevBattVoltHighLimit = car_state.getHevBattVoltHighLimit();
-  hevBattVoltLowLimit = car_state.getHevBattVoltLowLimit();
-  hevBattVoltActual = car_state.getHevBattVoltActual();
-  hevBattAmpsActual = car_state.getHevBattAmpsActual();
-  hevBattSocMinPerc = car_state.getHevBattSocMinPerc();
-  hevBattSocMaxPerc = car_state.getHevBattSocMaxPerc();
-  hevBattSocActual = car_state.getHevBattSocActual();
+      hevBattDataAvailable = car_state_bp.getHybridBattery().getDataAvailable();
+      hevBattVoltHighLimit = car_state_bp.getHybridBattery().getVoltHighLimit();
+      hevBattVoltLowLimit = car_state_bp.getHybridBattery().getVoltLowLimit();
+      hevBattVoltActual = car_state_bp.getHybridBattery().getVoltActual();
+      hevBattAmpsActual = car_state_bp.getHybridBattery().getAmpsActual();
+      hevBattSocMinPerc = car_state_bp.getHybridBattery().getSocMinPerc();
+      hevBattSocMaxPerc = car_state_bp.getHybridBattery().getSocMaxPerc();
+      hevBattSocActual = car_state_bp.getHybridBattery().getSocActual();
+      dmon.updateState(s);
+    } else {
+      std::cout << "carStateBP message received but invalid" << std::endl;
+    }
+  } else {
+    // std::cout << "carStateBP message not received" << std::endl;
+  }
   dmon.updateState(s);
 }
 

@@ -369,6 +369,7 @@ def scan_dir(path: str, prefix: str) -> list[str]:
           files.append(rel_path)
   return files
 
+
 @dispatcher.add_method
 def listDataDirectory(prefix='') -> list[str]:
   return scan_dir(Paths.log_root(), prefix)
@@ -448,6 +449,7 @@ def cancelUpload(upload_id: str | list[str]) -> dict[str, int | str]:
   cancelled_uploads.update(cancelled_ids)
   return {"success": 1}
 
+
 @dispatcher.add_method
 def setRouteViewed(route: str) -> dict[str, int | str]:
   # maintain a list of the last 10 routes viewed in connect
@@ -522,6 +524,12 @@ def getSshAuthorizedKeys() -> str:
 @dispatcher.add_method
 def getGithubUsername() -> str:
   return Params().get("GithubUsername", encoding='utf8') or ''
+
+
+@dispatcher.add_method
+def getFirehoseMode() -> bool:
+  return not Params().get_bool("DisableFirehoseMode")
+
 
 @dispatcher.add_method
 def getSimInfo():
@@ -804,7 +812,7 @@ def ws_send(ws: WebSocket, end_event: threading.Event) -> None:
       except queue.Empty:
         data = low_priority_send_queue.get(timeout=1)
       for i in range(0, len(data), WS_FRAME_SIZE):
-        frame = data[i:i+WS_FRAME_SIZE]
+        frame = data[i : i + WS_FRAME_SIZE]
         last = i + WS_FRAME_SIZE >= len(data)
         opcode = ABNF.OPCODE_TEXT if i == 0 else ABNF.OPCODE_CONT
         ws.send_frame(ABNF.create_frame(frame, opcode, last))

@@ -289,21 +289,6 @@ struct CarState {
     }
   }
 
-  # Hybrid Drive Data
-  hevDataAvailable @58 :Bool;                 # Whether the data is available
-  hevThrottleDemandPercent @59 :Float32;      # Engine demand/effort in percentage (EffWhlLvl2_Pc_Dsply)
-  hevThrottleThresholdPercent @60 :Float32;   # EV throttle threshold in percentage (EffWhlThres_Pc_Dsply)
-  hevPowerFlowMode @61 :Text;                 # Power flow status (PwrFlowTxt_D_Dsply)
-  hevEngineOnReason @62 :Text;                # Why engine is running (EngOnMsg1_D_Dsply)
-  hevBattDataAvailable @63 :Bool;             # Whether the battery data is available
-  hevBattVoltHighLimit @64 :Float32;          # Battery voltage high limit (BattTrac_U_LimHi)
-  hevBattVoltLowLimit @65 :Float32;           # Battery voltage low limit (BattTrac_U_LimLo)
-  hevBattVoltActual @66 :Float32;             # Battery voltage actual (BattTrac_U_Actl)
-  hevBattAmpsActual @67 :Float32;             # Battery amps actual (BattTrac_I_Actl)
-  hevBattSocMinPerc @68 :Float32;             # Battery SOC min percent (BattTracSoc_Pc_MnPrtct)
-  hevBattSocMaxPerc @69 :Float32;             # Battery SOC max percent (BattTracSoc_Pc_MxPrtct)
-  hevBattSocActual @70 :Float32;              # Battery SOC actual percent (BattTracSoc2_Pc_Actl)
-
   # deprecated
   errorsDEPRECATED @0 :List(OnroadEventDEPRECATED.EventName);
   brakeLightsDEPRECATED @19 :Bool;

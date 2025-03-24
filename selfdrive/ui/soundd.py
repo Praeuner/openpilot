@@ -13,7 +13,7 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.system import micd
 
-from openpilot.selfdrive.ui.sunnypilot.quietmode import QuietDriveManager
+from openpilot.selfdrive.ui.sunnypilot.quiet_mode import QuietMode
 
 SAMPLE_RATE = 48000
 SAMPLE_BUFFER = 4096 # (approx 100ms)
@@ -52,8 +52,10 @@ def check_selfdrive_timeout_alert(sm):
   return False
 
 
-class Soundd:
+class Soundd(QuietMode):
   def __init__(self):
+    super().__init__()
+
     self.load_sounds()
 
     self.current_alert = AudibleAlert.none
@@ -63,14 +65,6 @@ class Soundd:
     self.selfdrive_timeout_alert = False
 
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
-
-    self.quiet_drive_manager = QuietDriveManager()
-
-  def load_param(self):
-    self.quiet_drive_manager.load_param()
-
-  def should_play_sound(self):
-    return self.quiet_drive_manager.should_play_sound(self.current_alert)
 
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
@@ -91,7 +85,7 @@ class Soundd:
 
     ret = np.zeros(frames, dtype=np.float32)
 
-    if self.should_play_sound():
+    if self.should_play_sound(self.current_alert):
       num_loops = sound_list[self.current_alert][1]
       sound_data = self.loaded_sounds[self.current_alert]
       written_frames = 0
@@ -153,6 +147,8 @@ class Soundd:
       cloudlog.info(f"soundd stream started: {stream.samplerate=} {stream.channels=} {stream.dtype=} {stream.device=}, {stream.blocksize=}")
       while True:
         sm.update(0)
+
+        self.load_param()
 
         if sm.updated['microphone'] and self.current_alert == AudibleAlert.none: # only update volume filter when not playing alert
           self.spl_filter_weighted.update(sm["microphone"].soundPressureWeightedDb)

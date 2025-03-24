@@ -17,8 +17,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   auto *s = uiState();
   auto &sm = *(s->sm);
   // Check if data is up-to-date
-  if (sm.rcv_frame("liveCalibration") < s->scene.started_frame ||
-      sm.rcv_frame("modelV2") < s->scene.started_frame) {
+  if (sm.rcv_frame("liveCalibration") < s->scene.started_frame || sm.rcv_frame("modelV2") < s->scene.started_frame) {
     return;
   }
 
@@ -61,24 +60,33 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
   for (int i = 0; i < 2; ++i) {
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
     if (lead_data.getStatus()) {
+      // Get path Z-coordinate at the lead distance for proper perspective
       float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
 
+      // Map lead vehicle to screen coordinates
+      // Use the exact relative Y position from radar data
       QPointF current_pos;
-      mapToScreen(lead_data.getDRel(), -lead_data.getYRel(), z + path_offset_z, &current_pos);
+      // Adjust yRel calculation to ensure the lead is centered on the path
+      float yRel = lead_data.getYRel();
 
-      // Apply smoothing if we have valid previous positions
-      if (prev_lead_positions[i] != QPointF(0, 0)) {
-        float smoothing_factor = 0.2; // Lower = more smoothing
+      // Map to screen with proper depth and relative position
+      mapToScreen(lead_data.getDRel(), -yRel, z + path_offset_z, &current_pos);
+
+      // Apply smoothing only if we have valid previous data
+      // Use a lower smoothing factor for more responsive tracking
+      if (prev_lead_positions[i] != QPointF(0, 0) && current_pos != QPointF(0, 0)) {
+        float smoothing_factor = 0.4; // Higher value = more responsive (less lag)
         QPointF smoothed_pos;
         smoothed_pos.setX(prev_lead_positions[i].x() * (1.0 - smoothing_factor) + current_pos.x() * smoothing_factor);
         smoothed_pos.setY(prev_lead_positions[i].y() * (1.0 - smoothing_factor) + current_pos.y() * smoothing_factor);
         lead_vertices[i] = smoothed_pos;
       } else {
+        // First frame or invalid position - use raw position
         lead_vertices[i] = current_pos;
       }
 
       // Store current position for next frame
-      prev_lead_positions[i] = lead_vertices[i];
+      prev_lead_positions[i] = current_pos;
 
       // Get radar flag directly from the lead data
       lead_radar_assisted[i] = lead_data.getRadar();
@@ -240,8 +248,9 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
 
     for (int i = 0; i < max_len; ++i) {
       // Some points are out of frame
-      int track_idx = max_len - i - 1;  // flip idx to start from bottom right
-      if (track_vertices[track_idx].y() < 0 || track_vertices[track_idx].y() > height) continue;
+      int track_idx = max_len - i - 1; // flip idx to start from bottom right
+      if (track_vertices[track_idx].y() < 0 || track_vertices[track_idx].y() > height)
+        continue;
 
       // Flip so 0 is bottom of frame
       float lin_grad_point = (height - track_vertices[track_idx].y()) / height;
@@ -252,8 +261,8 @@ void ModelRenderer::drawPath(QPainter &painter, const cereal::ModelDataV2::Reade
       path_hue = int(path_hue * 100 + 0.5) / 100;
 
       float saturation = fmin(fabs(acceleration[i] * 1.5), 1);
-      float lightness = util::map_val(saturation, 0.0f, 1.0f, 0.95f, 0.62f);        // lighter when grey
-      float alpha = util::map_val(lin_grad_point, 0.75f / 2.f, 0.75f, 0.4f, 0.0f);  // matches previous alpha fade
+      float lightness = util::map_val(saturation, 0.0f, 1.0f, 0.95f, 0.62f);       // lighter when grey
+      float alpha = util::map_val(lin_grad_point, 0.75f / 2.f, 0.75f, 0.4f, 0.0f); // matches previous alpha fade
       bg.setColorAt(lin_grad_point, QColor::fromHslF(path_hue / 360., saturation, lightness, alpha));
 
       // Skip a point, unless next is last
@@ -376,23 +385,10 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   const float d_rel = lead_data.getDRel();
   const float v_lead = lead_data.getVLead();
 
-  // Apply smoothing to reduce jitter in position
-  // Static variables to remember previous positions for smoothing
-  static QPointF prev_pos = vd;
-  static float smoothing_factor = 0.2; // Lower = more smoothing
-
-  // Apply exponential smoothing
-  QPointF smoothed_pos;
-  smoothed_pos.setX(prev_pos.x() * (1.0 - smoothing_factor) + vd.x() * smoothing_factor);
-  smoothed_pos.setY(prev_pos.y() * (1.0 - smoothing_factor) + vd.y() * smoothing_factor);
-
-  // Store current position for next frame
-  prev_pos = smoothed_pos;
-
   // Calculate sizes based on distance for responsive design
   float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
-  float x = std::clamp<float>(smoothed_pos.x(), 0.f, surface_rect.width() - sz / 2);
-  float y = std::min<float>(smoothed_pos.y(), surface_rect.height() - sz * 0.6);
+  float x = std::clamp<float>(vd.x(), 0.f, surface_rect.width() - sz / 2);
+  float y = std::min<float>(vd.y(), surface_rect.height() - sz * 0.6);
 
   // Convert measurements for display
   float distance_m = d_rel;
@@ -401,18 +397,18 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   // Enable anti-aliasing for smoother lead indicator
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  // Create the chevron polygon centered on the smoothed position
+  // Create the chevron polygon centered on the position
   QPolygonF chevronPolygon;
   chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
   // Create gradient based on radar assistance
   QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
   if (isRadarAssisted) {
-    chevGradient.setColorAt(0, QColor(60, 170, 255, 230));
-    chevGradient.setColorAt(1, QColor(30, 144, 255, 200));
+    chevGradient.setColorAt(0, QColor(60, 170, 255, 230)); // Blue
+    chevGradient.setColorAt(1, QColor(30, 144, 255, 200)); // Darker blue
   } else {
-    chevGradient.setColorAt(0, QColor(230, 60, 60, 230));
-    chevGradient.setColorAt(1, QColor(200, 30, 30, 200));
+    chevGradient.setColorAt(0, QColor(255, 255, 0, 230)); // Yellow
+    chevGradient.setColorAt(1, QColor(220, 220, 0, 200)); // Darker yellow
   }
 
   // Draw chevron with gradient
@@ -420,8 +416,8 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.setBrush(chevGradient);
   painter.drawPolygon(chevronPolygon);
 
-  // Draw chevron border
-  painter.setPen(QPen(QColor(255, 255, 255, 80), 1.5));
+  // Draw improved white border for chevron (thicker and more visible)
+  painter.setPen(QPen(QColor(255, 255, 255, 220), 2.5)); // White border with higher opacity
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
 
@@ -450,16 +446,16 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
     infoPanel.moveRight(surface_rect.width());
   }
 
-  // Draw a semi-transparent panel with a subtle gradient
+  // Draw a more transparent panel with a subtle gradient
   QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
-  panelGradient.setColorAt(0, QColor(20, 20, 20, 220));
-  panelGradient.setColorAt(1, QColor(40, 40, 40, 220));
+  panelGradient.setColorAt(0, QColor(20, 20, 20, 120)); // Much more transparent background (120 alpha)
+  panelGradient.setColorAt(1, QColor(40, 40, 40, 120)); // Much more transparent background (120 alpha)
   painter.setPen(Qt::NoPen);
   painter.setBrush(panelGradient);
   painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Add a subtle border
-  painter.setPen(QPen(QColor(150, 150, 150, 120), 1));
+  painter.setPen(QPen(QColor(150, 150, 150, 80), 1)); // More transparent border
   painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Set up text formatting with larger size
@@ -481,14 +477,14 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
-void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off,
-                                     QPolygonF *pvd, int max_idx, bool allow_invert) {
+void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
   const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
   QPointF left, right;
   pvd->clear();
   for (int i = 0; i <= max_idx; i++) {
     // highly negative x positions  are drawn above the frame and cause flickering, clip to zy plane of camera
-    if (line_x[i] < 0) continue;
+    if (line_x[i] < 0)
+      continue;
 
     bool l = mapToScreen(line_x[i], line_y[i] - y_off, line_z[i] + z_off, &left);
     bool r = mapToScreen(line_x[i], line_y[i] + y_off, line_z[i] + z_off, &right);

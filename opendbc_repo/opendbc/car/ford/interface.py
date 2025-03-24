@@ -66,7 +66,7 @@ class CarInterface(CarInterfaceBase):
       cfgs.insert(0, get_safety_config(structs.CarParams.SafetyModel.noOutput))
     ret.safetyConfigs = cfgs
 
-    ret.experimentalLongitudinalAvailable = not ret.flags & FordFlags.CANFD
+    ret.experimentalLongitudinalAvailable = (bool)(ret.flags & FordFlags.CANFD)
     if experimental_long or not ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True

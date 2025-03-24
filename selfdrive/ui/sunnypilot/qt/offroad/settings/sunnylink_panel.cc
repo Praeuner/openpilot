@@ -74,11 +74,9 @@ SunnylinkPanel::SunnylinkPanel(QWidget *parent) : QFrame(parent) {
   connect(sunnylinkEnabledBtn, &ParamControl::toggleFlipped, [=](bool enabled) {
     QString description;
     if (enabled) {
-      description = "<font color='SeaGreen'>" + tr("🎉Welcome back! We're excited to see you've enabled sunnylink again! 🚀") + "</font>";
+      description = "<font color='SeaGreen'>"+ tr("🎉Welcome back! We're excited to see you've enabled sunnylink again! 🚀")+ "</font>";
     } else {
-      description = "<font color='orange'>" + tr(
-                      "👋Not going to lie, it's sad to see you disabled sunnylink 😢, but we'll be here when you're ready to come back 🎉.")
-                    + "</font>";
+      description = "<font color='orange'>"+ tr("👋Not going to lie, it's sad to see you disabled sunnylink 😢, but we'll be here when you're ready to come back 🎉.")+ "</font>";
     }
     sunnylinkEnabledBtn->showDescription();
     sunnylinkEnabledBtn->setDescription(description);
@@ -93,6 +91,7 @@ SunnylinkPanel::SunnylinkPanel(QWidget *parent) : QFrame(parent) {
     backupSettings->setEnabled(false);
     if (ConfirmationDialog::confirm(tr("Are you sure you want to backup sunnypilot settings?"), tr("Back Up"), this)) {
       params.putBool("BackupManager_CreateBackup", true);
+      backup_request_pending = true;
     }
   });
 
@@ -141,15 +140,28 @@ void SunnylinkPanel::handleBackupProgress() {
 
   switch (backup_status) {
     case cereal::BackupManagerSP::Status::IN_PROGRESS:
+      backup_request_pending = false;
+      backup_request_started = true;
+      backupSettings->setEnabled(false);
       backupSettings->setText(QString(tr("Backup in progress %1%").arg(backup_progress)));
     break;
     case cereal::BackupManagerSP::Status::FAILED:
+      backup_request_pending = false;
+      backup_request_started = false;
+      backupSettings->setEnabled(!is_onroad);
       backupSettings->setText(tr("Backup Failed"));
     break;
     case cereal::BackupManagerSP::Status::COMPLETED:
-      default:
-        backupSettings->setText(tr("Backup Settings"));
-    backupSettings->setEnabled(!is_onroad);
+      backup_request_pending = false;
+      break;
+    default:
+      if (!backup_request_pending && backup_request_started) {
+        backup_request_started = false;
+        ConfirmationDialog::alert(tr("Settings backup completed."), this);
+      } else {
+        backupSettings->setEnabled(!is_onroad && !backup_request_pending && is_sunnylink_enabled);
+      }
+      backupSettings->setText(tr("Backup Settings"));
     break;
   }
 
@@ -161,10 +173,11 @@ void SunnylinkPanel::handleBackupProgress() {
       restoreSettings->setText(QString(tr("Restore in progress %1%").arg(restore_progress)));
       break;
     case cereal::BackupManagerSP::Status::FAILED:
-      restoreSettings->setText(tr("Restore Failed"));
-      ConfirmationDialog::alert(tr("Unable to restore the settings, try again later."), this);
       restore_request_pending = false;
       restore_request_started = false;
+      restoreSettings->setEnabled(!is_onroad);
+      restoreSettings->setText(tr("Restore Failed"));
+      ConfirmationDialog::alert(tr("Unable to restore the settings, try again later."), this);
       break;
     case cereal::BackupManagerSP::Status::COMPLETED:
       restore_request_pending = false;
@@ -172,16 +185,15 @@ void SunnylinkPanel::handleBackupProgress() {
     default:
       if (!restore_request_pending && restore_request_started) {
         restore_request_started = false;
-        restoreSettings->setText(tr("Restore Completed"));
         if (ConfirmationDialog::alert(tr("Settings restored. Confirm to restart the interface."), this)) {
           qApp->exit(18);
           watchdog_kick(0);
         }
       } else {
-        restoreSettings->setText(tr("Restore Settings"));
-        restoreSettings->setEnabled(!is_onroad && !restore_request_pending);
+        restoreSettings->setEnabled(!is_onroad && !restore_request_pending && is_sunnylink_enabled);
       }
-      break;
+      restoreSettings->setText(tr("Restore Settings"));
+    break;
   }
 }
 
@@ -249,7 +261,6 @@ void SunnylinkPanel::updatePanel() {
 
   pairSponsorBtn->setEnabled(!is_onroad && is_sunnylink_enabled);
   pairSponsorBtn->setValue(is_paired ? tr("Paired") : tr("Not Paired"));
-
 
   if (!is_sunnylink_enabled) {
     sunnylinkEnabledBtn->setValue("");

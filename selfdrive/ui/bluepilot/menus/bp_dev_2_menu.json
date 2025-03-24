@@ -17,8 +17,8 @@
           "controls": [
             {
               "type": "toggle",
-              "param": "QuietDrive",
-              "title": "Quiet Drive - Warnings/Alerts Only",
+              "param": "QuietMode",
+              "title": "Quiet Mode - Warnings/Alerts Only",
               "desc": "BluePilot displays alerts but only plays important warning sounds.",
               "hidden": false,
               "conditions": {

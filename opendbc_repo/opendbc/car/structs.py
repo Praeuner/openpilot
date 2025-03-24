@@ -85,3 +85,30 @@ class ModularAssistiveDrivingSystem:
 @auto_dataclass
 class CarControlSP:
   mads: 'ModularAssistiveDrivingSystem' = field(default_factory=lambda: ModularAssistiveDrivingSystem())
+
+
+@auto_dataclass
+class HybridDrive:
+    dataAvailable: bool = auto_field()
+    throttleDemandPercent: float = auto_field()
+    throttleThresholdPercent: float = auto_field()
+    powerFlowMode: str = auto_field()
+    engineOnReason: str = auto_field()
+
+
+@auto_dataclass
+class HybridBattery:
+    dataAvailable: bool = auto_field()
+    voltHighLimit: float = auto_field()
+    voltLowLimit: float = auto_field()
+    voltActual: float = auto_field()
+    ampsActual: float = auto_field()
+    socMinPerc: float = auto_field()
+    socMaxPerc: float = auto_field()
+    socActual: float = auto_field()
+
+
+@auto_dataclass
+class CarStateBP:
+    hybridDrive: HybridDrive = field(default_factory=lambda: HybridDrive())
+    hybridBattery: HybridBattery = field(default_factory=lambda: HybridBattery())

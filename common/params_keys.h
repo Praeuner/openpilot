@@ -25,6 +25,7 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"ControlsReady", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"CurrentBootlog", PERSISTENT},
                                                                 {"CurrentRoute", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
+                                                                {"DisableFirehoseMode", PERSISTENT | BACKUP},
                                                                 {"DisableLogging", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"DisablePowerDown", PERSISTENT | BACKUP},
                                                                 {"DisableUpdates", PERSISTENT | BACKUP},
@@ -119,6 +120,8 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
 
                                                                 // --- sunnypilot params --- //
                                                                 {"ApiCache_DriveStats", PERSISTENT},
+																{"AutoLaneChangeBsmDelay", PERSISTENT},
+															    {"AutoLaneChangeTimer", PERSISTENT},
                                                                 {"CarParamsSP", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"CarParamsSPCache", CLEAR_ON_MANAGER_START},
                                                                 {"CarParamsSPPersistent", PERSISTENT},
@@ -127,13 +130,13 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"ModelRunnerTypeCache", CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"OffroadMode", CLEAR_ON_MANAGER_START},
                                                                 {"OffroadMode_Status", CLEAR_ON_MANAGER_START},
-                                                                {"QuietDrive", PERSISTENT | BACKUP},
+                                                                {"QuietMode", PERSISTENT | BACKUP},
                                                                 {"CustomModelPathColor", PERSISTENT | BACKUP},
 
                                                                 // MADS params
                                                                 {"Mads", PERSISTENT | BACKUP},
                                                                 {"MadsMainCruiseAllowed", PERSISTENT | BACKUP},
-    {"MadsSteeringMode", PERSISTENT | BACKUP},
+                                                                {"MadsSteeringMode", PERSISTENT | BACKUP},
                                                                 {"MadsUnifiedEngagementMode", PERSISTENT | BACKUP},
 
                                                                 // Model Manager params
@@ -141,6 +144,9 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"ModelManager_DownloadIndex", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"ModelManager_LastSyncTime", CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION},
                                                                 {"ModelManager_ModelsCache", PERSISTENT | BACKUP},
+
+																                                // Neural Network Lateral Control
+                                                                {"NeuralNetworkLateralControl", PERSISTENT | BACKUP},
 
                                                                 // sunnylink params
                                                                 {"EnableSunnylinkUploader", PERSISTENT | BACKUP},
@@ -151,15 +157,17 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"SunnylinkdPid", PERSISTENT},
                                                                 {"SunnylinkEnabled", PERSISTENT},
 
-    // Backup Manager params
-    {"BackupManager_CreateBackup", PERSISTENT},
-    {"BackupManager_RestoreVersion", PERSISTENT},
+                                                                // Backup Manager params
+                                                                {"BackupManager_CreateBackup", PERSISTENT},
+                                                                {"BackupManager_RestoreVersion", PERSISTENT},
 
-    // sunnypilot car specific params
-    {"HyundaiRadarTracks", PERSISTENT},
-    {"HyundaiRadarTracksConfirmed", PERSISTENT},
-    {"HyundaiRadarTracksPersistent", PERSISTENT},
-    {"HyundaiRadarTracksToggle", PERSISTENT},
+                                                                // sunnypilot car specific params
+                                                                {"HyundaiRadarTracks", PERSISTENT},
+                                                                {"HyundaiRadarTracksConfirmed", PERSISTENT},
+                                                                {"HyundaiRadarTracksPersistent", PERSISTENT},
+                                                                {"HyundaiRadarTracksToggle", PERSISTENT},
+    															{"HyundaiLongTune", PERSISTENT},
+    															{"HyundaiSmootherBraking", PERSISTENT},
 
                                                                 {"DynamicExperimentalControl", PERSISTENT},
                                                                 // FORD VEHICLE MODEL PARAMS

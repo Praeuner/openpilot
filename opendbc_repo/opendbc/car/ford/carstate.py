@@ -6,6 +6,7 @@ from openpilot.common.params import Params
 from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import DBC, CarControllerParams, FordConfig, FordFlags
 from opendbc.car.interfaces import CarStateBase
+from cereal import messaging
 
 from opendbc.sunnypilot.car.ford.mads import MadsCarState
 
@@ -40,16 +41,8 @@ class CarState(CarStateBase, MadsCarState):
     self.lc_button = 0
 
     # Save the HEV data available flag to a param
-    if CP.flags & FordFlags.HEV_CLUSTER_DATA:
-      self.params.put_bool("FordPrefHevDataAvailable", True)
-    else:
-      self.params.put_bool("FordPrefHevDataAvailable", False)
-
-    if CP.flags & FordFlags.HEV_BATTERY_DATA:
-      self.params.put_bool("FordPrefHevBattDataAvailable", True)
-    else:
-      self.params.put_bool("FordPrefHevBattDataAvailable", False)
-
+    self.params.put_bool("FordPrefHevDataAvailable", True if CP.flags & FordFlags.HEV_CLUSTER_DATA else False)
+    self.params.put_bool("FordPrefHevBattDataAvailable", True if CP.flags & FordFlags.HEV_BATTERY_DATA else False)
     self.hev_data_available = CP.flags & FordFlags.HEV_CLUSTER_DATA
 
 
@@ -187,56 +180,74 @@ class CarState(CarStateBase, MadsCarState):
       *create_button_events(self.lc_button, prev_lc_button, {1: ButtonType.lkas}),
     ]
 
-    ret.hevDataAvailable = False
-    ret.hevThrottleDemandPercent = 0
-    ret.hevThrottleThresholdPercent = 0
-    ret.hevPowerFlowMode = ""
-    ret.hevEngineOnReason = ""
+    self.car_state_bp_msg = self.update_car_state_bp(cp)
+    return ret
 
-    ret.hevBattDataAvailable = False
-    ret.hevBattVoltHighLimit = 0.0
-    ret.hevBattVoltLowLimit = 0.0
-    ret.hevBattVoltActual = 0.0
-    ret.hevBattAmpsActual = 0.0
-    ret.hevBattSocMinPerc = 0.0
-    ret.hevBattSocMaxPerc = 0.0
-    ret.hevBattSocActual = 0.0
+  def update_car_state_bp(self, cp):
+    """Update the CarStateBP message for HEV/PHEV data"""
+    # Create a new message
+    dat = messaging.new_message("carStateBP")
+    dat.valid = True
 
+    # Get handles to the message structures
+    hybrid_drive = dat.carStateBP.hybridDrive
+    hybrid_battery = dat.carStateBP.hybridBattery
+
+    # Initialize with default values
+    hybrid_drive.dataAvailable = False
+    hybrid_drive.throttleDemandPercent = 0.0
+    hybrid_drive.throttleThresholdPercent = 0.0
+    hybrid_drive.powerFlowMode = ""
+    hybrid_drive.engineOnReason = ""
+
+    hybrid_battery.dataAvailable = False
+    hybrid_battery.voltHighLimit = 0.0
+    hybrid_battery.voltLowLimit = 0.0
+    hybrid_battery.voltActual = 0.0
+    hybrid_battery.ampsActual = 0.0
+    hybrid_battery.socMinPerc = 0.0
+    hybrid_battery.socMaxPerc = 0.0
+    hybrid_battery.socActual = 0.0
+
+    # HEV cluster data
     try:
-      if self.CP.flags & FordFlags.HEV_CLUSTER_DATA:
-        # print("F150 HEV Cluster_HEV_Data2 signal detected (carstate update)")
-        hev_data = cp.vl["Cluster_HEV_Data2"]
-
-        ret.hevDataAvailable = hev_data is not None
-        if ret.hevDataAvailable:
-          ret.hevThrottleDemandPercent = hev_data["EffWhlLvl2_Pc_Dsply"]
-          ret.hevThrottleThresholdPercent = hev_data["EffWhlThres_Pc_Dsply"]
-          ret.hevPowerFlowMode = get_hev_power_flow_text(hev_data["PwrFlowTxt_D_Dsply"])
-          ret.hevEngineOnReason = get_hev_engine_on_reason_text(hev_data["EngOnMsg1_D_Dsply"])
+        if self.CP.flags & FordFlags.HEV_CLUSTER_DATA:
+          hev_data = cp.vl["Cluster_HEV_Data2"]
+          if hev_data is not None:
+            hybrid_drive.dataAvailable = True
+            hybrid_drive.throttleDemandPercent = hev_data["EffWhlLvl2_Pc_Dsply"]
+            hybrid_drive.throttleThresholdPercent = hev_data[
+                "EffWhlThres_Pc_Dsply"
+            ]
+            hybrid_drive.powerFlowMode = get_hev_power_flow_text(
+                hev_data["PwrFlowTxt_D_Dsply"]
+            )
+            hybrid_drive.engineOnReason = get_hev_engine_on_reason_text(
+                hev_data["EngOnMsg1_D_Dsply"]
+            )
     except (KeyError, AttributeError):
-      # print("KeyError or AttributeError (carstate update)")
       pass
 
+    # HEV battery data
     try:
       if self.CP.flags & FordFlags.HEV_BATTERY_DATA:
         batt_data1 = cp.vl["Battery_Traction_1_FD1"]
         batt_data3 = cp.vl["Battery_Traction_3_FD1"]
         batt_data4 = cp.vl["Battery_Traction_4_FD1"]
-        ret.hevBattDataAvailable = batt_data1 is not None and batt_data3 is not None and batt_data4 is not None
-        if ret.hevBattDataAvailable:
-          ret.hevBattVoltHighLimit = batt_data1["BattTrac_U_LimHi"]
-          ret.hevBattVoltLowLimit = batt_data1["BattTrac_U_LimLo"]
-          ret.hevBattVoltActual = batt_data1["BattTrac_U_Actl"]
-          ret.hevBattAmpsActual = batt_data1["BattTrac_I_Actl"]
-          ret.hevBattSocMinPerc = batt_data3["BattTracSoc_Pc_MnPrtct"]
-          ret.hevBattSocMaxPerc = batt_data3["BattTracSoc_Pc_MxPrtct"]
-          ret.hevBattSocActual = batt_data4["BattTracSoc2_Pc_Actl"]
 
+        if all(x is not None for x in [batt_data1, batt_data3, batt_data4]):
+          hybrid_battery.dataAvailable = True
+          hybrid_battery.voltHighLimit = batt_data1["BattTrac_U_LimHi"]
+          hybrid_battery.voltLowLimit = batt_data1["BattTrac_U_LimLo"]
+          hybrid_battery.voltActual = batt_data1["BattTrac_U_Actl"]
+          hybrid_battery.ampsActual = batt_data1["BattTrac_I_Actl"]
+          hybrid_battery.socMinPerc = batt_data3["BattTracSoc_Pc_MnPrtct"]
+          hybrid_battery.socMaxPerc = batt_data3["BattTracSoc_Pc_MxPrtct"]
+          hybrid_battery.socActual = batt_data4["BattTracSoc2_Pc_Actl"]
     except (KeyError, AttributeError):
-      # print("KeyError or AttributeError (carstate update)")
-      pass
+        pass
 
-    return ret
+    return dat
 
   def update_traffic_signals(self, cp_cam):
     # TODO: Check if CAN platforms have the same signals

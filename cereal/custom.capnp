@@ -138,6 +138,18 @@ struct OnroadEventSP @0xda96579883444c35 {
 struct CarParamsSP @0x80ae746ee2596b11 {
   flags @0 :UInt32;        # flags for car specific quirks in sunnypilot
   safetyParam @1 : Int16;  # flags for sunnypilot's custom safety flags
+
+  neuralNetworkLateralControl @2 :NeuralNetworkLateralControl;
+
+  struct NeuralNetworkLateralControl {
+    model @0 :Model;
+    fuzzyFingerprint @1 :Bool;
+
+    struct Model {
+      path @0 :Text;
+      name @1 :Text;
+    }
+  }
 }
 
 struct CarControlSP @0xa5cd762cd951a455 {
@@ -222,5 +234,26 @@ struct CustomReserved17 @0xa30662f84033036c {
 struct CustomReserved18 @0xc86a3d38d13eb3ef {
 }
 
-struct CustomReserved19 @0xa4f1eb3323f5f582 {
+struct CarStateBP @0xa4f1eb3323f5f582 {
+  hybridDrive @0 :HybridDrive;
+  hybridBattery @1 :HybridBattery;
+
+  struct HybridDrive {
+    dataAvailable @0 :Bool;                 # Whether the data is available
+    throttleDemandPercent @1 :Float32;      # Engine demand/effort in percentage (EffWhlLvl2_Pc_Dsply)
+    throttleThresholdPercent @2 :Float32;   # EV throttle threshold in percentage (EffWhlThres_Pc_Dsply)
+    powerFlowMode @3 :Text;                 # Power flow status (PwrFlowTxt_D_Dsply)
+    engineOnReason @4 :Text;                # Why engine is running (EngOnMsg1_D_Dsply)
+  }
+
+  struct HybridBattery {
+    dataAvailable @0 :Bool;             # Whether the battery data is available
+    voltHighLimit @1 :Float32;          # Battery voltage high limit (BattTrac_U_LimHi)
+    voltLowLimit @2 :Float32;           # Battery voltage low limit (BattTrac_U_LimLo)
+    voltActual @3 :Float32;             # Battery voltage actual (BattTrac_U_Actl)
+    ampsActual @4 :Float32;             # Battery amps actual (BattTrac_I_Actl)
+    socMinPerc @5 :Float32;             # Battery SOC min percent (BattTracSoc_Pc_MnPrtct)
+    socMaxPerc @6 :Float32;             # Battery SOC max percent (BattTracSoc_Pc_MxPrtct)
+    socActual @7 :Float32;              # Battery SOC actual percent (BattTracSoc2_Pc_Actl)
+  }
 }

@@ -83,21 +83,19 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &NetworkingSP::setPrimeType);
 
   QList<PanelInfo> panels = {
-    PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
-    PanelInfo("   " + tr("Network"), networking, "../assets/offroad/icon_network.png"),
-    PanelInfo("   " + tr("sunnylink"), new SunnylinkPanel(this), "../assets/offroad/icon_wifi_strength_full.svg"),
-    PanelInfo("   " + tr("Toggles"), toggles, "../../sunnypilot/selfdrive/assets/offroad/icon_toggle.png"),
-    PanelInfo("   " + tr("Software"), new SoftwarePanelSP(this), "../../sunnypilot/selfdrive/assets/offroad/icon_software.png"),
-    PanelInfo("   " + tr("Steering"), new LateralPanel(this), "../assets/images/button_home.png"),
-    PanelInfo("   " + tr("Trips"), new TripsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_trips.png"),
-    PanelInfo("   " + tr("Vehicle"), new VehiclePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png"),
-    PanelInfo("   " + tr("Firehose"), new FirehosePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_firehose.svg"),
-    PanelInfo("   " + tr("Developer"), new DeveloperPanel(this), "../assets/offroad/icon_shell.png"),
+      PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
+      PanelInfo("   " + tr("Network"), networking, "../assets/offroad/icon_network.png"),
+      PanelInfo("   " + tr("sunnylink"), new SunnylinkPanel(this), "../assets/offroad/icon_wifi_strength_full.svg"),
+      PanelInfo("   " + tr("Toggles"), toggles, "../assets/offroad/icon_toggle.png"),
+      PanelInfo("   " + tr("Software"), new SoftwarePanelSP(this), "../assets/offroad/icon_software.png"),
+      PanelInfo("   " + tr("Steering"), new LateralPanel(this), "../assets/offroad/icon_steering.png"),
+      PanelInfo("   " + tr("Trips"), new TripsPanel(this), "../assets/offroad/icon_trips.png"),
+      PanelInfo("   " + tr("Vehicle"), new VehiclePanel(this), "../assets/offroad/icon_vehicle.png"),
+      PanelInfo("   " + tr("Firehose"), new FirehosePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_firehose.svg"),
+      PanelInfo("   " + tr("Developer"), new DeveloperPanel(this), "../assets/offroad/icon_shell.png"),
   };
 
-  // Add the folowing BluePilot panels after the sunnypilot panel: BluePilot, Utilities, Updater
-  // #ifdef BLUEPILOT
-  // sunnypilot panel index is 5
+  // Add the folowing BluePilot panels after the sunnypilot panel:
   BPNavBarView *bpNavBarView = new BPNavBarView(this);
   bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_2_menu.json");
   panels.insert(6, PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"));
@@ -106,7 +104,6 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   panels.insert(9, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
 
   std::cout << "Adding BluePilot panels" << std::endl;
-  // #endif
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel, icon] : panels) {
