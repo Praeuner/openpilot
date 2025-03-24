@@ -159,6 +159,78 @@ class CarController(CarControllerBase):
     self.sm = messaging.SubMaster(['modelV2'])
     self.model = None
 
+    # Lane change transition tracking
+    self.post_lane_change_timer = 0
+    self.post_lane_change_active = False
+    self.lane_change_last = False  # Track previous lane change state
+    self.pre_lane_change_values = {
+        'path_angle': 0.0,
+        'path_offset': 0.0,
+        'desired_curvature_rate': 0.0
+    }
+
+    # Maximum allowed changes per frame
+    self.max_path_angle_change = 0.00125
+    self.max_path_offset_change = 0.00125
+    self.max_curvature_rate_change = 0.0001
+
+  def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
+    """
+    Manages smooth transition of control variables after lane change
+    Returns: Tuple of (path_angle, path_offset, desired_curvature_rate)
+    """
+    # Detect lane change completion (transition from True to False)
+    if self.lane_change_last and not self.lane_change:
+        self.post_lane_change_active = True
+        self.post_lane_change_timer = 0
+        # Store current values as starting point
+        self.pre_lane_change_values = {
+            'path_angle': 0.0,  # Start from zero since we're coming out of lane change
+            'path_offset': 0.0,
+            'desired_curvature_rate': 0.0
+        }
+
+    # Update previous lane change state
+    self.lane_change_last = self.lane_change
+
+    # If we're in post-lane change state
+    if self.post_lane_change_active:
+        self.post_lane_change_timer += 1
+
+        # Apply smooth transition using rate limiting
+        new_path_angle = clip(
+            path_angle,
+            self.pre_lane_change_values['path_angle'] - self.max_path_angle_change,
+            self.pre_lane_change_values['path_angle'] + self.max_path_angle_change
+        )
+
+        new_path_offset = clip(
+            path_offset,
+            self.pre_lane_change_values['path_offset'] - self.max_path_offset_change,
+            self.pre_lane_change_values['path_offset'] + self.max_path_offset_change
+        )
+
+        new_curvature_rate = clip(
+            desired_curvature_rate,
+            self.pre_lane_change_values['desired_curvature_rate'] - self.max_curvature_rate_change,
+            self.pre_lane_change_values['desired_curvature_rate'] + self.max_curvature_rate_change
+        )
+
+        # Update stored values
+        self.pre_lane_change_values = {
+            'path_angle': new_path_angle,
+            'path_offset': new_path_offset,
+            'desired_curvature_rate': new_curvature_rate
+        }
+
+        # Exit transition state after 40 frames
+        if self.post_lane_change_timer >= 160:
+            self.post_lane_change_active = False
+
+        return (new_path_angle, new_path_offset, new_curvature_rate)
+
+    return (path_angle, path_offset, desired_curvature_rate)
+
   def update(self, CC, CC_SP, CS, now_nanos):
     can_sends = []
     self.sm.update(0)
@@ -303,6 +375,11 @@ class CarController(CarControllerBase):
           # zero path_angle during lane changes
           if self.lane_change:
             path_angle = 0.0
+
+          # Apply post lane change transition logic
+          path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
+              path_angle, path_offset, desired_curvature_rate
+          )
 
           # clip all values to max.
           apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
