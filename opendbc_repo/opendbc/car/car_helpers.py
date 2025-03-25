@@ -89,7 +89,7 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
   params = Params()
   selected_vehicle_model = params.get("FordSelectedVehicleModel", encoding='utf8')
 
-  if selected_vehicle_model:
+  if selected_vehicle_model is not None and selected_vehicle_model != "":
     print(f'Selected Ford Vehicle Model: {selected_vehicle_model}')
     fixed_fingerprint = selected_vehicle_model
   else:

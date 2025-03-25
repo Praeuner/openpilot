@@ -86,6 +86,7 @@ private:
   Params params;
   QTimer *activityTimer = nullptr;
   QMutex fileMutex;
+  int routeIndex = 0;
 
   struct RouteCache {
     QHash<QString, RouteInfo> routeInfoCache; // Now RouteInfo is properly defined
@@ -147,6 +148,7 @@ private:
   void cleanupThumbnail(const QString &routeBase);
   void cleanupThumbnailCache();
   void playRouteVideoConcatenated(const QString &routeBase, const QString &videoFile);
+  void continueRouteProcessing();
 
   // Activity Simulation
   void simulateActivity();
@@ -307,7 +309,6 @@ private slots:
   void validateAndSave();
   void loadSavedSettings();
   void testConnection();
-
   bool isCommaDevice() {
 #ifdef OCOM2
     return true;

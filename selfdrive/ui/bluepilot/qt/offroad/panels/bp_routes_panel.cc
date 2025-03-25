@@ -592,13 +592,49 @@ void BPRoutesPanel::updateRouteList() {
     delete item;
   }
 
-  // Add route widgets
-  for (const auto &route : routes) {
-    createRouteWidget(route);
+  // If no routes, add stretch and return
+  if (routes.isEmpty()) {
+    routesLayout->addStretch();
+    return;
   }
 
-  // Add stretch at the end to push all items to the top
-  routesLayout->addStretch();
+  // Initialize route index for new processing
+  routeIndex = 0;
+
+  // Process first batch of routes
+  int firstBatchCount = 5;
+
+  for (int i = 0; i < firstBatchCount && routeIndex < routes.size(); i++) {
+    createRouteWidget(routes[routeIndex]);
+    routeIndex++;
+  }
+
+  // Process remaining routes in background - FIX HERE
+  if (routeIndex < routes.size()) {
+    QTimer::singleShot(0, this, &BPRoutesPanel::continueRouteProcessing);
+  } else {
+    routesLayout->addStretch();
+  }
+}
+
+void BPRoutesPanel::continueRouteProcessing() {
+  int count = 0;
+  while (routeIndex < routes.size() && count < 5) {
+    createRouteWidget(routes[routeIndex]);
+    routeIndex++;
+    count++;
+  }
+
+  // Update UI after each batch
+  QApplication::processEvents();
+
+  // If more routes to process, schedule the next batch
+  if (routeIndex < routes.size()) {
+    QTimer::singleShot(10, this, &BPRoutesPanel::continueRouteProcessing);
+  } else {
+    // Don't reset routeIndex here! Just add stretch
+    routesLayout->addStretch();
+  }
 }
 
 void BPRoutesPanel::showLoadingOverlay(const QString &message) {
@@ -1277,13 +1313,6 @@ void BPRoutesPanel::hideEvent(QHideEvent *event) {
     delete item->widget();
     delete item;
   }
-
-  // TODO: Stop any running ffmpeg processes from video dialog
-  // for (auto process : ffmpegProcesses) {
-  //   process->kill();
-  //   process->deleteLater();
-  // }
-  // ffmpegProcesses.clear();
 
   // Stop activity timer
   if (activityTimer) {
