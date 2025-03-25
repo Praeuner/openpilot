@@ -414,6 +414,7 @@ class CarController(CarControllerBase):
             ramp_type = 3
             self.requested_curvature_filtered.x = 0.0
             self.path_angle_deque.clear()
+            self.path_angle_pid_controller.reset()
           else:
             ramp_type = 2
         else:
@@ -423,6 +424,7 @@ class CarController(CarControllerBase):
           path_angle = 0.0
           self.requested_curvature_filtered.x = 0.0
           self.path_angle_deque.clear()
+          self.path_angle_pid_controller.reset()
           ramp_type = 0
       else:
         apply_curvature = 0.0
@@ -431,6 +433,7 @@ class CarController(CarControllerBase):
         path_angle = 0.0
         self.requested_curvature_filtered.x = 0.0
         self.path_angle_deque.clear()
+        self.path_angle_pid_controller.reset()
         ramp_type = 0
 
       self.apply_curvature_last = apply_curvature
