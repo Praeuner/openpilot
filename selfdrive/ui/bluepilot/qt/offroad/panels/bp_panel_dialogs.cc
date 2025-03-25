@@ -45,19 +45,18 @@ BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option>
       background-color: transparent;
     }
     QScrollBar:vertical {
-      width: 12px;
-      background: #1e1e1e;
+      width: 24px;
       margin: 0px;
+      padding: 2px;
+      background: transparent;
     }
     QScrollBar::handle:vertical {
-      min-height: 40px;
-      border-radius: 6px;
-      background: #465BEA;
+      background: #666666;
+      min-height: 100px;
+      border-radius: 12px;
+      margin: 0 4px;
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-      height: 0px;
-    }
-    QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical {
       height: 0px;
     }
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
@@ -67,6 +66,9 @@ BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option>
   scrollArea->setWidgetResizable(true);
   scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+  // Enable touch scrolling
+  QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
 
   // Create container for buttons
   QWidget *buttonContainer = new QWidget(scrollArea);
@@ -162,6 +164,7 @@ BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option>
 
 QString BPSelectionDialog::getValue(const QString &title, const QVector<Option> &options, const QString &currentValue, QWidget *parent) {
   BPSelectionDialog *dialog = new BPSelectionDialog(title, options, currentValue, parent);
+  dialog->setupFullscreen();
   int ret = dialog->exec();
   QString result = (ret == QDialog::Accepted) ? dialog->selected : QString();
   dialog->deleteLater();
