@@ -130,7 +130,7 @@ class CarController(CarControllerBase):
     self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
     self.wheel_angle_curv_bp = [0.012, 0.016]  # what curvature to adjust wheel_angle
-    self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
+    self.wheel_angle_curv_low = 1.0  # no restoration at low curvature
     self.wheel_angle_curv_high = 2.0  # apply double the restoration at high curvature
 
     # max absolute values for all four signals
@@ -378,7 +378,7 @@ class CarController(CarControllerBase):
 
         # However we need to restore the full delta when we hit a curve at low speeds
 
-        # Calculate curvature adjustment factor - this will be between 0.0 and 1.0
+        # Calculate curvature adjustment factor - this will be between 1.0 and 2.0
         steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
 
         # Combine speed and curvature adjustments
