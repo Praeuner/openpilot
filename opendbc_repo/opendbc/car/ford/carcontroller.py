@@ -131,7 +131,7 @@ class CarController(CarControllerBase):
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
     self.wheel_angle_curv_bp = [0.01, 0.015]  # what curvature to adjust wheel_angle
     self.wheel_angle_curv_low = 1.0  # no restoration at low curvature
-    self.wheel_angle_curv_high = 3.0  # apply double the restoration at high curvature
+    self.wheel_angle_curv_high = 4.0  # apply double the restoration at high curvature
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
