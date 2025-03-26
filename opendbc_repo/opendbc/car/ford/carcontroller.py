@@ -337,132 +337,119 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-          # filter curvature before calculating rate
-          requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
+        # filter curvature before calculating rate (moved outside lane change blocks)
+        requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
 
+        apply_curvature = apply_ford_curvature_limits(
+          requested_curvature,
+          self.apply_curvature_last,
+          current_curvature,
+          CS.out.vEgoRaw,
+          CS.out.steeringAngleDeg,
+          CC.latActive,
+          self.CP
+        )
 
-          apply_curvature = apply_ford_curvature_limits(
-            requested_curvature,
-            self.apply_curvature_last,
-            current_curvature,
-            CS.out.vEgoRaw,
-            CS.out.steeringAngleDeg,
-            CC.latActive,
-            self.CP
-           )
+        # compute curvature rate
+        self.curvature_rate_deque.append(apply_curvature)
 
-          #remove the next line for public release
-          apply_curvature = requested_curvature
-
-          # compute curvature rate
-          self.curvature_rate_deque.append(apply_curvature)
-
-          # compute curvature rate
-          self.curvature_rate_deque.append(apply_curvature)
-          if len(self.curvature_rate_deque) > 1:
-            delta_t = (
-              self.curvature_rate_delta_t if len(self.curvature_rate_deque) == self.curvature_rate_deque.maxlen else (len(self.curvature_rate_deque) - 1) * 0.05
-            )
-            desired_curvature_rate = (self.curvature_rate_deque[-1] - self.curvature_rate_deque[0]) / delta_t / max(0.01, CS.out.vEgoRaw)
-          else:
-            desired_curvature_rate = 0.0
-
-          # get path offset from model.position.y
-          path_offset = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
-
-          # no path_offset during lane changes (it will fight you until it swaps to new lane if you don't set to zero)
-          if self.lane_change:
-            path_offset = 0
-
-          # Use path_angle to help with centering vehicle in lane, derive path_angle from the models desired steering wheel position
-          # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
-
-          # calculate steering angle associated with the base path (predicted_curvature)
-          steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
-
-          # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
-          steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
-
-          # However we need to restore the full delta when we hit a curve at low speeds
-
-          # Calculate curvature adjustment factor - this will be between 0.0 and 1.0
-          steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
-
-          # we can also adjust the steering wheel delta based on the offset from the center of the lane
-          steering_wheel_delta_offsetAdj = interp(abs(path_offset), self.wheel_angle_offset_bp, [self.wheel_angle_offset_low, self.wheel_angle_offset_high])
-
-          # first pick whether we want to use curvature or offset adjustments (gemoetry selection)
-          steering_wheel_delta_geoAdj = max(steering_wheel_delta_curvAdj, steering_wheel_delta_offsetAdj)
-
-          # Combine speed and curvature adjustments
-          # This formula ensures that as curvature increases, we restore more of the original steering_wheel_delta
-          # even at low speeds
-          final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_geoAdj)
-
-          # Apply scaling factor to path_angle
-          steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
-
-          # use PID to calcualte path_angle
-          path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
-
-          # filter path_angle for smoothing
-          self.path_angle_deque.append(path_angle_PID)
-          path_angle = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
-
-          # zero path_angle during lane changes
-          if self.lane_change:
-            path_angle = 0.0
-
-          # Apply post lane change transition logic
-          path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
-              path_angle, path_offset, desired_curvature_rate
+        # compute curvature rate
+        self.curvature_rate_deque.append(apply_curvature)
+        if len(self.curvature_rate_deque) > 1:
+          delta_t = (
+            self.curvature_rate_delta_t if len(self.curvature_rate_deque) == self.curvature_rate_deque.maxlen else (len(self.curvature_rate_deque) - 1) * 0.05
           )
-
-          # clip all values to max.
-          apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
-          desired_curvature_rate = clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
-          path_offset = clip(path_offset, -self.path_offset_max, self.path_offset_max)
-          path_angle = clip(path_angle, -self.path_angle_max, self.path_angle_max)
-
-          # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
-          if not self.enable_AdvLatCtrl:
-            path_angle = 0.0
-            path_offset = 0.0
-
-          # Determine if a human is making a turn and trap the value
-          # if a human turn is active, reset steering to prevent windup
-          if steeringPressed and abs(steeringAngleDeg_PV) > 45:
-            self.human_turn = True
-          else:
-            self.human_turn = False
-
-          # Determine when to reset steering
-          if (self.human_turn) and self.enable_human_turn_detection:
-            reset_steering = 1
-          else:
-            reset_steering = 0
-
-          # reset steering by setting all values to 0 and ramp_type to immediate
-          if reset_steering == 1:
-            apply_curvature = 0
-            path_offset = 0
-            path_angle = 0
-            desired_curvature_rate = 0
-            ramp_type = 3
-            self.requested_curvature_filtered.x = 0.0
-            self.path_angle_deque.clear()
-            self.path_angle_pid_controller.reset()
-          else:
-            ramp_type = 2
+          desired_curvature_rate = (self.curvature_rate_deque[-1] - self.curvature_rate_deque[0]) / delta_t / max(0.01, CS.out.vEgoRaw)
         else:
-          apply_curvature = 0
           desired_curvature_rate = 0.0
-          path_offset = 0.0
+
+        # get path offset from model.position.y
+        path_offset = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
+
+        # no path_offset during lane changes (it will fight you until it swaps to new lane if you don't set to zero)
+        if self.lane_change:
+          path_offset = 0
+
+        # Use path_angle to help with centering vehicle in lane, derive path_angle from the models desired steering wheel position
+        # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
+
+        # calculate steering angle associated with the base path (predicted_curvature)
+        steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
+
+        # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
+        steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
+
+        # However we need to restore the full delta when we hit a curve at low speeds
+
+        # Calculate curvature adjustment factor - this will be between 0.0 and 1.0
+        steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
+
+        # we can also adjust the steering wheel delta based on the offset from the center of the lane
+        steering_wheel_delta_offsetAdj = interp(abs(path_offset), self.wheel_angle_offset_bp, [self.wheel_angle_offset_low, self.wheel_angle_offset_high])
+
+        # first pick whether we want to use curvature or offset adjustments (gemoetry selection)
+        steering_wheel_delta_geoAdj = max(steering_wheel_delta_curvAdj, steering_wheel_delta_offsetAdj)
+
+        # Combine speed and curvature adjustments
+        # This formula ensures that as curvature increases, we restore more of the original steering_wheel_delta
+        # even at low speeds
+        final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_geoAdj)
+
+        # Apply scaling factor to path_angle
+        steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
+
+        # use PID to calcualte path_angle
+        path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
+
+        # filter path_angle for smoothing
+        self.path_angle_deque.append(path_angle_PID)
+        path_angle = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
+
+        # zero path_angle during lane changes
+        if self.lane_change:
           path_angle = 0.0
+
+        # Apply post lane change transition logic
+        path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
+            path_angle, path_offset, desired_curvature_rate
+        )
+
+        # clip all values to max.
+        apply_curvature = clip(apply_curvature, -self.curvature_max, self.curvature_max)
+        desired_curvature_rate = clip(desired_curvature_rate, -self.curvature_rate_max, self.curvature_rate_max)
+        path_offset = clip(path_offset, -self.path_offset_max, self.path_offset_max)
+        path_angle = clip(path_angle, -self.path_angle_max, self.path_angle_max)
+
+        # if we are not using Advanced Lateral Control, zero out path_angle and path_offset
+        if not self.enable_AdvLatCtrl:
+          path_angle = 0.0
+          path_offset = 0.0
+
+        # Determine if a human is making a turn and trap the value
+        # if a human turn is active, reset steering to prevent windup
+        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
+          self.human_turn = True
+        else:
+          self.human_turn = False
+
+        # Determine when to reset steering
+        if (self.human_turn) and self.enable_human_turn_detection:
+          reset_steering = 1
+        else:
+          reset_steering = 0
+
+        # reset steering by setting all values to 0 and ramp_type to immediate
+        if reset_steering == 1:
+          apply_curvature = 0
+          path_offset = 0
+          path_angle = 0
+          desired_curvature_rate = 0
+          ramp_type = 3
           self.requested_curvature_filtered.x = 0.0
           self.path_angle_deque.clear()
           self.path_angle_pid_controller.reset()
-          ramp_type = 0
+        else:
+          ramp_type = 2
       else:
         apply_curvature = 0.0
         desired_curvature_rate = 0.0
