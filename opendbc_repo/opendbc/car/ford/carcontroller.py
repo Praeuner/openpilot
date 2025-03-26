@@ -130,6 +130,9 @@ class CarController(CarControllerBase):
     self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
     self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
     self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
+    self.wheel_angle_offset_bp = [0.0, 1.0]  # what curvature to adjust wheel_angle
+    self.wheel_angle_offset_low = 0.0  # no restoration at low offset
+    self.wheel_angle_offset_high = 1.0  # full restoration at high offset
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -383,10 +386,16 @@ class CarController(CarControllerBase):
           # Calculate curvature adjustment factor - this will be between 0.0 and 1.0
           steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
 
+          # we can also adjust the steering wheel delta based on the offset from the center of the lane
+          steering_wheel_delta_offsetAdj = interp(abs(path_offset), self.wheel_angle_offset_bp, [self.wheel_angle_offset_low, self.wheel_angle_offset_high])
+
+          # first pick whether we want to use curvature or offset adjustments (gemoetry selection)
+          steering_wheel_delta_geoAdj = max(steering_wheel_delta_curvAdj, steering_wheel_delta_offsetAdj)
+
           # Combine speed and curvature adjustments
           # This formula ensures that as curvature increases, we restore more of the original steering_wheel_delta
           # even at low speeds
-          final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_curvAdj)
+          final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_geoAdj)
 
           # Apply scaling factor to path_angle
           steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
