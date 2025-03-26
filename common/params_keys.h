@@ -120,8 +120,8 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
 
                                                                 // --- sunnypilot params --- //
                                                                 {"ApiCache_DriveStats", PERSISTENT},
-																{"AutoLaneChangeBsmDelay", PERSISTENT},
-															    {"AutoLaneChangeTimer", PERSISTENT},
+                                                                {"AutoLaneChangeBsmDelay", PERSISTENT},
+                                                                {"AutoLaneChangeTimer", PERSISTENT},
                                                                 {"CarParamsSP", CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION},
                                                                 {"CarParamsSPCache", CLEAR_ON_MANAGER_START},
                                                                 {"CarParamsSPPersistent", PERSISTENT},
@@ -145,7 +145,7 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 {"ModelManager_LastSyncTime", CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION},
                                                                 {"ModelManager_ModelsCache", PERSISTENT | BACKUP},
 
-																                                // Neural Network Lateral Control
+                                                                // Neural Network Lateral Control
                                                                 {"NeuralNetworkLateralControl", PERSISTENT | BACKUP},
 
                                                                 // sunnylink params
@@ -206,8 +206,8 @@ inline static std::unordered_map<std::string, uint32_t> keys = {{"AccessToken", 
                                                                 // FORD LATERAL SETTING PARAMS
                                                                 {"FordLatTuningCustomPathOffset", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningCustomPathOffset_default", PERSISTENT | BACKUP},
-                                                                {"FordLatTuningLaneChangeFactorHigh", PERSISTENT | BACKUP},
-                                                                {"FordLatTuningLaneChangeFactorHigh_default", PERSISTENT | BACKUP},
+                                                                {"FordLatTuningLaneChgFactorHigh", PERSISTENT | BACKUP},
+                                                                {"FordLatTuningLaneChgFactorHigh_default", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningPIDGain", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningPIDGain_default", PERSISTENT | BACKUP},
                                                                 {"FordLatTuningPIDReset", PERSISTENT | BACKUP},
