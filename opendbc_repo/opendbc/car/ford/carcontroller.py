@@ -121,7 +121,7 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p = 2.50
+    self.path_angle_k_p = 3.25
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
@@ -129,9 +129,9 @@ class CarController(CarControllerBase):
     self.wheel_angle_speed_bp = [11, 15] # what speed to adjust wheel_angle
     self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
-    self.wheel_angle_curv_bp = [0.01, 0.015]  # what curvature to adjust wheel_angle
-    self.wheel_angle_curv_low = 1.0  # no restoration at low curvature
-    self.wheel_angle_curv_high = 4.0  # apply double the restoration at high curvature
+    self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
+    self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
+    self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
