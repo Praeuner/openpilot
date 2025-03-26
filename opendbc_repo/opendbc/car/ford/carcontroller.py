@@ -121,20 +121,17 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p = 3.25
-    self.path_angle_k_i = 0.05
+    self.path_angle_k_p = 1.80
+    self.path_angle_k_i = 0.02
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
     # Steering wheel angle adjustment variables
     self.wheel_angle_speed_bp = [11, 15] # what speed to adjust wheel_angle
-    self.wheel_angle_speed_low = 0.0 # wheel_angle mulitplier at 3.5 m/s
+    self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
     self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
     self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
-    self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
-    self.wheel_angle_offset_bp = [0.25, 1.0]  # what curvature to adjust wheel_angle
-    self.wheel_angle_offset_low = 0.0  # no restoration at low offset
-    self.wheel_angle_offset_high = 1.0  # full restoration at high offset
+    self.wheel_angle_curv_high = 2.0  # apply double the restoration at high curvature
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -379,21 +376,18 @@ class CarController(CarControllerBase):
         # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
         steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
 
-        # We also want to minimizze the steering wheel delta when we are not far from the lane center
-        steering_wheel_delta_offsetAdj = interp(abs(path_offset), self.wheel_angle_offset_bp, [self.wheel_angle_offset_low, self.wheel_angle_offset_high])
+        # However we need to restore the full delta when we hit a curve at low speeds
 
-        # However large curves need full restoration of the steering wheel delta
+        # Calculate curvature adjustment factor - this will be between 0.0 and 1.0
         steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
 
-
-        # Select which multiplier to use, speed or offset
-        steering_wheel_delta_speed_offsetAdj = min(steering_wheel_delta_offsetAdj, steering_wheel_delta_speedAdj)
-
-        # but if we have a large curve, select the curvature adjustment
-        steering_wheel_final_adj_factor = max(steering_wheel_delta_curvAdj, steering_wheel_delta_speed_offsetAdj)
+        # Combine speed and curvature adjustments
+        # This formula ensures that as curvature increases, we restore more of the original steering_wheel_delta
+        # even at low speeds
+        final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_curvAdj)
 
         # Apply scaling factor to path_angle
-        steerAngleAdjusted = steering_wheel_final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
+        steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
 
         # use PID to calcualte path_angle
         path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
