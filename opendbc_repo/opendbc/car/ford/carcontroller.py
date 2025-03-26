@@ -121,8 +121,8 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p = 1.80
-    self.path_angle_k_i = 0.02
+    self.path_angle_k_p = 2.50
+    self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
 
     # Steering wheel angle adjustment variables
