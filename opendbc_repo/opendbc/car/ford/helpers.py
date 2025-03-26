@@ -12,7 +12,7 @@ SETTINGS_PARAMS = [
   ["FordPrefHumanTurnDetectionEnable", "enable_human_turn_detection", True, bool],
   ["FordPrefLaneDepartCanMsg", "send_lane_depart_can_msg", False, bool],
   ["FordPrefDriverMonitorCanMsg", "send_driver_monitor_can_msg", False, bool],
-  ["FordLatTuningLaneChangeFactorHighUI", "lane_change_factor_high", 0.60, float],
+  ["FordLatTuningLaneChangeFactorHigh", "lane_change_factor_high", 0.60, float],
   ["FordLatTuningEnableAdvLatCtrl", "enable_AdvLatCtrl", True, bool],
   ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
   ["FordLatTuningPIDGain", "path_angle_k_p", 5.50, float],
@@ -30,6 +30,7 @@ def load_initial_cc_pref_params(self_obj): # self_obj is the CarController objec
   self_obj.enable_human_turn_detection = get_bool_param("FordPrefHumanTurnDetectionEnable", True)
   self_obj.send_lane_depart_can_msg = get_bool_param("FordPrefLaneDepartCanMsg", False)
   self_obj.send_driver_monitor_can_msg = get_bool_param("FordPrefDriverMonitorCanMsg", False)
+  self_obj.lane_change_factor_high = get_float_param("FordLatTuningLaneChangeFactorHigh", 0.60)
   self_obj.enable_AdvLatCtrl = get_bool_param("FordLatTuningEnableAdvLatCtrl", True)
   self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
   self_obj.path_angle_k_p = get_float_param("FordLatTuningPIDGain", 5.5)
