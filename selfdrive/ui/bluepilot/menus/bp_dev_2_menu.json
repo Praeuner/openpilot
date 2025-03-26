@@ -243,6 +243,23 @@
             },
             {
               "type": "float",
+              "param": "FordLatTuningLaneChgFactorHigh",
+              "title": "Lane Change Factor High",
+              "desc": "Adjust lane change curvature aggressiveness (lower = slower).",
+              "hidden": false,
+              "min": 0.0,
+              "max": 1.0,
+              "increment": 0.05,
+              "division": 100.0,
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] }
+                ]
+              }
+            },
+            {
+              "type": "float",
               "param": "FordLatTuningPIDGain",
               "title": "PID Gain Factor",
               "desc": "Lower numbers for less twitchy steering",

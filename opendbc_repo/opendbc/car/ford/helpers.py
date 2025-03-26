@@ -12,6 +12,7 @@ SETTINGS_PARAMS = [
   ["FordPrefHumanTurnDetectionEnable", "enable_human_turn_detection", True, bool],
   ["FordPrefLaneDepartCanMsg", "send_lane_depart_can_msg", False, bool],
   ["FordPrefDriverMonitorCanMsg", "send_driver_monitor_can_msg", False, bool],
+  ["FordLatTuningLaneChangeFactorHighUI", "lane_change_factor_high", 0.60, float],
   ["FordLatTuningEnableAdvLatCtrl", "enable_AdvLatCtrl", True, bool],
   ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
   ["FordLatTuningPIDGain", "path_angle_k_p", 5.50, float],
