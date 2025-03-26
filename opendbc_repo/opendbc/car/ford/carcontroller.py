@@ -360,6 +360,12 @@ class CarController(CarControllerBase):
         else:
           desired_curvature_rate = 0.0
 
+        # Determine if a human is making a turn and trap the value
+        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
+          self.human_turn = True
+        else:
+          self.human_turn = False
+
         # get path offset from model.position.y
         path_offset = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
 
@@ -388,6 +394,14 @@ class CarController(CarControllerBase):
 
         # Apply scaling factor to path_angle
         steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
+
+        # if a human turn is active, zero out the steering_wheel_delta
+        if self.human_turn:
+          steerAngleAdjusted = 0.0
+
+        # if a lane change is active, zero out the steering_wheel_delta
+        if self.lane_change:
+          steerAngleAdjusted = 0.0
 
         # use PID to calcualte path_angle
         path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
