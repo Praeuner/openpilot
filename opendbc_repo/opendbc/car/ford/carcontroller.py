@@ -124,14 +124,16 @@ class CarController(CarControllerBase):
     self.path_angle_k_p = 3.25
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
+
+    # Steering wheel angle adjustment variables
     self.wheel_angle_speed_bp = [11, 15] # what speed to adjust wheel_angle
     self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
     self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
     self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
     self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
-    self.wheel_angle_offset_bp = [0.0, 1.0]  # what curvature to adjust wheel_angle
-    self.wheel_angle_offset_low = 0.0  # no restoration at low offset
+    self.wheel_angle_offset_bp = [0.25, 1.0]  # what curvature to adjust wheel_angle
+    self.wheel_angle_offset_low = 0.1  # no restoration at low offset
     self.wheel_angle_offset_high = 1.0  # full restoration at high offset
 
     # max absolute values for all four signals
