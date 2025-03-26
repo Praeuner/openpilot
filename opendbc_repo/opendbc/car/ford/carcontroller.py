@@ -106,6 +106,9 @@ class CarController(CarControllerBase):
     # Curvature variables
     self.requested_curvature_filtered = FirstOrderFilter(0.0, 0.3, 0.05)  # filter for apply_curvature
     self.curvature_lookup_time = 0.05
+    self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
+    self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
+    self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -303,6 +306,32 @@ class CarController(CarControllerBase):
           # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
           curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
 
+        # determine if a lane change is active
+        if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
+            self.lane_change = True
+        else:
+            self.lane_change = False
+
+        # determine lane_change_factor based on speed
+        lane_change_factor = interp(CS.out.vEgoRaw, self.lane_change_factor_bp, [self.lane_change_factor_low, self.lane_change_factor_high])
+
+        # if changing lanes, modify curvature to smooth out the lane change
+        if self.lane_change and (self.model.meta.laneChangeDirection == 1): # if we are changing lanes to the left
+          if desired_curvature < 0: # and the curvature is taking us to the left
+              desired_curvature = desired_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
+          else:
+              desired_curvature = desired_curvature # if we are moving back right to correct for over travel, do not reduce curvature
+
+          self.precision_type = 0 # use comfort mode
+
+        if self.lane_change and (self.model.meta.laneChangeDirection == 2): # if we are changing lanes to the right
+          if desired_curvature > 0: # and the curvature is taking us to the right
+              desired_curvature = desired_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
+          else:
+              desired_curvature = desired_curvature # if we are moving back left to correct for over travel, do not reduce curvature
+
+          self.precision_type = 0 # use comfort mode
+
           # filter curvature before calculating rate
           requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
 
@@ -320,11 +349,8 @@ class CarController(CarControllerBase):
           #remove the next line for public release
           apply_curvature = requested_curvature
 
-           # determine if a lane change is active
-          if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
-            self.lane_change = True
-          else:
-            self.lane_change = False
+          # compute curvature rate
+          self.curvature_rate_deque.append(apply_curvature)
 
           # compute curvature rate
           self.curvature_rate_deque.append(apply_curvature)
