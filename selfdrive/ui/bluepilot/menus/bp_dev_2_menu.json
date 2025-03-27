@@ -259,57 +259,6 @@
               }
             },
             {
-              "type": "float",
-              "param": "FordLatTuningPIDGain",
-              "title": "PID Gain Factor",
-              "desc": "Lower numbers for less twitchy steering",
-              "hidden": false,
-              "min": 0.0,
-              "max": 10.0,
-              "increment": 0.1,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningPIDReset",
-              "title": "PID Reset Factor",
-              "desc": "Lower numbers for less filtering",
-              "hidden": false,
-              "min": 0.0,
-              "max": 2.0,
-              "increment": 0.05,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningSteerAngleFilterTimeConstant",
-              "title": "Steer Angle Filter Time Constant",
-              "desc": "Adjusts the time constant for the steer angle filter",
-              "hidden": false,
-              "min": 0.0,
-              "max": 2.0,
-              "increment": 0.1,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] }
-                ]
-              }
-            },
-            {
               "type": "toggle",
               "param": "FordLatTuningEnableAdvLatCtrl",
               "title": "Enable Advanced Lateral Control",

@@ -12,12 +12,9 @@ SETTINGS_PARAMS = [
   ["FordPrefHumanTurnDetectionEnable", "enable_human_turn_detection", True, bool],
   ["FordPrefLaneDepartCanMsg", "send_lane_depart_can_msg", False, bool],
   ["FordPrefDriverMonitorCanMsg", "send_driver_monitor_can_msg", False, bool],
-  ["FordLatTuningLaneChgFactorHigh", "lane_change_factor_high", 0.60, float],
+  ["FordLatTuningLaneChgFactorHigh", "lane_change_factor_high", 0.75, float],
   ["FordLatTuningEnableAdvLatCtrl", "enable_AdvLatCtrl", True, bool],
   ["FordLatTuningCustomPathOffset", "custom_path_offset", 0.00, float],
-  ["FordLatTuningPIDGain", "path_angle_k_p", 5.50, float],
-  ["FordLatTuningPIDReset", "path_angle_k_i", 0.05, float],
-  ["FordLatTuningSteerAngleFilterTimeConstant", "steerAngleFilterTimeConstant", 0.3, float],
   ["FordLongTuningBrakeActuatorActivate", "brake_actuator_activate", None, float],
   ["FordLongTuningBrakeActuatorReleaseDelta", "brake_actuator_release_delta", None, float],
   ["FordLimitsCurvatureMax", "curvature_max", CarControllerParams.CURVATURE_MAX, float],
@@ -30,12 +27,9 @@ def load_initial_cc_pref_params(self_obj): # self_obj is the CarController objec
   self_obj.enable_human_turn_detection = get_bool_param("FordPrefHumanTurnDetectionEnable", True)
   self_obj.send_lane_depart_can_msg = get_bool_param("FordPrefLaneDepartCanMsg", False)
   self_obj.send_driver_monitor_can_msg = get_bool_param("FordPrefDriverMonitorCanMsg", False)
-  self_obj.lane_change_factor_high = get_float_param("FordLatTuningLaneChgFactorHigh", 0.60)
+  self_obj.lane_change_factor_high = get_float_param("FordLatTuningLaneChgFactorHigh", 0.75)
   self_obj.enable_AdvLatCtrl = get_bool_param("FordLatTuningEnableAdvLatCtrl", True)
   self_obj.custom_path_offset = get_float_param("FordLatTuningCustomPathOffset", 0.0)
-  self_obj.path_angle_k_p = get_float_param("FordLatTuningPIDGain", 5.5)
-  self_obj.path_angle_k_i = get_float_param("FordLatTuningPIDReset", 0.05)
-  self_obj.steerAngleFilterTimeConstant = get_float_param("FordLatTuningSteerAngleFilterTimeConstant", 0.3)
   self_obj.curvature_max = get_float_param("FordLimitsCurvatureMax", CarControllerParams.CURVATURE_MAX)
   self_obj.curvature_error = get_float_param("FordLimitsCurvatureError", CarControllerParams.CURVATURE_ERROR)
 
