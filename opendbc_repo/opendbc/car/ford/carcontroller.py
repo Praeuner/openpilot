@@ -121,9 +121,11 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p = 3.25
+    self.path_angle_k_p_bp = [15.65, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
+    self.path_angle_k_p_v = [4.5, 1.8]  # corresponding k_p values
+
     self.path_angle_k_i = 0.05
-    self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20) # rate in Hz
+    self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
     # Steering wheel angle adjustment variables
     self.wheel_angle_speed_bp = [11, 15] # what speed to adjust wheel_angle
@@ -404,7 +406,7 @@ class CarController(CarControllerBase):
           steerAngleAdjusted = 0.0
 
         # use PID to calcualte path_angle
-        path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted)
+        path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted, speed=CS.out.vEgoRaw)
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_PID)
