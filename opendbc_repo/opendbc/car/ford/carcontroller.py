@@ -147,15 +147,15 @@ class CarController(CarControllerBase):
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
 
     # Ford Model Specific Tuning
-    if CP.flags & FordFlags.CANFD:
-      # Check FORD_VEHICLE_TUNINGS has a key for the carFingerprint
-      ford_tuning = get_ford_vehicle_tuning_carcontroller(CP.carFingerprint)
-      if ford_tuning:
-        # loop through each key in ford_tuning and set the value to the corresponding key in the CarController object
-        for key in ford_tuning:
-          debug(f'Ford Tuning (carcontroller.py) Key: {key} | Value: {ford_tuning[key]}', True)
-          if ford_tuning[key] is not None:
-            setattr(self, key, ford_tuning[key])
+    # if CP.flags & FordFlags.CANFD:
+    #   # Check FORD_VEHICLE_TUNINGS has a key for the carFingerprint
+    #   ford_tuning = get_ford_vehicle_tuning_carcontroller(CP.carFingerprint)
+    #   if ford_tuning:
+    #     # loop through each key in ford_tuning and set the value to the corresponding key in the CarController object
+    #     for key in ford_tuning:
+    #       debug(f'Ford Tuning (carcontroller.py) Key: {key} | Value: {ford_tuning[key]}', True)
+    #       if ford_tuning[key] is not None:
+    #         setattr(self, key, ford_tuning[key])
 
     # Lane change transition tracking
     self.post_lane_change_timer = 0
