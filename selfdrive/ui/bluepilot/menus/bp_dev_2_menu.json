@@ -479,6 +479,20 @@
                 "git_remote": ["ford-op/sp-dev-c3"],
                 "git_branch": []
               }
+            },
+            {
+              "type": "toggle",
+              "param": "GsmMetered",
+              "title": "GSM Metered Mode Enabled",
+              "desc": "Toggle GSM metered mode",
+              "hidden": false
+            },
+            {
+              "type": "toggle",
+              "param": "DisableUpdates",
+              "title": "Disable Updates",
+              "desc": "Toggle Disable Updates",
+              "hidden": false
             }
           ]
         }
