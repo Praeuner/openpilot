@@ -1,16 +1,13 @@
 import json
 from typing import Any
 from openpilot.common.params import Params
+
+# from openpilot.common.swaglog import cloudlog
 from bluepilot.logger.bp_logger import debug, error
 
 # Define the path to the params.json file
 PARAMS_JSON_PATH = "/data/openpilot/bluepilot/params/params.json"
 SHOW_DEBUG_OUTPUT = False
-
-# Global parameter cache
-_params_data = None
-_cc_props_cache = {}
-_interface_props_cache = {}
 
 # Map the flag names to values using direct integer values
 flag_mapping = {
@@ -32,47 +29,18 @@ def log_debug(message: str) -> None:
 
 
 def load_params_json() -> dict[str, Any]:
-  """Get params data from cache or load from file if not yet loaded"""
-  global _params_data
-
-  # Return cached data if available
-  if _params_data is not None:
-    return _params_data
-
-  # Load file and cache results
   try:
     with open(PARAMS_JSON_PATH) as f:
-      _params_data = json.load(f)
+      params_json = json.load(f)
       log_debug(f"Successfully loaded params.json from {PARAMS_JSON_PATH}")
-      return _params_data
+      # print(f"Loaded {len(params_json.get('params', []))} parameters")
+      return params_json
   except FileNotFoundError:
     log_debug(f"Params JSON file not found at {PARAMS_JSON_PATH}")
     return {"params": []}
   except json.JSONDecodeError:
     log_debug(f"Failed to parse JSON from {PARAMS_JSON_PATH}")
     return {"params": []}
-
-
-def preprocess_params_data() -> None:
-  """Preprocess params data for quick lookups by property type"""
-  global _cc_props_cache, _interface_props_cache
-
-  # Clear existing caches
-  _cc_props_cache.clear()
-  _interface_props_cache.clear()
-
-  params_json = load_params_json()
-
-  for param in params_json.get("params", []):
-    param_name = param["name"]
-
-    # Cache by ccProp if present
-    if "ccProp" in param:
-      _cc_props_cache[param["ccProp"]] = param
-
-    # Cache by interfaceProp if present
-    if "interfaceProp" in param:
-      _interface_props_cache[param["interfaceProp"]] = param
 
 
 def check_param_exists(params: Params, key: str) -> bool:
@@ -122,13 +90,10 @@ def get_param_value(params: Params, param_name: str, param_type: str, default_va
 
 def initialize_custom_params(params: Params) -> None:
   log_debug("Initializing custom parameters")
-
-  # Load params.json and preprocess for efficient lookups
-  load_params_json()
-  preprocess_params_data()
+  custom_params_json = load_params_json()
 
   # Register and initialize parameters
-  for param in _params_data.get("params", []):
+  for param in custom_params_json.get("params", []):
     name = param["name"]
     param_type = param["type"]
     default_value = param["default"]
@@ -176,7 +141,7 @@ def initialize_custom_params(params: Params) -> None:
       except Exception as e:
         error(f"Error creating/setting {default_param_name}: {e}", True)
 
-    # Step 4: Set the parameter value if it doesn't exist or is empty
+    # Step 4: Set the parameter value if it doesn’t exist or is empty
     if current_value in (None, ""):
       value = "1" if param_type == "bool" and default_value else "0" if param_type == "bool" else str(default_value) if default_value is not None else ""
       if value:
@@ -196,71 +161,70 @@ def initialize_custom_params(params: Params) -> None:
 
 def apply_custom_params(obj: Any, prop_key: str, component_type: str) -> None:
   log_debug(f"Applying custom parameters for {component_type} with property key {prop_key}")
-
-  # Use the appropriate cache based on prop_key
-  prop_cache = _cc_props_cache if prop_key == "ccProp" else _interface_props_cache
-
+  params_json = load_params_json()
   params = Params()
   params_applied = 0
   params_changed = 0
   changed_params = []
 
-  # Process parameters that match our property key
-  for attr_name, param in prop_cache.items():
-    param_name = param["name"]
-    param_type = param["type"]
-    default_value = param["default"]
-    min_value = param.get("min")
-    max_value = param.get("max")
+  for param in params_json.get("params", []):
+    # Only check if the property key exists in the parameter
+    if prop_key in param:
+      attr_name = param[prop_key]
+      param_name = param["name"]
+      param_type = param["type"]
+      default_value = param["default"]
+      min_value = param.get("min")  # Optional min value
+      max_value = param.get("max")  # Optional max value
 
-    try:
-      value = get_param_value(params, param_name, param_type, default_value)
+      try:
+        value = get_param_value(params, param_name, param_type, default_value)
 
-      # Clamp int/float values if min/max are specified
-      if param_type == "int" and value is not None:
-        try:
-          value = int(value)
-          if min_value is not None and value < min_value:
-            value = min_value
-            print(f"Clamped {param_name} to min value: {min_value}")
-          if max_value is not None and value > max_value:
-            value = max_value
-            print(f"Clamped {param_name} to max value: {max_value}")
-        except ValueError:
-          log_debug(f"Invalid int value for {param_name}, using default: {default_value}")
-          value = default_value
-      elif param_type == "float" and value is not None:
-        try:
-          value = float(value)
-          if min_value is not None and value < min_value:
-            value = min_value
-            print(f"Clamped {param_name} to min value: {min_value}")
-          if max_value is not None and value > max_value:
-            value = max_value
-            print(f"Clamped {param_name} to max value: {max_value}")
-        except ValueError:
-          error(f"Invalid float value for {param_name}, using default: {default_value}")
-          value = default_value
+        # Clamp int/float values if min/max are specified
+        if param_type == "int" and value is not None:
+          try:
+            value = int(value)
+            if min_value is not None and value < min_value:
+              value = min_value
+              print(f"Clamped {param_name} to min value: {min_value}")
+            if max_value is not None and value > max_value:
+              value = max_value
+              print(f"Clamped {param_name} to max value: {max_value}")
+          except ValueError:
+            log_debug(f"Invalid int value for {param_name}, using default: {default_value}")
+            value = default_value
+        elif param_type == "float" and value is not None:
+          try:
+            value = float(value)
+            if min_value is not None and value < min_value:
+              value = min_value
+              print(f"Clamped {param_name} to min value: {min_value}")
+            if max_value is not None and value > max_value:
+              value = max_value
+              print(f"Clamped {param_name} to max value: {max_value}")
+          except ValueError:
+            error(f"Invalid float value for {param_name}, using default: {default_value}")
+            value = default_value
 
-      # Always set the attribute on the object, even if it doesn't exist
-      if hasattr(obj, attr_name):
-        initial_val = getattr(obj, attr_name)
-        if initial_val != value:
-          params_changed += 1
-          changed_params.append({"param_name": param_name, "attr_name": attr_name, "old_value": initial_val, "new_value": value})
-          log_debug(f"Parameter '{param_name}' changed from '{initial_val}' to '{value}' in {component_type}")
+        # Always set the attribute on the object, even if it doesn't exist
+        if hasattr(obj, attr_name):
+          initial_val = getattr(obj, attr_name)
+          if initial_val != value:
+            params_changed += 1
+            changed_params.append({"param_name": param_name, "attr_name": attr_name, "old_value": initial_val, "new_value": value})
+            log_debug(f"Parameter '{param_name}' changed from '{initial_val}' to '{value}' in {component_type}")
+          else:
+            log_debug(f"Parameter '{param_name}' unchanged: '{value}' in {component_type}")
         else:
-          log_debug(f"Parameter '{param_name}' unchanged: '{value}' in {component_type}")
-      else:
-        log_debug(f"Creating new attribute '{attr_name}' with value '{value}' in {component_type}")
-        changed_params.append({"param_name": param_name, "attr_name": attr_name, "old_value": "UNSET", "new_value": value})
-        params_changed += 1
+          log_debug(f"Creating new attribute '{attr_name}' with value '{value}' in {component_type}")
+          changed_params.append({"param_name": param_name, "attr_name": attr_name, "old_value": "UNSET", "new_value": value})
+          params_changed += 1
 
-      # Set the attribute regardless
-      setattr(obj, attr_name, value)
-      params_applied += 1
-    except Exception as e:
-      error(f"Error applying parameter {param_name}: {e}", True)
+        # Set the attribute regardless
+        setattr(obj, attr_name, value)
+        params_applied += 1
+      except Exception as e:
+        error(f"Error applying parameter {param_name}: {e}", True)
 
   # Summary of changes
   if params_changed > 0:
@@ -268,6 +232,8 @@ def apply_custom_params(obj: Any, prop_key: str, component_type: str) -> None:
     for change in changed_params:
       if change["old_value"] != "UNSET":
         print(f"  • {change['param_name']} ({change['attr_name']}): {change['old_value']} → {change['new_value']}")
+      # else:
+      # print(f"  • {change['param_name']} ({change['attr_name']}): initialized to {change['new_value']}")
   else:
     log_debug(f"No parameter values changed in {component_type}")
 
