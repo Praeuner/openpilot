@@ -3,10 +3,10 @@
   "menuName": "Utilities",
   "menuIcon": "icon_utilities.png",
   "menuDescription": "Utilities Panel",
-  "persistentParams": [ ],
-  "clearOnManagerStartParams": [ ],
-  "clearOnOnroadTransitionParams": [ ],
-  "clearOnOffroadTransitionParams": [ ],
+  "persistentParams": [],
+  "clearOnManagerStartParams": [],
+  "clearOnOnroadTransitionParams": [],
+  "clearOnOffroadTransitionParams": [],
   "groups": [
     {
       "groupName": "utilityCommandsGroup",
@@ -26,6 +26,20 @@
           "hidden": false
         },
         {
+          "type": "toggle",
+          "param": "GsmMetered",
+          "title": "GSM Metered Mode Enabled",
+          "desc": "Toggle GSM metered mode",
+          "hidden": false
+        },
+        {
+          "type": "toggle",
+          "param": "DisableUpdates",
+          "title": "Disable Updates",
+          "desc": "Toggle Disable Updates",
+          "hidden": false
+        },
+        {
           "type": "command_button",
           "command": "echo \"Starting process...\" && for i in {1..5}; do echo \"[$(date '+%H:%M:%S')] Processing batch $i/5...\"; sleep 1; echo \"  -> Completed subtask $i\"; sleep 1; done && echo \"All tasks completed successfully!\"",
           "working_dir": "/data/openpilot",
@@ -38,8 +52,8 @@
           "cancel_button_text": "Cancel",
           "hidden": false,
           "conditions": {
-            "git_remote": [ "ford-op/sp-dev-c3" ],
-            "git_branch": [ ]
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
           }
         },
         {
@@ -53,8 +67,8 @@
           "hidden": false,
           "OnlyOnCommaDevice": true,
           "conditions": {
-            "git_remote": [ "ford-op/sp-dev-c3" ],
-            "git_branch": [ ]
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
           }
         },
         {
@@ -66,8 +80,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": [ "any" ],
-            "git_branch": [ ]
+            "git_remote": ["any"],
+            "git_branch": []
           }
         },
         {
@@ -80,8 +94,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": [ "ford-op/sp-dev-c3" ],
-            "git_branch": [ ]
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
           }
         },
         {
@@ -94,8 +108,8 @@
           "confirm": false,
           "hidden": false,
           "conditions": {
-            "git_remote": [ "ford-op/sp-dev-c3" ],
-            "git_branch": [ ]
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
           }
         }
       ]
