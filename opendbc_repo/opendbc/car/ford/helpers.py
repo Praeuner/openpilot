@@ -3,23 +3,6 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.selfdrived.events import ET
 from opendbc.car import DT_CTRL
 
-
-def logDebug(message):
-  if(get_bool_param("FordPrefEnableDebugLogs", False)):
-    print(message)
-    cloudlog.debug(message)
-
-
-def logError(message):
-    print(message)
-    cloudlog.error(message)
-
-
-def logWarn(message):
-  print(message)
-  cloudlog.warn(message)
-
-
 def hysteresis(current_value, old_value, target: float, delta: float):
   if target < current_value < min(target + delta, 0):
     result = old_value

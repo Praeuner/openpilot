@@ -13,7 +13,8 @@ from common.params import Params
 from selfdrive.modeld.constants import ModelConstants  # for calculations
 from common.pid import PIDController # PID control of lateral
 from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
-from opendbc.car.ford.helpers import compute_dm_msg_values, logDebug
+from opendbc.car.ford.helpers import compute_dm_msg_values
+from bluepilot.logger.bp_logger import debug, info, warning, error, critical
 
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -143,7 +144,7 @@ class CarController(CarControllerBase):
     self.curvature_rate = 0  # initialize curvature_rate
 
     # Logging variables
-    logDebug(f'Car Fingerprint (CarController): {CP.carFingerprint}')
+    debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
 
     # Ford Model Specific Tuning
     if CP.flags & FordFlags.CANFD:
@@ -152,7 +153,7 @@ class CarController(CarControllerBase):
       if ford_tuning:
         # loop through each key in ford_tuning and set the value to the corresponding key in the CarController object
         for key in ford_tuning:
-          logDebug(f'Ford Tuning (carcontroller.py) Key: {key} | Value: {ford_tuning[key]}')
+          debug(f'Ford Tuning (carcontroller.py) Key: {key} | Value: {ford_tuning[key]}', True)
           if ford_tuning[key] is not None:
             setattr(self, key, ford_tuning[key])
 
