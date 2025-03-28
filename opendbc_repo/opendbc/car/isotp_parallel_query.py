@@ -73,7 +73,7 @@ class IsoTpParallelQuery:
     # as well as reduces chances we process messages from previous queries
     return uds.IsoTpMessage(can_client, timeout=0, separation_time=0.01)
 
-  def get_data(self, timeout: float, total_timeout: float = 120.) -> dict[AddrType, bytes]:
+  def get_data(self, timeout: float, total_timeout: float = 60.) -> dict[AddrType, bytes]:
     self._drain_rx()
 
     # Create message objects

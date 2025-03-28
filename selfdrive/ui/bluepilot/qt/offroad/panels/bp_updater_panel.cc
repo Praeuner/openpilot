@@ -559,7 +559,7 @@ void BPUpdaterPanel::setupMainRepoSection() {
     QPushButton { border-radius: 10px; font-size: 35px; padding: 15px 25px; min-height: 70px; font-weight: 500; background-color: %1; color: %2; }
     QPushButton:pressed { background-color: %3; color: %4; }
     QPushButton:disabled { background-color: %5; color: %6; }
-)";
+  )";
 
   checkUpdatesButton->setStyleSheet(buttonStyles.arg("#465BEA", "white", "#3049F4", "white", "#4F4F4F", "#888888"));
 
@@ -814,6 +814,24 @@ void BPUpdaterPanel::startAutoUpdateChecks() {
   autoUpdateCheckTimer->start();
 }
 
+void BPUpdaterPanel::handleUnshallow() {
+  if (!BPUpdateConfirmDialog::confirm(tr("Fetch Full Repository"),
+                                      tr("Are you sure you want to fetch the full repository history?\n"
+                                         "This will download the entire commit history which might take some time depending on your internet connection."),
+                                      tr("Fetch"), tr("Cancel"), this)) {
+    return;
+  }
+
+  // Command to convert shallow clone to full clone
+  QString command = "git fetch --unshallow";
+
+  // Show command output dialog
+  showCommandOutputDialog(tr("Fetching Full Repository History"), command, "", 1800000, true, true, true); // 30 minute timeout
+
+  // After unshallowing, refresh the UI to hide the warning widget
+  QTimer::singleShot(2000, this, &BPUpdaterPanel::refreshAll);
+}
+
 void BPUpdaterPanel::stopAutoUpdateChecks() {
   if (autoUpdateCheckTimer) {
     autoUpdateCheckTimer->stop();
@@ -945,25 +963,21 @@ void BranchSelector::getBranchesAsync(bool includeRemote, std::function<void(QSt
     QString workingDir = qApp->applicationDirPath() + "/../..";
 
     if (includeRemote) {
-      // Fetch all remote refs
+      // Fetch all remote refs first
       auto fetchResult = executeGitCommand("git fetch origin refs/heads/*:refs/remotes/origin/* --prune", workingDir, 30000);
-
       if (!fetchResult.success) {
         std::cerr << "Fetch failed: " << fetchResult.error.toStdString() << std::endl;
       }
 
-      // Get remote branches
-      auto remoteBranchResult = executeGitCommand("git branch -r", workingDir, 5000);
+      // Get all remote branches using ls-remote for completeness
+      auto remoteBranchResult = executeGitCommand("git ls-remote --heads origin | awk '{print $2}' | sed 's#refs/heads/##'", workingDir, 10000);
 
       if (remoteBranchResult.success) {
         QString output = remoteBranchResult.output;
         for (QString branch : output.split("\n", QString::SkipEmptyParts)) {
           branch = branch.trimmed();
-          if (branch.startsWith("origin/") && !branch.contains("HEAD")) {
-            branch.remove(0, 7);
-            if (!branch.isEmpty() && !branches.contains(branch)) {
-              branches.append(branch);
-            }
+          if (!branch.isEmpty() && !branches.contains(branch)) {
+            branches.append(branch);
           }
         }
       }
@@ -979,13 +993,12 @@ void BranchSelector::getBranchesAsync(bool includeRemote, std::function<void(QSt
         if (branch.startsWith("*")) {
           branch = branch.mid(2);
         }
-        if (!branches.contains(branch)) {
+        if (!branch.isEmpty() && !branches.contains(branch)) {
           branches.append(branch);
         }
       }
     }
 
-    // Sort branches
     branches.sort();
 
     QMetaObject::invokeMethod(

@@ -49,4 +49,18 @@ private:
   QPointF prev_lead_positions[2] = {QPointF(0, 0), QPointF(0, 0)}; // Track previous lead positions
   float smoothed_yRel[2] = {0.0f, 0.0f};                           // Smoothed lateral positions for two leads
   bool prev_lead_status[2] = {false, false};                       // Previous status of each lead
+
+  // Blindspot detection
+  bool left_blindspot = false;
+  bool right_blindspot = false;
+  QPolygonF lane_barrier_vertices[2]; // Left and right barrier polygons
+  int blindspot_blink_rate = 0;       // Counter for animated blinking effect
+  float blindspot_opacity = 0.2;      // Base opacity for blindspot indicators
+  static constexpr float BLINDSPOT_WIDTH = 1.0f; // Width of blind spot indicator in meters
+
+  void updateBlindspotStatus(const cereal::CarState::Reader &car_state);
+  void updateBlindspotAnimation();
+  void drawBlindspotIndicators(QPainter &painter);
+
+  void drawStopSignOverlay(QPainter &painter, const QPointF &point, int size);
 };

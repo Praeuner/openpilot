@@ -18,14 +18,23 @@ from openpilot.system.athena.registration import register, UNREGISTERED_DONGLE_I
 from openpilot.common.swaglog import cloudlog, add_file_handler
 from openpilot.system.version import get_build_metadata, terms_version, training_version
 from openpilot.system.hardware.hw import Paths
+from bluepilot.params.bp_params import initialize_custom_params
+from bluepilot.logger.bp_logger import initialize_logger
 
 
 def manager_init() -> None:
+  # Initialize bp logger
+  initialize_logger()
+
   save_bootlog()
 
   build_metadata = get_build_metadata()
 
   params = Params()
+
+  # Initialize custom parameters from params.json
+  initialize_custom_params(params)
+
   params.clear_all(ParamKeyType.CLEAR_ON_MANAGER_START)
   params.clear_all(ParamKeyType.CLEAR_ON_ONROAD_TRANSITION)
   params.clear_all(ParamKeyType.CLEAR_ON_OFFROAD_TRANSITION)
@@ -58,26 +67,12 @@ def manager_init() -> None:
     ("QuietMode", "0"),
   ]
 
-  ford_default_params: list[tuple[str, str | bytes]] = [
-    ("CustomModelPathColor", "Stock"),
-    # FORD SETTING Params
-    ("FordPrefHideSteerSaturatedAlerts", "0"),
-    ("FordPrefEnableDebugLogs", "0"),
-    ("FordPrefSendHandsFreeCanMsg", "0"),
-    ("FordPrefLaneDepartCanMsg", "0"),
-    ("FordPrefDriverMonitorCanMsg", "0"),
-    ("FordPrefHumanTurnDetectionEnable", "1"),
-    ("FordPrefHybridDriveOverlay", "0"),
-    ("FordPrefHybridBatteryOverlay", "0"),
-    ("FordPrefShowAnimatedWheelAngle", "1"),
-    ("FordPrefShowRadarLeadOverlay", "0"),
-  ]
 
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True)
 
   # set unset params
-  for k, v in default_params + sunnypilot_default_params + ford_default_params:
+  for k, v in default_params + sunnypilot_default_params
     if params.get(k) is None:
       params.put(k, v)
 
@@ -109,22 +104,24 @@ def manager_init() -> None:
   else:
     raise Exception(f"Registration failed for device {serial}")
   os.environ['DONGLE_ID'] = dongle_id  # Needed for swaglog
-  os.environ['GIT_ORIGIN'] = build_metadata.openpilot.git_normalized_origin # Needed for swaglog
-  os.environ['GIT_BRANCH'] = build_metadata.channel # Needed for swaglog
-  os.environ['GIT_COMMIT'] = build_metadata.openpilot.git_commit # Needed for swaglog
+  os.environ['GIT_ORIGIN'] = build_metadata.openpilot.git_normalized_origin  # Needed for swaglog
+  os.environ['GIT_BRANCH'] = build_metadata.channel  # Needed for swaglog
+  os.environ['GIT_COMMIT'] = build_metadata.openpilot.git_commit  # Needed for swaglog
 
   if not build_metadata.openpilot.is_dirty:
     os.environ['CLEAN'] = '1'
 
   # init logging
   sentry.init(sentry.SentryProject.SELFDRIVE)
-  cloudlog.bind_global(dongle_id=dongle_id,
-                       version=build_metadata.openpilot.version,
-                       origin=build_metadata.openpilot.git_normalized_origin,
-                       branch=build_metadata.channel,
-                       commit=build_metadata.openpilot.git_commit,
-                       dirty=build_metadata.openpilot.is_dirty,
-                       device=HARDWARE.get_device_type())
+  cloudlog.bind_global(
+    dongle_id=dongle_id,
+    version=build_metadata.openpilot.version,
+    origin=build_metadata.openpilot.git_normalized_origin,
+    branch=build_metadata.channel,
+    commit=build_metadata.openpilot.git_commit,
+    dirty=build_metadata.openpilot.is_dirty,
+    device=HARDWARE.get_device_type(),
+  )
 
   # preimport all processes
   for p in managed_processes.values():
@@ -183,8 +180,7 @@ def manager_thread() -> None:
 
     ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore)
 
-    running = ' '.join("{}{}\u001b[0m".format("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name)
-                       for p in managed_processes.values() if p.proc)
+    running = ' '.join("{}{}\u001b[0m".format("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name) for p in managed_processes.values() if p.proc)
     print(running)
     cloudlog.debug(running)
 

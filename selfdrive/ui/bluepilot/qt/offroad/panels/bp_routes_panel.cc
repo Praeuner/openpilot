@@ -15,6 +15,7 @@
 #include <QVideoWidget>
 #include <QMediaPlayer>
 #include <QUrl>
+#include <QScroller>
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QTimer>
@@ -210,10 +211,12 @@ void BPRoutesPanel::setupUI() {
   routesLayout->setSpacing(10);
 
   scrollArea = new BPScrollView(routesContainer, this);
-
   scrollArea->setWidgetResizable(true);
   scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+  // Enable touch scrolling
+  QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
 
   mainLayout->addWidget(scrollArea);
 
@@ -351,7 +354,7 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
   routeLayout->setContentsMargins(15, 15, 15, 15);
   routeLayout->setSpacing(10);
 
-  // Create clickable header container as a button
+  // Create header container
   auto headerBtn = new QPushButton();
   headerBtn->setMinimumHeight(180);
   headerBtn->setStyleSheet(R"(
@@ -411,20 +414,41 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
 
   leftLayout->addWidget(basicInfo);
 
-  // Right side: Expand indicator
+  // Right side: Expand button
+  auto expandBtn = new QPushButton();
+  expandBtn->setFixedSize(60, 60);              // Make the button bigger
+  expandBtn->setCursor(Qt::PointingHandCursor); // Set cursor to show it's clickable
+  expandBtn->setStyleSheet(R"(
+  QPushButton {
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+  }
+  QPushButton:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 30px; /* Half of width/height for perfect circle */
+  }
+)");
+
+  // Set the expand icon
+  QIcon expandIcon(expandedRoutes[route.baseName] ? "../assets/offroad/icon_expand_up.png" : "../assets/offroad/icon_expand_down.png");
+  expandBtn->setIcon(expandIcon);
+  expandBtn->setIconSize(QSize(40, 40)); // Slightly smaller icon size for better fit
+
+  // Create a container with fixed dimensions for proper alignment
   auto rightWidget = new QWidget();
+  rightWidget->setFixedSize(80, 150); // Fixed width and height to match content area
   auto rightLayout = new QHBoxLayout(rightWidget);
-  rightLayout->setSpacing(15);
+  rightLayout->setContentsMargins(0, 0, 0, 0);
+  rightLayout->setSpacing(0);
+  rightLayout->addWidget(expandBtn, 0, Qt::AlignCenter);
 
-  // Expand indicator
-  auto expandIcon = new QLabel();
-  QPixmap pixmap = QIcon(expandedRoutes[route.baseName] ? "../assets/offroad/icon_expand_up.png" : "../assets/offroad/icon_expand_down.png").pixmap(48, 48);
-  expandIcon->setPixmap(pixmap);
-  rightLayout->addWidget(expandIcon);
-  rightLayout->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  // Ensure right widget doesn't resize
+  rightWidget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-  headerLayout->addWidget(leftWidget);
-  headerLayout->addWidget(rightWidget);
+  headerLayout->addWidget(leftWidget, 1); // Give left widget the stretch
+  headerLayout->addWidget(rightWidget);   // Right widget takes minimal space needed
 
   // Expanded details container with two columns (70% left, 30% right)
   auto detailsContainer = new QWidget();
@@ -529,7 +553,6 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
     return btn;
   };
 
-  // In your createRouteWidget(), for example:
   QStringList videoLabels = {tr("Front"), tr("Front (Wide)"), tr("Driver"), tr("Front (LQ)")};
   QStringList videoFiles = {"fcamera.hevc", "ecamera.hevc", "dcamera.hevc", "qcamera.ts"};
 
@@ -551,7 +574,6 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
     });
     rightColumn->addWidget(videoBtn);
   }
-  // rightColumn->addStretch();
 
   // Add columns to the main details layout with a 70/30 split
   detailsMainLayout->addLayout(leftColumn, 7);
@@ -564,13 +586,13 @@ void BPRoutesPanel::createRouteWidget(const RouteInfo &route) {
   // Set initial expanded state
   detailsContainer->setVisible(expandedRoutes[route.baseName]);
 
-  // Toggle expanded state on header click
-  connect(headerBtn, &QPushButton::clicked, [=]() {
+  connect(expandBtn, &QPushButton::clicked, [=]() {
     expandedRoutes[route.baseName] = !expandedRoutes[route.baseName];
     detailsContainer->setVisible(expandedRoutes[route.baseName]);
-    QPixmap iconPixmap =
-        expandedRoutes[route.baseName] ? QIcon("../assets/offroad/icon_expand_up.png").pixmap(48, 48) : QIcon("../assets/offroad/icon_expand_down.png").pixmap(48, 48);
-    expandIcon->setPixmap(iconPixmap);
+
+    // Update the icon
+    QIcon newIcon(expandedRoutes[route.baseName] ? "../assets/offroad/icon_expand_up.png" : "../assets/offroad/icon_expand_down.png");
+    expandBtn->setIcon(newIcon);
   });
 
   // Connect action buttons

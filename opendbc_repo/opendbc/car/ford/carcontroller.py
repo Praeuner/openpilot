@@ -12,14 +12,9 @@ from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from common.params import Params
 from selfdrive.modeld.constants import ModelConstants  # for calculations
 from common.pid import PIDController # PID control of lateral
-from opendbc.car.ford.helpers import (
-  initialize_param_defaults,
-  update_settings_params,
-  load_initial_cc_pref_params,
-  get_ford_vehicle_tuning_carcontroller,
-  compute_dm_msg_values,
-  logDebug,
-)
+from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
+from opendbc.car.ford.helpers import compute_dm_msg_values, logDebug
+
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -76,8 +71,9 @@ class CarController(CarControllerBase):
     self.packer = CANPacker(dbc_names[Bus.pt])
     self.CAN = fordcan.CanBus(CP)
 
-    # Load the initial preference settings parameters
-    load_initial_cc_pref_params(self)
+
+    # Load initial custom parameters from params.json
+    load_custom_params(self, "carcontroller")
 
     # Initialize control variables
     self.apply_curvature_last = 0
@@ -160,11 +156,6 @@ class CarController(CarControllerBase):
           if ford_tuning[key] is not None:
             setattr(self, key, ford_tuning[key])
 
-    # Check each param in helpers.SETTINGS_PARAMS to make sure they are set and if not sets them to the default values
-    initialize_param_defaults(self)
-    self.sm = messaging.SubMaster(['modelV2'])
-    self.model = None
-
     # Lane change transition tracking
     self.post_lane_change_timer = 0
     self.post_lane_change_active = False
@@ -179,6 +170,9 @@ class CarController(CarControllerBase):
     self.max_path_angle_change = 0.00125
     self.max_path_offset_change = 0.00125
     self.max_curvature_rate_change = 0.0001
+
+    self.sm = messaging.SubMaster(['modelV2'])
+    self.model = None
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -246,7 +240,8 @@ class CarController(CarControllerBase):
 
 
     # Trigger the update of the settings params
-    update_settings_params(self)
+    # update_settings_params(self)
+    update_custom_params(self, "carcontroller")
 
     actuators = CC.actuators
     hud_control = CC.hudControl

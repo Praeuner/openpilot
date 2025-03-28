@@ -14,6 +14,7 @@ class BPUpdaterPanel;
 #include <QComboBox>
 #include <QProcess>
 #include <QTimer>
+#include <QLineEdit>
 #include <QtConcurrent>
 #include <QScroller>
 #include <QScrollerProperties>
@@ -160,6 +161,7 @@ private slots:
   void updateBranchList();
   void switchBranch(const QString &branch);
   void handleBranchSelection();
+  void handleUnshallow();
 
 protected:
   bool event(QEvent *event) override {

@@ -24,8 +24,43 @@ AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *par
 
 void AnnotatedCameraWidget::updateState(const UIState &s) {
   // update engageability/experimental mode button
-  const SubMaster &sm = *(s.sm);
   experimental_btn->updateState(s);
+  const SubMaster &sm = *(s.sm);
+  const auto car_state = sm["carState"].getCarState();
+
+  // Get blinker and blindspot states
+  left_blinker = car_state.getLeftBlinker();
+  right_blinker = car_state.getRightBlinker();
+  left_blindspot = car_state.getLeftBlindspot();
+  right_blindspot = car_state.getRightBlindspot();
+
+  // std::cout << "left_blinker: " << left_blinker << std::endl;
+  // std::cout << "right_blinker: " << right_blinker << std::endl;
+  // std::cout << "left_blindspot: " << left_blindspot << std::endl;
+  // std::cout << "right_blindspot: " << right_blindspot << std::endl;
+  // std::cout << "standStill: " << standStill << std::endl;
+  // Stand Still Timer logic
+  prev_standStill = standStill;
+  standStill = car_state.getStandstill();
+
+  double current_time = millis_since_boot() / 1000.0;
+
+  if (s.scene.stand_still_timer) {
+    if (!prev_standStill && standStill) {
+      // Just entered standstill - start the timer
+      standstill_start_time = current_time;
+      standstillElapsedTime = 0.0;
+    } else if (standStill) {
+      // Update the elapsed time while in standstill
+      standstillElapsedTime = current_time - standstill_start_time;
+    } else if (prev_standStill && !standStill) {
+      // Just exited standstill - reset timer
+      standstillElapsedTime = 0.0;
+    }
+  } else {
+    standstillElapsedTime = 0.0;
+  }
+
   // std::cout << "carStateBP updateState" << std::endl;
   if (sm.updated("carStateBP")) {
     // std::cout << "carStateBP updated" << std::endl;
@@ -209,6 +244,28 @@ void AnnotatedCameraWidget::paintGL() {
     }
   }
 
+  // Draw blinkers if active
+  if (left_blinker || right_blinker) {
+    blinker_frame++;
+    int state = blinkerPulse(blinker_frame);
+    int blinker_x = 180;
+    int blinker_y = 90;
+
+    if (left_blinker) {
+      drawLeftTurnSignal(painter, rect().center().x() - (blinker_x + blinker_size), blinker_y, blinker_size, state);
+    }
+    if (right_blinker) {
+      drawRightTurnSignal(painter, rect().center().x() + blinker_x, blinker_y, blinker_size, state);
+    }
+  } else {
+    blinker_frame = 0;
+  }
+
+  // Draw stand still timer if active
+  if (s->scene.stand_still_timer && standStill) {
+    drawStandstillTimer(painter, rect().right() - 200, rect().center().y() - 45);
+  }
+
   double cur_draw_t = millis_since_boot();
   double dt = cur_draw_t - prev_draw_t;
   double fps = fps_filter.update(1. / dt * 1000);
@@ -222,6 +279,144 @@ void AnnotatedCameraWidget::paintGL() {
   auto m = msg.initEvent().initUiDebug();
   m.setDrawTimeMillis(cur_draw_t - start_draw_t);
   pm->send("uiDebug", msg);
+}
+
+void AnnotatedCameraWidget::drawColoredText(QPainter &p, int x, int y, const QString &text, QColor color) {
+  QRect real_rect = p.fontMetrics().boundingRect(text);
+  real_rect.moveCenter({x, y - real_rect.height() / 2});
+
+  p.setPen(color);
+  p.drawText(real_rect.x(), real_rect.bottom(), text);
+}
+
+int AnnotatedCameraWidget::blinkerPulse(int frame) {
+  if (frame % UI_FREQ < (UI_FREQ / 2)) {
+    blinker_state = 1;
+  } else {
+    blinker_state = 0;
+  }
+  return blinker_state;
+}
+
+void AnnotatedCameraWidget::drawLeftTurnSignal(QPainter &painter, int x, int y, int circle_size, int state) {
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  QColor circle_color, circle_color_0, circle_color_1;
+  QColor arrow_color, arrow_color_0, arrow_color_1;
+  if ((left_blindspot || lane_change_edge_block) && !(left_blinker && right_blinker)) {
+    circle_color_0 = QColor(164, 0, 1);
+    circle_color_1 = QColor(204, 0, 1);
+    arrow_color_0 = QColor(72, 1, 1);
+    arrow_color_1 = QColor(255, 255, 255);
+  } else {
+    circle_color_0 = QColor(22, 156, 69);
+    circle_color_1 = QColor(30, 215, 96);
+    arrow_color_0 = QColor(9, 56, 27);
+    arrow_color_1 = QColor(255, 255, 255);
+  }
+
+  if (state == 1) {
+    circle_color = circle_color_1;
+    arrow_color = arrow_color_1;
+  } else if (state == 0) {
+    circle_color = circle_color_0;
+    arrow_color = arrow_color_0;
+  }
+
+  // Draw the circle
+  int circleX = x;
+  int circleY = y;
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(circle_color);
+  painter.drawEllipse(circleX, circleY, circle_size, circle_size);
+
+  // Draw the arrow
+  int arrowSize = 50;
+  int arrowX = circleX + (circle_size - arrowSize) / 4;
+  int arrowY = circleY + (circle_size - arrowSize) / 2;
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(arrow_color);
+
+  // Draw the arrow shape
+  QPolygon arrowPolygon;
+  arrowPolygon << QPoint(arrowX + 10, arrowY + arrowSize / 2) << QPoint(arrowX + arrowSize - 3, arrowY) << QPoint(arrowX + arrowSize, arrowY)
+               << QPoint(arrowX + arrowSize, arrowY + arrowSize) << QPoint(arrowX + arrowSize - 3, arrowY + arrowSize) << QPoint(arrowX + 10, arrowY + arrowSize / 2);
+  painter.drawPolygon(arrowPolygon);
+
+  // Draw the tail rectangle
+  int tailWidth = arrowSize / 2.25;
+  int tailHeight = arrowSize / 2;
+  QRect tailRect(arrowX + arrowSize - 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
+  painter.fillRect(tailRect, arrow_color);
+}
+
+void AnnotatedCameraWidget::drawRightTurnSignal(QPainter &painter, int x, int y, int circle_size, int state) {
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  QColor circle_color, circle_color_0, circle_color_1;
+  QColor arrow_color, arrow_color_0, arrow_color_1;
+  if ((right_blindspot || lane_change_edge_block) && !(left_blinker && right_blinker)) {
+    circle_color_0 = QColor(164, 0, 1);
+    circle_color_1 = QColor(204, 0, 1);
+    arrow_color_0 = QColor(72, 1, 1);
+    arrow_color_1 = QColor(255, 255, 255);
+  } else {
+    circle_color_0 = QColor(22, 156, 69);
+    circle_color_1 = QColor(30, 215, 96);
+    arrow_color_0 = QColor(9, 56, 27);
+    arrow_color_1 = QColor(255, 255, 255);
+  }
+
+  if (state == 1) {
+    circle_color = circle_color_1;
+    arrow_color = arrow_color_1;
+  } else if (state == 0) {
+    circle_color = circle_color_0;
+    arrow_color = arrow_color_0;
+  }
+
+  // Draw the circle
+  int circleX = x;
+  int circleY = y;
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(circle_color);
+  painter.drawEllipse(circleX, circleY, circle_size, circle_size);
+
+  // Draw the arrow
+  int arrowSize = 50;
+  int arrowX = circleX + (circle_size - arrowSize) / 2 + (arrowSize / 2.5) - 3;
+  int arrowY = circleY + (circle_size - arrowSize) / 2;
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(arrow_color);
+
+  // Draw the arrow shape
+  QPolygon arrowPolygon;
+  arrowPolygon << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2) << QPoint(arrowX + 3, arrowY) << QPoint(arrowX, arrowY) << QPoint(arrowX, arrowY + arrowSize)
+               << QPoint(arrowX + 3, arrowY + arrowSize) << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2);
+  painter.drawPolygon(arrowPolygon);
+
+  // Draw the tail rectangle
+  int tailWidth = arrowSize / 2.25;
+  int tailHeight = arrowSize / 2;
+  QRect tailRect(arrowX - tailWidth + 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
+  painter.fillRect(tailRect, arrow_color);
+}
+
+void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
+  char lab_str[16];
+  char val_str[16];
+  int minute = (int)(standstillElapsedTime / 60);
+  int second = (int)((standstillElapsedTime) - (minute * 60));
+
+  if (standStill) {
+    snprintf(lab_str, sizeof(lab_str), "STOP");
+    snprintf(val_str, sizeof(val_str), "%01d:%02d", minute, second);
+  }
+
+  p.setFont(InterFont(80, QFont::DemiBold));
+  drawColoredText(p, x, y, QString(lab_str), QColor(255, 175, 3, 240));
+  p.setFont(InterFont(95, QFont::DemiBold));
+  drawColoredText(p, x, y + 90, QString(val_str), QColor(255, 255, 255, 240));
 }
 
 void AnnotatedCameraWidget::showEvent(QShowEvent *event) {

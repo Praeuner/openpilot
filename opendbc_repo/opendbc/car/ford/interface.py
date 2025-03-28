@@ -8,7 +8,8 @@ from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.radar_interface import RadarInterface
 from opendbc.car.ford.values import CarControllerParams, DBC, Ecu, FordFlags, FordConfig, RADAR, FordSafetyFlags
 from opendbc.car.interfaces import CarInterfaceBase
-from opendbc.car.ford.helpers import get_ford_vehicle_tuning_interface, initialize_param_defaults, logDebug, logWarn, logError
+from bluepilot.params.bp_params import apply_interface_params
+from bluepilot.logger.bp_logger import debug, info, warning, error, critical
 
 TransmissionType = structs.CarParams.TransmissionType
 
@@ -28,18 +29,16 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def _get_params(ret: structs.CarParams, candidate, fingerprint, car_fw, experimental_long, docs) -> structs.CarParams:
-    logDebug(f'candidate (interface): {candidate}')
+    print("| CarParams Debug")
+    debug(f'| Candidate (interface): {candidate}', True)
     ret.brand = "ford"
     ret.dashcamOnly = not (ret.flags & FordFlags.CANFD)
-    print(f'Dashcam Only Mode: {ret.dashcamOnly}')
+    info(f'| Dashcam Only Mode: {ret.dashcamOnly}', True)
     ret.radarUnavailable = Bus.radar not in DBC[candidate]
-    print(f'Radar Unavailable: {ret.radarUnavailable}')
+    info(f'| Radar Unavailable: {ret.radarUnavailable}', True)
 
     FordConfig.BLUECRUISE_CLUSTER_PRESENT = any(fw.ecu == Ecu.hud for fw in car_fw) # Check for blue cruise cluster
-    print(f'Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}')
-
-    for fw in car_fw:
-      logDebug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}')
+    info(f'| Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}', True)
 
     ret.steerControlType = structs.CarParams.SteerControlType.angle
     ret.steerActuatorDelay = 0.05
@@ -48,8 +47,6 @@ class CarInterface(CarInterfaceBase):
     ret.longitudinalTuning.kiBP = [0.]
     ret.longitudinalTuning.kpV = [0.]
     ret.longitudinalTuning.kiV = [0.5]
-    # ret.longitudinalTuning.deadzoneBPDEPRECATED = [0.]
-    # ret.longitudinalTuning.deadzoneVDEPRECATED = [.15]
 
     if not ret.radarUnavailable and DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR:
       # average of 33.3 Hz radar timestep / 4 scan modes = 60 ms
@@ -67,6 +64,9 @@ class CarInterface(CarInterfaceBase):
     ret.safetyConfigs = cfgs
 
     ret.experimentalLongitudinalAvailable = (bool)(ret.flags & FordFlags.CANFD)
+    info(f"| experimentalLongAvailable: {ret.experimentalLongitudinalAvailable}", True)
+    info(f"| experimental_long: {experimental_long}", True)
+    info(f"| ret.flags & FordFlags.CANFD: {ret.flags & FordFlags.CANFD}", True)
     if experimental_long or not ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
@@ -74,11 +74,15 @@ class CarInterface(CarInterfaceBase):
     if ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
 
+    for fw in car_fw:
+      debug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}', True)
+
       # TRON (SecOC) platforms are not supported
       # LateralMotionControl2, ACCDATA are 16 bytes on these platforms
       if len(fingerprint[CAN.camera]):
         if fingerprint[CAN.camera].get(0x3d6) != 8 or fingerprint[CAN.camera].get(0x186) != 8:
           carlog.error('dashcamOnly: SecOC is unsupported')
+          error('dashcamOnly: SecOC is unsupported', True)
           ret.dashcamOnly = True
     else:
       # Lock out if the car does not have needed lateral and longitudinal control APIs.
@@ -87,29 +91,18 @@ class CarInterface(CarInterfaceBase):
       if pscm_config:
         if len(pscm_config.fwVersion) != 24:
           carlog.error('dashcamOnly: Invalid EPS FW version')
+          error("dashcamOnly: Invalid EPS FW version", True)
           ret.dashcamOnly = True
         else:
           config_tja = pscm_config.fwVersion[7]  # Traffic Jam Assist
           config_lca = pscm_config.fwVersion[8]  # Lane Centering Assist
           if config_tja != 0xFF or config_lca != 0xFF:
             carlog.error('dashcamOnly: Car lacks required lateral control APIs')
+            error("dashcamOnly: Car lacks required lateral control APIs", True)
             ret.dashcamOnly = True
 
-    # Get Ford-specific tuning
-    # ford_tuning = get_ford_vehicle_tuning_interface(candidate)
-    # if ford_tuning:
-    #   for key in ford_tuning:
-    #     if ford_tuning[key] is not None:
-    #       logDebug(f'Ford Tuning (interface.py) Key: {key}, Value: {ford_tuning[key]}')
-    #       if key == "longitudinalTuning":
-    #         ret.longitudinalTuning.kpBP = ford_tuning[key]["kpBP"]
-    #         ret.longitudinalTuning.kpV = ford_tuning[key]["kpV"]
-    #         ret.longitudinalTuning.kiV = ford_tuning[key]["kiV"]
-    #       else:
-    #         setattr(ret, key, ford_tuning[key])
-
-    # Init params used by carinterface
-    # initialize_param_defaults(ret)
+    # Apply custom parameters from params.json
+    apply_interface_params(ret, "interface")
 
     # Auto Transmission: 0x732 ECU or Gear_Shift_by_Wire_FD1
     found_ecus = [fw.ecu for fw in car_fw]
@@ -125,11 +118,11 @@ class CarInterface(CarInterfaceBase):
 
     if 0x365 in fingerprint[CAN.main]:  # F150 HEV Cluster_HEV_Data2 signal (869 = 0x365)
       ret.flags |= int(FordFlags.HEV_CLUSTER_DATA)
-      print('HEV_CLUSTER_DATA signal detected (interface.py)')
+      info('HEV_CLUSTER_DATA signal detected (interface.py)', True)
     # Check for HEV battery data signals
     if 0x07A in fingerprint[CAN.main] and 0x24B in fingerprint[CAN.main] and 0x24C in fingerprint[CAN.main]:  # 122, 587, 588
       ret.flags |= int(FordFlags.HEV_BATTERY_DATA)
-      print('HEV_BATTERY_DATA signal detected (interface.py)')
+      info('HEV_BATTERY_DATA signal detected (interface.py)', True)
 
     # LCA can steer down to zero
     ret.minSteerSpeed = 0.

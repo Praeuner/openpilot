@@ -7,7 +7,7 @@ from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import DBC, CarControllerParams, FordConfig, FordFlags
 from opendbc.car.interfaces import CarStateBase
 from cereal import messaging
-
+from bluepilot.logger.bp_logger import debug, info, warning, error, critical
 from opendbc.sunnypilot.car.ford.mads import MadsCarState
 
 # from opendbc.car.ford.fordcanparser import FordCanParser

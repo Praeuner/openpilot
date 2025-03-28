@@ -1,4 +1,5 @@
 #include "selfdrive/ui/qt/onroad/model.h"
+#include <iostream>
 
 constexpr int CLIP_MARGIN = 500;
 constexpr float MIN_DRAW_DISTANCE = 10.0;
@@ -14,9 +15,9 @@ static int get_path_length_idx(const cereal::XYZTData::Reader &line, const float
 }
 
 void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
+  // Existing initial setup code remains unchanged
   auto *s = uiState();
   auto &sm = *(s->sm);
-  // Check if data is up-to-date
   if (sm.rcv_frame("liveCalibration") < s->scene.started_frame || sm.rcv_frame("modelV2") < s->scene.started_frame) {
     return;
   }
@@ -31,20 +32,87 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   const auto &model = sm["modelV2"].getModelV2();
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
+  // float v_ego = sm["carState"].getCarState().getVEgo();
 
+  updateBlindspotStatus(sm["carState"].getCarState());
   update_model(model, lead_one);
   drawLaneLines(painter);
+  drawBlindspotIndicators(painter);
   drawPath(painter, model, surface_rect.height());
 
-  // Check if we should show radar overlay regardless of longitudinal control
-  bool showRadarOverlay = !experimental_mode && Params().getBool("FordPrefShowRadarLeadOverlay");
+  // New stop detection logic using velocity
+  const auto &velocity = model.getVelocity().getX();
+  const auto &position_x = model.getPosition().getX();
+  const auto &position_y = model.getPosition().getY();
+  const auto &position_z = model.getPosition().getZ();
 
-  // Modified condition: show leads if longitudinal_control is enabled OR if radar overlay
-  // is enabled by the user preference
+  if (s->scene.show_stop_indicator_overlay) {
+    if (velocity.size() > 0 && position_x.size() == velocity.size() && position_y.size() == velocity.size() && position_z.size() == velocity.size()) {
+      float stopping_distance = -1.0f;
+      int stop_idx = -1;
+      for (size_t i = 0; i < velocity.size(); ++i) {
+        if (velocity[i] < 0.5f) {
+          stopping_distance = position_x[i];
+          stop_idx = i;
+          break;
+        }
+      }
+
+      if (stop_idx != -1 && stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
+        float x = position_x[stop_idx];
+        float y = position_y[stop_idx];
+        float z = position_z[stop_idx];
+        QPointF screen_point;
+        if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
+          // Adjust position to the right of the right lane line
+          if (!lane_line_vertices[2].isEmpty()) {
+            // Find the closest point on the right lane line to the stopping point
+            int closest_idx = 0;
+            float min_dist = std::numeric_limits<float>::max();
+            for (int i = 0; i < lane_line_vertices[2].size(); ++i) {
+              float dist = std::hypot(screen_point.x() - lane_line_vertices[2][i].x(), screen_point.y() - lane_line_vertices[2][i].y());
+              if (dist < min_dist) {
+                min_dist = dist;
+                closest_idx = i;
+              }
+            }
+
+            // Position the stop sign to the right of the closest lane line point
+            QPointF lane_point = lane_line_vertices[2][closest_idx];
+            const int stop_sign_size = 100; // Increased size
+            QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
+
+            // Ensure the stop sign stays within the clip region
+            if (clip_region.contains(stop_point)) {
+              drawStopSignOverlay(painter, stop_point, stop_sign_size);
+              // std::cout << "Stop sign drawn at distance: " << stopping_distance << " m, screen: (" << stop_point.x() << ", " << stop_point.y() << ")" << std::endl;
+            } else {
+              // Adjust if partially out of bounds
+              float adjusted_x = std::clamp(stop_point.x(), clip_region.left() + stop_sign_size / 2, clip_region.right() - stop_sign_size / 2);
+              stop_point.setX(adjusted_x);
+              if (clip_region.contains(stop_point)) {
+                drawStopSignOverlay(painter, stop_point, stop_sign_size);
+                // std::cout << "Stop sign adjusted to: (" << stop_point.x() << ", " << stop_point.y() << ")" << std::endl;
+              }
+            }
+          } else {
+            // Fallback: Use the original stopping point if no lane line data
+            if (clip_region.contains(screen_point)) {
+              const int stop_sign_size = 100; // Increased size
+              drawStopSignOverlay(painter, screen_point, stop_sign_size);
+              // std::cout << "Stop sign (fallback) drawn at distance: " << stopping_distance << " m" << std::endl;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Existing lead drawing code remains unchanged
+  bool showRadarOverlay = !experimental_mode && s->scene.show_new_radar_overlay;
   if ((longitudinal_control || showRadarOverlay) && sm.alive("radarState")) {
     update_leads(radar_state, model.getPosition());
     const auto &lead_two = radar_state.getLeadTwo();
-
     if (lead_one.getStatus()) {
       drawLead(painter, lead_one, lead_vertices[0], surface_rect, lead_radar_assisted[0]);
     }
@@ -62,23 +130,36 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
     bool current_status = lead_data.getStatus();
     if (current_status) {
       float raw_yRel = lead_data.getYRel();
-      if (prev_lead_status[i]) {
-        // Keep smoothing with a low alpha for smoothness
-        float alpha = 0.1f; // Adjust this value (e.g., 0.1 or lower) to control smoothness
-        smoothed_yRel[i] = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
-      } else {
-        smoothed_yRel[i] = raw_yRel;
-      }
+
       // Get the path's y-coordinate at the lead's distance
       int idx = get_path_length_idx(line, lead_data.getDRel());
       float path_y = line.getY()[idx];
-      // Increase beta to pull the chevron toward the path center
-      float beta = 0.3f; // Adjust this value (e.g., 0.5 or higher) to center better
-      float adjusted_yRel = beta * path_y + (1.0f - beta) * smoothed_yRel[i];
-      float z = line.getZ()[idx];
+      float path_z = line.getZ()[idx];
+
+      // For first detection, initialize with raw values
+      if (!prev_lead_status[i]) {
+        smoothed_yRel[i] = raw_yRel;
+      } else {
+        // Apply stronger path-based smoothing
+        // Prioritize the path curve more when on curves
+        float path_curvature = (idx > 1) ? fabs(line.getY()[idx] - line.getY()[idx - 1]) : 0.0f;
+
+        // Dynamically adjust path influence based on curvature
+        // Higher curvature = more path influence
+        float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
+
+        // Low-pass filter for temporal smoothing
+        float alpha = 0.2f; // Adjust for smoothness
+
+        // First smooth the raw radar reading
+        float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
+
+        // Then blend with the path position using dynamic path weight
+        smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
+      }
+
       QPointF current_pos;
-      // Adjust based on coordinate system: try without the negative sign first
-      mapToScreen(lead_data.getDRel(), adjusted_yRel, z + path_offset_z, &current_pos);
+      mapToScreen(lead_data.getDRel(), smoothed_yRel[i], path_z + path_offset_z, &current_pos);
       lead_vertices[i] = current_pos;
       lead_radar_assisted[i] = lead_data.getRadar();
     }
@@ -97,6 +178,43 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
   for (int i = 0; i < std::size(lane_line_vertices); i++) {
     lane_line_probs[i] = line_probs[i];
     mapLineToPolygon(lane_lines[i], 0.025 * lane_line_probs[i], 0, &lane_line_vertices[i], max_idx);
+  }
+
+  // Create lane barrier polygons for blindspot indication
+  // Now using current lane lines with wider gradient effect
+  if (lane_lines.size() >= 4) {
+    // Left blind spot: From lane line to left (y - BLINDSPOT_WIDTH)
+    const auto &left_lane = lane_lines[1];
+    lane_barrier_vertices[0].clear();
+    for (int i = 0; i <= max_idx; i++) {
+      QPointF lane_pt, offset_pt;
+      if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
+          mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
+        lane_barrier_vertices[0].append(offset_pt); // Outer left edge
+      }
+    }
+    for (int i = max_idx; i >= 0; i--) {
+      QPointF lane_pt;
+      if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
+        lane_barrier_vertices[0].append(lane_pt); // Lane line edge
+      }
+    }
+
+    // Right blind spot: From lane line to right (y + BLINDSPOT_WIDTH)
+    const auto &right_lane = lane_lines[2];
+    lane_barrier_vertices[1].clear();
+    for (int i = 0; i <= max_idx; i++) {
+      QPointF lane_pt;
+      if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
+        lane_barrier_vertices[1].append(lane_pt); // Lane line edge
+      }
+    }
+    for (int i = max_idx; i >= 0; i--) {
+      QPointF offset_pt;
+      if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
+        lane_barrier_vertices[1].append(offset_pt); // Outer right edge
+      }
+    }
   }
 
   // update road edges
@@ -142,7 +260,19 @@ void ModelRenderer::drawLaneLines(QPainter &painter) {
 
   // lanelines
   for (int i = 0; i < std::size(lane_line_vertices); ++i) {
-    painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, std::clamp<float>(lane_line_probs[i], 0.0, 0.7)));
+    // Check if this line is on the left or right side
+    bool is_left_line = (i == 0);
+    bool is_right_line = (i == 3);
+
+    // Change color based on blindspot detection
+    if ((is_left_line && left_blindspot) || (is_right_line && right_blindspot)) {
+      // Use red for blindspot detected
+      painter.setBrush(QColor::fromRgbF(1.0, 0.0, 0.0, std::clamp<float>(lane_line_probs[i], 0.3, 0.9)));
+    } else {
+      // Use normal white for no blindspot
+      painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, std::clamp<float>(lane_line_probs[i], 0.0, 0.7)));
+    }
+
     painter.drawPolygon(lane_line_vertices[i]);
   }
 
@@ -528,6 +658,94 @@ void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float
       pvd->push_front(right);
     }
   }
+}
+
+void ModelRenderer::updateBlindspotStatus(const cereal::CarState::Reader &car_state) {
+  left_blindspot = car_state.getLeftBlindspot();
+  right_blindspot = car_state.getRightBlindspot();
+
+  // Update animation counter
+  updateBlindspotAnimation();
+}
+
+void ModelRenderer::updateBlindspotAnimation() {
+  // Increment blink counter
+  blindspot_blink_rate = (blindspot_blink_rate + 1) % (UI_FREQ * 2);
+
+  // Calculate pulsing opacity between 0.15 and 0.35
+  float pulse = 0.1 * sin(blindspot_blink_rate * M_PI / UI_FREQ) + 0.25;
+  blindspot_opacity = pulse;
+}
+
+void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
+  auto *s = uiState();
+  if (!s->scene.show_blindspot_indicators) {
+    return; // Exit early if blind spot indicators are disabled
+  }
+
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Draw left blindspot indicator
+  if (left_blindspot && !lane_barrier_vertices[0].isEmpty()) {
+    QRectF leftBounds = lane_barrier_vertices[0].boundingRect();
+    QLinearGradient leftGradient(leftBounds.center().x(), leftBounds.top(), leftBounds.center().x(), leftBounds.bottom());
+    leftGradient.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));               // Top - transparent
+    leftGradient.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));              // Start fade
+    leftGradient.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity)); // Middle - animated opacity
+    leftGradient.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));              // Stronger opacity
+    leftGradient.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));               // Bottom - 100% opacity
+    painter.setBrush(leftGradient);
+    painter.setPen(Qt::NoPen);
+    painter.drawPolygon(lane_barrier_vertices[0]);
+  }
+
+  // Draw right blindspot indicator
+  if (right_blindspot && !lane_barrier_vertices[1].isEmpty()) {
+    QRectF rightBounds = lane_barrier_vertices[1].boundingRect();
+    QLinearGradient rightGradient(rightBounds.center().x(), rightBounds.top(), rightBounds.center().x(), rightBounds.bottom());
+    rightGradient.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));               // Top - transparent
+    rightGradient.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));              // Start fade
+    rightGradient.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity)); // Middle - animated opacity
+    rightGradient.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));              // Stronger opacity
+    rightGradient.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));               // Bottom - 100% opacity
+    painter.setBrush(rightGradient);
+    painter.setPen(Qt::NoPen);
+    painter.drawPolygon(lane_barrier_vertices[1]);
+  }
+}
+
+void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size) {
+  // Enable anti-aliasing for smoother shape
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Draw octagon shape for stop sign
+  QPolygonF stopSign;
+  const float angle_increment = 2 * M_PI / 8;    // 8 sides
+  const float start_angle = angle_increment / 2; // Rotate to get flat sides top/bottom
+
+  for (int i = 0; i < 8; i++) {
+    float angle = start_angle + i * angle_increment;
+    stopSign << QPointF(point.x() + size / 2 * cos(angle), point.y() + size / 2 * sin(angle));
+  }
+
+  // Draw red stop sign with white border
+  painter.setPen(QPen(Qt::white, 3));
+  painter.setBrush(QColor(255, 0, 0, 220)); // Red with some transparency
+  painter.drawPolygon(stopSign);
+
+  // Draw "STOP" text centered in the middle of the sign
+  painter.setPen(Qt::white);
+  // Use a standard font instead of InterFont
+  QFont stopFont = painter.font();
+  stopFont.setPointSize(size / 3);
+  stopFont.setBold(true);
+  painter.setFont(stopFont);
+
+  // Create a rectangular area for the text that's centered on the stop sign
+  QRect textRect(point.x() - size / 2, point.y() - size / 3, size, size * 2 / 3);
+
+  // Draw the text centered in this rectangle
+  painter.drawText(textRect, Qt::AlignCenter, "STOP");
 }
 
 bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {

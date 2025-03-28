@@ -262,9 +262,13 @@ public:
 
     QObject::connect(toggle, &QAbstractButton::toggled, [this](bool checked) {
       bool oldValue = params.getBool(paramName);
-      params.putBool(paramName, checked);
-      ParamUtils::logParamChange(paramName, oldValue ? "On" : "Off", checked ? "On" : "Off");
-      emit toggleFlipped(checked);
+
+      // Only update and log if there's an actual change
+      if (oldValue != checked) {
+        params.putBool(paramName, checked);
+        ParamUtils::logParamChange(paramName, oldValue ? "On" : "Off", checked ? "On" : "Off");
+        emit toggleFlipped(checked);
+      }
     });
 
     refresh();
@@ -273,7 +277,10 @@ public:
   void refresh() {
     bool paramValue = params.getBool(paramName);
     if (toggle->isChecked() != paramValue) {
+      // Block signals during this update to prevent callback
+      toggle->blockSignals(true);
       toggle->setChecked(paramValue);
+      toggle->blockSignals(false);
     }
   }
 

@@ -70,6 +70,10 @@ void ui_update_params(UIState *s) {
   s->scene.hybrid_drive_gauge_size = std::atoi(params.get("FordPrefHybridDriveGaugeSize").c_str());
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
   s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
+  s->scene.stand_still_timer = params.getBool("StandStillTimer");
+  s->scene.show_new_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
+  s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
+  s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
 }
 
 void UIState::updateStatus() {
