@@ -333,6 +333,8 @@ class CarController(CarControllerBase):
 
         # filter curvature before calculating rate (moved outside lane change blocks)
         requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
+        # for testing,no filter
+        requested_curvature = desired_curvature
 
         apply_curvature = apply_ford_curvature_limits(
           requested_curvature,
