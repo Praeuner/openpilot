@@ -344,6 +344,9 @@ class CarController(CarControllerBase):
           self.CP
         )
 
+        # remove this line for public releases
+        apply_curvature = requested_curvature
+
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
 
