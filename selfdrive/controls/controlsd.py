@@ -127,8 +127,9 @@ class Controls:
 
     # extract predicted curvature from modelV2
     if model_v2 is not None and len(model_v2.orientation.x) >= 17:
+          self.curvature_lookup_time = 0.2
           # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
-          curvatures = np.array(model_v2.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
+          curvatures = np.array(model_v2.orientationRate.z) / max(0.01, CS.vEgoRaw)
           predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
     else:
       predicted_curvature = 0.0
