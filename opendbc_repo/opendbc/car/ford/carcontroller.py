@@ -119,7 +119,7 @@ class CarController(CarControllerBase):
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_k_p_bp = [10, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
-    self.path_angle_k_p_v = [3.25, 1.0]  # corresponding k_p values
+    self.path_angle_k_p_v = [1.5, 1.0]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
