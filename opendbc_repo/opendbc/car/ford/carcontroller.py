@@ -118,15 +118,15 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p_bp = [10, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
-    self.path_angle_k_p_v = [1.5, 1.0]  # corresponding k_p values
+    self.path_angle_k_p_bp = [15.65, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
+    self.path_angle_k_p_v = [1.25, 1.0]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
     # Steering wheel angle adjustment variables
-    self.wheel_angle_speed_bp = [11, 15] # what speed to adjust wheel_angle
-    self.wheel_angle_speed_low = 0.1 # wheel_angle mulitplier at 3.5 m/s
-    self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 13.5 m/s
+    self.wheel_angle_speed_bp = [11, 25] # what speed to adjust wheel_angle
+    self.wheel_angle_speed_low = 0.0 # wheel_angle mulitplier at 11 m/s
+    self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 25 m/s
     self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
     self.wheel_angle_curv_low = 0.0  # no restoration at low curvature
     self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
