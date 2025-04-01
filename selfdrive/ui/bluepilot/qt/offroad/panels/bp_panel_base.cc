@@ -531,18 +531,23 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
       selectionControl->setSelectedValue(newValue);
       onControlValueChanged();
 
-      // Show confirmation dialog for reboot if necessary.
-      BPConfirmationDialog::ConfirmConfig config;
-      config.title = tr("Device Reboot Required");
-      config.prompt = tr("Reboot required for changes to take effect. Would you like to reboot now?");
-      config.confirmText = tr("Reboot");
-      config.cancelText = tr("Cancel");
-      auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
-      connect(dialog, &BPConfirmationDialog::confirmed, this, [this](bool accepted) {
-        if (accepted) {
-          params.putBool("DoReboot", true);
-        }
-      });
+      // Check if reboot is required for this parameter
+      bool requiresReboot = control.contains("requiresReboot") && control["requiresReboot"].toBool();
+
+      if (requiresReboot) {
+        // Show confirmation dialog for reboot if necessary.
+        BPConfirmationDialog::ConfirmConfig config;
+        config.title = tr("Device Reboot Required");
+        config.prompt = tr("Reboot required for changes to take effect. Would you like to reboot now?");
+        config.confirmText = tr("Reboot");
+        config.cancelText = tr("Cancel");
+        auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
+        connect(dialog, &BPConfirmationDialog::confirmed, this, [this](bool accepted) {
+          if (accepted) {
+            params.putBool("DoReboot", true);
+          }
+        });
+      }
     }
   });
   return selectionControl;

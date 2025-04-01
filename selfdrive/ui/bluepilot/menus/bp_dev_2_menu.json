@@ -20,6 +20,7 @@
               "param": "FordSelectedVehicleModel",
               "title": "Vehicle Model",
               "desc": "This will for the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
+              "requiresReboot": true,
               "hidden": false,
               "options": [
                 {
@@ -94,6 +95,7 @@
               "param": "CustomModelPathColor",
               "title": "Custom Model Path Color",
               "desc": "Customize the color of the driving path overlay",
+              "requiresReboot": false,
               "hidden": false,
               "options": [
                 { "name": "Stock", "value": "Stock" },
