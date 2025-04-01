@@ -799,7 +799,7 @@ void BPUpdaterPanel::startAutoUpdateChecks() {
 
   if (!autoUpdateCheckTimer) {
     autoUpdateCheckTimer = new QTimer(this);
-    autoUpdateCheckTimer->setInterval(900000); // 15 minutes
+    autoUpdateCheckTimer->setInterval(1800000); // 30 minutes
     connect(autoUpdateCheckTimer, &QTimer::timeout, this, &BPUpdaterPanel::checkForUpdates);
   }
 
@@ -1068,7 +1068,7 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
                             "git submodule update --init --recursive && scons -j$(nproc)")
                         .arg(branch);
 
-  showCommandOutputDialog(tr("Switching Branch"), command, "", 900000, true, true, true); // 15 minutes timeout
+  showCommandOutputDialog(tr("Switching Branch"), command, "", 1800000, true, true, true); // 30 minutes timeout
 }
 
 bool BPUpdaterPanel::hasUncommittedChanges() const {
@@ -2163,7 +2163,7 @@ void BPUpdaterPanel::showCommitHistory(QWidget *parent, const QString &title, co
             dialog->accept(); // Close history dialog
             panel->showCommandOutputDialog(tr("Checking Out Commit"), command,
                                            "",     // Use default working directory
-                                           900000, // 15 minutes timeout
+                                           1800000, // 30 minutes timeout
                                            true,   // Show kill button
                                            true,   // Show retry button
                                            true    // Show reboot button
@@ -2235,8 +2235,8 @@ void BPUpdaterPanel::handleRepoUpdate() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update
-  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 900000, true, true,
-                          true); // 15 minutes timeout
+  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 1800000, true, true,
+                          true); // 30 minutes timeout
 }
 
 void BPUpdaterPanel::handleRepoUpdateAll() {
@@ -2304,7 +2304,7 @@ void BPUpdaterPanel::handleRepoRepair() {
   }
 
   // Run repair script
-  showCommandOutputDialog(tr("Repairing Openpilot"), tempScript, "", 900000, true, true, true); // 15 minutes timeout
+  showCommandOutputDialog(tr("Repairing Openpilot"), tempScript, "", 1800000, true, true, true); // 30 minutes timeout
 }
 
 void BPUpdaterPanel::handleRepoReset() {
