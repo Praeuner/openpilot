@@ -116,7 +116,7 @@ class CarController(CarControllerBase):
     self.custom_path_offset = -0.1 # updated from UI: applies a custom offset to help with in-lane positioning
 
     # path angle variables
-    self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
+    self.path_angle_filter_samples = 5 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_k_p_bp = [15.65, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
