@@ -30,6 +30,7 @@ public:
 signals:
   void openSettings(int index = 0, const QString &param = "");
   void valueChanged();
+  void debugPanelRequested();
 
 public slots:
   void offroadTransition(bool offroad);
@@ -56,6 +57,7 @@ protected:
 
   const QRect home_btn = QRect(60, 860, 180, 180);
   const QRect settings_btn = QRect(50, 35, 200, 117);
+  const QRect temp_btn = QRect(30, 338, 240, 126);
   const QColor good_color = QColor(255, 255, 255);
   const QColor warning_color = QColor(218, 202, 37);
   const QColor danger_color = QColor(201, 34, 49);

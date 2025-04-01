@@ -5,6 +5,7 @@ import threading
 import logging
 import sys
 import traceback
+import platform
 from logging.handlers import RotatingFileHandler
 from enum import Enum
 from typing import Any
@@ -35,11 +36,36 @@ _worker_thread = None
 # Lock for thread safety
 _lock = threading.Lock()
 
+
+def get_default_log_dir():
+  """
+  Get appropriate log directory based on environment/platform
+  """
+  # Check if running on a Comma device (has /data directory)
+  if os.path.exists("/data") and os.access("/data", os.W_OK):
+    return "/data/logs/bp_logger"
+
+  # On macOS, use ~/Library/Logs
+  if platform.system() == "Darwin":
+    return os.path.expanduser("~/Library/Logs/bluepilot")
+
+  # On Linux (non-Comma), use ~/.local/share/bluepilot/logs
+  if platform.system() == "Linux":
+    return os.path.expanduser("~/.local/share/bluepilot/logs")
+
+  # On Windows
+  if platform.system() == "Windows":
+    return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "bluepilot", "logs")
+
+  # Fallback to current directory
+  return os.path.join(os.getcwd(), "logs", "bluepilot")
+
+
 # Default configuration
 DEFAULT_CONFIG = {
   "max_file_size_mb": 10,
   "backup_count": 10,
-  "log_dir": "/data/logs/bp_logger",  # Updated to use the specified path
+  "log_dir": get_default_log_dir(),  # Dynamic log directory
   "log_filename": "bluepilot.log",
   "format": "%(asctime)s [%(levelname)s] %(message)s",
   "date_format": "%Y-%m-%d %H:%M:%S",
@@ -71,9 +97,17 @@ def set_exception_handler():
   sys.excepthook = exception_handler
 
 
-def _ensure_log_directory(log_dir: str) -> None:
-  """Ensure the log directory exists."""
-  Path(log_dir).mkdir(parents=True, exist_ok=True)
+def _ensure_log_directory(log_dir: str) -> bool:
+  """
+  Ensure the log directory exists.
+  Returns True if successful, False otherwise.
+  """
+  try:
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    return True
+  except (OSError, PermissionError) as e:
+    print(f"Warning: Could not create log directory {log_dir}: {e}")
+    return False
 
 
 def initialize_logger(config: dict[str, Any] | None = None) -> logging.Logger:
@@ -91,8 +125,14 @@ def initialize_logger(config: dict[str, Any] | None = None) -> logging.Logger:
     if config:
       full_config.update(config)
 
-    # Ensure log directory exists
-    _ensure_log_directory(full_config["log_dir"])
+    # Ensure log directory exists, fallback to a temp dir if it fails
+    if not _ensure_log_directory(full_config["log_dir"]):
+      import tempfile
+
+      fallback_dir = os.path.join(tempfile.gettempdir(), "bluepilot", "logs")
+      print(f"Falling back to temporary directory: {fallback_dir}")
+      _ensure_log_directory(fallback_dir)
+      full_config["log_dir"] = fallback_dir
 
     # Create log file path
     log_file = os.path.join(full_config["log_dir"], full_config["log_filename"])
@@ -104,10 +144,17 @@ def initialize_logger(config: dict[str, Any] | None = None) -> logging.Logger:
     # Set up formatter
     formatter = logging.Formatter(fmt=full_config["format"], datefmt=full_config["date_format"])
 
-    # Set up rotating file handler
-    file_handler = RotatingFileHandler(log_file, maxBytes=full_config["max_file_size_mb"] * 1024 * 1024, backupCount=full_config["backup_count"])
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    try:
+      # Set up rotating file handler
+      file_handler = RotatingFileHandler(log_file, maxBytes=full_config["max_file_size_mb"] * 1024 * 1024, backupCount=full_config["backup_count"])
+      file_handler.setFormatter(formatter)
+      logger.addHandler(file_handler)
+    except (OSError, PermissionError) as e:
+      # If file handler fails, add a console handler as fallback
+      print(f"Warning: Could not create log file at {log_file}: {e}")
+      console_handler = logging.StreamHandler()
+      console_handler.setFormatter(formatter)
+      logger.addHandler(console_handler)
 
     # Store global reference
     _logger = logger

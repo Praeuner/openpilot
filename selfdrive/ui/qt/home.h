@@ -9,6 +9,7 @@
 
 #include "selfdrive/ui/ui.h"
 #include "selfdrive/ui/qt/offroad/driverview.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
@@ -43,6 +44,7 @@ public slots:
   void offroadTransition(bool offroad);
   void showDriverView(bool show);
   void showSidebar(bool show);
+  virtual void showDebugPanel();
 
 protected:
   void mousePressEvent(QMouseEvent* e) override;
@@ -53,6 +55,7 @@ protected:
   OnroadWindow *onroad;
   BodyWindow *body;
   DriverViewWindow *driver_view;
+  OnroadControlsDebugPanel *debug_panel;
   QStackedLayout *slayout;
 
 protected slots:

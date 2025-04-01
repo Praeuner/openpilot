@@ -360,7 +360,12 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
       width: 20px;
       background: #1B1B1B;
     }
-    ...
+    QTextEdit QScrollBar:vertical:hover {
+      background: #2B2B2B;
+    }
+    QTextEdit QScrollBar:vertical:pressed {
+      background: #3B3B3B;
+    }
   )");
 
   // Add touch scrolling capabilities

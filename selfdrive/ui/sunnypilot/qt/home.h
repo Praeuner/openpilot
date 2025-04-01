@@ -30,6 +30,9 @@ class HomeWindowSP : public HomeWindow {
 public:
   explicit HomeWindowSP(QWidget *parent = 0);
 
+public slots:
+  void showDebugPanel() override;
+
 protected:
   void mousePressEvent(QMouseEvent *e) override;
 

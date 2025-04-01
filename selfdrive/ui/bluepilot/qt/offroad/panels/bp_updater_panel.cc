@@ -409,7 +409,7 @@ BPUpdaterPanel::BPUpdaterPanel(QWidget *parent) : QWidget(parent), branchSelecto
 
   // Add automatic update check timer
   autoUpdateCheckTimer = new QTimer(static_cast<QObject *>(this));
-  autoUpdateCheckTimer->setInterval(900000); // 15 minutes
+  autoUpdateCheckTimer->setInterval(1800000); // 30 minutes
   connect(autoUpdateCheckTimer, &QTimer::timeout, this, &BPUpdaterPanel::checkForUpdates);
   autoUpdateCheckTimer->start();
 
@@ -823,7 +823,7 @@ void BPUpdaterPanel::handleUnshallow() {
   }
 
   // Command to convert shallow clone to full clone
-  QString command = "git fetch --unshallow";
+  QString command = "rm -f .git/index.lock && git fetch --unshallow";
 
   // Show command output dialog
   showCommandOutputDialog(tr("Fetching Full Repository History"), command, "", 1800000, true, true, true); // 30 minute timeout
@@ -1181,7 +1181,7 @@ void BPUpdaterPanel::checkForUpdates() {
         Qt::QueuedConnection);
 
     // Fetch updates
-    auto fetchResult = executeGitCommand("git fetch --all", workingDir, 45000);
+    auto fetchResult = executeGitCommand("rm -f .git/index.lock && git fetch --all", workingDir, 45000);
 
     if (!fetchResult.success) {
       QMetaObject::invokeMethod(
@@ -2235,7 +2235,7 @@ void BPUpdaterPanel::handleRepoUpdate() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update
-  showCommandOutputDialog(tr("Update Openpilot"), "git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 900000, true, true,
+  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 900000, true, true,
                           true); // 15 minutes timeout
 }
 
@@ -2259,7 +2259,7 @@ void BPUpdaterPanel::handleRepoUpdateAll() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update all submodules
-  showCommandOutputDialog(tr("Update All Submodules"), "git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)", "", 180000, true, true,
+  showCommandOutputDialog(tr("Update All Submodules"), "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)", "", 180000, true, true,
                           true);
 }
 

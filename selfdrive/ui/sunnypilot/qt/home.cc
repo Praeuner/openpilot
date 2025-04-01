@@ -9,7 +9,11 @@
 
 #include "selfdrive/ui/sunnypilot/qt/widgets/drive_stats.h"
 
-HomeWindowSP::HomeWindowSP(QWidget *parent) : HomeWindow(parent) {
+HomeWindowSP::HomeWindowSP(QWidget *parent) : HomeWindow(parent) { QObject::connect(uiStateSP(), &UIStateSP::uiUpdate, this, &HomeWindowSP::updateState); }
+
+void HomeWindowSP::showDebugPanel() {
+  // Call base implementation - override only if you need special behavior
+  HomeWindow::showDebugPanel();
 }
 
 void HomeWindowSP::updateState(const UIState &s) {

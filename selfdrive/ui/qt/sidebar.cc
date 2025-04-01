@@ -1,6 +1,7 @@
 #include "selfdrive/ui/qt/sidebar.h"
 
 #include <QMouseEvent>
+#include <iostream>
 
 #include "selfdrive/ui/qt/util.h"
 
@@ -61,6 +62,8 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
     pm->send("userFlag", msg);
   } else if (settings_btn.contains(event->pos())) {
     emit openSettings();
+  } else if (temp_btn.contains(event->pos()) && onroad) {
+    emit debugPanelRequested();
   }
 }
 
