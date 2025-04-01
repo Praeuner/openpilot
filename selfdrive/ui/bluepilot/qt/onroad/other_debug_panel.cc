@@ -62,11 +62,15 @@ void OtherDebugPanel::setupMaterialStyle() {
       border-radius: 12px;
     }
 
+    QTabBar {
+      alignment: center;
+    }
+
     QTabBar::tab {
       background: #363636;
       color: white;
       padding: 15px 30px;
-      margin: 5px 8px 0px 8px;  /* Increased horizontal margin from 3px to 8px */
+      margin: 5px 8px 0px 8px;
       border-top-left-radius: 10px;
       border-top-right-radius: 10px;
       font-size: 32px;
@@ -74,6 +78,11 @@ void OtherDebugPanel::setupMaterialStyle() {
       min-height: 50px;
       border-bottom: 3px solid transparent;
     }
+
+    QTabWidget::tab-bar {
+      alignment: center;
+    }
+
 
     QTabBar::tab:selected {
       background: #2196F3;
@@ -115,14 +124,14 @@ void OtherDebugPanel::setupMaterialStyle() {
 
 void OtherDebugPanel::setupLabelStyles() {
   nameStyle = R"(
-    font-size: 24px;
+    font-size: 36px;  // Increased from 24px
     color: #BBBBBB;
     padding-right: 10px;
     font-weight: normal;
   )";
 
   valueStyle = R"(
-    font-size: 26px;
+    font-size: 40px;  // Increased from 26px
     color: #2196F3;
     font-weight: 500;
     padding-right: 20px;
@@ -176,6 +185,10 @@ void OtherDebugPanel::setupTabs() {
   setupDeviceTab();
 
   // Add tabs to tab widget
+  m_tabWidget->tabBar()->setShape(QTabBar::RoundedSouth);
+  m_tabWidget->tabBar()->setExpanding(true); // This helps with centering
+  m_tabWidget->tabBar()->setDocumentMode(true);
+  m_tabWidget->tabBar()->setDrawBase(false);
   m_tabWidget->addTab(m_mainTab, "Main");
   m_tabWidget->addTab(m_radarTab, "Radar");
   m_tabWidget->addTab(m_tuningTab, "Tuning");
@@ -194,6 +207,10 @@ void OtherDebugPanel::setupMainTab() {
   m_mainScrollArea->setFrameShape(QFrame::NoFrame);
   m_mainScrollArea->setStyleSheet("background: transparent;");
   m_mainScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  m_mainScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  m_mainScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_mainScrollArea->setProperty("kinetic_scrolling", true);
+  m_mainScrollArea->setProperty("overshoot", true);
 
   // Create content widget for scroll area
   m_mainScrollContent = new QWidget(m_mainScrollArea);
