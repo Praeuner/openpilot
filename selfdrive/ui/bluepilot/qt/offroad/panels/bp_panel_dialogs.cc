@@ -184,8 +184,6 @@ QString BPSelectionDialog::getSelection(const QString &title, const QStringList 
 // =====================================
 
 BPConfirmationDialog::BPConfirmationDialog(const ConfirmConfig &config, QWidget *parent) : BPDialogBase(parent) {
-  std::cout << "Starting dialog construction..." << std::endl;
-
   // Set up a semi-transparent background overlay
   setStyleSheet("BPConfirmationDialog { background-color: rgba(0, 0, 0, 0.75); }");
 
@@ -194,48 +192,49 @@ BPConfirmationDialog::BPConfirmationDialog(const ConfirmConfig &config, QWidget 
   mainLayout->setSpacing(0);
   mainLayout->setContentsMargins(0, 0, 0, 0);
 
-  // Create centered container for content
+  // Create centered container for content - SCALED UP 25%
   QWidget *container = new QWidget(this);
-  container->setFixedWidth(1400);
-  container->setStyleSheet("QWidget { background-color: #242424; border-radius: 20px; }");
+  container->setFixedWidth(1750);                                                          // Was 1400
+  container->setStyleSheet("QWidget { background-color: #242424; border-radius: 25px; }"); // Was 20px
 
   QVBoxLayout *containerLayout = new QVBoxLayout(container);
-  containerLayout->setSpacing(40);
-  containerLayout->setContentsMargins(60, 60, 60, 60);
+  containerLayout->setSpacing(50);                     // Was 40
+  containerLayout->setContentsMargins(75, 75, 75, 75); // Was 60, 60, 60, 60
 
-  // Title
+  // Title - SCALED UP 25%
   QLabel *titleLabel = new QLabel(config.title, container);
   titleLabel->setAlignment(Qt::AlignCenter);
-  titleLabel->setStyleSheet("QLabel { font-size: 60px; font-weight: 600; color: white; }");
+  titleLabel->setStyleSheet("QLabel { font-size: 75px; font-weight: 600; color: white; }"); // Was 60px
   containerLayout->addWidget(titleLabel);
 
-  // Prompt
+  // Prompt - SCALED UP 25%
   QLabel *promptLabel = new QLabel(config.prompt, container);
   promptLabel->setAlignment(Qt::AlignCenter);
   promptLabel->setWordWrap(true);
-  promptLabel->setStyleSheet("QLabel { font-size: 50px; color: #DDDDDD; padding: 20px; }");
+  promptLabel->setStyleSheet("QLabel { font-size: 63px; color: #DDDDDD; padding: 25px; }"); // Was 50px, 20px
   containerLayout->addWidget(promptLabel);
 
-  // Buttons
+  // Buttons - SCALED UP 25%
   QHBoxLayout *buttonLayout = new QHBoxLayout();
-  buttonLayout->setSpacing(20);
+  buttonLayout->setSpacing(25); // Was 20
 
   QString actionButtonStyle = QString(R"(
         QPushButton {
             background-color: %1;
             color: white;
             border: none;
-            border-radius: 15px;
-            padding: 30px 60px;
-            font-size: 50px;
+            border-radius: 19px; /* Was 15px */
+            padding: 38px 75px; /* Was 30px 60px */
+            font-size: 63px; /* Was 50px */
             font-weight: 500;
-            min-width: 300px;
+            min-width: 375px; /* Was 300px */
         }
         QPushButton:pressed {
             background-color: %2;
         }
   )");
 
+  // Button creation logic unchanged - styles defined above are already scaled
   if (config.cancelText.isEmpty()) {
     // Single button mode
     yesButton = new QPushButton(config.confirmText, container);
