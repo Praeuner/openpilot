@@ -175,12 +175,14 @@ class CarController(CarControllerBase):
 
     self.sm = messaging.SubMaster(['modelV2', 'liveParameters'])
     self.VM = VehicleModel(self.CP)
+    self.curvature_lookup_time = 0.2
 
     self.model = None
     self.lp = None
     self.send_driver_monitor_can_msg = False
     self.send_lane_depart_can_msg = False
     self.send_hands_free_cluster_msg = False
+    self.predictedSteeringAngleDeg_SP = 0.0
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -253,7 +255,6 @@ class CarController(CarControllerBase):
       x = max(self.lp.stiffnessFactor, 0.1)
       sr = max(self.lp.steerRatio, 0.1)
       self.VM.update_params(x, sr)
-    predictedSteeringAngleDeg_SP = 0.0
 
     # Trigger the update of the settings params
     # update_settings_params(self)
@@ -305,7 +306,7 @@ class CarController(CarControllerBase):
         self.precision_type = 1
         steeringPressed = CS.out.steeringPressed
         steeringAngleDeg_PV = CS.out.steeringAngleDeg
-        steeringAngleDeg_SP = actuators.steeringAngleDeg
+        # steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # determine if we are using Advanced Lateral Control
         if not self.enable_AdvLatCtrl:
@@ -316,9 +317,16 @@ class CarController(CarControllerBase):
         desired_curvature = actuators.curvature  # get desired curvature from model
 
         if self.enable_AdvLatCtrl:
-          steeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-desired_curvature, CS.out.vEgoRaw, self.lp.roll))
-          steeringAngleDeg_SP += self.lp.angleOffsetDeg
-          predictedSteeringAngleDeg_SP = steeringAngleDeg_SP
+          # extract predicted curvature from modelV2
+          if self.model is not None and len(self.model.orientation.x) >= 17:
+            # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
+            curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
+            predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
+          else:
+            predicted_curvature = 0.0
+          self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_curvature, CS.out.vEgoRaw, self.lp.roll))
+          self.predictedSteeringAngleDeg_SP += self.lp.angleOffsetDeg
+
 
         # Calcaulte predicted curvature and blend with desired curvature
         if self.model is not None and len(self.model.orientation.x) >= CONTROL_N:
@@ -399,7 +407,7 @@ class CarController(CarControllerBase):
         # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
 
         # calculate steering angle associated with the base path (predicted_curvature)
-        steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
+        steering_wheel_delta = steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP
 
         # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
         steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
@@ -619,6 +627,6 @@ class CarController(CarControllerBase):
     new_actuators.curvature = float(apply_curvature)
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
-    new_actuators.steeringAngleDeg = float(predictedSteeringAngleDeg_SP)
+    new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
     self.frame += 1
     return new_actuators, can_sends
