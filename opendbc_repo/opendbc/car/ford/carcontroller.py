@@ -6,6 +6,7 @@ from collections import deque
 from common.filter_simple import FirstOrderFilter
 from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
+from opendbc.car.vehicle_model import VehicleModel
 from opendbc.car.ford import fordcan
 from opendbc.car.ford.values import CarControllerParams, FordFlags
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
@@ -172,8 +173,14 @@ class CarController(CarControllerBase):
     self.max_path_offset_change = 0.00125
     self.max_curvature_rate_change = 0.0001
 
-    self.sm = messaging.SubMaster(['modelV2'])
+    self.sm = messaging.SubMaster(['modelV2', 'liveParameters'])
+    self.VM = VehicleModel(self.CP)
+
     self.model = None
+    self.lp = None
+    self.send_driver_monitor_can_msg = False
+    self.send_lane_depart_can_msg = False
+    self.send_hands_free_cluster_msg = False
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -239,6 +246,14 @@ class CarController(CarControllerBase):
     if self.sm.updated['modelV2']:
       self.model = self.sm["modelV2"]
 
+    if self.sm.updated['liveParameters']:
+      self.lp = self.sm["liveParameters"]
+
+    if self.lp is not None:
+      x = max(self.lp.stiffnessFactor, 0.1)
+      sr = max(self.lp.steerRatio, 0.1)
+      self.VM.update_params(x, sr)
+    predictedSteeringAngleDeg_SP = 0.0
 
     # Trigger the update of the settings params
     # update_settings_params(self)
@@ -299,6 +314,11 @@ class CarController(CarControllerBase):
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
         desired_curvature = actuators.curvature  # get desired curvature from model
+
+        if self.enable_AdvLatCtrl:
+          steeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-desired_curvature, CS.out.vEgoRaw, self.lp.roll))
+          steeringAngleDeg_SP += self.lp.angleOffsetDeg
+          predictedSteeringAngleDeg_SP = steeringAngleDeg_SP
 
         # Calcaulte predicted curvature and blend with desired curvature
         if self.model is not None and len(self.model.orientation.x) >= CONTROL_N:
@@ -599,6 +619,6 @@ class CarController(CarControllerBase):
     new_actuators.curvature = float(apply_curvature)
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
-
+    new_actuators.steeringAngleDeg = float(predictedSteeringAngleDeg_SP)
     self.frame += 1
     return new_actuators, can_sends

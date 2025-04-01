@@ -140,7 +140,7 @@ class Controls:
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, model_v2.action.desiredCurvature, lp.roll)
     actuators.curvature = self.desired_curvature
     steer, steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
-                                                       self.steer_limited_by_controls, predicted_curvature,
+                                                       self.steer_limited_by_controls, self.desired_curvature,
                                                        self.calibrated_pose, curvature_limited)  # TODO what if not available
     actuators.torque = float(steer)
     actuators.steeringAngleDeg = float(steeringAngleDeg)
