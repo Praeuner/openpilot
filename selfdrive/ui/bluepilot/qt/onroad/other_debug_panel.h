@@ -31,6 +31,8 @@ protected:
   void paintEvent(QPaintEvent *event) override;
 
 private:
+  uint64_t m_lastFirmwareUpdateTime = 0;
+  static constexpr uint64_t FIRMWARE_UPDATE_INTERVAL_MS = 30000; // 30 seconds
   enum class LateralTuningType { PID, TORQUE };
 
   void setupMaterialStyle();

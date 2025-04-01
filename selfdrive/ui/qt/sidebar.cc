@@ -62,7 +62,7 @@ void Sidebar::mouseReleaseEvent(QMouseEvent *event) {
     pm->send("userFlag", msg);
   } else if (settings_btn.contains(event->pos())) {
     emit openSettings();
-  } else if (temp_btn.contains(event->pos()) && onroad) {
+  } else if (temp_btn.contains(event->pos()) ) { // && onroad) {
     emit debugPanelRequested();
   }
 }

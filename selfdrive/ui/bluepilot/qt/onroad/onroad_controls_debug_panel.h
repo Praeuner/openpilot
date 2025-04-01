@@ -72,7 +72,7 @@ private:
   int m_currentTabIndex = 0;
 
   // Constants
-  static constexpr float PANEL_RATIO = 0.85f; // 85% of screen width for right side panel
+  static constexpr float PANEL_RATIO = 0.9f; // 90% of screen width for right side panel
   static constexpr int BORDER_RADIUS = 0;
 
   void setupTabs();

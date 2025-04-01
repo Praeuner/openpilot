@@ -8,6 +8,8 @@
 #include <iostream>
 
 OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent) {
+  setAttribute(Qt::WA_AcceptTouchEvents);
+
   // Set up material styling first
   setupMaterialStyle();
   setupLabelStyles();
@@ -124,14 +126,14 @@ void OtherDebugPanel::setupMaterialStyle() {
 
 void OtherDebugPanel::setupLabelStyles() {
   nameStyle = R"(
-    font-size: 36px;  // Increased from 24px
+    font-size: 28px;
     color: #BBBBBB;
     padding-right: 10px;
     font-weight: normal;
   )";
 
   valueStyle = R"(
-    font-size: 40px;  // Increased from 26px
+    font-size: 32px;
     color: #2196F3;
     font-weight: 500;
     padding-right: 20px;
@@ -169,11 +171,34 @@ void OtherDebugPanel::setupTableStyle() {
       font-size: 28px;
       height: 60px;
     }
+
+    QScrollBar:vertical {
+      width: 24px;  /* Wider scrollbar for touch */
+      background: transparent;
+      margin: 0px;
+    }
+
+    QScrollBar::handle:vertical {
+      background: #666666;
+      min-height: 60px;  /* Larger handle for touch */
+      border-radius: 12px;
+      margin: 0 2px;
+    }
   )");
 
+  // Improve touch scrolling on the table
   m_firmwareTable->setShowGrid(false);
   m_firmwareTable->setAlternatingRowColors(true);
   m_firmwareTable->setStyleSheet(m_firmwareTable->styleSheet() + "QTableWidget { alternate-background-color: #2A2A2A; }");
+  m_firmwareTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+  m_firmwareTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+  m_firmwareTable->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_firmwareTable->setProperty("kinetic_scrolling", true);
+  m_firmwareTable->setTextElideMode(Qt::ElideRight);
+
+  // Prevent text selection
+  m_firmwareTable->setSelectionMode(QAbstractItemView::NoSelection);
+  m_firmwareTable->setDragEnabled(false);
 }
 
 void OtherDebugPanel::setupTabs() {
@@ -458,6 +483,10 @@ void OtherDebugPanel::setupRadarTab() {
   m_radarScrollArea->setFrameShape(QFrame::NoFrame);
   m_radarScrollArea->setStyleSheet("background: transparent;");
   m_radarScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  m_radarScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  m_radarScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_radarScrollArea->setProperty("kinetic_scrolling", true);
+  m_radarScrollArea->setProperty("overshoot", true);
 
   // Create content widget for scroll area
   m_radarScrollContent = new QWidget(m_radarScrollArea);
@@ -606,6 +635,10 @@ void OtherDebugPanel::setupTuningTab() {
   m_tuningScrollArea->setFrameShape(QFrame::NoFrame);
   m_tuningScrollArea->setStyleSheet("background: transparent;");
   m_tuningScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  m_tuningScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  m_tuningScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_tuningScrollArea->setProperty("kinetic_scrolling", true);
+  m_tuningScrollArea->setProperty("overshoot", true);
 
   // Create content widget for scroll area
   m_tuningScrollContent = new QWidget(m_tuningScrollArea);
@@ -752,6 +785,10 @@ void OtherDebugPanel::setupFirmwareTab() {
   m_firmwareScrollArea->setFrameShape(QFrame::NoFrame);
   m_firmwareScrollArea->setStyleSheet("background: transparent;");
   m_firmwareScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  m_firmwareScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  m_firmwareScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_firmwareScrollArea->setProperty("kinetic_scrolling", true);
+  m_firmwareScrollArea->setProperty("overshoot", true);
 
   // Create content widget for scroll area
   m_firmwareScrollContent = new QWidget(m_firmwareScrollArea);
@@ -815,7 +852,7 @@ void OtherDebugPanel::setupFirmwareTab() {
 
   // Create table for firmware info with larger title
   QLabel *firmwareTitle = new QLabel("ECU Firmware Information", m_firmwareScrollContent);
-  firmwareTitle->setStyleSheet("font-size: 34px; font-weight: bold; color: #00AAFF; margin-top: 20px;");
+  firmwareTitle->setStyleSheet("font-size: 32px; font-weight: bold; color: #00AAFF; margin-top: 20px;");
   firmwareTitle->setAlignment(Qt::AlignLeft);
   m_firmwareLayout->addWidget(firmwareTitle);
 
@@ -833,7 +870,7 @@ void OtherDebugPanel::setupFirmwareTab() {
 
   // Configure table
   m_firmwareTable->setColumnWidth(0, 400); // ECU name - wider
-  m_firmwareTable->setColumnWidth(1, 500); // FW Version - much wider
+  m_firmwareTable->setColumnWidth(1, 650); // FW Version - much wider
   m_firmwareTable->setColumnWidth(2, 200); // Address - wider
   m_firmwareTable->setColumnWidth(3, 120); // Bus - wider
 
@@ -866,6 +903,10 @@ void OtherDebugPanel::setupDeviceTab() {
   m_deviceScrollArea->setFrameShape(QFrame::NoFrame);
   m_deviceScrollArea->setStyleSheet("background: transparent;");
   m_deviceScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  m_deviceScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  m_deviceScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+  m_deviceScrollArea->setProperty("kinetic_scrolling", true);
+  m_deviceScrollArea->setProperty("overshoot", true);
 
   // Create content widget for scroll area
   m_deviceScrollContent = new QWidget(m_deviceScrollArea);
@@ -1040,7 +1081,7 @@ QFrame *OtherDebugPanel::createLabelFrame(QGridLayout *layout, QString title) {
   // Add a heading to the frame with modern styling
   QLabel *heading = new QLabel(title, frame);
   heading->setStyleSheet(R"(
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 500;
     color: #2196F3;
     padding: 5px 0px;
@@ -1048,7 +1089,7 @@ QFrame *OtherDebugPanel::createLabelFrame(QGridLayout *layout, QString title) {
   )");
   heading->setAlignment(Qt::AlignLeft);
 
-  layout->setContentsMargins(20, 15, 20, 20);
+  layout->setContentsMargins(20, 20, 20, 20);
   layout->addWidget(heading, 0, 0, 1, 4, Qt::AlignLeft);
 
   // Material Design card-like styling with elevation
@@ -1076,6 +1117,10 @@ void OtherDebugPanel::updateState(const UIState &s) {
       return;
 
     auto &sm = *(s.sm);
+
+    // Update firmware table if it's time to do so
+    uint64_t currentTime = QDateTime::currentMSecsSinceEpoch();
+    bool updateFirmware = (m_lastFirmwareUpdateTime == 0) || (currentTime - m_lastFirmwareUpdateTime > FIRMWARE_UPDATE_INTERVAL_MS);
 
     // Update CarState values
     try {
@@ -1370,22 +1415,25 @@ void OtherDebugPanel::updateState(const UIState &s) {
         m_paramValues.alternativeExperience = params.getAlternativeExperience();
 
         // Get car firmware information
-        m_paramValues.carFw.clear();
+        if (updateFirmware) {
+          m_paramValues.carFw.clear();
 
-        for (auto fw : params.getCarFw()) {
-          CarParameterValues::CarFirmware carFw;
-          carFw.ecu = static_cast<int>(fw.getEcu());
+          for (auto fw : params.getCarFw()) {
+            CarParameterValues::CarFirmware carFw;
+            carFw.ecu = static_cast<int>(fw.getEcu());
 
           // Handle capnp::Data conversion to string
-          auto fwVersionData = fw.getFwVersion();
-          std::string fwVersionStr(reinterpret_cast<const char *>(fwVersionData.begin()), fwVersionData.size());
-          carFw.fwVersion = QString::fromStdString(fwVersionStr);
+            auto fwVersionData = fw.getFwVersion();
+            std::string fwVersionStr(reinterpret_cast<const char *>(fwVersionData.begin()), fwVersionData.size());
+            carFw.fwVersion = QString::fromStdString(fwVersionStr);
 
-          carFw.address = fw.getAddress();
-          carFw.subAddress = fw.getSubAddress();
-          carFw.bus = fw.getBus();
+            carFw.address = fw.getAddress();
+            carFw.subAddress = fw.getSubAddress();
+            carFw.bus = fw.getBus();
+            m_paramValues.carFw.append(carFw);
+          }
 
-          m_paramValues.carFw.append(carFw);
+          m_lastFirmwareUpdateTime = currentTime;
         }
       }
     } catch (const std::exception &e) {
