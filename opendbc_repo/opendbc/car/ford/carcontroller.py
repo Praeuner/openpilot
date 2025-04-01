@@ -120,11 +120,12 @@ class CarController(CarControllerBase):
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_k_p_bp = [15.65, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
-    self.path_angle_k_p_v = [0.5, 1.0]  # corresponding k_p values
+    self.path_angle_k_p_v = [0.25, 0.5]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
     # Steering wheel angle adjustment variables
+    self.wheel_angle_lookup_time = 0.1
     self.wheel_angle_speed_bp = [11, 25] # what speed to adjust wheel_angle
     self.wheel_angle_speed_low = 1.0 # wheel_angle mulitplier at 11 m/s
     self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 25 m/s
@@ -321,7 +322,7 @@ class CarController(CarControllerBase):
           if self.model is not None and len(self.model.orientation.x) >= 17:
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
-            predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
+            predicted_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
           else:
             predicted_curvature = 0.0
           self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_curvature, CS.out.vEgoRaw, self.lp.roll))
