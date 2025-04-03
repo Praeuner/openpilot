@@ -380,9 +380,6 @@ class CarController(CarControllerBase):
 
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
-
-        # compute curvature rate
-        self.curvature_rate_deque.append(apply_curvature)
         if len(self.curvature_rate_deque) > 1:
           delta_t = (
             self.curvature_rate_delta_t if len(self.curvature_rate_deque) == self.curvature_rate_deque.maxlen else (len(self.curvature_rate_deque) - 1) * 0.05
