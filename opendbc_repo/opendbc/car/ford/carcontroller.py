@@ -116,22 +116,13 @@ class CarController(CarControllerBase):
     self.custom_path_offset = -0.1 # updated from UI: applies a custom offset to help with in-lane positioning
 
     # path angle variables
-    self.path_angle_filter_samples = 5 # number of samples to use for the moving average filter
+    self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
-    self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_k_p_bp = [15.65, 30]  # speed breakpoints in at 15.65 m/s and 30 m/s
-    self.path_angle_k_p_v = [0.25, 0.5]  # corresponding k_p values
+    self.path_angle_wheel_angle_conversion = np.pi/180 # degrees to radians
+    self.path_angle_k_p_bp = [0.015, 0.03]  # curvature breakpoints
+    self.path_angle_k_p_v = [0.0050, 0.1750]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
-
-    # Steering wheel angle adjustment variables
-    self.wheel_angle_lookup_time = 0.1
-    self.wheel_angle_speed_bp = [11, 25] # what speed to adjust wheel_angle
-    self.wheel_angle_speed_low = 1.0 # wheel_angle mulitplier at 11 m/s
-    self.wheel_angle_speed_high = 1.0 # wheel_angle mulitplier at 25 m/s
-    self.wheel_angle_curv_bp = [0.002, 0.008]  # what curvature to adjust wheel_angle
-    self.wheel_angle_curv_low = 1.0  # no restoration at low curvature
-    self.wheel_angle_curv_high = 1.0  # full restoration at high curvature
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -147,17 +138,6 @@ class CarController(CarControllerBase):
 
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
-
-    # Ford Model Specific Tuning
-    # if CP.flags & FordFlags.CANFD:
-    #   # Check FORD_VEHICLE_TUNINGS has a key for the carFingerprint
-    #   ford_tuning = get_ford_vehicle_tuning_carcontroller(CP.carFingerprint)
-    #   if ford_tuning:
-    #     # loop through each key in ford_tuning and set the value to the corresponding key in the CarController object
-    #     for key in ford_tuning:
-    #       debug(f'Ford Tuning (carcontroller.py) Key: {key} | Value: {ford_tuning[key]}', True)
-    #       if ford_tuning[key] is not None:
-    #         setattr(self, key, ford_tuning[key])
 
     # Lane change transition tracking
     self.post_lane_change_timer = 0
@@ -323,16 +303,19 @@ class CarController(CarControllerBase):
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
             predicted_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
+            max_abs_predicted_curvature = max(np.abs(curvatures[:CONTROL_N]))  # max curvature magnitude over next 2.5s
           else:
             predicted_curvature = 0.0
+
+          # calculate predicted steering angle
           self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_curvature, CS.out.vEgoRaw, self.lp.roll))
           self.predictedSteeringAngleDeg_SP += self.lp.angleOffsetDeg
-
-
-        # Calcaulte predicted curvature and blend with desired curvature
-        if self.model is not None and len(self.model.orientation.x) >= CONTROL_N:
-          # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
-          curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
+        else:
+          predicted_curvature = 0.0
+          self.pc_blend_ratio = 0.0
+          max_abs_predicted_curvature = 0.0
+          self.predictedSteeringAngleDeg_SP = 0.0
+          self.predicted_wheel_angle_blend_ratio = 0.0
 
         # determine if a lane change is active
         if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
@@ -360,9 +343,8 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-        # filter curvature before calculating rate (moved outside lane change blocks)
-        requested_curvature = self.requested_curvature_filtered.update(desired_curvature)
-        # for testing,no filter
+
+        # for now requested_curvature is just the desired_curvature
         requested_curvature = desired_curvature
 
         apply_curvature = apply_ford_curvature_limits(
@@ -407,32 +389,16 @@ class CarController(CarControllerBase):
         # calculate steering angle associated with the base path (predicted_curvature)
         steering_wheel_delta = steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP
 
-        # The model outputs a very noisy signal at low speeds (less than 25mph) so we need to minimize the signal delta at low speeds
-        steering_wheel_delta_speedAdj = interp(CS.out.vEgoRaw, self.wheel_angle_speed_bp, [self.wheel_angle_speed_low, self.wheel_angle_speed_high])
-
-        # However we need to restore the full delta when we hit a curve at low speeds
-
-        # Calculate curvature adjustment factor - this will be between 1.0 and 2.0
-        steering_wheel_delta_curvAdj = interp(abs(apply_curvature), self.wheel_angle_curv_bp, [self.wheel_angle_curv_low, self.wheel_angle_curv_high])
-
-        # Combine speed and curvature adjustments
-        # This formula ensures that as curvature increases, we restore more of the original steering_wheel_delta
-        # even at low speeds
-        final_adj_factor = max(steering_wheel_delta_speedAdj, steering_wheel_delta_curvAdj)
-
-        # Apply scaling factor to path_angle
-        steerAngleAdjusted = final_adj_factor * steering_wheel_delta * self.path_angle_wheel_angle_conversion
-
         # if a human turn is active, zero out the steering_wheel_delta
         if self.human_turn:
-          steerAngleAdjusted = 0.0
+          steering_wheel_delta = 0.0
 
         # if a lane change is active, zero out the steering_wheel_delta
         if self.lane_change:
-          steerAngleAdjusted = 0.0
+          steering_wheel_delta = 0.0
 
-        # use PID to calcualte path_angle
-        path_angle_PID = self.path_angle_pid_controller.update(steerAngleAdjusted, speed=CS.out.vEgoRaw)
+        # use PID to calcualte path_angle. Trick the PID controller by using max_abs_predicted_curvature as the speed.
+        path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta, speed=max_abs_predicted_curvature)
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_PID)
@@ -457,6 +423,7 @@ class CarController(CarControllerBase):
         if not self.enable_AdvLatCtrl:
           path_angle = 0.0
           path_offset = 0.0
+          desired_curvature_rate = 0.0
 
         # Determine if a human is making a turn and trap the value
         # if a human turn is active, reset steering to prevent windup
