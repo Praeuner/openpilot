@@ -303,7 +303,7 @@ class CarController(CarControllerBase):
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
             predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
-            max_abs_predicted_curvature = max(np.abs(curvatures[:CONTROL_N]))  # max curvature magnitude over next 2.5s
+            max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
           else:
             predicted_curvature = 0.0
 
@@ -387,7 +387,7 @@ class CarController(CarControllerBase):
         # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
 
         # calculate steering angle associated with the base path (predicted_curvature)
-        steering_wheel_delta = steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP
+        steering_wheel_delta = (steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
 
         # if a human turn is active, zero out the steering_wheel_delta
         if self.human_turn:
