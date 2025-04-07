@@ -302,7 +302,7 @@ class CarController(CarControllerBase):
           if self.model is not None and len(self.model.orientation.x) >= 17:
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
-            predicted_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
+            predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
             max_abs_predicted_curvature = max(np.abs(curvatures[:CONTROL_N]))  # max curvature magnitude over next 2.5s
           else:
             predicted_curvature = 0.0
