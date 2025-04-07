@@ -74,6 +74,12 @@ function launch {
     agnos_init
   fi
 
+  # custom portal for non-comma devices
+  if grep -q -E "e36b272d5679115f|160fab5f43d9e5c1" /data/params/d/DongleId; then
+    export API_HOST=https://genie.snagytech.com
+    export ATHENA_HOST=wss://athena.snagytech.com
+  fi
+
   # write tmux scrollback to a file
   tmux capture-pane -pq -S-1000 > /tmp/launch_log
 
