@@ -123,7 +123,7 @@ class CarController(CarControllerBase):
     self.path_angle_k_p_v = [0.25, 0.5]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
-    self.wheel_angle_lookup_time = 0.1
+    self.wheel_angle_lookup_time = 0.3
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
