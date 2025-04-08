@@ -416,8 +416,8 @@ class CarController(CarControllerBase):
         pid_gain = interp(CS.out.vEgoRaw, self.path_angle_k_p_bp, self.path_angle_k_p_v)
         self.fordVariables.pathAngleKp = float(pid_gain)
 
-        # use PID to calcualte path_angle.  Divide error by 10 because the PID algorithim struggles with small gain values
-        path_angle_PID = self.path_angle_pid_controller.update((steering_wheel_delta/10), speed=CS.out.vEgoRaw)
+        # use PID to calcualte path_angle.
+        path_angle_PID = self.path_angle_pid_controller.update((steering_wheel_delta), speed=CS.out.vEgoRaw)
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_PID)
