@@ -119,8 +119,8 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = np.pi/180 # degrees to radians
-    self.path_angle_k_p_bp = [0.015, 0.03]  # curvature breakpoints
-    self.path_angle_k_p_v = [0.00050, 0.1750]  # corresponding k_p values
+    self.path_angle_k_p_bp = [11, 33]  # curvature breakpoints in m/s
+    self.path_angle_k_p_v = [0.2000, 0.0005]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
@@ -397,8 +397,8 @@ class CarController(CarControllerBase):
         if self.lane_change:
           steering_wheel_delta = 0.0
 
-        # use PID to calcualte path_angle. Trick the PID controller by using max_abs_predicted_curvature as the speed.
-        path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta, speed=max_abs_predicted_curvature)
+        # use PID to calcualte path_angle.
+        path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta, speed=CS.out.vEgoRaw)
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_PID)
