@@ -136,6 +136,9 @@ class CarController(CarControllerBase):
     self.path_angle_last = 0.0
     self.curvature_rate = 0  # initialize curvature_rate
 
+    # Define the Ford Variables object
+    self.fordVariables = None
+
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
 
@@ -244,6 +247,9 @@ class CarController(CarControllerBase):
     actuators = CC.actuators
     hud_control = CC.hudControl
     main_on = CS.out.cruiseState.available
+    if self.fordVariables is None:
+      act = actuators.as_builder()
+      self.fordVariables = act.fordVariables
 
     # Calculate steer_alert and fcw_alert
     steer_alert = False
@@ -601,5 +607,6 @@ class CarController(CarControllerBase):
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
     new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
+    new_actuators.fordVariables = self.fordVariables
     self.frame += 1
     return new_actuators, can_sends
