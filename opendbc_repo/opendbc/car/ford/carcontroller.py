@@ -319,7 +319,7 @@ class CarController(CarControllerBase):
           self.predictedSteeringAngleDeg_SP = 0.0
           self.predicted_wheel_angle_blend_ratio = 0.0
 
-        self.fordVariables.predictedSteeringAngleDeg_SP = float(self.predictedSteeringAngleDeg_SP)
+        self.fordVariables.predictedSteeringAngleDegSP = float(self.predictedSteeringAngleDeg_SP)
 
         # determine if a lane change is active
         if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):

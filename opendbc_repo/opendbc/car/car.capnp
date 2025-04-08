@@ -383,7 +383,7 @@ struct CarControl {
 
     struct FordVariables {
       maxAbsPredictedCurvature @0 :Float32;
-      predictedSteeringAngleDeg_SP @1 :Float32;
+      predictedSteeringAngleDegSP @1 :Float32;
       pathAngleKp @2 :Float32;
     }
 
