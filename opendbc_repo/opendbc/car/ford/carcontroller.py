@@ -116,13 +116,14 @@ class CarController(CarControllerBase):
     self.custom_path_offset = -0.1 # updated from UI: applies a custom offset to help with in-lane positioning
 
     # path angle variables
-    self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
+    self.path_angle_filter_samples = 5 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = np.pi/180 # degrees to radians
-    self.path_angle_k_p_bp = [11, 30]  # curvature breakpoints in m/s
-    self.path_angle_k_p_v = [0.25, 0.25]  # corresponding k_p values
+    self.path_angle_k_p_bp = [15.65, 30]  # curvature breakpoints in m/s
+    self.path_angle_k_p_v = [0.25, 0.5]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
+    self.wheel_angle_lookup_time = 0.1
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -308,7 +309,7 @@ class CarController(CarControllerBase):
           if self.model is not None and len(self.model.orientation.x) >= 17:
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
-            predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
+            predicted_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
             max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
             self.fordVariables.maxAbsPredictedCurvature = float(max_abs_predicted_curvature)
           else:
