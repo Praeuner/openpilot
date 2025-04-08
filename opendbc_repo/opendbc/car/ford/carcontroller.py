@@ -407,6 +407,10 @@ class CarController(CarControllerBase):
         if self.lane_change:
           steering_wheel_delta = 0.0
 
+        # if we are not using Advanced Lateral Control, zero out the steering_wheel_delta
+        if not self.enable_AdvLatCtrl:
+          steering_wheel_delta = 0.0
+
         #calculate what the PID GAIN is so we can log it
         pid_gain = interp(CS.out.vEgoRaw, self.path_angle_k_p_bp, self.path_angle_k_p_v)
         self.fordVariables.pathAngleKp = float(pid_gain)
