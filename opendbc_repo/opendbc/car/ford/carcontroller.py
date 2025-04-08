@@ -120,7 +120,7 @@ class CarController(CarControllerBase):
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = np.pi/180 # degrees to radians
     self.path_angle_k_p_bp = [11, 30]  # curvature breakpoints in m/s
-    self.path_angle_k_p_v = [0.1000, 0.0005]  # corresponding k_p values
+    self.path_angle_k_p_v = [0.25, 0.25]  # corresponding k_p values
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
 
@@ -415,8 +415,8 @@ class CarController(CarControllerBase):
         pid_gain = interp(CS.out.vEgoRaw, self.path_angle_k_p_bp, self.path_angle_k_p_v)
         self.fordVariables.pathAngleKp = float(pid_gain)
 
-        # use PID to calcualte path_angle.
-        path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta, speed=CS.out.vEgoRaw)
+        # use PID to calcualte path_angle.  Divide error by 10 because the PID algorithim struggles with small gain values
+        path_angle_PID = self.path_angle_pid_controller.update((steering_wheel_delta/10), speed=CS.out.vEgoRaw)
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_PID)
