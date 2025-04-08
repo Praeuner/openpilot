@@ -291,7 +291,7 @@ class CarController(CarControllerBase):
 
         # determine if we are using Advanced Lateral Control
         if not self.enable_AdvLatCtrl:
-          self.pc_blend_ratio = 0.1 #   10% Predicted Curvature and 90% Desired Curvature
+          self.pc_blend_ratio = 0.0 #   00% Predicted Curvature and 100% Desired Curvature
 
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
@@ -304,18 +304,22 @@ class CarController(CarControllerBase):
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
             predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
             max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
+            self.fordVariables.maxAbsPredictedCurvature = float(max_abs_predicted_curvature)
           else:
             predicted_curvature = 0.0
 
           # calculate predicted steering angle
           self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_curvature, CS.out.vEgoRaw, self.lp.roll))
           self.predictedSteeringAngleDeg_SP += self.lp.angleOffsetDeg
+
         else:
           predicted_curvature = 0.0
           self.pc_blend_ratio = 0.0
           max_abs_predicted_curvature = 0.0
           self.predictedSteeringAngleDeg_SP = 0.0
           self.predicted_wheel_angle_blend_ratio = 0.0
+
+        self.fordVariables.predictedSteeringAngleDeg_SP = float(self.predictedSteeringAngleDeg_SP)
 
         # determine if a lane change is active
         if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
@@ -396,6 +400,10 @@ class CarController(CarControllerBase):
         # if a lane change is active, zero out the steering_wheel_delta
         if self.lane_change:
           steering_wheel_delta = 0.0
+
+        #calculate what the PID GAIN is so we can log it
+        pid_gain = interp(CS.out.vEgoRaw, self.path_angle_k_p_bp, self.path_angle_k_p_v)
+        self.fordVariables.pathAngleKp = float(pid_gain)
 
         # use PID to calcualte path_angle.
         path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta, speed=CS.out.vEgoRaw)

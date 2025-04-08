@@ -379,6 +379,14 @@ struct CarControl {
     torqueOutputCan @8: Float32;   # value sent over can to the car
     speed @6: Float32;  # m/s
 
+    fordVariables @9: FordVariables;
+
+    struct FordVaraibles {
+      maxAbsPredictedCurvature @0 :Float32;
+      predictedSteeringAngleDeg_SP @1 :Float32;
+      pathAngleKp @2 :Float32;
+    }
+
     enum LongControlState @0xe40f3a917d908282{
       off @0;
       pid @1;
