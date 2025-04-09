@@ -308,24 +308,32 @@ class CarController(CarControllerBase):
           if self.model is not None and len(self.model.orientation.x) >= 17:
             # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
             curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
-            predicted_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
+            predicted_steering_angle_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
+            predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
             max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
             self.fordVariables.maxAbsPredictedCurvature = float(max_abs_predicted_curvature)
           else:
             predicted_curvature = 0.0
 
           # calculate predicted steering angle
-          self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_curvature, CS.out.vEgoRaw, self.lp.roll))
+          self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_steering_angle_curvature, CS.out.vEgoRaw, self.lp.roll))
           self.predictedSteeringAngleDeg_SP += self.lp.angleOffsetDeg
 
         else:
           predicted_curvature = 0.0
+          predicted_steering_angle_curvature = 0.0
           self.pc_blend_ratio = 0.0
           max_abs_predicted_curvature = 0.0
           self.predictedSteeringAngleDeg_SP = 0.0
           self.predicted_wheel_angle_blend_ratio = 0.0
 
         self.fordVariables.predictedSteeringAngleDegSP = float(self.predictedSteeringAngleDeg_SP)
+
+        # determine requested curvature
+        if self.enable_AdvLatCtrl:
+          requested_curvature = predicted_curvature
+        else:
+          requested_curvature = desired_curvature
 
         # determine if a lane change is active
         if (self.model.meta.laneChangeState == 1 or self.model.meta.laneChangeState == 2 or self.model.meta.laneChangeState == 3):
@@ -338,24 +346,24 @@ class CarController(CarControllerBase):
 
         # if changing lanes, modify curvature to smooth out the lane change
         if self.lane_change and (self.model.meta.laneChangeDirection == 1): # if we are changing lanes to the left
-          if desired_curvature < 0: # and the curvature is taking us to the left
-              desired_curvature = desired_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
+          if requested_curvature < 0: # and the curvature is taking us to the left
+              requested_curvature = requested_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
           else:
-              desired_curvature = desired_curvature # if we are moving back right to correct for over travel, do not reduce curvature
+              requested_curvature = requested_curvature # if we are moving back right to correct for over travel, do not reduce curvature
 
           self.precision_type = 0 # use comfort mode
 
         if self.lane_change and (self.model.meta.laneChangeDirection == 2): # if we are changing lanes to the right
-          if desired_curvature > 0: # and the curvature is taking us to the right
-              desired_curvature = desired_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
+          if requested_curvature > 0: # and the curvature is taking us to the right
+              requested_curvature = requested_curvature * lane_change_factor # reduce the curvature to smooth out the lane change
           else:
-              desired_curvature = desired_curvature # if we are moving back left to correct for over travel, do not reduce curvature
+              requested_curvature = requested_curvature # if we are moving back left to correct for over travel, do not reduce curvature
 
           self.precision_type = 0 # use comfort mode
 
 
         # for now requested_curvature is just the desired_curvature
-        requested_curvature = desired_curvature
+        # requested_curvature = desired_curvature
 
         apply_curvature = apply_ford_curvature_limits(
           requested_curvature,
