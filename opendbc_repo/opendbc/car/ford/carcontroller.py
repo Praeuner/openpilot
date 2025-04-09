@@ -107,6 +107,7 @@ class CarController(CarControllerBase):
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
+    self.pc_blend_ratio = 0.50 # 40% Predicted Curvature and 60% Desired Curvature
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -331,7 +332,8 @@ class CarController(CarControllerBase):
 
         # determine requested curvature
         if self.enable_AdvLatCtrl:
-          requested_curvature = predicted_curvature
+          # equate apply_curvature to a blend of desired and predicted_curvature and apply curvature limits
+          requested_curvature = (predicted_curvature * self.pc_blend_ratio) + (desired_curvature * (1 - self.pc_blend_ratio))
         else:
           requested_curvature = desired_curvature
 
