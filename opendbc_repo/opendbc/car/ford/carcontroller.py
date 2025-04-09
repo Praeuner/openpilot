@@ -124,6 +124,7 @@ class CarController(CarControllerBase):
     self.path_angle_k_i = 0.0
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.3
+    self.pswa_blend_ratio = 0.5
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -326,7 +327,7 @@ class CarController(CarControllerBase):
           self.pc_blend_ratio = 0.0
           max_abs_predicted_curvature = 0.0
           self.predictedSteeringAngleDeg_SP = 0.0
-          self.predicted_wheel_angle_blend_ratio = 0.0
+          self.pswa_blend_ratio = 0.0
 
         self.fordVariables.predictedSteeringAngleDegSP = float(self.predictedSteeringAngleDeg_SP)
 
@@ -406,8 +407,14 @@ class CarController(CarControllerBase):
         # Use path_angle to help with centering vehicle in lane, derive path_angle from the models desired steering wheel position
         # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
 
+        # first define the desired steering wheel angle
+        desired_steeringAngleDeg_SP = actuators.steeringAngleDeg
+
+        # second calcualte the reqquested steering wheel angle
+        requested_steeringAngleDeg_SP = (self.predictedSteeringAngleDeg_SP * self.pswa_blend_ratio) + ((1 - self.pswa_blend_ratio) * desired_steeringAngleDeg_SP)
+
         # calculate steering angle associated with the base path (predicted_curvature)
-        steering_wheel_delta = (steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
+        steering_wheel_delta = (steeringAngleDeg_PV - requested_steeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
 
         # if a human turn is active, zero out the steering_wheel_delta
         if self.human_turn:
