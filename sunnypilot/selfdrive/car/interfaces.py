@@ -4,7 +4,6 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-
 from opendbc.car import Bus, structs
 from opendbc.car.can_definitions import CanRecvCallable, CanSendCallable
 from opendbc.car.car_helpers import can_fingerprint
@@ -25,7 +24,6 @@ def log_fingerprint(CP: structs.CarParams) -> None:
   else:
     sentry.capture_fingerprint(CP.carFingerprint, CP.brand)
 
-
 def _initialize_custom_longitudinal_tuning(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None) -> None:
   if params is None:
     params = Params()
@@ -34,6 +32,8 @@ def _initialize_custom_longitudinal_tuning(CP: structs.CarParams, CP_SP: structs
   if CP.brand == 'hyundai':
     tuning_option_str = params.get("HyundaiLongTune")
     if tuning_option_str is not None:
+      if isinstance(tuning_option_str, bytes):
+        tuning_option_str = tuning_option_str.decode('utf-8')
       tuning_option_str = tuning_option_str.strip()
       if tuning_option_str != "0":
         CP_SP.flags |= HyundaiFlagsSP.LONG_TUNING.value
@@ -41,7 +41,8 @@ def _initialize_custom_longitudinal_tuning(CP: structs.CarParams, CP_SP: structs
       CP_SP.flags |= HyundaiFlagsSP.LONG_TUNING_BRAKING.value
 
 
-def _initialize_neural_network_lateral_control(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None, enabled: bool = False) -> None:
+def _initialize_neural_network_lateral_control(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None,
+                                              enabled: bool = False) -> None:
   if params is None:
     params = Params()
 
@@ -81,7 +82,8 @@ def setup_interfaces(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: 
   _initialize_radar_tracks(CP, CP_SP, params)
 
 
-def enable_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, can_recv: CanRecvCallable, params: Params) -> None:
+def _enable_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, can_recv: CanRecvCallable,
+                        params: Params) -> None:
   if CP.brand == 'hyundai':
     if CP_SP.flags & HyundaiFlagsSP.ENABLE_RADAR_TRACKS:
       can_recv()
@@ -98,5 +100,6 @@ def enable_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, can_r
         params.put_bool_nonblocking("HyundaiRadarTracksPersistent", True)
 
 
-def initialize_car_interface_sp(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params, can_recv: CanRecvCallable, can_send: CanSendCallable):
-  enable_radar_tracks(CP, CP_SP, can_recv, params)
+def init_interfaces(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params,
+                                can_recv: CanRecvCallable, can_send: CanSendCallable):
+  _enable_radar_tracks(CP, CP_SP, can_recv, params)
