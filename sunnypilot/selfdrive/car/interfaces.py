@@ -4,7 +4,6 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-
 from opendbc.car import Bus, structs
 from opendbc.car.can_definitions import CanRecvCallable, CanSendCallable
 from opendbc.car.car_helpers import can_fingerprint
@@ -25,8 +24,22 @@ def log_fingerprint(CP: structs.CarParams) -> None:
   else:
     sentry.capture_fingerprint(CP.carFingerprint, CP.brand)
 
+def _initialize_custom_longitudinal_tuning(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None) -> None:
+  if params is None:
+    params = Params()
 
-def initialize_neural_network_lateral_control(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None,
+  # Hyundai Custom Longitudinal Tuning
+  if CP.brand == 'hyundai':
+    tuning_option_str = params.get("HyundaiLongTune")
+    if tuning_option_str is not None:
+      tuning_option_str = tuning_option_str.strip()
+      if tuning_option_str != "0":
+        CP_SP.flags |= HyundaiFlagsSP.LONG_TUNING.value
+    if params.get_bool("HyundaiSmootherBraking"):
+      CP_SP.flags |= HyundaiFlagsSP.LONG_TUNING_BRAKING.value
+
+
+def _initialize_neural_network_lateral_control(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None,
                                               enabled: bool = False) -> None:
   if params is None:
     params = Params()
@@ -61,9 +74,10 @@ def initialize_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, p
           CP.radarUnavailable = False
 
 
-def setup_car_interface_sp(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None):
-  initialize_neural_network_lateral_control(CP, CP_SP, params)
-  initialize_radar_tracks(CP, CP_SP, params)
+def setup_interfaces(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None):
+  _initialize_custom_longitudinal_tuning(CP, CP_SP, params)
+  _initialize_neural_network_lateral_control(CP, CP_SP, params)
+  _initialize_radar_tracks(CP, CP_SP, params)
 
 
 def enable_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, can_recv: CanRecvCallable,
