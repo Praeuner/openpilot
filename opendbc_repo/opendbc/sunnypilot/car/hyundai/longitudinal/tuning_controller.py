@@ -16,6 +16,7 @@ from opendbc.car.common.filter_simple import FirstOrderFilter
 from opendbc.sunnypilot.car.hyundai.longitudinal.helpers import get_car_config
 from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP
 
+DT_MDL = 0.05  # model timestep
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 
 
@@ -34,21 +35,21 @@ class LongitudinalTuningController:
 
     self.state = LongitudinalTuningState()
     self.car_config = get_car_config(CP)
-    self.accel_raw = 0.0
-    self.accel_value = 0.0
+    self.accel_filter = FirstOrderFilter(0.0, 0.25, DT_MDL * 3)
+    self.actual_accel = 0.0
+    self.desired_accel = 0.0
     self.jerk_upper = 0.0
     self.jerk_lower = 0.0
-    self.timestep = 0.05
-    self.accel_filter = FirstOrderFilter(0.0, 0.25, self.timestep * 3)
+
 
   def reset(self) -> None:
-    self.accel_raw = 0.0
-    self.accel_value = 0.0
+    self.accel_filter.x = 0.0
+    self.actual_accel = 0.0
+    self.desired_accel = 0.0
     self.state.accel_last = 0.0
     self.state.jerk = 0.0
     self.jerk_upper = 0.0
     self.jerk_lower = 0.0
-    self.accel_filter.x = 0.0
 
   def make_jerk(self, CC: structs.CarControl, CS: CarStateBase, long_control_state: LongCtrlState) -> None:
     if not self.CP_SP.flags & HyundaiFlagsSP.LONG_TUNING_BRAKING:
@@ -69,7 +70,7 @@ class LongitudinalTuningController:
     filtered_accel = self.accel_filter.x
 
     # Calculate jerk
-    self.state.jerk = (filtered_accel - prev_filtered_accel) / (self.timestep * 3)
+    self.state.jerk = (filtered_accel - prev_filtered_accel) / (DT_MDL * 3)
 
     # Jerk is limited by the following conditions imposed by ISO 15622:2018
     velocity = CS.out.vEgo
@@ -104,14 +105,16 @@ class LongitudinalTuningController:
     return float(np.clip(accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX))
 
   def calculate_a_value(self, CC: structs.CarControl) -> float:
-    jerk = 5
-    jerk_number = float(jerk / 50)   # TODO: Try using jerk lower max for this value
+    if not self.CP_SP.flags & HyundaiFlagsSP.LONG_TUNING:
+      self.actual_accel = CC.actuators.accel
+      return self.actual_accel
+
     if not CC.enabled:
       self.reset()
       return 0.0
 
-    self.accel_raw = CC.actuators.accel
-    self.accel_value = float(np.clip(self.accel_raw, self.state.accel_last - jerk_number, self.state.accel_last + jerk_number))
-    self.state.accel_last = self.accel_value
+    self.desired_accel = CC.actuators.accel
+    self.actual_accel = float(np.clip(self.desired_accel, self.state.accel_last - 0.1, self.state.accel_last + 0.1))
+    self.state.accel_last = self.actual_accel
 
-    return self.accel_value
+    return self.actual_accel

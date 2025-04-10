@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from unittest.mock import Mock, patch
-from opendbc.sunnypilot.car.hyundai.longitudinal.tuning_controller import LongitudinalTuningController, LongitudinalTuningState
+from opendbc.sunnypilot.car.hyundai.longitudinal.tuning_controller import DT_MDL, LongitudinalTuningController, LongitudinalTuningState
 from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP
 from opendbc.car import structs
 from opendbc.car.interfaces import CarStateBase
@@ -24,15 +24,15 @@ class TestLongitudinalTuningController(unittest.TestCase):
   def test_init(self):
     """Test controller initialization"""
     self.assertIsInstance(self.controller.state, LongitudinalTuningState)
-    self.assertEqual(self.controller.accel_raw, 0.0)
-    self.assertEqual(self.controller.accel_value, 0.0)
+    self.assertEqual(self.controller.desired_accel, 0.0)
+    self.assertEqual(self.controller.actual_accel, 0.0)
     self.assertEqual(self.controller.jerk_upper, 0.0)
     self.assertEqual(self.controller.jerk_lower, 0.0)
 
   def test_reset(self):
     """Test reset functionality"""
     # Set non-zero values and verify reset
-    attrs = ['accel_raw', 'accel_value', 'jerk_upper', 'jerk_lower']
+    attrs = ['desired_accel', 'actual_accel', 'jerk_upper', 'jerk_lower']
     state_attrs = ['accel_last', 'jerk']
 
     # Set controller and state attributes to non-zero
@@ -99,7 +99,7 @@ class TestLongitudinalTuningController(unittest.TestCase):
 
     # Calculate expected values
     blended_accel = 0.8 * 1.0 + 0.2 * 0.8  # = 0.96
-    dt = self.controller.timestep * 3
+    dt = DT_MDL * 3
     tau = 0.25
     k = dt / (tau + dt)
     expected_filtered = blended_accel * k
@@ -129,7 +129,7 @@ class TestLongitudinalTuningController(unittest.TestCase):
     self.controller.reset()
 
     # Calculate filter parameters
-    dt = self.controller.timestep * 3
+    dt = DT_MDL * 3
     tau = 0.25
     k = dt / (tau + dt)
 
@@ -162,7 +162,7 @@ class TestLongitudinalTuningController(unittest.TestCase):
     mock_CS.out = Mock(aEgo=0.0, vEgo=10.0)
 
     test_deltas = [-2.0, -1.0, -0.5, -0.1, -0.01, 0.0, 0.01, 0.1, 0.5, 1.0, 2.0]
-    dt = self.controller.timestep * 3
+    dt = DT_MDL * 3
     tau = 0.25
     k = dt / (tau + dt)
 
@@ -195,6 +195,7 @@ class TestLongitudinalTuningController(unittest.TestCase):
 
   def test_a_value_jerk_scaling(self):
     """Test a_value jerk scaling"""
+    self.controller.CP_SP.flags = HyundaiFlagsSP.LONG_TUNING
     mock_CC = Mock(enabled=True)
     mock_CC.actuators = Mock(accel=1.0)
 
