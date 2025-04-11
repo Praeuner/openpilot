@@ -107,7 +107,7 @@ class CarController(CarControllerBase):
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
-    self.pc_blend_ratio = 0.50 # 40% Predicted Curvature and 60% Desired Curvature
+    self.pc_blend_ratio = 0.750 # 40% Predicted Curvature and 60% Desired Curvature
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -124,7 +124,7 @@ class CarController(CarControllerBase):
     self.path_angle_k_i = 0.0
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.3
-    self.pswa_blend_ratio = 0.5
+    self.pswa_blend_ratio = 0.25
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
