@@ -124,7 +124,9 @@ class CarController(CarControllerBase):
     self.path_angle_k_i = 0.0
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.3
-    self.pswa_blend_ratio = 0.8 # 1 - self.pc_blend_ratio
+    self.pswa_blend_ratio_low = 0.9
+    self.pswa_blend_ratio_high = 0.6
+    self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
 
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
@@ -410,10 +412,13 @@ class CarController(CarControllerBase):
         # first define the desired steering wheel angle
         desired_steeringAngleDeg_SP = actuators.steeringAngleDeg
 
-        # second calcualte the reqquested steering wheel angle
+        # second calculate the blend ratio
+        self.pswa_blend_ratio = interp(CS.out.vEgoRaw, self.pswa_blend_ratio_bp, [self.pswa_blend_ratio_low, self.pswa_blend_ratio_high])
+
+        # third calcualte the reqquested steering wheel angle
         requested_steeringAngleDeg_SP = (self.predictedSteeringAngleDeg_SP * self.pswa_blend_ratio) + ((1 - self.pswa_blend_ratio) * desired_steeringAngleDeg_SP)
 
-        # calculate steering angle associated with the base path (predicted_curvature)
+        # calculate how far the steering wheel is from the desired steering wheel angle
         steering_wheel_delta = (steeringAngleDeg_PV - requested_steeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
 
         # if a human turn is active, zero out the steering_wheel_delta
