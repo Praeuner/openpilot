@@ -107,7 +107,7 @@ class CarController(CarControllerBase):
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
-    self.pc_blend_ratio = 0.60 # 40% Predicted Curvature and 60% Desired Curvature
+    self.pc_blend_ratio = 0.60 # 60% Predicted Curvature and 40% Desired Curvature
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -120,9 +120,10 @@ class CarController(CarControllerBase):
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = (np.pi/180)/10 # degrees to radians, divide by 10 to reduce the gain
-    self.path_angle_k_p = 0.1
+    self.path_angle_k_p_bp = [11.176, 28.82]  # speed breakpoints in m/s
+    self.path_angle_k_p_v = [4.5, 0.01]  # corresponding k_p values
     self.path_angle_k_i = 0.05
-    self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20)
+    self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.3
     self.pswa_blend_ratio_low = 0.8
     self.pswa_blend_ratio_high = 0.5
@@ -434,7 +435,7 @@ class CarController(CarControllerBase):
           steering_wheel_delta = 0.0
 
         # use PID to calcualte path_angle.
-        path_angle_PID = self.path_angle_pid_controller.update(steering_wheel_delta)
+        path_angle_PID = self.path_angle_pid_controller.update((steering_wheel_delta), speed=CS.out.vEgoRaw)
 
         # output the PID into path_angle
         path_angle = path_angle_PID
