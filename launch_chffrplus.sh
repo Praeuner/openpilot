@@ -75,12 +75,6 @@ function launch {
   fi
 
   # custom portal for non-comma devices
-  if grep -q -E "e36b272d5679115f" /data/params/d/DongleId; then
-    export API_HOST=https://genie.snagytech.com
-    export ATHENA_HOST=wss://athena.snagytech.com
-  fi
-
-  # custom portal for non-comma devices
   if grep -q -E "160fab5f43d9e5c1" /data/params/d/DongleId; then
     export API_HOST=https://api.konik.ai
     export ATHENA_HOST=wss://athena.konik.ai
