@@ -121,11 +121,11 @@ class CarController(CarControllerBase):
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
     self.path_angle_wheel_angle_conversion = (np.pi/180)/10 # degrees to radians, divide by 10 to reduce the gain
     self.path_angle_k_p = 3.0
-    self.path_angle_k_i = 0.0
+    self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=self.path_angle_k_p, k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.3
-    self.pswa_blend_ratio_low = 0.9
-    self.pswa_blend_ratio_high = 0.6
+    self.pswa_blend_ratio_low = 0.8
+    self.pswa_blend_ratio_high = 0.5
     self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
 
     # max absolute values for all four signals
