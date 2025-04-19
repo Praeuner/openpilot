@@ -15,7 +15,6 @@ static int get_path_length_idx(const cereal::XYZTData::Reader &line, const float
 }
 
 void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
-  // Existing initial setup code remains unchanged
   auto *s = uiState();
   auto &sm = *(s->sm);
   if (sm.rcv_frame("liveCalibration") < s->scene.started_frame || sm.rcv_frame("modelV2") < s->scene.started_frame) {
@@ -60,6 +59,52 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
           stopping_distance = position_x[i];
           stop_idx = i;
           break;
+        }
+      }
+
+      // Add better bounds checking and logic for distance calculation
+      if (stopping_distance > 0) {
+        // Cap maximum distance to a reasonable value
+        stopping_distance = std::min(stopping_distance, 50.0f);
+
+        // Calculate actual distance for display (subtract a vehicle length offset ~4.5m)
+        // This is because position_x is measured from the front of the car to the stopping point
+        float display_distance = std::max(0.1f, stopping_distance - 4.5f);
+
+        // Use this display_distance for the actual UI display
+        stop_state.display_distance = display_distance;
+      } else {
+        stop_state.display_distance = -1.0f;
+      }
+
+      // Use radar data for more accurate distance when lead is present
+      if (lead_one.getStatus() && lead_one.getDRel() < stopping_distance + 5.0f) {
+        // If radar detected lead is closer than model's stopping point (with small margin)
+        // Use radar's distance as it's typically more precise
+        float radar_distance = lead_one.getDRel();
+
+        // Only use radar distance if it's reasonable (not too close or far)
+        if (radar_distance > 3.0f && radar_distance < 50.0f) {
+          stopping_distance = radar_distance;
+
+          // Set stability counter high since radar detection is more reliable
+          stop_state.stability_counter = std::max(stop_state.stability_counter, 10);
+
+          // Set stop as active with radar-verified distance
+          stop_state.active = true;
+          stop_state.stopping_distance = stopping_distance;
+
+          // Also check if we need to map to screen for position tracking
+          if (stop_idx != -1) {
+            float x = position_x[stop_idx];
+            float y = position_y[stop_idx];
+            float z = position_z[stop_idx];
+
+            QPointF screen_point;
+            if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
+              stop_state.last_valid_position = screen_point;
+            }
+          }
         }
       }
 
@@ -160,19 +205,19 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
 
             // Ensure the stop sign stays within the clip region
             if (clip_region.contains(stop_point)) {
-              drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
+              drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
             } else {
               // Adjust if partially out of bounds
               float adjusted_x = std::clamp(stop_point.x(), clip_region.left() + stop_sign_size / 2, clip_region.right() - stop_sign_size / 2);
               stop_point.setX(adjusted_x);
               if (clip_region.contains(stop_point)) {
-                drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
+                drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
               }
             }
           } else {
             // Fallback: Use the original stopping point if no lane line data
             if (clip_region.contains(screen_point)) {
-              drawStopSignOverlay(painter, screen_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
+              drawStopSignOverlay(painter, screen_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
             }
           }
         }
@@ -877,7 +922,7 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
   }
 }
 
-void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float stopping_distance, float v_ego, float fade_alpha = 1.0f) {
+void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float stopping_distance, float v_ego, float fade_alpha) {
   // Validate input data
   if (stopping_distance <= 0.0f) {
     return;
@@ -899,7 +944,7 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
   // Calculate fade-in opacity
   stop_sign_opacity = std::min(1.0f, stop_frame_count / 10.0f); // Fade in over 10 frames
 
-  // Increase base size for better text fit
+  // Base size for the stop sign
   const int base_size = 120;
 
   // Dynamic size based on distance
@@ -968,33 +1013,69 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
 
   // Add distance countdown below the stop sign
   if (stopping_distance > 0) {
+    // Format distance with proper precision
     QString distanceText = QString("%1 m").arg(stopping_distance, 0, 'f', 1);
+
+    // Use a more reasonable font size - reduced from /3 to /4.5
     QFont distFont = painter.font();
-    distFont.setPointSize(dynamicSize / 3); // LARGER TEXT - Changed from /5 to /3
+    distFont.setPointSize(dynamicSize / 4.5);
     painter.setFont(distFont);
-    painter.setPen(QPen(Qt::white, 1.5)); // Slightly thicker text
-    QRect distRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() + dynamicSize / 2, dynamicSize, dynamicSize / 3);
+    painter.setPen(QPen(Qt::white, 1.5));
+
+    // Create a wider rectangle to prevent text cutoff
+    // Moved down slightly more to avoid overlap with sign
+    QRect distRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.6,
+                   dynamicSize * 1.5, // Wider rectangle (1.5x instead of 1x)
+                   dynamicSize / 3);
+
     painter.drawText(distRect, Qt::AlignCenter, distanceText);
   }
 
   // Draw time countdown circular indicator around stop sign
   if (v_ego > 0.1) {
-    float timeToStop = stopping_distance / v_ego;
+    // Calculate time to stop, but limit to reasonable values
+    float raw_time_to_stop = stopping_distance / v_ego;
+    int arcSize = dynamicSize + 20; // Arc size is 20px larger than the stop sign
 
-    // Draw circular progress indicator around stop sign
-    painter.setPen(QPen(Qt::white, 3));
-    int arcSize = dynamicSize + 20;
-    // Map time to angle (shorter time = larger arc)
+    // As we get very close, time calculation becomes unstable, so clamp it
+    float timeToStop;
+
+    if (stopping_distance < 3.0f) {
+      // When very close, use a fixed small value
+      timeToStop = std::max(0.1f, stopping_distance * 0.5f);
+    } else if (v_ego < 0.5f) {
+      // At very low speeds, cap the maximum time to avoid unreasonable values
+      timeToStop = std::min(raw_time_to_stop, 10.0f);
+    } else {
+      // Normal case - apply reasonable limits
+      timeToStop = std::clamp(raw_time_to_stop, 0.1f, 30.0f);
+    }
+
+    // Use decreasing arc length as we approach (making the arc grow clockwise)
     int startAngle = 90 * 16; // Start at top (QPainter uses 1/16th of degrees)
     int spanAngle = std::min(360, int(360 * (1.0 - std::min(1.0f, timeToStop / 10.0f)))) * 16;
+
+    // Draw arc
     painter.drawArc(drawPoint.x() - arcSize / 2, drawPoint.y() - arcSize / 2, arcSize, arcSize, startAngle, spanAngle);
 
-    // Add time text
-    QString timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
+    // Add time text with improved formatting
+    QString timeText;
+    if (timeToStop < 0.5f) {
+      // When time is very short, just show "STOP"
+      timeText = "STOP";
+    } else if (timeToStop > 9.9f) {
+      // For long times, just show integer
+      timeText = QString("%1 s").arg(qRound(timeToStop));
+    } else {
+      // Normal case - one decimal place
+      timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
+    }
+
+    // Draw time text
     QFont timeFont = painter.font();
-    timeFont.setPointSize(dynamicSize / 3); // LARGER TEXT - Changed from /5 to /3
+    timeFont.setPointSize(dynamicSize / 4.5);
     painter.setFont(timeFont);
-    QRect timeRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() + dynamicSize / 2 + dynamicSize / 3, dynamicSize, dynamicSize / 3);
+    QRect timeRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.9, dynamicSize * 1.5, dynamicSize / 3);
     painter.drawText(timeRect, Qt::AlignCenter, timeText);
   }
 

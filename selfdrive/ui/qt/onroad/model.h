@@ -66,6 +66,7 @@ private:
     bool active = false;
     int stability_counter = 0;
     float stopping_distance = 0.0f;
+    float display_distance = 0.0f;
     QPointF last_valid_position;
     float fade_alpha = 0.0f;
   };
