@@ -61,10 +61,14 @@ def manager_init() -> None:
     ("MadsMainCruiseAllowed", "1"),
     ("MadsPauseLateralOnBrake", "0"),
     ("MadsUnifiedEngagementMode", "1"),
+    ("MaxTimeOffroad", "1800"),
     ("ModelManager_LastSyncTime", "0"),
     ("ModelManager_ModelsCache", ""),
     ("NeuralNetworkLateralControl", "0"),
     ("QuietMode", "0"),
+    ("CustomAccIncrementsEnabled", "0"),
+    ("CustomAccLongPressIncrement", "5"),
+    ("CustomAccShortPressIncrement", "1"),
   ]
 
   if params.get_bool("RecordFrontLock"):

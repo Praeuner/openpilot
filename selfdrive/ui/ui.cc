@@ -10,6 +10,7 @@
 #include "common/util.h"
 #include "common/watchdog.h"
 #include "qt/util.h"
+#include <iostream>
 #include "system/hardware/hw.h"
 
 #define BACKLIGHT_DT 0.05
@@ -67,13 +68,16 @@ void ui_update_params(UIState *s) {
   auto params = Params();
   s->scene.is_metric = params.getBool("IsMetric");
   s->scene.show_hybrid_drive_overlay = params.getBool("FordPrefHybridDriveOverlay"); // && params.getBool("FordPrefHevDataAvailable");
-  s->scene.hybrid_drive_gauge_size = std::atoi(params.get("FordPrefHybridDriveGaugeSize").c_str());
+  s->scene.hybrid_drive_gauge_size = params.getInt("FordPrefHybridDriveGaugeSize");
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
   s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
   s->scene.stand_still_timer = params.getBool("StandStillTimer");
   s->scene.show_new_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
+
+  // std::cout << "hybrid_drive_gauge_size: " << s->scene.hybrid_drive_gauge_size << std::endl;
+  // std::cout << "StandStillTimer: " << s->scene.stand_still_timer << std::endl;
 }
 
 void UIState::updateStatus() {

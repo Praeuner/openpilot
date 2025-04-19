@@ -6,7 +6,7 @@
 #include "selfdrive/ui/qt/util.h"
 
 OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
-  QVBoxLayout *main_layout  = new QVBoxLayout(this);
+  QVBoxLayout *main_layout = new QVBoxLayout(this);
   main_layout->setMargin(UI_BORDER_SIZE);
   QStackedLayout *stacked_layout = new QStackedLayout;
   stacked_layout->setStackingMode(QStackedLayout::StackAll);
@@ -14,7 +14,7 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
 
   nvg = new AnnotatedCameraWidget(VISION_STREAM_ROAD, this);
 
-  QWidget * split_wrapper = new QWidget;
+  QWidget *split_wrapper = new QWidget;
   split = new QHBoxLayout(split_wrapper);
   split->setContentsMargins(0, 0, 0, 0);
   split->setSpacing(0);
@@ -59,9 +59,7 @@ void OnroadWindow::updateState(const UIState &s) {
   }
 }
 
-void OnroadWindow::offroadTransition(bool offroad) {
-  alerts->clear();
-}
+void OnroadWindow::offroadTransition(bool offroad) { alerts->clear(); }
 
 void OnroadWindow::paintEvent(QPaintEvent *event) {
   QPainter p(this);

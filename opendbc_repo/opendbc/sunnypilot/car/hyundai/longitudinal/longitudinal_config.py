@@ -12,53 +12,40 @@ from opendbc.car.hyundai.values import CAR
 
 @dataclass
 class CarTuningConfig:
-  v_ego_stopping: float
-  v_ego_starting: float
-  stopping_decel_rate: float
-  start_accel: float
-  jerk_limits: tuple[float, float, float]  # (min jerk, max lower jerk, max upper jerk)
+  v_ego_stopping: float = 0.25
+  v_ego_starting: float = 0.10
+  stopping_decel_rate: float = 0.25
+  jerk_limits: tuple[float, float, float] = 2.5, 5.0, 3.0  # (min jerk, max lower jerk, max upper jerk)
+  longitudinal_actuator_delay: float = 0.45
+  lower_jerk_multiplier: float = 1.0
 
 
 # Default configurations for different car types
 # Min jerk is set to 0.53 per (Horn et al., 2024)
 TUNING_CONFIGS = {
   "CANFD": CarTuningConfig(
-    v_ego_stopping=0.25,
-    v_ego_starting=0.10,
-    stopping_decel_rate=0.35,
-    start_accel=1.0,
-    jerk_limits=(0.53, 5.0, 2.2),
+    stopping_decel_rate=0.275,
   ),
   "EV": CarTuningConfig(
-    v_ego_stopping=0.25,
-    v_ego_starting=0.10,
-    stopping_decel_rate=0.30,
-    start_accel=1.0,
-    jerk_limits=(0.53, 3.3, 2.2),
+    jerk_limits=(2.50, 5.0, 3.0),
+    longitudinal_actuator_delay=0.15,
   ),
   "HYBRID": CarTuningConfig(
-    v_ego_stopping=0.25,
     v_ego_starting=0.12,
-    stopping_decel_rate=0.35,
-    start_accel=1.0,
-    jerk_limits=(0.53, 3.3, 2.2),
-  ),
-  "DEFAULT": CarTuningConfig(
-    v_ego_stopping=0.25,
-    v_ego_starting=0.10,
     stopping_decel_rate=0.30,
-    start_accel=1.6,
-    jerk_limits=(0.53, 3.3, 2.2),
-  )
+  ),
+  "DEFAULT": CarTuningConfig()
 }
 
 # Car-specific configs
 CAR_SPECIFIC_CONFIGS = {
+  CAR.HYUNDAI_ELANTRA_2021: CarTuningConfig(
+    stopping_decel_rate=0.8,
+  ),
   CAR.KIA_NIRO_EV: CarTuningConfig(
-    v_ego_stopping=0.25,
-    v_ego_starting=0.10,
-    stopping_decel_rate=0.05,
-    start_accel=1.0,
-    jerk_limits=(0.53, 3.3, 2.0),
+    v_ego_stopping=0.1,
+    stopping_decel_rate=0.4,
+    jerk_limits=(1.0, 3.0, 1.2),
+    longitudinal_actuator_delay=0.45,
   )
 }

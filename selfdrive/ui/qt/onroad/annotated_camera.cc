@@ -6,7 +6,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
 
 // Window that shows camera view and variety of info drawn on top
@@ -33,64 +32,81 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   right_blinker = car_state.getRightBlinker();
   left_blindspot = car_state.getLeftBlindspot();
   right_blindspot = car_state.getRightBlindspot();
-
-  // std::cout << "left_blinker: " << left_blinker << std::endl;
-  // std::cout << "right_blinker: " << right_blinker << std::endl;
-  // std::cout << "left_blindspot: " << left_blindspot << std::endl;
-  // std::cout << "right_blindspot: " << right_blindspot << std::endl;
-  // std::cout << "standStill: " << standStill << std::endl;
-  // Stand Still Timer logic
-  prev_standStill = standStill;
   standStill = car_state.getStandstill();
 
+  // Store vehicle speed for velocity-based standstill validation
+  vehicle_speed = car_state.getVEgo();
+
+  // Enhanced standstill detection with velocity check
+  bool velocity_standstill = vehicle_speed < STANDSTILL_THRESHOLD;
+  bool combined_standstill = standStill && velocity_standstill;
+
+  // Stand Still Timer logic with debounce mechanism
+  prev_standStill = standStill;
   double current_time = millis_since_boot() / 1000.0;
 
   if (s.scene.stand_still_timer) {
-    if (!prev_standStill && standStill) {
+    if (!prev_standStill && combined_standstill) {
       // Just entered standstill - start the timer
       standstill_start_time = current_time;
+      standstill_exit_time = 0.0; // Reset exit timer
       standstillElapsedTime = 0.0;
-    } else if (standStill) {
+    } else if (combined_standstill) {
       // Update the elapsed time while in standstill
       standstillElapsedTime = current_time - standstill_start_time;
-    } else if (prev_standStill && !standStill) {
-      // Just exited standstill - reset timer
-      standstillElapsedTime = 0.0;
+      standstill_exit_time = 0.0; // Reset exit timer
+
+      // Add a sanity check to prevent unreasonable values
+      if (standstillElapsedTime > 86400.0) { // 24 hours max
+        standstill_start_time = current_time - 86400.0;
+        standstillElapsedTime = 86400.0;
+      }
+    } else {
+      // Not in standstill - reset timer immediately or after debounce
+      if (standstill_exit_time == 0.0) {
+        standstill_exit_time = current_time;
+      }
+
+      if (current_time - standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
+        standstillElapsedTime = 0.0;
+        standstill_start_time = current_time; // Also reset start time
+      }
     }
   } else {
     standstillElapsedTime = 0.0;
+    standstill_exit_time = 0.0;
+    standstill_start_time = current_time; // Reset start time when timer disabled
   }
 
-  // std::cout << "carStateBP updateState" << std::endl;
-  if (sm.updated("carStateBP")) {
-    // std::cout << "carStateBP updated" << std::endl;
-    if (sm.valid("carStateBP")) {
-      // std::cout << "carStateBP message received and valid" << std::endl;
-      // std::cout << "carStateBP message received" << std::endl;
-      const auto car_state_bp = sm["carStateBP"].getCarStateBP();
-      experimental_btn->updateState(s);
+  // std::cout << "Standstill values: prev=" << prev_standStill
+  //         << " current=" << standStill
+  //         << " velocity=" << vehicle_speed
+  //         << " combined=" << combined_standstill
+  //         << " flag=" << s.scene.stand_still_timer
+  //         << " elapsed=" << standstillElapsedTime
+  //         << " exit_timer=" << standstill_exit_time << std::endl;
 
-      // Hybrid Drive Data
-      hevDataAvailable = car_state_bp.getHybridDrive().getDataAvailable();
-      hevThrottleDemandPercent = car_state_bp.getHybridDrive().getThrottleDemandPercent();
-      hevThrottleThresholdPercent = car_state_bp.getHybridDrive().getThrottleThresholdPercent();
-      hevPowerFlowMode = QString::fromStdString(car_state_bp.getHybridDrive().getPowerFlowMode());
-      hevEngineOnReason = QString::fromStdString(car_state_bp.getHybridDrive().getEngineOnReason());
+  // Rest of the function remains unchanged
+  if (sm.updated("carStateBP") && sm.valid("carStateBP")) {
+    const auto car_state_bp = sm["carStateBP"].getCarStateBP();
+    experimental_btn->updateState(s);
 
-      hevBattDataAvailable = car_state_bp.getHybridBattery().getDataAvailable();
-      hevBattVoltHighLimit = car_state_bp.getHybridBattery().getVoltHighLimit();
-      hevBattVoltLowLimit = car_state_bp.getHybridBattery().getVoltLowLimit();
-      hevBattVoltActual = car_state_bp.getHybridBattery().getVoltActual();
-      hevBattAmpsActual = car_state_bp.getHybridBattery().getAmpsActual();
-      hevBattSocMinPerc = car_state_bp.getHybridBattery().getSocMinPerc();
-      hevBattSocMaxPerc = car_state_bp.getHybridBattery().getSocMaxPerc();
-      hevBattSocActual = car_state_bp.getHybridBattery().getSocActual();
-      dmon.updateState(s);
-    } else {
-      std::cout << "carStateBP message received but invalid" << std::endl;
-    }
-  } else {
-    // std::cout << "carStateBP message not received" << std::endl;
+    // Hybrid Drive Data
+    hevDataAvailable = car_state_bp.getHybridDrive().getDataAvailable();
+    hevThrottleDemandPercent = car_state_bp.getHybridDrive().getThrottleDemandPercent();
+    hevThrottleThresholdPercent = car_state_bp.getHybridDrive().getThrottleThresholdPercent();
+    hevPowerFlowMode = QString::fromStdString(car_state_bp.getHybridDrive().getPowerFlowMode());
+    hevEngineOnReason = QString::fromStdString(car_state_bp.getHybridDrive().getEngineOnReason());
+
+    hevBattDataAvailable = car_state_bp.getHybridBattery().getDataAvailable();
+    hevBattVoltHighLimit = car_state_bp.getHybridBattery().getVoltHighLimit();
+    hevBattVoltLowLimit = car_state_bp.getHybridBattery().getVoltLowLimit();
+    hevBattVoltActual = car_state_bp.getHybridBattery().getVoltActual();
+    hevBattAmpsActual = car_state_bp.getHybridBattery().getAmpsActual();
+    hevBattSocMinPerc = car_state_bp.getHybridBattery().getSocMinPerc();
+    hevBattSocMaxPerc = car_state_bp.getHybridBattery().getSocMaxPerc();
+    hevBattSocActual = car_state_bp.getHybridBattery().getSocActual();
+    dmon.updateState(s);
   }
   dmon.updateState(s);
 }
@@ -263,6 +279,7 @@ void AnnotatedCameraWidget::paintGL() {
 
   // Draw stand still timer if active
   if (s->scene.stand_still_timer && standStill) {
+    // std::cout << "Drawing timer with elapsed time: " << standstillElapsedTime << std::endl;
     drawStandstillTimer(painter, rect().right() - 200, rect().center().y() - 45);
   }
 
@@ -270,7 +287,7 @@ void AnnotatedCameraWidget::paintGL() {
   double dt = cur_draw_t - prev_draw_t;
   double fps = fps_filter.update(1. / dt * 1000);
   if (fps < 15) {
-    LOGW("slow frame rate: %.2f fps", fps);
+    std::cout << "slow frame rate: " << fps << std::endl;
   }
   prev_draw_t = cur_draw_t;
 
@@ -403,20 +420,31 @@ void AnnotatedCameraWidget::drawRightTurnSignal(QPainter &painter, int x, int y,
 }
 
 void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
-  char lab_str[16];
-  char val_str[16];
+  // Initialize strings with empty values
+  char lab_str[16] = "";
+  char val_str[32] = "";
+
+  // Calculate time components
   int minute = (int)(standstillElapsedTime / 60);
   int second = (int)((standstillElapsedTime) - (minute * 60));
 
-  if (standStill) {
+  // Only format and display if actually in standstill
+  if (standStill && vehicle_speed < STANDSTILL_THRESHOLD) {
+    // Format label
     snprintf(lab_str, sizeof(lab_str), "STOP");
     snprintf(val_str, sizeof(val_str), "%01d:%02d", minute, second);
-  }
 
-  p.setFont(InterFont(80, QFont::DemiBold));
-  drawColoredText(p, x, y, QString(lab_str), QColor(255, 175, 3, 240));
-  p.setFont(InterFont(95, QFont::DemiBold));
-  drawColoredText(p, x, y + 90, QString(val_str), QColor(255, 255, 255, 240));
+    // Only draw if we have text to display
+    if (strlen(lab_str) > 0) {
+      p.setFont(InterFont(80, QFont::DemiBold));
+      drawColoredText(p, x, y, QString(lab_str), QColor(255, 175, 3, 240));
+    }
+
+    if (strlen(val_str) > 0) {
+      p.setFont(InterFont(95, QFont::DemiBold));
+      drawColoredText(p, x, y + 90, QString(val_str), QColor(255, 255, 255, 240));
+    }
+  }
 }
 
 void AnnotatedCameraWidget::showEvent(QShowEvent *event) {

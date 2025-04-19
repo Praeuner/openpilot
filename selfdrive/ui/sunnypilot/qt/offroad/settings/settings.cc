@@ -12,6 +12,7 @@
 #include "selfdrive/ui/qt/offroad/firehose.h"
 #include "selfdrive/ui/sunnypilot/qt/network/networking.h"
 
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/developer_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/software_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnylink_panel.h"
@@ -26,6 +27,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_data_collect.h"
 
 TogglesPanelSP::TogglesPanelSP(SettingsWindowSP *parent) : TogglesPanel(parent) {
   QObject::connect(uiStateSP(), &UIStateSP::uiUpdate, this, &TogglesPanelSP::updateState);
@@ -90,7 +92,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     PanelInfo("   " + tr("Trips"), new TripsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_trips.png"),
     PanelInfo("   " + tr("Vehicle"), new VehiclePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png"),
     PanelInfo("   " + tr("Firehose"), new FirehosePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_firehose.svg"),
-    PanelInfo("   " + tr("Developer"), new DeveloperPanel(this), "../assets/offroad/icon_shell.png"),
+    PanelInfo("   " + tr("Developer"), new DeveloperPanelSP(this), "../assets/offroad/icon_shell.png"),
   };
 
   // Add the folowing BluePilot panels after the sunnypilot panel:
@@ -100,7 +102,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   panels.insert(7, PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"));
   panels.insert(8, PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
   panels.insert(9, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
-
+  panels.insert(10, PanelInfo("   " + tr("Data Collect"), new BPDataCollectPanel(this), "../assets/offroad/icon_data.png"));
   std::cout << "Adding BluePilot panels" << std::endl;
 
   nav_btns = new QButtonGroup(this);

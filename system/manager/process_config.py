@@ -60,6 +60,10 @@ def only_offroad(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_github_runner(started, params, CP: car.CarParams) -> bool:
   return not PC and params.get_bool("EnableGithubRunner") and not params.get_bool("NetworkMetered")
 
+
+def use_bluepilot_uploader(started, params, CP: car.CarParams) -> bool:
+  return not PC
+
 def sunnylink_ready_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for sunnylink_ready to match the process manager signature."""
   return sunnylink_ready(params)
@@ -71,6 +75,11 @@ def sunnylink_need_register_shim(started, params, CP: car.CarParams) -> bool:
 def use_sunnylink_uploader_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for use_sunnylink_uploader to match the process manager signature."""
   return use_sunnylink_uploader(params)
+
+def use_bluepilot_uploader_shim(started, params, CP: car.CarParams) -> bool:
+  """Shim for use_bluepilot_uploader to match the process manager signature."""
+  return use_bluepilot_uploader(started, params, CP)
+
 
 def is_snpe_model(started, params, CP: car.CarParams) -> bool:
   """Check if the active model runner is SNPE."""
@@ -145,6 +154,9 @@ procs = [
   DaemonProcess("manage_sunnylinkd", "sunnypilot.sunnylink.athena.manage_sunnylinkd", "SunnylinkdPid"),
   PythonProcess("sunnylink_registration_manager", "sunnypilot.sunnylink.registration_manager", sunnylink_need_register_shim),
 ]
+
+# bluepilot
+procs += [PythonProcess("bluepilot_uploader", "bluepilot.data_collection.bp_uploader", always_run, enabled=not PC)]
 
 # sunnypilot
 procs += [

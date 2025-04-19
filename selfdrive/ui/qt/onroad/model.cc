@@ -32,15 +32,18 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   const auto &model = sm["modelV2"].getModelV2();
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
-  // float v_ego = sm["carState"].getCarState().getVEgo();
+  const auto &car_state = sm["carState"].getCarState();
+  float v_ego = car_state.getVEgo();
+  bool brake_pressed = car_state.getBrakePressed();
+  float brake_value = car_state.getBrake();
 
-  updateBlindspotStatus(sm["carState"].getCarState());
+  updateBlindspotStatus(car_state);
   update_model(model, lead_one);
   drawLaneLines(painter);
   drawBlindspotIndicators(painter);
   drawPath(painter, model, surface_rect.height());
 
-  // New stop detection logic using velocity
+  // New stop detection logic using velocity and brake data
   const auto &velocity = model.getVelocity().getX();
   const auto &position_x = model.getPosition().getX();
   const auto &position_y = model.getPosition().getY();
@@ -50,6 +53,8 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
     if (velocity.size() > 0 && position_x.size() == velocity.size() && position_y.size() == velocity.size() && position_z.size() == velocity.size()) {
       float stopping_distance = -1.0f;
       int stop_idx = -1;
+
+      // Find potential stop point from velocity
       for (size_t i = 0; i < velocity.size(); ++i) {
         if (velocity[i] < 0.5f) {
           stopping_distance = position_x[i];
@@ -58,13 +63,85 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
         }
       }
 
+      // Use brake data to enhance stop confidence
       if (stop_idx != -1 && stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
-        float x = position_x[stop_idx];
-        float y = position_y[stop_idx];
-        float z = position_z[stop_idx];
+        // Increase stability when brakes are applied
+        if (brake_pressed || brake_value > 0.1f) {
+          // Braking confirms stop point - increase stability quickly
+          stop_state.stability_counter = std::min(stop_state.stability_counter + 2, 20);
+        } else {
+          // No braking but velocity indicates stop - increase stability slowly
+          stop_state.stability_counter = std::min(stop_state.stability_counter + 1, 20);
+        }
+
+        // Activate stop sign after sufficient stability
+        if (stop_state.stability_counter >= 3) {
+          stop_state.active = true;
+
+          // Smooth update of stopping distance
+          if (stop_state.stopping_distance > 0) {
+            stop_state.stopping_distance = stop_state.stopping_distance * 0.8f + stopping_distance * 0.2f;
+          } else {
+            stop_state.stopping_distance = stopping_distance;
+          }
+
+          // Store position for position tracking
+          float x = position_x[stop_idx];
+          float y = position_y[stop_idx];
+          float z = position_z[stop_idx];
+
+          QPointF screen_point;
+          if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
+            stop_state.last_valid_position = screen_point;
+          }
+        }
+      } else {
+        // No stop point detected - reduce stability counter
+        stop_state.stability_counter = std::max(0, stop_state.stability_counter - 1);
+
+        // Special case: if braking but no stop point, keep sign visible longer
+        if ((brake_pressed || brake_value > 0.1f) && stop_state.active) {
+          // Braking without a detected stop point - slow down disappearance
+          stop_state.stability_counter = std::max(stop_state.stability_counter, 5);
+        }
+
+        // Deactivate after stability drops too low
+        if (stop_state.stability_counter <= 0) {
+          stop_state.active = false;
+        }
+      }
+
+      // Handle fade animation
+      if (stop_state.active && stop_state.fade_alpha < 1.0f) {
+        stop_state.fade_alpha = std::min(1.0f, stop_state.fade_alpha + 0.1f);
+      } else if (!stop_state.active && stop_state.fade_alpha > 0.0f) {
+        stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.05f);
+      }
+
+      // Draw stop sign with fade effect if active or fading out
+      if (stop_state.fade_alpha > 0.0f && stop_state.stopping_distance > 0) {
+        // Get position for stop sign (use last valid if current is invalid)
         QPointF screen_point;
-        if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
-          // Adjust position to the right of the right lane line
+        bool valid_position = false;
+
+        if (stop_idx != -1) {
+          float x = position_x[stop_idx];
+          float y = position_y[stop_idx];
+          float z = position_z[stop_idx];
+
+          valid_position = mapToScreen(x, y, z + path_offset_z, &screen_point);
+        }
+
+        if (!valid_position && !stop_state.last_valid_position.isNull()) {
+          // Use last valid position if current is invalid
+          screen_point = stop_state.last_valid_position;
+          valid_position = true;
+        }
+
+        if (valid_position) {
+          const int stop_sign_size = 100; // Base size
+
+          // Position relative to lane lines as in original code
           if (!lane_line_vertices[2].isEmpty()) {
             // Find the closest point on the right lane line to the stopping point
             int closest_idx = 0;
@@ -79,28 +156,23 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
 
             // Position the stop sign to the right of the closest lane line point
             QPointF lane_point = lane_line_vertices[2][closest_idx];
-            const int stop_sign_size = 100; // Increased size
             QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
 
             // Ensure the stop sign stays within the clip region
             if (clip_region.contains(stop_point)) {
-              drawStopSignOverlay(painter, stop_point, stop_sign_size);
-              // std::cout << "Stop sign drawn at distance: " << stopping_distance << " m, screen: (" << stop_point.x() << ", " << stop_point.y() << ")" << std::endl;
+              drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
             } else {
               // Adjust if partially out of bounds
               float adjusted_x = std::clamp(stop_point.x(), clip_region.left() + stop_sign_size / 2, clip_region.right() - stop_sign_size / 2);
               stop_point.setX(adjusted_x);
               if (clip_region.contains(stop_point)) {
-                drawStopSignOverlay(painter, stop_point, stop_sign_size);
-                // std::cout << "Stop sign adjusted to: (" << stop_point.x() << ", " << stop_point.y() << ")" << std::endl;
+                drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
               }
             }
           } else {
             // Fallback: Use the original stopping point if no lane line data
             if (clip_region.contains(screen_point)) {
-              const int stop_sign_size = 100; // Increased size
-              drawStopSignOverlay(painter, screen_point, stop_sign_size);
-              // std::cout << "Stop sign (fallback) drawn at distance: " << stopping_distance << " m" << std::endl;
+              drawStopSignOverlay(painter, screen_point, stop_sign_size, stop_state.stopping_distance, v_ego, stop_state.fade_alpha);
             }
           }
         }
@@ -108,15 +180,20 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
     }
   }
 
-  // Existing lead drawing code remains unchanged
   bool showRadarOverlay = !experimental_mode && s->scene.show_new_radar_overlay;
   if ((longitudinal_control || showRadarOverlay) && sm.alive("radarState")) {
     update_leads(radar_state, model.getPosition());
+
+    // We already have lead_one defined above, so only define lead_two here
     const auto &lead_two = radar_state.getLeadTwo();
-    if (lead_one.getStatus()) {
+
+    // Check virtual lead status instead of direct status
+    if (virtual_lead_active[0]) {
       drawLead(painter, lead_one, lead_vertices[0], surface_rect, lead_radar_assisted[0]);
     }
-    if (lead_two.getStatus() && (std::abs(lead_one.getDRel() - lead_two.getDRel()) > 3.0)) {
+
+    // For the second lead, also check distance from the first
+    if (virtual_lead_active[1] && (!virtual_lead_active[0] || std::abs(lead_one.getDRel() - lead_two.getDRel()) > 3.0)) {
       drawLead(painter, lead_two, lead_vertices[1], surface_rect, lead_radar_assisted[1]);
     }
   }
@@ -128,28 +205,78 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
   for (int i = 0; i < 2; ++i) {
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
     bool current_status = lead_data.getStatus();
+
+    // Enhanced lead tracking with adaptive hysteresis
     if (current_status) {
+      float d_rel = lead_data.getDRel();
       float raw_yRel = lead_data.getYRel();
+      bool is_radar_assisted = lead_data.getRadar();
 
       // Get the path's y-coordinate at the lead's distance
-      int idx = get_path_length_idx(line, lead_data.getDRel());
+      int idx = get_path_length_idx(line, d_rel);
       float path_y = line.getY()[idx];
       float path_z = line.getZ()[idx];
+
+      // Dynamic confidence threshold based on lead distance
+      // Closer leads use stricter filtering
+      float dynamic_threshold = std::min(distance_confidence_threshold, 5.0f + d_rel * 0.1f);
+
+      // Close-range filtering - more strict for close objects
+      if (d_rel < dynamic_threshold) {
+        // For close objects without radar confirmation, require more stability
+        if (!is_radar_assisted) {
+          // Increase counter only if position is consistent
+          if (prev_lead_status[i] && fabs(raw_yRel - smoothed_yRel[i]) < 0.3) {
+            lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
+          } else {
+            lead_active_counter[i] = std::max(lead_active_counter[i] - 1, 0); // Gradually decrease
+          }
+          // Only consider stable if consistently tracked for several frames
+          stable_lead[i] = lead_active_counter[i] >= 3;
+
+          // Skip this update if the lead isn't stable yet
+          if (!stable_lead[i]) {
+            virtual_lead_active[i] = false;
+            continue;
+          }
+        } else {
+          // Radar-assisted close leads are considered more reliable
+          lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
+          stable_lead[i] = true;
+        }
+      } else {
+        // Normal distance leads - standard tracking
+        lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
+        stable_lead[i] = lead_active_counter[i] >= 2;
+      }
+
+      virtual_lead_active[i] = true;
 
       // For first detection, initialize with raw values
       if (!prev_lead_status[i]) {
         smoothed_yRel[i] = raw_yRel;
       } else {
-        // Apply stronger path-based smoothing
-        // Prioritize the path curve more when on curves
+        // Adaptive smoothing based on distance and radar assistance
         float path_curvature = (idx > 1) ? fabs(line.getY()[idx] - line.getY()[idx - 1]) : 0.0f;
 
-        // Dynamically adjust path influence based on curvature
-        // Higher curvature = more path influence
+        // More path influence for curves
         float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
 
-        // Low-pass filter for temporal smoothing
-        float alpha = 0.2f; // Adjust for smoothness
+        // Adaptive alpha based on distance - smoother for close objects, less for distant ones
+        float alpha = is_radar_assisted ?
+                      0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
+                      0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
+
+        // Clamp alpha to reasonable range
+        alpha = std::clamp(alpha, 0.025f, 0.25f);
+
+        // Add distance-based jitter suppression
+        float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
+        float lateral_diff = raw_yRel - smoothed_yRel[i];
+        if (fabs(lateral_diff) > max_lateral_change) {
+          // Limit lateral movement rate for stability
+          raw_yRel = smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
+        }
 
         // First smooth the raw radar reading
         float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
@@ -159,10 +286,21 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
       }
 
       QPointF current_pos;
-      mapToScreen(lead_data.getDRel(), smoothed_yRel[i], path_z + path_offset_z, &current_pos);
-      lead_vertices[i] = current_pos;
-      lead_radar_assisted[i] = lead_data.getRadar();
+      if (mapToScreen(d_rel, smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
+        lead_vertices[i] = current_pos;
+        lead_radar_assisted[i] = is_radar_assisted;
+      }
+    } else {
+      // Lead disappeared - apply decay for smooth disappearance
+      if (lead_active_counter[i] > 0) {
+        lead_active_counter[i] = std::max(lead_active_counter[i] - 1, 0);
+        virtual_lead_active[i] = lead_active_counter[i] > 0;
+      } else {
+        virtual_lead_active[i] = false;
+        stable_lead[i] = false;
+      }
     }
+
     prev_lead_status[i] = current_status;
   }
 }
@@ -507,6 +645,30 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   const float d_rel = lead_data.getDRel();
   const float v_lead = lead_data.getVLead();
 
+  // Calculate confidence-based opacity
+  float confidence_alpha = 1.0;
+
+  // Lower confidence for close, non-radar detections
+  if (d_rel < distance_confidence_threshold && !isRadarAssisted) {
+    // Find the lead index
+    int lead_idx = -1;
+    for (int i = 0; i < 2; i++) {
+      if (lead_vertices[i] == vd) {
+        lead_idx = i;
+        break;
+      }
+    }
+
+    if (lead_idx >= 0) {
+      // Scale opacity based on stability
+      confidence_alpha = std::min(0.4f + (lead_active_counter[lead_idx] * 0.06f), 1.0f);
+    } else {
+      // Improved error handling for unexpected case
+      // std::cout << "Lead index not found for vertex at (" << vd.x() << ", " << vd.y() << ")" << std::endl;
+      confidence_alpha = 0.7; // Default fallback
+    }
+  }
+
   // Calculate sizes based on distance for responsive design
   float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
   float x = std::clamp<float>(vd.x(), 0.f, surface_rect.width() - sz / 2);
@@ -523,14 +685,14 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   QPolygonF chevronPolygon;
   chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
-  // Create gradient based on radar assistance
+  // Create gradient based on radar assistance with confidence alpha applied
   QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
   if (isRadarAssisted) {
-    chevGradient.setColorAt(0, QColor(60, 170, 255, 230)); // Blue
-    chevGradient.setColorAt(1, QColor(30, 144, 255, 200)); // Darker blue
+    chevGradient.setColorAt(0, QColor(60, 170, 255, int(230 * confidence_alpha))); // Blue with confidence
+    chevGradient.setColorAt(1, QColor(30, 144, 255, int(200 * confidence_alpha))); // Darker blue with confidence
   } else {
-    chevGradient.setColorAt(0, QColor(255, 255, 0, 230)); // Yellow
-    chevGradient.setColorAt(1, QColor(220, 220, 0, 200)); // Darker yellow
+    chevGradient.setColorAt(0, QColor(255, 255, 0, int(230 * confidence_alpha))); // Yellow with confidence
+    chevGradient.setColorAt(1, QColor(220, 220, 0, int(200 * confidence_alpha))); // Darker yellow with confidence
   }
 
   // Draw chevron with gradient
@@ -538,12 +700,11 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.setBrush(chevGradient);
   painter.drawPolygon(chevronPolygon);
 
-  // Draw border with color based on radar assistance
-  // Change: Use white for radar-assisted, black for vision-only
+  // Draw border with color based on radar assistance and confidence
   if (isRadarAssisted) {
-    painter.setPen(QPen(QColor(255, 255, 255, 220), 2.5)); // White border
+    painter.setPen(QPen(QColor(255, 255, 255, int(220 * confidence_alpha)), 2.5)); // White border with confidence
   } else {
-    painter.setPen(QPen(QColor(0, 0, 0, 220), 2.5)); // Black border
+    painter.setPen(QPen(QColor(0, 0, 0, int(220 * confidence_alpha)), 2.5)); // Black border with confidence
   }
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
@@ -560,25 +721,27 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
                   icon_center_y - icon_size / 2, // Vertical center, adjusted for chevron shape
                   icon_size, icon_size);
 
-  // Load and draw the appropriate icon
-  QPixmap icon;
-  if (isRadarAssisted) {
-    icon.load("../assets/img_radar.png");
-  } else {
-    icon.load("../assets/img_vision.png");
-  }
+  // Use cached icons instead of loading every frame
+  QPixmap icon = isRadarAssisted ? radar_icon : vision_icon;
 
   if (!icon.isNull()) {
+    // Apply opacity to the icon
+    QPixmap translucent_icon = icon;
+    QPainter icon_painter(&translucent_icon);
+    icon_painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    icon_painter.fillRect(translucent_icon.rect(), QColor(0, 0, 0, int(255 * confidence_alpha)));
+    icon_painter.end();
+
     if (isRadarAssisted) {
       // Rotate radar-assisted icon by 90 degrees
       painter.save();
       painter.translate(iconRect.center()); // Move origin to icon center
       painter.rotate(90);                   // Rotate 90 degrees clockwise
-      painter.drawPixmap(QRectF(-iconRect.width() / 2, -iconRect.height() / 2, iconRect.width(), iconRect.height()), icon, icon.rect());
+      painter.drawPixmap(QRectF(-iconRect.width() / 2, -iconRect.height() / 2, iconRect.width(), iconRect.height()), translucent_icon, translucent_icon.rect());
       painter.restore();
     } else {
       // Draw vision icon without rotation
-      painter.drawPixmap(iconRect, icon, icon.rect());
+      painter.drawPixmap(iconRect, translucent_icon, translucent_icon.rect());
     }
   }
 
@@ -609,14 +772,14 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
 
   // Draw a more transparent panel with a subtle gradient
   QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
-  panelGradient.setColorAt(0, QColor(20, 20, 20, 120)); // Much more transparent background (120 alpha)
-  panelGradient.setColorAt(1, QColor(40, 40, 40, 120)); // Much more transparent background (120 alpha)
+  panelGradient.setColorAt(0, QColor(20, 20, 20, int(120 * confidence_alpha))); // Apply confidence alpha
+  panelGradient.setColorAt(1, QColor(40, 40, 40, int(120 * confidence_alpha))); // Apply confidence alpha
   painter.setPen(Qt::NoPen);
   painter.setBrush(panelGradient);
   painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Add a subtle border
-  painter.setPen(QPen(QColor(150, 150, 150, 80), 1)); // More transparent border
+  painter.setPen(QPen(QColor(150, 150, 150, int(80 * confidence_alpha)), 1)); // Apply confidence alpha
   painter.drawRoundedRect(infoPanel, 15, 15);
 
   // Set up text formatting with larger size
@@ -630,7 +793,7 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
 
   // Display distance and speed on the same line
-  painter.setPen(Qt::white);
+  painter.setPen(QColor(255, 255, 255, int(255 * confidence_alpha))); // Apply confidence alpha to text
   QString combinedText = distText + "  |  " + speedText;
 
   // Center the text in the panel
@@ -714,9 +877,66 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
   }
 }
 
-void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size) {
+void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float stopping_distance, float v_ego, float fade_alpha = 1.0f) {
+  // Validate input data
+  if (stopping_distance <= 0.0f) {
+    return;
+  }
+
   // Enable anti-aliasing for smoother shape
   painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Track stop sign visibility for animations
+  bool stop_sign_visible = true;
+
+  // Update frame counter for animation
+  if (prev_stop_sign_visible) {
+    stop_frame_count = std::min(stop_frame_count + 1, 20); // Max 20 frames for full opacity
+  } else {
+    stop_frame_count = 0; // Reset counter when first appears
+  }
+
+  // Calculate fade-in opacity
+  stop_sign_opacity = std::min(1.0f, stop_frame_count / 10.0f); // Fade in over 10 frames
+
+  // Increase base size for better text fit
+  const int base_size = 120;
+
+  // Dynamic size based on distance
+  float distanceFactor = 1.0 - std::min(0.7f, (stopping_distance - 5.0f) / 45.0f);
+  int dynamicSize = base_size * distanceFactor;
+
+  // Slide to corner as we get closer (start sliding at 20m, complete at 10m)
+  float slideThreshold = 20.0f;
+  float slideComplete = 10.0f;
+  float slideAmount = 0.0f;
+
+  if (stopping_distance < slideThreshold) {
+    // Calculate slide factor (0.0 = original position, 1.0 = corner position)
+    slideAmount = 1.0f - std::clamp((stopping_distance - slideComplete) / (slideThreshold - slideComplete), 0.0f, 1.0f);
+  }
+
+  // Calculate final position by interpolating between original and corner position
+  QPointF cornerPosition(painter.device()->width() - dynamicSize, painter.device()->height() - dynamicSize * 1.5);
+  QPointF finalPosition;
+
+  // Robust fallback positioning if point is outside the clip region
+  if (!clip_region.contains(point)) {
+    // Use a default position in the bottom right if original point is invalid
+    finalPosition = cornerPosition;
+  } else {
+    // Interpolate between original and corner position
+    finalPosition.setX(point.x() * (1.0f - slideAmount) + cornerPosition.x() * slideAmount);
+    finalPosition.setY(point.y() * (1.0f - slideAmount) + cornerPosition.y() * slideAmount);
+  }
+
+  // Use final position for all drawing operations
+  QPointF drawPoint = finalPosition;
+
+  // Pulsing effect with less distracting settings
+  float pulseRate = 0.5 + 1.0 * (1.0 - std::min(1.0f, stopping_distance / 50.0f)); // Capped at 1.5 max
+  float pulsePhase = (static_cast<int>(millis_since_boot()) % 1000) / 1000.0f;
+  float pulseOpacity = (0.7 + 0.3 * sin(pulsePhase * 2 * M_PI * pulseRate)) * stop_sign_opacity * fade_alpha;
 
   // Draw octagon shape for stop sign
   QPolygonF stopSign;
@@ -725,27 +945,61 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
 
   for (int i = 0; i < 8; i++) {
     float angle = start_angle + i * angle_increment;
-    stopSign << QPointF(point.x() + size / 2 * cos(angle), point.y() + size / 2 * sin(angle));
+    stopSign << QPointF(drawPoint.x() + dynamicSize / 2 * cos(angle), drawPoint.y() + dynamicSize / 2 * sin(angle));
   }
 
   // Draw red stop sign with white border
-  painter.setPen(QPen(Qt::white, 3));
-  painter.setBrush(QColor(255, 0, 0, 220)); // Red with some transparency
+  painter.setPen(QPen(Qt::white, 4));                           // Slightly thicker border
+  painter.setBrush(QColor(255, 0, 0, int(220 * pulseOpacity))); // Red with pulsing transparency
   painter.drawPolygon(stopSign);
 
   // Draw "STOP" text centered in the middle of the sign
   painter.setPen(Qt::white);
-  // Use a standard font instead of InterFont
   QFont stopFont = painter.font();
-  stopFont.setPointSize(size / 3);
+  stopFont.setPointSize(dynamicSize / 4); // Adjusted text size ratio
   stopFont.setBold(true);
   painter.setFont(stopFont);
 
   // Create a rectangular area for the text that's centered on the stop sign
-  QRect textRect(point.x() - size / 2, point.y() - size / 3, size, size * 2 / 3);
+  QRect textRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() - dynamicSize / 3, dynamicSize, dynamicSize * 2 / 3);
 
   // Draw the text centered in this rectangle
   painter.drawText(textRect, Qt::AlignCenter, "STOP");
+
+  // Add distance countdown below the stop sign
+  if (stopping_distance > 0) {
+    QString distanceText = QString("%1 m").arg(stopping_distance, 0, 'f', 1);
+    QFont distFont = painter.font();
+    distFont.setPointSize(dynamicSize / 3); // LARGER TEXT - Changed from /5 to /3
+    painter.setFont(distFont);
+    painter.setPen(QPen(Qt::white, 1.5)); // Slightly thicker text
+    QRect distRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() + dynamicSize / 2, dynamicSize, dynamicSize / 3);
+    painter.drawText(distRect, Qt::AlignCenter, distanceText);
+  }
+
+  // Draw time countdown circular indicator around stop sign
+  if (v_ego > 0.1) {
+    float timeToStop = stopping_distance / v_ego;
+
+    // Draw circular progress indicator around stop sign
+    painter.setPen(QPen(Qt::white, 3));
+    int arcSize = dynamicSize + 20;
+    // Map time to angle (shorter time = larger arc)
+    int startAngle = 90 * 16; // Start at top (QPainter uses 1/16th of degrees)
+    int spanAngle = std::min(360, int(360 * (1.0 - std::min(1.0f, timeToStop / 10.0f)))) * 16;
+    painter.drawArc(drawPoint.x() - arcSize / 2, drawPoint.y() - arcSize / 2, arcSize, arcSize, startAngle, spanAngle);
+
+    // Add time text
+    QString timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
+    QFont timeFont = painter.font();
+    timeFont.setPointSize(dynamicSize / 3); // LARGER TEXT - Changed from /5 to /3
+    painter.setFont(timeFont);
+    QRect timeRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() + dynamicSize / 2 + dynamicSize / 3, dynamicSize, dynamicSize / 3);
+    painter.drawText(timeRect, Qt::AlignCenter, timeText);
+  }
+
+  // Update previous visibility state for next frame
+  prev_stop_sign_visible = stop_sign_visible;
 }
 
 bool ModelRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {

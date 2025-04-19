@@ -12,7 +12,8 @@ LateralGraphWidget::LateralGraphWidget(QWidget *parent) : QWidget(parent) {
 }
 
 void LateralGraphWidget::setData(const std::deque<std::pair<float, float>> &steerData, float maxAngle, float desiredSteerAngle, float actualSteerAngle, float steerActuatorDelay,
-                                 float desiredCurvature, float actualCurvature) {
+                                 float desiredCurvature, float actualCurvature, bool hasFordVariables, float maxAbsPredictedCurvature, float predictedSteeringAngleDegSP,
+                                 float pathAngleKp) {
   m_steerData = steerData;
   m_maxAngle = maxAngle;
   m_desiredSteerAngle = desiredSteerAngle;
@@ -20,6 +21,10 @@ void LateralGraphWidget::setData(const std::deque<std::pair<float, float>> &stee
   m_steerActuatorDelay = steerActuatorDelay;
   m_desiredCurvature = desiredCurvature;
   m_actualCurvature = actualCurvature;
+  m_hasFordVariables = hasFordVariables;
+  m_maxAbsPredictedCurvature = maxAbsPredictedCurvature;
+  m_predictedSteeringAngleDegSP = predictedSteeringAngleDegSP;
+  m_pathAngleKp = pathAngleKp;
   update();
 }
 
@@ -192,6 +197,24 @@ void LateralGraphWidget::paintEvent(QPaintEvent *event) {
   // Column 2: Actual Curvature
   p.fillRect(graph_x + column_width, legend_row2, 20, 20, QColor(255, 100, 255, 200));
   p.drawText(graph_x + column_width + 30, legend_row2 + 16, QString("Actual Curv: %1").arg(m_actualCurvature, 0, 'f', 4));
+
+  if (m_hasFordVariables) {
+    int legend_row3 = legend_row2 + 40; // Space between rows
+
+    // Column 1: Predicted Steering Angle
+    p.fillRect(graph_x, legend_row3, 20, 20, QColor(100, 200, 255, 200));
+    p.drawText(graph_x + 30, legend_row3 + 16,
+              QString("Pred Angle: %1°").arg(m_predictedSteeringAngleDegSP, 0, 'f', 1));
+
+    // Column 2: Max Abs Predicted Curvature
+    p.fillRect(graph_x + column_width, legend_row3, 20, 20, QColor(255, 160, 0, 200));
+    p.drawText(graph_x + column_width + 30, legend_row3 + 16,
+              QString("Max Pred Curv: %1").arg(m_maxAbsPredictedCurvature, 0, 'f', 4));
+
+    // Column 3: Path Angle Kp
+    p.drawText(graph_x + 2 * column_width + 30, legend_row3 + 16,
+              QString("Path Angle Kp: %1").arg(m_pathAngleKp, 0, 'f', 3));
+  }
 
   // Column 3: Empty (as per requested layout)
 }

@@ -79,4 +79,7 @@ public:
 private:
   static QColor getBatteryColor(float value, float min, float max);
   static QColor getVoltageColor(float voltage, float lowLimit, float highLimit);
+  static float lastDisplayedAmps;
+  static double lastAmpsUpdateTime;
+  static constexpr double AMPS_UPDATE_INTERVAL = 0.5; // Update every 0.5 seconds
 };

@@ -9,6 +9,7 @@ from opendbc.car import structs
 from opendbc.car.hyundai.values import HyundaiFlags
 from opendbc.sunnypilot.car.hyundai.longitudinal.longitudinal_config import CarTuningConfig, TUNING_CONFIGS, CAR_SPECIFIC_CONFIGS
 
+
 def get_car_config(CP: structs.CarParams) -> CarTuningConfig:
   # Get car type flags from specific configs or determine from car flags
   car_config = CAR_SPECIFIC_CONFIGS.get(CP.carFingerprint)
@@ -31,6 +32,5 @@ def get_longitudinal_tune(CP: structs.CarParams) -> None:
   CP.vEgoStopping = config.v_ego_stopping
   CP.vEgoStarting = config.v_ego_starting
   CP.stoppingDecelRate = config.stopping_decel_rate
-  CP.startAccel = config.start_accel
-  CP.startingState = True
-  CP.longitudinalActuatorDelay = 0.5
+  CP.startingState = False
+  CP.longitudinalActuatorDelay = config.longitudinal_actuator_delay

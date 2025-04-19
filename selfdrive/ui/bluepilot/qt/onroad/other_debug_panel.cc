@@ -5,9 +5,488 @@
 #include <QHeaderView>
 #include <QRegularExpression>
 #include <QGraphicsDropShadowEffect>
+#include <QDateTime>
+#include <QScroller>
 #include <iostream>
 
-OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent) {
+OtherDataWorker::OtherDataWorker(QObject *parent) : QObject(parent), m_abort(false) { m_lastCache = new OtherDataCache(); }
+
+OtherDataWorker::~OtherDataWorker() {
+  m_abort = true;
+  m_condition.wakeAll();
+  delete m_lastCache;
+}
+
+void OtherDataWorker::processData(const UIState *s) {
+  QMutexLocker locker(&m_mutex);
+  if (m_abort)
+    return;
+
+  if (!s->scene.started || !s->sm)
+    return;
+
+  OtherDataCache cache = *m_lastCache; // Start with the last cache
+  cache.valid = true;
+  cache.lastUpdateTime = QDateTime::currentMSecsSinceEpoch();
+
+  // Reset update flags
+  cache.updated = OtherDataCache::UpdateFlags();
+
+  // Process each data section separately
+  processCarState(s, &cache);
+  processRadarState(s, &cache);
+  processCarOutput(s, &cache);
+  processCarParams(s, &cache);
+  processDeviceState(s, &cache);
+
+  // Update our internal cache
+  *m_lastCache = cache;
+
+  // Send the updated cache to the UI thread
+  emit dataReady(cache);
+}
+
+void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
+  try {
+    auto &sm = *(s->sm);
+    bool valid = sm.valid("carState");
+    // std::cout << "carState valid: " << valid << std::endl;
+    if (valid) {
+      auto car = sm["carState"].getCarState();
+      cache->carValues.vEgo = car.getVEgo();
+      cache->carValues.aEgo = car.getAEgo();
+      cache->carValues.vEgoRaw = car.getVEgoRaw();
+      cache->carValues.yawRate = car.getYawRate();
+      cache->carValues.standstill = car.getStandstill();
+      cache->carValues.engineRpm = car.getEngineRpm();
+
+      cache->carValues.steeringAngleDeg = car.getSteeringAngleDeg();
+      cache->carValues.steeringRateDeg = car.getSteeringRateDeg();
+      cache->carValues.steeringTorque = car.getSteeringTorque();
+      cache->carValues.steeringTorqueEps = car.getSteeringTorqueEps();
+      cache->carValues.steeringPressed = car.getSteeringPressed();
+      cache->carValues.steerFaultTemporary = car.getSteerFaultTemporary();
+      cache->carValues.steerFaultPermanent = car.getSteerFaultPermanent();
+
+      cache->carValues.brake = car.getBrake();
+      cache->carValues.gas = car.getGas();
+      cache->carValues.gasPressed = car.getGasPressed();
+      cache->carValues.brakePressed = car.getBrakePressed();
+      cache->carValues.regenBraking = car.getRegenBraking();
+      cache->carValues.clutchPressed = car.getClutchPressed();
+      cache->carValues.parkingBrake = car.getParkingBrake();
+      cache->carValues.brakeHoldActive = car.getBrakeHoldActive();
+
+      cache->carValues.espDisabled = car.getEspDisabled();
+      cache->carValues.espActive = car.getEspActive();
+      cache->carValues.leftBlinker = car.getLeftBlinker();
+      cache->carValues.rightBlinker = car.getRightBlinker();
+
+      // Handle gearShifter as an int
+      cache->carValues.gearShifter = static_cast<int>(car.getGearShifter());
+
+      cache->carValues.fuelGauge = car.getFuelGauge();
+      cache->carValues.charging = car.getCharging();
+
+      cache->carValues.stockAeb = car.getStockAeb();
+      cache->carValues.stockFcw = car.getStockFcw();
+      cache->carValues.invalidLkasSetting = car.getInvalidLkasSetting();
+      cache->carValues.doorOpen = car.getDoorOpen();
+      cache->carValues.seatbeltUnlatched = car.getSeatbeltUnlatched();
+      cache->carValues.vehicleSensorsInvalid = car.getVehicleSensorsInvalid();
+
+      // Get cruise state
+      if (car.hasCruiseState()) {
+        auto cruise = car.getCruiseState();
+        cache->carValues.cruiseEnabled = cruise.getEnabled();
+        cache->carValues.cruiseSpeed = cruise.getSpeed();
+        cache->carValues.cruiseAvailable = cruise.getAvailable();
+        cache->carValues.cruiseStandstill = cruise.getStandstill();
+        cache->carValues.cruiseNonAdaptive = cruise.getNonAdaptive();
+        cache->carValues.cruiseSpeedLimit = cruise.getSpeedLimit();
+      }
+
+      // std::cout << "update cache with vEgo: " << cache->carValues.vEgo << std::endl;
+
+      cache->updated.carState = true;
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating CarState:" << e.what() << std::endl;
+  }
+}
+
+void OtherDataWorker::processRadarState(const UIState *s, OtherDataCache *cache) {
+  try {
+    auto &sm = *(s->sm);
+    if (sm.valid("radarState")) {
+      auto radar = sm["radarState"].getRadarState();
+
+      cache->radarValues.errors.canError = radar.getRadarErrors().getCanError();
+      cache->radarValues.errors.radarFault = radar.getRadarErrors().getRadarFault();
+      cache->radarValues.errors.wrongConfig = radar.getRadarErrors().getWrongConfig();
+      cache->radarValues.errors.radarUnavailableTemporary = radar.getRadarErrors().getRadarUnavailableTemporary();
+
+      if (radar.hasLeadOne()) {
+        auto lead = radar.getLeadOne();
+        cache->radarValues.leadOne.dRel = lead.getDRel();
+        cache->radarValues.leadOne.yRel = lead.getYRel();
+        cache->radarValues.leadOne.vRel = lead.getVRel();
+        cache->radarValues.leadOne.aRel = lead.getARel();
+        cache->radarValues.leadOne.vLead = lead.getVLead();
+        cache->radarValues.leadOne.dPath = lead.getDPath();
+        cache->radarValues.leadOne.vLat = lead.getVLat();
+        cache->radarValues.leadOne.vLeadK = lead.getVLeadK();
+        cache->radarValues.leadOne.aLeadK = lead.getALeadK();
+        cache->radarValues.leadOne.status = lead.getStatus();
+        cache->radarValues.leadOne.fcw = lead.getFcw();
+        cache->radarValues.leadOne.radar = lead.getRadar();
+        cache->radarValues.leadOne.radarTrackId = lead.getRadarTrackId();
+      }
+
+      if (radar.hasLeadTwo()) {
+        auto lead = radar.getLeadTwo();
+        cache->radarValues.leadTwo.dRel = lead.getDRel();
+        cache->radarValues.leadTwo.yRel = lead.getYRel();
+        cache->radarValues.leadTwo.vRel = lead.getVRel();
+        cache->radarValues.leadTwo.aRel = lead.getARel();
+        cache->radarValues.leadTwo.vLead = lead.getVLead();
+        cache->radarValues.leadTwo.dPath = lead.getDPath();
+        cache->radarValues.leadTwo.vLat = lead.getVLat();
+        cache->radarValues.leadTwo.vLeadK = lead.getVLeadK();
+        cache->radarValues.leadTwo.aLeadK = lead.getALeadK();
+        cache->radarValues.leadTwo.status = lead.getStatus();
+        cache->radarValues.leadTwo.fcw = lead.getFcw();
+        cache->radarValues.leadTwo.radar = lead.getRadar();
+        cache->radarValues.leadTwo.radarTrackId = lead.getRadarTrackId();
+      }
+
+      cache->updated.radarState = true;
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating RadarState:" << e.what();
+  }
+}
+
+void OtherDataWorker::processCarOutput(const UIState *s, OtherDataCache *cache) {
+  try {
+    auto &sm = *(s->sm);
+
+    // Set default values in case of error
+    cache->outputValues.accel = 0.0f;
+    cache->outputValues.gas = 0.0f;
+    cache->outputValues.brake = 0.0f;
+    cache->outputValues.speed = 0.0f;
+    cache->outputValues.steeringAngleDeg = 0.0f;
+    cache->outputValues.torque = 0.0f;
+    cache->outputValues.curvature = 0.0f;
+    cache->outputValues.torqueOutputCan = 0.0f;
+    cache->outputValues.longControlState = 0;
+
+    if (sm.valid("carOutput")) {
+      try {
+        auto output = sm["carOutput"].getCarOutput();
+
+        // Check if actuatorsOutput exists
+        if (output.hasActuatorsOutput()) {
+          try {
+            auto actuators = output.getActuatorsOutput();
+            try {
+              cache->outputValues.accel = actuators.getAccel();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.gas = actuators.getGas();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.brake = actuators.getBrake();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.speed = actuators.getSpeed();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.steeringAngleDeg = actuators.getSteeringAngleDeg();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.torque = actuators.getTorque();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.curvature = actuators.getCurvature();
+            } catch (...) {
+            }
+            try {
+              cache->outputValues.torqueOutputCan = actuators.getTorqueOutputCan();
+            } catch (...) {
+            }
+            try {
+              auto longState = actuators.getLongControlState();
+              cache->outputValues.longControlState = static_cast<int>(longState);
+            } catch (...) {
+            }
+          } catch (const std::exception &e) {
+            qWarning() << "Error accessing actuatorsOutput:" << e.what();
+          }
+        }
+      } catch (const std::exception &e) {
+        qWarning() << "Error accessing carOutput message:" << e.what();
+      }
+
+      cache->updated.carOutput = true;
+    }
+  } catch (const std::exception &e) {
+    // qWarning() << "Error processing carOutput:" << e.what();
+  }
+}
+
+void OtherDataWorker::processCarParams(const UIState *s, OtherDataCache *cache) {
+  try {
+    auto &sm = *(s->sm);
+    if (sm.valid("carParams")) {
+      auto params = sm["carParams"].getCarParams();
+      cache->paramValues.mass = params.getMass();
+      cache->paramValues.wheelbase = params.getWheelbase();
+      cache->paramValues.steerRatio = params.getSteerRatio();
+      cache->paramValues.steerActuatorDelay = params.getSteerActuatorDelay();
+      cache->paramValues.longitudinalActuatorDelay = params.getLongitudinalActuatorDelay();
+      cache->paramValues.vEgoStopping = params.getVEgoStopping();
+      cache->paramValues.vEgoStarting = params.getVEgoStarting();
+      cache->paramValues.tireStiffnessFactor = params.getTireStiffnessFactor();
+      cache->paramValues.radarUnavailable = params.getRadarUnavailable();
+      cache->paramValues.carFingerprint = QString::fromStdString(params.getCarFingerprint());
+      cache->paramValues.carVin = QString::fromStdString(params.getCarVin());
+      cache->paramValues.brand = QString::fromStdString(params.getBrand());
+      cache->paramValues.fuzzyFingerprint = params.getFuzzyFingerprint();
+      cache->paramValues.fingerprintSource = static_cast<int>(params.getFingerprintSource());
+      cache->paramValues.networkLocation = static_cast<int>(params.getNetworkLocation());
+      cache->paramValues.transmissionType = static_cast<int>(params.getTransmissionType());
+      cache->paramValues.steerLimitTimer = params.getSteerLimitTimer();
+
+      // Get lateral tuning parameters
+      // Get lateral tuning parameters
+      if (params.getLateralTuning().which() == cereal::CarParams::LateralTuning::PID) {
+        cache->paramValues.lateralTuningType = OtherDataCache::CarParameterValues::LateralTuningType::PID;
+        auto pid = params.getLateralTuning().getPid();
+
+        // Get the values from the arrays at appropriate indices
+        if (pid.getKpBP().size() > 0 && pid.getKpV().size() > 0) {
+          cache->paramValues.pidKp = pid.getKpV()[0];
+        }
+
+        if (pid.getKiBP().size() > 0 && pid.getKiV().size() > 0) {
+          cache->paramValues.pidKi = pid.getKiV()[0];
+        }
+
+        cache->paramValues.pidKf = pid.getKf();
+      } else if (params.getLateralTuning().which() == cereal::CarParams::LateralTuning::TORQUE) {
+        cache->paramValues.lateralTuningType = OtherDataCache::CarParameterValues::LateralTuningType::TORQUE;
+        auto torque = params.getLateralTuning().getTorque();
+        cache->paramValues.torqueUseSteeringAngle = torque.getUseSteeringAngle();
+        cache->paramValues.torqueKp = torque.getKp();
+        cache->paramValues.torqueKi = torque.getKi();
+        cache->paramValues.torqueKf = torque.getKf();
+        cache->paramValues.torqueFriction = torque.getFriction();
+        cache->paramValues.torqueLatAccelFactor = torque.getLatAccelFactor();
+        cache->paramValues.torqueLatAccelOffset = torque.getLatAccelOffset();
+      }
+
+      // Get longitudinal tuning parameters
+      auto longTuning = params.getLongitudinalTuning();
+
+      // Convert from capnp::List to QList for BP and V values
+      cache->paramValues.longKpBP.clear();
+      cache->paramValues.longKpV.clear();
+      cache->paramValues.longKiBP.clear();
+      cache->paramValues.longKiV.clear();
+
+      for (auto v : longTuning.getKpBP()) {
+        cache->paramValues.longKpBP.append(v);
+      }
+
+      for (auto v : longTuning.getKpV()) {
+        cache->paramValues.longKpV.append(v);
+      }
+
+      for (auto v : longTuning.getKiBP()) {
+        cache->paramValues.longKiBP.append(v);
+      }
+
+      for (auto v : longTuning.getKiV()) {
+        cache->paramValues.longKiV.append(v);
+      }
+
+      cache->paramValues.longKf = longTuning.getKf();
+
+      // Get safety configs
+      if (params.getSafetyConfigs().size() > 0) {
+        auto safety = params.getSafetyConfigs()[0];
+        cache->paramValues.safetyModel = static_cast<int>(safety.getSafetyModel());
+        cache->paramValues.safetyParam = safety.getSafetyParam();
+      }
+
+      cache->paramValues.alternativeExperience = params.getAlternativeExperience();
+
+      // Get car firmware information
+      auto carFwList = params.getCarFw();
+      cache->paramValues.carFw.clear();
+      for (auto fw : carFwList) {
+        OtherDataCache::CarParameterValues::CarFirmware carFw;
+        carFw.ecu = static_cast<int>(fw.getEcu());
+
+        // Handle capnp::Data conversion to string
+        auto fwVersionData = fw.getFwVersion();
+        std::string fwVersionStr(reinterpret_cast<const char *>(fwVersionData.begin()), fwVersionData.size());
+        carFw.fwVersion = QString::fromStdString(fwVersionStr);
+
+        carFw.address = fw.getAddress();
+        carFw.subAddress = fw.getSubAddress();
+        carFw.bus = fw.getBus();
+
+        // std::cout << "Found firmware - "
+        //          << "ECU: " << carFw.ecu
+        //          << " Version: " << carFw.fwVersion.toStdString()
+        //          << " Address: 0x" << std::hex << carFw.address << std::dec
+        //          << " Bus: " << carFw.bus << std::endl;
+
+        cache->paramValues.carFw.append(carFw);
+      }
+
+      // std::cout << "Total firmware entries processed: " << cache->paramValues.carFw.size() << std::endl;
+      cache->updated.carParams = true;
+    } else {
+      // std::cout << "carParams not valid in state manager" << std::endl;
+    }
+  } catch (const std::exception &e) {
+    // std::cerr << "Error updating CarParams: " << e.what() << std::endl;
+  }
+}
+
+void OtherDataWorker::processDeviceState(const UIState *s, OtherDataCache *cache) {
+  try {
+    auto &sm = *(s->sm);
+    if (sm.valid("deviceState")) {
+      auto device = sm["deviceState"].getDeviceState();
+
+      cache->deviceValues.deviceType = static_cast<int>(device.getDeviceType());
+      cache->deviceValues.freeSpacePercent = device.getFreeSpacePercent();
+      cache->deviceValues.memoryUsagePercent = device.getMemoryUsagePercent();
+      cache->deviceValues.gpuUsagePercent = device.getGpuUsagePercent();
+
+      // CPU usage
+      cache->deviceValues.cpuUsagePercent.clear();
+      for (auto usage : device.getCpuUsagePercent()) {
+        cache->deviceValues.cpuUsagePercent.append(usage);
+      }
+
+      // Power
+      cache->deviceValues.offroadPowerUsageUwh = device.getOffroadPowerUsageUwh();
+      cache->deviceValues.carBatteryCapacityUwh = device.getCarBatteryCapacityUwh();
+      cache->deviceValues.powerDrawW = device.getPowerDrawW();
+      cache->deviceValues.somPowerDrawW = device.getSomPowerDrawW();
+
+      // Temperatures
+      cache->deviceValues.cpuTempC.clear();
+      for (auto temp : device.getCpuTempC()) {
+        cache->deviceValues.cpuTempC.append(temp);
+      }
+
+      cache->deviceValues.gpuTempC.clear();
+      for (auto temp : device.getGpuTempC()) {
+        cache->deviceValues.gpuTempC.append(temp);
+      }
+
+      cache->deviceValues.memoryTempC = device.getMemoryTempC();
+
+      cache->deviceValues.nvmeTempC.clear();
+      for (auto temp : device.getNvmeTempC()) {
+        cache->deviceValues.nvmeTempC.append(temp);
+      }
+
+      cache->deviceValues.modemTempC.clear();
+      for (auto temp : device.getModemTempC()) {
+        cache->deviceValues.modemTempC.append(temp);
+      }
+
+      cache->deviceValues.pmicTempC.clear();
+      for (auto temp : device.getPmicTempC()) {
+        cache->deviceValues.pmicTempC.append(temp);
+      }
+
+      cache->deviceValues.intakeTempC = device.getIntakeTempC();
+      cache->deviceValues.exhaustTempC = device.getExhaustTempC();
+      cache->deviceValues.caseTempC = device.getCaseTempC();
+      cache->deviceValues.maxTempC = device.getMaxTempC();
+
+      // Status
+      cache->deviceValues.thermalStatus = static_cast<int>(device.getThermalStatus());
+      cache->deviceValues.fanSpeedPercentDesired = device.getFanSpeedPercentDesired();
+      cache->deviceValues.screenBrightnessPercent = device.getScreenBrightnessPercent();
+      cache->deviceValues.started = device.getStarted();
+      cache->deviceValues.startedMonoTime = device.getStartedMonoTime();
+
+      // Network
+      cache->deviceValues.networkType = static_cast<int>(device.getNetworkType());
+      cache->deviceValues.networkStrength = static_cast<int>(device.getNetworkStrength());
+      cache->deviceValues.networkMetered = device.getNetworkMetered();
+      cache->deviceValues.lastAthenaPingTime = device.getLastAthenaPingTime();
+
+      if (device.hasNetworkInfo()) {
+        auto netInfo = device.getNetworkInfo();
+        cache->deviceValues.networkInfo.technology = QString::fromStdString(netInfo.getTechnology());
+        cache->deviceValues.networkInfo.operator_ = QString::fromStdString(netInfo.getOperator());
+        cache->deviceValues.networkInfo.band = QString::fromStdString(netInfo.getBand());
+        cache->deviceValues.networkInfo.channel = netInfo.getChannel();
+        cache->deviceValues.networkInfo.state = QString::fromStdString(netInfo.getState());
+      }
+
+      if (device.hasNetworkStats()) {
+        auto netStats = device.getNetworkStats();
+        cache->deviceValues.networkStats.wwanTx = netStats.getWwanTx();
+        cache->deviceValues.networkStats.wwanRx = netStats.getWwanRx();
+      }
+
+      cache->updated.deviceState = true;
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating DeviceState:" << e.what();
+  }
+}
+
+OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent), m_dataProcessing(false) {
+  // Register types for cross-thread signal/slot usage
+  qRegisterMetaType<const UIState *>("const UIState*");
+  qRegisterMetaType<OtherDataCache>("OtherDataCache");
+
+  // Create data cache
+  m_cache = new OtherDataCache();
+
+  // Initialize update timer
+  m_updateTimer.setSingleShot(true);
+  m_updateTimer.setInterval(UpdateRates::MIN_UPDATE_INTERVAL_MS);
+  connect(&m_updateTimer, &QTimer::timeout, this, &OtherDebugPanel::updateUI);
+
+  // Initialize tab change timer - delay updates when switching tabs
+  m_tabChangeTimer.setSingleShot(true);
+  m_tabChangeTimer.setInterval(50); // 50ms delay for tab changes
+  connect(&m_tabChangeTimer, &QTimer::timeout, this, &OtherDebugPanel::updateVisibleTab);
+
+  // Setup worker thread
+  m_worker = new OtherDataWorker();
+  m_worker->moveToThread(&m_workerThread);
+  connect(this, &OtherDebugPanel::processStateUpdate, m_worker, &OtherDataWorker::processData);
+  connect(m_worker, &OtherDataWorker::dataReady, this, &OtherDebugPanel::updateFromWorker);
+  m_workerThread.start();
+
+  // Initialize gradient
+  m_backgroundGradient = QLinearGradient(0, 0, 0, height());
+  m_backgroundGradient.setColorAt(0, QColor(30, 30, 30, 230));
+  m_backgroundGradient.setColorAt(1, QColor(20, 20, 20, 230));
+  m_backgroundGradient.setCoordinateMode(QGradient::ObjectBoundingMode);
+  m_gradientInitialized = true;
+
   setAttribute(Qt::WA_AcceptTouchEvents);
 
   // Set up material styling first
@@ -39,10 +518,130 @@ OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent) {
   // Set tab position to bottom
   m_tabWidget->setTabPosition(QTabWidget::South);
 
+  // Connect tab change signals
+  connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+    // Schedule a tab change update
+    m_tabChangeTimer.start();
+  });
+
   mainLayout->addWidget(m_tabWidget);
 
   // Setup all tabs
   setupTabs();
+}
+
+OtherDebugPanel::~OtherDebugPanel() {
+  // Clean up worker thread
+  m_workerThread.quit();
+  m_workerThread.wait();
+  delete m_worker;
+
+  // Free data cache
+  delete m_cache;
+}
+
+void OtherDebugPanel::updateState(const UIState &s) {
+  // Skip if not visible
+  if (!isVisible())
+    return;
+
+  // Skip if no valid data
+  if (!s.scene.started || !s.sm)
+    return;
+
+  // If we're already processing data and the timer isn't active, start it
+  if (m_dataProcessing.load() && !m_updateTimer.isActive()) {
+    m_updateTimer.start();
+    return;
+  }
+
+  // Otherwise, process this update
+  m_dataProcessing.store(true);
+  emit processStateUpdate(&s);
+}
+
+void OtherDebugPanel::updateFromWorker(const OtherDataCache &cache) {
+  // Skip if not visible
+  if (!isVisible()) {
+    m_dataProcessing.store(false);
+    return;
+  }
+
+  // Update our cache with the new data
+  *m_cache = cache;
+
+  uint64_t currentTime = QDateTime::currentMSecsSinceEpoch();
+  if (currentTime - m_lastUpdates.lastPanelUpdate >= UpdateRates::MIN_UPDATE_INTERVAL_MS) {
+    updateUI();
+    m_lastUpdates.lastPanelUpdate = currentTime;
+  } else {
+    m_updateTimer.start(); // Schedule an update
+  }
+}
+
+void OtherDebugPanel::updateUI() {
+  if (!isVisible()) {
+    m_dataProcessing.store(false);
+    return;
+  }
+
+  // Only update the currently visible tab
+  updateVisibleTab();
+
+  if (m_cache) {
+    m_cache->updated = OtherDataCache::UpdateFlags();
+  }
+
+  m_dataProcessing.store(false);
+}
+
+void OtherDebugPanel::updateVisibleTab() {
+  if (!isVisible())
+    return;
+
+  int currentTabIndex = m_tabWidget->currentIndex();
+
+  uint64_t currentTime = QDateTime::currentMSecsSinceEpoch();
+
+  switch (currentTabIndex) {
+  case 0: // Main tab
+    if (m_cache->updated.carState || currentTime - m_lastUpdates.dynamicsLastUpdate >= UpdateRates::DYNAMICS_UPDATE_RATE_MS) {
+      updateMainLabels();
+      m_lastUpdates.dynamicsLastUpdate = currentTime;
+    }
+    break;
+
+  case 1: // Radar tab
+    if (m_cache->updated.radarState || currentTime - m_lastUpdates.steeringLastUpdate >= UpdateRates::STEERING_UPDATE_RATE_MS) {
+      updateRadarLabels();
+      m_lastUpdates.steeringLastUpdate = currentTime;
+    }
+    break;
+
+  case 2: // Tuning tab
+    if (m_cache->updated.carParams || currentTime - m_lastUpdates.systemsLastUpdate >= UpdateRates::SYSTEMS_UPDATE_RATE_MS) {
+      updateTuningLabels();
+      m_lastUpdates.systemsLastUpdate = currentTime;
+    }
+    break;
+
+  case 3: // Firmware tab
+    if (m_cache->updated.carParams && (m_cache->updated.carParams || currentTime - m_lastUpdates.firmwareLastUpdate >= UpdateRates::FIRMWARE_UPDATE_RATE_MS)) {
+      updateFirmwareLabels();
+      updateFirmwareTable();
+      m_lastUpdates.firmwareLastUpdate = currentTime;
+    }
+    break;
+
+  case 4: // Device tab
+    if (m_cache->updated.deviceState || currentTime - m_lastUpdates.deviceLastUpdate >= UpdateRates::DEVICE_UPDATE_RATE_MS) {
+      updateDeviceLabels();
+      m_lastUpdates.deviceLastUpdate = currentTime;
+    }
+    break;
+  }
+
+  update(); // Request a repaint
 }
 
 void OtherDebugPanel::setupMaterialStyle() {
@@ -140,6 +739,43 @@ void OtherDebugPanel::setupLabelStyles() {
   )";
 }
 
+QFrame *OtherDebugPanel::createLabelFrame(QGridLayout *layout, QString title) {
+  QFrame *frame = new QFrame();
+  frame->setLayout(layout);
+
+  // Add a heading to the frame with modern styling
+  QLabel *heading = new QLabel(title, frame);
+  heading->setStyleSheet(R"(
+    font-size: 32px;
+    font-weight: 500;
+    color: #2196F3;
+    padding: 5px 0px;
+    border-bottom: 2px solid #555555;
+  )");
+  heading->setAlignment(Qt::AlignLeft);
+
+  layout->setContentsMargins(20, 20, 20, 20);
+  layout->addWidget(heading, 0, 0, 1, 4, Qt::AlignLeft);
+
+  // Material Design card-like styling with elevation
+  frame->setStyleSheet(R"(
+    QFrame {
+      background-color: #242424;
+      border-radius: 12px;
+      margin: 5px;
+    }
+  )");
+
+  // Add subtle shadow effect for elevation
+  QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(frame);
+  shadow->setColor(QColor(0, 0, 0, 80));
+  shadow->setBlurRadius(15);
+  shadow->setOffset(0, 3);
+  frame->setGraphicsEffect(shadow);
+
+  return frame;
+}
+
 void OtherDebugPanel::setupTableStyle() {
   m_firmwareTable->setStyleSheet(R"(
     QTableWidget {
@@ -234,8 +870,23 @@ void OtherDebugPanel::setupMainTab() {
   m_mainScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_mainScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   m_mainScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-  m_mainScrollArea->setProperty("kinetic_scrolling", true);
-  m_mainScrollArea->setProperty("overshoot", true);
+
+  // Enable proper kinetic scrolling
+  QScroller::grabGesture(m_mainScrollArea->viewport(), QScroller::TouchGesture);
+  QScrollerProperties scrollerProperties = QScroller::scroller(m_mainScrollArea->viewport())->scrollerProperties();
+
+  // Adjust the physics of the scrolling
+  scrollerProperties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  scrollerProperties.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_mainScrollArea->viewport())->setScrollerProperties(scrollerProperties);
 
   // Create content widget for scroll area
   m_mainScrollContent = new QWidget(m_mainScrollArea);
@@ -485,8 +1136,23 @@ void OtherDebugPanel::setupRadarTab() {
   m_radarScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_radarScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   m_radarScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-  m_radarScrollArea->setProperty("kinetic_scrolling", true);
-  m_radarScrollArea->setProperty("overshoot", true);
+
+  // Enable proper kinetic scrolling
+  QScroller::grabGesture(m_radarScrollArea->viewport(), QScroller::TouchGesture);
+  QScrollerProperties scrollerProperties = QScroller::scroller(m_radarScrollArea->viewport())->scrollerProperties();
+
+  // Adjust the physics of the scrolling
+  scrollerProperties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  scrollerProperties.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_radarScrollArea->viewport())->setScrollerProperties(scrollerProperties);
 
   // Create content widget for scroll area
   m_radarScrollContent = new QWidget(m_radarScrollArea);
@@ -637,8 +1303,23 @@ void OtherDebugPanel::setupTuningTab() {
   m_tuningScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_tuningScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   m_tuningScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-  m_tuningScrollArea->setProperty("kinetic_scrolling", true);
-  m_tuningScrollArea->setProperty("overshoot", true);
+
+  // Enable proper kinetic scrolling
+  QScroller::grabGesture(m_tuningScrollArea->viewport(), QScroller::TouchGesture);
+  QScrollerProperties scrollerProperties = QScroller::scroller(m_tuningScrollArea->viewport())->scrollerProperties();
+
+  // Adjust the physics of the scrolling
+  scrollerProperties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  scrollerProperties.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_tuningScrollArea->viewport())->setScrollerProperties(scrollerProperties);
 
   // Create content widget for scroll area
   m_tuningScrollContent = new QWidget(m_tuningScrollArea);
@@ -787,8 +1468,23 @@ void OtherDebugPanel::setupFirmwareTab() {
   m_firmwareScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_firmwareScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   m_firmwareScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-  m_firmwareScrollArea->setProperty("kinetic_scrolling", true);
-  m_firmwareScrollArea->setProperty("overshoot", true);
+
+  // Enable proper kinetic scrolling
+  QScroller::grabGesture(m_firmwareScrollArea->viewport(), QScroller::TouchGesture);
+  QScrollerProperties scrollerProperties = QScroller::scroller(m_firmwareScrollArea->viewport())->scrollerProperties();
+
+  // Adjust the physics of the scrolling
+  scrollerProperties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  scrollerProperties.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_firmwareScrollArea->viewport())->setScrollerProperties(scrollerProperties);
 
   // Create content widget for scroll area
   m_firmwareScrollContent = new QWidget(m_firmwareScrollArea);
@@ -863,11 +1559,6 @@ void OtherDebugPanel::setupFirmwareTab() {
   m_firmwareTable->horizontalHeader()->setStyleSheet(
       "QHeaderView::section { background-color: rgba(60, 60, 60, 200); color: white; font-weight: bold; padding: 15px; border: 1px solid #555; font-size: 28px; height: 60px; }");
 
-  // Increased row height, text size and padding for cells
-  m_firmwareTable->setStyleSheet("QTableWidget { background-color: rgba(40, 40, 40, 150); color: white; border: 2px solid #333; font-size: 32px; }"
-                                 "QTableWidget::item { padding: 12px; border-bottom: 1px solid #555; }"
-                                 "QTableWidget::item:selected { background-color: rgba(0, 170, 255, 150); color: white; }");
-
   // Configure table
   m_firmwareTable->setColumnWidth(0, 400); // ECU name - wider
   m_firmwareTable->setColumnWidth(1, 650); // FW Version - much wider
@@ -883,6 +1574,23 @@ void OtherDebugPanel::setupFirmwareTab() {
 
   // Set size policy to expand both horizontally and vertically
   m_firmwareTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+  // Enable touch scrolling for the firmware table
+  QScroller::grabGesture(m_firmwareTable->viewport(), QScroller::TouchGesture);
+  QScrollerProperties tableScrollerProps = QScroller::scroller(m_firmwareTable->viewport())->scrollerProperties();
+
+  // Adjust the scrolling physics for the table
+  tableScrollerProps.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  tableScrollerProps.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_firmwareTable->viewport())->setScrollerProperties(tableScrollerProps);
 
   // Make table take the full width
   m_firmwareLayout->addWidget(m_firmwareTable, 1); // The 1 argument gives it a stretch factor
@@ -905,8 +1613,23 @@ void OtherDebugPanel::setupDeviceTab() {
   m_deviceScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_deviceScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   m_deviceScrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-  m_deviceScrollArea->setProperty("kinetic_scrolling", true);
-  m_deviceScrollArea->setProperty("overshoot", true);
+
+  // Enable proper kinetic scrolling
+  QScroller::grabGesture(m_deviceScrollArea->viewport(), QScroller::TouchGesture);
+  QScrollerProperties scrollerProperties = QScroller::scroller(m_deviceScrollArea->viewport())->scrollerProperties();
+
+  // Adjust the physics of the scrolling
+  scrollerProperties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumVelocity, 0.6);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.4);
+  scrollerProperties.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.2);
+  scrollerProperties.setScrollMetric(QScrollerProperties::SnapPositionRatio, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::MaximumClickThroughVelocity, 0);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+  scrollerProperties.setScrollMetric(QScrollerProperties::OvershootDragDistanceFactor, 0.3);
+
+  QScroller::scroller(m_deviceScrollArea->viewport())->setScrollerProperties(scrollerProperties);
 
   // Create content widget for scroll area
   m_deviceScrollContent = new QWidget(m_deviceScrollArea);
@@ -1054,8 +1777,7 @@ void OtherDebugPanel::setupDeviceTab() {
   addDeviceLabel("Network", "TX Data:", "0 B");
   addDeviceLabel("Network", "RX Data:", "0 B");
 
-  // System & Temperatures labels (merged)
-  // System Usage labels first
+  // System & Temperatures labels
   addDeviceLabel("System & Temperatures", "Free Space:", "0%");
   addDeviceLabel("System & Temperatures", "Memory Usage:", "0%");
   addDeviceLabel("System & Temperatures", "GPU Usage:", "0%");
@@ -1074,985 +1796,529 @@ void OtherDebugPanel::setupDeviceTab() {
   addDeviceLabel("System & Temperatures", "Max Temp:", "0.0°C");
 }
 
-QFrame *OtherDebugPanel::createLabelFrame(QGridLayout *layout, QString title) {
-  QFrame *frame = new QFrame();
-  frame->setLayout(layout);
+void OtherDebugPanel::updateMainLabels() {
+  // Helper to format boolean values
+  auto formatBool = [](bool value, const QString &trueText = "Yes", const QString &falseText = "No") { return value ? trueText : falseText; };
 
-  // Add a heading to the frame with modern styling
-  QLabel *heading = new QLabel(title, frame);
-  heading->setStyleSheet(R"(
-    font-size: 32px;
-    font-weight: 500;
-    color: #2196F3;
-    padding: 5px 0px;
-    border-bottom: 2px solid #555555;
-  )");
-  heading->setAlignment(Qt::AlignLeft);
-
-  layout->setContentsMargins(20, 20, 20, 20);
-  layout->addWidget(heading, 0, 0, 1, 4, Qt::AlignLeft);
-
-  // Material Design card-like styling with elevation
-  frame->setStyleSheet(R"(
-    QFrame {
-      background-color: #242424;
-      border-radius: 12px;
-      margin: 5px;
+  // Helper to format gear shifter enum
+  auto formatGear = [](int gear) {
+    switch (gear) {
+    case 1:
+      return "Park";
+    case 2:
+      return "Drive";
+    case 3:
+      return "Neutral";
+    case 4:
+      return "Reverse";
+    case 5:
+      return "Sport";
+    case 6:
+      return "Low";
+    case 7:
+      return "Brake";
+    case 8:
+      return "Eco";
+    case 9:
+      return "Manumatic";
+    default:
+      return "Unknown";
     }
-  )");
+  };
 
-  // Add subtle shadow effect for elevation
-  QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(frame);
-  shadow->setColor(QColor(0, 0, 0, 80));
-  shadow->setBlurRadius(15);
-  shadow->setOffset(0, 3);
-  frame->setGraphicsEffect(shadow);
-
-  return frame;
-}
-
-void OtherDebugPanel::updateState(const UIState &s) {
+  // Update Vehicle Dynamics group
   try {
-    if (!isVisible() || !s.scene.started || !s.sm)
-      return;
-
-    auto &sm = *(s.sm);
-
-    // Update firmware table if it's time to do so
-    uint64_t currentTime = QDateTime::currentMSecsSinceEpoch();
-    bool updateFirmware = (m_lastFirmwareUpdateTime == 0) || (currentTime - m_lastFirmwareUpdateTime > FIRMWARE_UPDATE_INTERVAL_MS);
-
-    // Update CarState values
-    try {
-      if (sm.valid("carState")) {
-        auto car = sm["carState"].getCarState();
-        m_carValues.vEgo = car.getVEgo();
-        m_carValues.aEgo = car.getAEgo();
-        m_carValues.vEgoRaw = car.getVEgoRaw();
-        m_carValues.yawRate = car.getYawRate();
-        m_carValues.standstill = car.getStandstill();
-        m_carValues.engineRpm = car.getEngineRpm();
-
-        m_carValues.steeringAngleDeg = car.getSteeringAngleDeg();
-        m_carValues.steeringRateDeg = car.getSteeringRateDeg();
-        m_carValues.steeringTorque = car.getSteeringTorque();
-        m_carValues.steeringTorqueEps = car.getSteeringTorqueEps();
-        m_carValues.steeringPressed = car.getSteeringPressed();
-        m_carValues.steerFaultTemporary = car.getSteerFaultTemporary();
-        m_carValues.steerFaultPermanent = car.getSteerFaultPermanent();
-
-        m_carValues.brake = car.getBrake();
-        m_carValues.gas = car.getGas();
-        m_carValues.gasPressed = car.getGasPressed();
-        m_carValues.brakePressed = car.getBrakePressed();
-        m_carValues.regenBraking = car.getRegenBraking();
-        m_carValues.clutchPressed = car.getClutchPressed();
-        m_carValues.parkingBrake = car.getParkingBrake();
-        m_carValues.brakeHoldActive = car.getBrakeHoldActive();
-
-        m_carValues.espDisabled = car.getEspDisabled();
-        m_carValues.espActive = car.getEspActive();
-        m_carValues.leftBlinker = car.getLeftBlinker();
-        m_carValues.rightBlinker = car.getRightBlinker();
-
-        // Handle gearShifter as an int
-        m_carValues.gearShifter = static_cast<int>(car.getGearShifter());
-
-        m_carValues.fuelGauge = car.getFuelGauge();
-        m_carValues.charging = car.getCharging();
-
-        m_carValues.stockAeb = car.getStockAeb();
-        m_carValues.stockFcw = car.getStockFcw();
-        m_carValues.invalidLkasSetting = car.getInvalidLkasSetting();
-        m_carValues.doorOpen = car.getDoorOpen();
-        m_carValues.seatbeltUnlatched = car.getSeatbeltUnlatched();
-        m_carValues.vehicleSensorsInvalid = car.getVehicleSensorsInvalid();
-
-        // Get cruise state
-        if (car.hasCruiseState()) {
-          auto cruise = car.getCruiseState();
-          m_carValues.cruiseEnabled = cruise.getEnabled();
-          m_carValues.cruiseSpeed = cruise.getSpeed();
-          m_carValues.cruiseAvailable = cruise.getAvailable();
-          m_carValues.cruiseStandstill = cruise.getStandstill();
-          m_carValues.cruiseNonAdaptive = cruise.getNonAdaptive();
-          m_carValues.cruiseSpeedLimit = cruise.getSpeedLimit();
-        }
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating CarState:" << e.what() << std::endl;
+    if (m_groups.contains("Vehicle Dynamics")) {
+      int idx = 0;
+      auto &group = m_groups["Vehicle Dynamics"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.vEgo, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.vEgoRaw, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->carValues.aEgo, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 rad/s").arg(m_cache->carValues.yawRate, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.standstill));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(m_cache->carValues.engineRpm > 0 ? QString("%1").arg(m_cache->carValues.engineRpm, 0, 'f', 0) : "N/A");
     }
-
-    // Update Radar values
-    try {
-      if (sm.valid("radarState")) {
-        auto radar = sm["radarState"].getRadarState();
-
-        m_radarValues.errors.canError = radar.getRadarErrors().getCanError();
-        m_radarValues.errors.radarFault = radar.getRadarErrors().getRadarFault();
-        m_radarValues.errors.wrongConfig = radar.getRadarErrors().getWrongConfig();
-        m_radarValues.errors.radarUnavailableTemporary = radar.getRadarErrors().getRadarUnavailableTemporary();
-
-        if (radar.hasLeadOne()) {
-          auto lead = radar.getLeadOne();
-          m_radarValues.leadOne.dRel = lead.getDRel();
-          m_radarValues.leadOne.yRel = lead.getYRel();
-          m_radarValues.leadOne.vRel = lead.getVRel();
-          m_radarValues.leadOne.aRel = lead.getARel();
-          m_radarValues.leadOne.vLead = lead.getVLead();
-          m_radarValues.leadOne.dPath = lead.getDPath();
-          m_radarValues.leadOne.vLat = lead.getVLat();
-          m_radarValues.leadOne.vLeadK = lead.getVLeadK();
-          m_radarValues.leadOne.aLeadK = lead.getALeadK();
-          m_radarValues.leadOne.status = lead.getStatus();
-          m_radarValues.leadOne.fcw = lead.getFcw();
-          m_radarValues.leadOne.radar = lead.getRadar();
-          m_radarValues.leadOne.radarTrackId = lead.getRadarTrackId();
-        }
-
-        if (radar.hasLeadTwo()) {
-          auto lead = radar.getLeadTwo();
-          m_radarValues.leadTwo.dRel = lead.getDRel();
-          m_radarValues.leadTwo.yRel = lead.getYRel();
-          m_radarValues.leadTwo.vRel = lead.getVRel();
-          m_radarValues.leadTwo.aRel = lead.getARel();
-          m_radarValues.leadTwo.vLead = lead.getVLead();
-          m_radarValues.leadTwo.dPath = lead.getDPath();
-          m_radarValues.leadTwo.vLat = lead.getVLat();
-          m_radarValues.leadTwo.vLeadK = lead.getVLeadK();
-          m_radarValues.leadTwo.aLeadK = lead.getALeadK();
-          m_radarValues.leadTwo.status = lead.getStatus();
-          m_radarValues.leadTwo.fcw = lead.getFcw();
-          m_radarValues.leadTwo.radar = lead.getRadar();
-          m_radarValues.leadTwo.radarTrackId = lead.getRadarTrackId();
-        }
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating RadarState:" << e.what() << std::endl;
-    }
-
-    // Update CarOutput values
-    try {
-      // Set default values in case of error
-      m_outputValues.accel = 0.0f;
-      m_outputValues.gas = 0.0f;
-      m_outputValues.brake = 0.0f;
-      m_outputValues.speed = 0.0f;
-      m_outputValues.steeringAngleDeg = 0.0f;
-      m_outputValues.torque = 0.0f;
-      m_outputValues.curvature = 0.0f;
-      m_outputValues.torqueOutputCan = 0.0f;
-      m_outputValues.longControlState = 0;
-
-      if (sm.valid("carOutput")) {
-        // std::cout << "carOutput is valid, attempting to access it..." << std::endl;
-
-        // Check if we can get the carOutput message
-        try {
-          auto output = sm["carOutput"].getCarOutput();
-          // std::cout << "Successfully got carOutput message" << std::endl;
-
-          // Check if actuatorsOutput exists
-          if (output.hasActuatorsOutput()) {
-            // std::cout << "output has actuatorsOutput field" << std::endl;
-
-            try {
-              auto actuators = output.getActuatorsOutput();
-              try {
-                m_outputValues.accel = actuators.getAccel();
-              } catch (...) {
-                m_outputValues.accel = 0.0f;
-              }
-
-              try {
-                m_outputValues.gas = actuators.getGas();
-              } catch (...) {
-                m_outputValues.gas = 0.0f;
-              }
-
-              try {
-                m_outputValues.brake = actuators.getBrake();
-              } catch (...) {
-                m_outputValues.brake = 0.0f;
-              }
-
-              try {
-                m_outputValues.speed = actuators.getSpeed();
-              } catch (...) {
-                m_outputValues.speed = 0.0f;
-              }
-
-              try {
-                m_outputValues.steeringAngleDeg = actuators.getSteeringAngleDeg();
-              } catch (...) {
-                m_outputValues.steeringAngleDeg = 0.0f;
-              }
-
-              try {
-                m_outputValues.torque = actuators.getTorque();
-              } catch (...) {
-                m_outputValues.torque = 0.0f;
-              }
-
-              try {
-                m_outputValues.curvature = actuators.getCurvature();
-              } catch (...) {
-                m_outputValues.curvature = 0.0f;
-              }
-
-              try {
-                m_outputValues.torqueOutputCan = actuators.getTorqueOutputCan();
-              } catch (...) {
-                m_outputValues.torqueOutputCan = 0.0f;
-              }
-
-              try {
-                auto longState = actuators.getLongControlState();
-                m_outputValues.longControlState = static_cast<int>(longState);
-              } catch (...) {
-                m_outputValues.longControlState = 0;
-              }
-            } catch (const std::exception &e) {
-              std::cerr << "Error accessing actuatorsOutput: " << e.what() << std::endl;
-            }
-          } else {
-            std::cout << "output does not have actuatorsOutput field" << std::endl;
-          }
-        } catch (const std::exception &e) {
-          std::cerr << "Error accessing carOutput message: " << e.what() << std::endl;
-        }
-      } else {
-        // std::cout << "carOutput is not valid in state manager" << std::endl;
-      }
-    } catch (const std::exception &e) {
-      // std::cerr << "Error with carOutput handling at " << __FILE__ << ":" << __LINE__ << ": " << e.what() << std::endl;
-    }
-
-    // Update CarParams values
-    try {
-      if (sm.valid("carParams")) {
-        auto params = sm["carParams"].getCarParams();
-        m_paramValues.mass = params.getMass();
-        m_paramValues.wheelbase = params.getWheelbase();
-        m_paramValues.steerRatio = params.getSteerRatio();
-        m_paramValues.steerActuatorDelay = params.getSteerActuatorDelay();
-        m_paramValues.longitudinalActuatorDelay = params.getLongitudinalActuatorDelay();
-        m_paramValues.vEgoStopping = params.getVEgoStopping();
-        m_paramValues.vEgoStarting = params.getVEgoStarting();
-        m_paramValues.tireStiffnessFactor = params.getTireStiffnessFactor();
-        m_paramValues.radarUnavailable = params.getRadarUnavailable();
-        m_paramValues.carFingerprint = QString::fromStdString(params.getCarFingerprint());
-        m_paramValues.carVin = QString::fromStdString(params.getCarVin());
-        m_paramValues.brand = QString::fromStdString(params.getBrand());
-        m_paramValues.fuzzyFingerprint = params.getFuzzyFingerprint();
-        m_paramValues.fingerprintSource = static_cast<int>(params.getFingerprintSource());
-        m_paramValues.networkLocation = static_cast<int>(params.getNetworkLocation());
-        m_paramValues.transmissionType = static_cast<int>(params.getTransmissionType());
-        m_paramValues.steerLimitTimer = params.getSteerLimitTimer();
-
-        // Get lateral tuning parameters
-        if (params.getLateralTuning().which() == cereal::CarParams::LateralTuning::PID) {
-          m_paramValues.lateralTuningType = LateralTuningType::PID;
-          auto pid = params.getLateralTuning().getPid();
-
-          // Get the values from the arrays at appropriate indices
-          if (pid.getKpBP().size() > 0 && pid.getKpV().size() > 0) {
-            m_paramValues.pidKp = pid.getKpV()[0];
-          }
-
-          if (pid.getKiBP().size() > 0 && pid.getKiV().size() > 0) {
-            m_paramValues.pidKi = pid.getKiV()[0];
-          }
-
-          m_paramValues.pidKf = pid.getKf();
-        } else if (params.getLateralTuning().which() == cereal::CarParams::LateralTuning::TORQUE) {
-          m_paramValues.lateralTuningType = LateralTuningType::TORQUE;
-          auto torque = params.getLateralTuning().getTorque();
-
-          m_paramValues.torqueUseSteeringAngle = torque.getUseSteeringAngle();
-          m_paramValues.torqueKp = torque.getKp();
-          m_paramValues.torqueKi = torque.getKi();
-          m_paramValues.torqueKf = torque.getKf();
-          m_paramValues.torqueFriction = torque.getFriction();
-          m_paramValues.torqueLatAccelFactor = torque.getLatAccelFactor();
-          m_paramValues.torqueLatAccelOffset = torque.getLatAccelOffset();
-        }
-
-        // Get longitudinal tuning parameters
-        auto longTuning = params.getLongitudinalTuning();
-
-        // Convert from capnp::List to QList for BP and V values
-        m_paramValues.longKpBP.clear();
-        m_paramValues.longKpV.clear();
-        m_paramValues.longKiBP.clear();
-        m_paramValues.longKiV.clear();
-
-        for (auto v : longTuning.getKpBP()) {
-          m_paramValues.longKpBP.append(v);
-        }
-
-        for (auto v : longTuning.getKpV()) {
-          m_paramValues.longKpV.append(v);
-        }
-
-        for (auto v : longTuning.getKiBP()) {
-          m_paramValues.longKiBP.append(v);
-        }
-
-        for (auto v : longTuning.getKiV()) {
-          m_paramValues.longKiV.append(v);
-        }
-
-        m_paramValues.longKf = longTuning.getKf();
-
-        // Get safety configs
-        if (params.getSafetyConfigs().size() > 0) {
-          auto safety = params.getSafetyConfigs()[0];
-          m_paramValues.safetyModel = static_cast<int>(safety.getSafetyModel());
-          m_paramValues.safetyParam = safety.getSafetyParam();
-        }
-
-        m_paramValues.alternativeExperience = params.getAlternativeExperience();
-
-        // Get car firmware information
-        if (updateFirmware) {
-          m_paramValues.carFw.clear();
-
-          for (auto fw : params.getCarFw()) {
-            CarParameterValues::CarFirmware carFw;
-            carFw.ecu = static_cast<int>(fw.getEcu());
-
-          // Handle capnp::Data conversion to string
-            auto fwVersionData = fw.getFwVersion();
-            std::string fwVersionStr(reinterpret_cast<const char *>(fwVersionData.begin()), fwVersionData.size());
-            carFw.fwVersion = QString::fromStdString(fwVersionStr);
-
-            carFw.address = fw.getAddress();
-            carFw.subAddress = fw.getSubAddress();
-            carFw.bus = fw.getBus();
-            m_paramValues.carFw.append(carFw);
-          }
-
-          m_lastFirmwareUpdateTime = currentTime;
-        }
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating CarParams:" << e.what() << std::endl;
-    }
-
-    // Update Device State values
-    try {
-      if (sm.valid("deviceState")) {
-        auto device = sm["deviceState"].getDeviceState();
-
-        m_deviceValues.deviceType = static_cast<int>(device.getDeviceType());
-        m_deviceValues.freeSpacePercent = device.getFreeSpacePercent();
-        m_deviceValues.memoryUsagePercent = device.getMemoryUsagePercent();
-        m_deviceValues.gpuUsagePercent = device.getGpuUsagePercent();
-
-        // CPU usage
-        m_deviceValues.cpuUsagePercent.clear();
-        for (auto usage : device.getCpuUsagePercent()) {
-          m_deviceValues.cpuUsagePercent.append(usage);
-        }
-
-        // Power
-        m_deviceValues.offroadPowerUsageUwh = device.getOffroadPowerUsageUwh();
-        m_deviceValues.carBatteryCapacityUwh = device.getCarBatteryCapacityUwh();
-        m_deviceValues.powerDrawW = device.getPowerDrawW();
-        m_deviceValues.somPowerDrawW = device.getSomPowerDrawW();
-
-        // Temperatures
-        m_deviceValues.cpuTempC.clear();
-        for (auto temp : device.getCpuTempC()) {
-          m_deviceValues.cpuTempC.append(temp);
-        }
-
-        m_deviceValues.gpuTempC.clear();
-        for (auto temp : device.getGpuTempC()) {
-          m_deviceValues.gpuTempC.append(temp);
-        }
-
-        m_deviceValues.memoryTempC = device.getMemoryTempC();
-
-        m_deviceValues.nvmeTempC.clear();
-        for (auto temp : device.getNvmeTempC()) {
-          m_deviceValues.nvmeTempC.append(temp);
-        }
-
-        m_deviceValues.modemTempC.clear();
-        for (auto temp : device.getModemTempC()) {
-          m_deviceValues.modemTempC.append(temp);
-        }
-
-        m_deviceValues.pmicTempC.clear();
-        for (auto temp : device.getPmicTempC()) {
-          m_deviceValues.pmicTempC.append(temp);
-        }
-
-        m_deviceValues.intakeTempC = device.getIntakeTempC();
-        m_deviceValues.exhaustTempC = device.getExhaustTempC();
-        m_deviceValues.caseTempC = device.getCaseTempC();
-        m_deviceValues.maxTempC = device.getMaxTempC();
-
-        // Status
-        m_deviceValues.thermalStatus = static_cast<int>(device.getThermalStatus());
-        m_deviceValues.fanSpeedPercentDesired = device.getFanSpeedPercentDesired();
-        m_deviceValues.screenBrightnessPercent = device.getScreenBrightnessPercent();
-        m_deviceValues.started = device.getStarted();
-        m_deviceValues.startedMonoTime = device.getStartedMonoTime();
-
-        // Network
-        m_deviceValues.networkType = static_cast<int>(device.getNetworkType());
-        m_deviceValues.networkStrength = static_cast<int>(device.getNetworkStrength());
-        m_deviceValues.networkMetered = device.getNetworkMetered();
-        m_deviceValues.lastAthenaPingTime = device.getLastAthenaPingTime();
-
-        if (device.hasNetworkInfo()) {
-          auto netInfo = device.getNetworkInfo();
-          m_deviceValues.networkInfo.technology = QString::fromStdString(netInfo.getTechnology());
-          m_deviceValues.networkInfo.operator_ = QString::fromStdString(netInfo.getOperator());
-          m_deviceValues.networkInfo.band = QString::fromStdString(netInfo.getBand());
-          m_deviceValues.networkInfo.channel = netInfo.getChannel();
-          m_deviceValues.networkInfo.state = QString::fromStdString(netInfo.getState());
-        }
-
-        if (device.hasNetworkStats()) {
-          auto netStats = device.getNetworkStats();
-          m_deviceValues.networkStats.wwanTx = netStats.getWwanTx();
-          m_deviceValues.networkStats.wwanRx = netStats.getWwanRx();
-        }
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating DeviceState:" << e.what() << std::endl;
-    }
-
-    // Update UI labels
-    updateLabels();
-    update();
   } catch (const std::exception &e) {
-    std::cerr << "Error updating state:" << e.what() << std::endl;
+    qWarning() << "Error updating Vehicle Dynamics group:" << e.what();
+  }
+
+  // Update Steering group
+  try {
+    if (m_groups.contains("Steering")) {
+      int idx = 0;
+      auto &group = m_groups["Steering"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°").arg(m_cache->carValues.steeringAngleDeg, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°/s").arg(m_cache->carValues.steeringRateDeg, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->carValues.steeringTorque, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->carValues.steeringTorqueEps, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.steeringPressed));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.steerFaultTemporary));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.steerFaultPermanent));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Steering group:" << e.what();
+  }
+
+  // Update Pedals group
+  try {
+    if (m_groups.contains("Pedals")) {
+      int idx = 0;
+      auto &group = m_groups["Pedals"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->carValues.gas, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.gasPressed));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->carValues.brake, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.brakePressed));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.regenBraking));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.clutchPressed));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.parkingBrake));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.brakeHoldActive));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Pedals group:" << e.what();
+  }
+
+  // Update Vehicle Systems group
+  try {
+    if (m_groups.contains("Vehicle Systems")) {
+      int idx = 0;
+      auto &group = m_groups["Vehicle Systems"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.espDisabled));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.espActive));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.leftBlinker));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.rightBlinker));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatGear(m_cache->carValues.gearShifter));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->carValues.fuelGauge * 100.0, 0, 'f', 1));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.charging));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Vehicle Systems group:" << e.what();
+  }
+
+  // Update Safety group
+  try {
+    if (m_groups.contains("Safety")) {
+      int idx = 0;
+      auto &group = m_groups["Safety"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.stockAeb));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.stockFcw));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.invalidLkasSetting));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.doorOpen));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.seatbeltUnlatched, "Unlatched", "Latched"));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.vehicleSensorsInvalid));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Safety group:" << e.what();
+  }
+
+  // Update Vehicle Parameters group
+  try {
+    if (m_groups.contains("Vehicle Parameters")) {
+      int idx = 0;
+      auto &group = m_groups["Vehicle Parameters"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 kg").arg(m_cache->paramValues.mass, 0, 'f', 0));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->paramValues.wheelbase, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.steerRatio, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1s").arg(m_cache->paramValues.steerActuatorDelay, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1s").arg(m_cache->paramValues.longitudinalActuatorDelay, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->paramValues.vEgoStopping, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->paramValues.vEgoStarting, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.tireStiffnessFactor, 0, 'f', 2));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Vehicle Parameters group:" << e.what();
+  }
+
+  // Update Cruise Control group
+  try {
+    if (m_groups.contains("Cruise Control")) {
+      int idx = 0;
+      auto &group = m_groups["Cruise Control"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.cruiseEnabled));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.cruiseSpeed, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.cruiseAvailable));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.cruiseStandstill));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->carValues.cruiseNonAdaptive));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.cruiseSpeedLimit, 0, 'f', 2));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Cruise Control group:" << e.what();
+  }
+
+  // Update Actuator Outputs group
+  try {
+    if (m_groups.contains("Actuator Outputs")) {
+      int idx = 0;
+      auto &group = m_groups["Actuator Outputs"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°").arg(m_cache->outputValues.steeringAngleDeg, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->outputValues.torque, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->outputValues.curvature, 0, 'f', 6));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->outputValues.accel, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->outputValues.gas, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->outputValues.brake, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->outputValues.torqueOutputCan, 0, 'f', 3));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatLongControlState(m_cache->outputValues.longControlState));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Actuator Outputs group:" << e.what();
   }
 }
 
-void OtherDebugPanel::updateLabels() {
+void OtherDebugPanel::updateRadarLabels() {
+  // Helper to format boolean values
+  auto formatBool = [](bool value, const QString &trueText = "Yes", const QString &falseText = "No") { return value ? trueText : falseText; };
+
+  // Update Radar Status
   try {
-    // Safety check to ensure all maps are initialized
-    if (m_groups.isEmpty() || m_radarGroups.isEmpty() || m_tuningGroups.isEmpty() || m_deviceGroups.isEmpty()) {
-      std::cout << "One or more groups are empty in updateLabels" << std::endl;
-      return;
-    }
-
-    // Helper to format boolean values
-    auto formatBool = [](bool value, const QString &trueText = "Yes", const QString &falseText = "No") { return value ? trueText : falseText; };
-
-    // Helper to format gear shifter enum
-    auto formatGear = [](int gear) {
-      switch (gear) {
-      case 1:
-        return "Park";
-      case 2:
-        return "Drive";
-      case 3:
-        return "Neutral";
-      case 4:
-        return "Reverse";
-      case 5:
-        return "Sport";
-      case 6:
-        return "Low";
-      case 7:
-        return "Brake";
-      case 8:
-        return "Eco";
-      case 9:
-        return "Manumatic";
-      default:
-        return "Unknown";
-      }
-    };
-
-    //
-    // Main Tab
-    //
-
-    // Update Vehicle Dynamics group
-    try {
-      if (m_groups.contains("Vehicle Dynamics")) {
-        int idx = 0;
-        auto &group = m_groups["Vehicle Dynamics"];
+    if (m_radarGroups.contains("Radar Status")) {
+      int idx = 0;
+      auto &group = m_radarGroups["Radar Status"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_carValues.vEgo, 0, 'f', 2));
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.errors.canError));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_carValues.vEgoRaw, 0, 'f', 2));
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.errors.radarFault));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_carValues.aEgo, 0, 'f', 3));
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.errors.wrongConfig));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 rad/s").arg(m_carValues.yawRate, 0, 'f', 3));
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.errors.radarUnavailableTemporary));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBool(m_carValues.standstill));
+        group[idx++].valueLabel->setText(formatBool(m_cache->paramValues.radarUnavailable));
+    }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Radar Status group:" << e.what();
+  }
+
+  // Update Lead1 group
+  try {
+    if (m_radarGroups.contains("Lead1")) {
+      int idx = 0;
+      auto &group = m_radarGroups["Lead1"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(m_carValues.engineRpm > 0 ? QString("%1").arg(m_carValues.engineRpm, 0, 'f', 0) : "N/A");
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Vehicle Dynamics group:" << e.what() << std::endl;
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadOne.dRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadOne.yRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadOne.vRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->radarValues.leadOne.aRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadOne.vLead, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadOne.dPath, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadOne.vLat, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadOne.vLeadK, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->radarValues.leadOne.aLeadK, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadOne.fcw));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadOne.status, "Valid", "Not Valid"));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->radarValues.leadOne.aLeadTau, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadOne.modelProb, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadOne.radar));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadOne.radarTrackId));
     }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Lead1 group:" << e.what();
+  }
 
-    // Update Steering group
-    try {
-      if (m_groups.contains("Steering")) {
-        int idx = 0;
-        auto &group = m_groups["Steering"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°").arg(m_carValues.steeringAngleDeg, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°/s").arg(m_carValues.steeringRateDeg, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_carValues.steeringTorque, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_carValues.steeringTorqueEps, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.steeringPressed));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.steerFaultTemporary));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.steerFaultPermanent));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Steering group:" << e.what() << std::endl;
+  // Update Lead2 group
+  try {
+    if (m_radarGroups.contains("Lead2")) {
+      int idx = 0;
+      auto &group = m_radarGroups["Lead2"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadTwo.dRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadTwo.yRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadTwo.vRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->radarValues.leadTwo.aRel, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadTwo.vLead, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m").arg(m_cache->radarValues.leadTwo.dPath, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadTwo.vLat, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->radarValues.leadTwo.vLeadK, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_cache->radarValues.leadTwo.aLeadK, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadTwo.fcw));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadTwo.status, "Valid", "Not Valid"));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->radarValues.leadTwo.aLeadTau, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadTwo.modelProb, 0, 'f', 2));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->radarValues.leadTwo.radar));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadTwo.radarTrackId));
     }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Lead2 group:" << e.what();
+  }
+}
 
-    // Update Pedals group
-    try {
-      if (m_groups.contains("Pedals")) {
-        int idx = 0;
-        auto &group = m_groups["Pedals"];
+void OtherDebugPanel::updateTuningLabels() {
+  // Update Lateral Tuning
+  try {
+    if (m_tuningGroups.contains("Lateral Tuning")) {
+      int idx = 0;
+      auto &group = m_tuningGroups["Lateral Tuning"];
+
+      if (m_cache->paramValues.lateralTuningType == OtherDataCache::CarParameterValues::LateralTuningType::PID) {
         if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_carValues.gas, 0, 'f', 3));
+          group[idx++].valueLabel->setText("PID");
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.gasPressed));
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.pidKp, 0, 'f', 4));
         if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_carValues.brake, 0, 'f', 3));
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.pidKi, 0, 'f', 4));
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.brakePressed));
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.pidKf, 0, 'f', 4));
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.regenBraking));
+          group[idx++].valueLabel->setText("N/A"); // Friction
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.clutchPressed));
+          group[idx++].valueLabel->setText("N/A"); // LatAccelFactor
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.parkingBrake));
+          group[idx++].valueLabel->setText("N/A"); // LatAccelOffset
+      } else if (m_cache->paramValues.lateralTuningType == OtherDataCache::CarParameterValues::LateralTuningType::TORQUE) {
         if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.brakeHoldActive));
+          group[idx++].valueLabel->setText("Torque");
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueKp, 0, 'f', 4));
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueKi, 0, 'f', 4));
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueKf, 0, 'f', 4));
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueFriction, 0, 'f', 4));
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueLatAccelFactor, 0, 'f', 4));
+        if (idx < group.size())
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.torqueLatAccelOffset, 0, 'f', 4));
+      } else {
+        // Handle any other lateral tuning type
+        if (idx < group.size())
+          group[idx++].valueLabel->setText("Unknown");
       }
-    } catch (const std::exception &e) {
-      std::cout << "Error updating Pedals group:" << e.what() << std::endl;
     }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Lateral Tuning group:" << e.what() << std::endl;
+  }
 
-    // Update Vehicle Systems group
-    try {
-      if (m_groups.contains("Vehicle Systems")) {
-        int idx = 0;
-        auto &group = m_groups["Vehicle Systems"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.espDisabled));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.espActive));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.leftBlinker));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.rightBlinker));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatGear(m_carValues.gearShifter));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_carValues.fuelGauge * 100.0, 0, 'f', 1));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.charging));
+  // Update Longitudinal Tuning
+  try {
+    if (m_tuningGroups.contains("Longitudinal Tuning")) {
+      int idx = 0;
+      auto &group = m_tuningGroups["Longitudinal Tuning"];
+
+      QString kpBPStr = "[";
+      for (int i = 0; i < m_cache->paramValues.longKpBP.size(); i++) {
+        kpBPStr += QString("%1").arg(m_cache->paramValues.longKpBP[i], 0, 'f', 1);
+        if (i < m_cache->paramValues.longKpBP.size() - 1)
+          kpBPStr += ", ";
       }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Vehicle Systems group:" << e.what() << std::endl;
-    }
+      kpBPStr += "]";
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(kpBPStr);
 
-    // Update Safety group
-    try {
-      if (m_groups.contains("Safety")) {
-        int idx = 0;
-        auto &group = m_groups["Safety"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.stockAeb));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.stockFcw));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.invalidLkasSetting));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.doorOpen));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.seatbeltUnlatched, "Unlatched", "Latched"));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.vehicleSensorsInvalid));
+      QString kpVStr = "[";
+      for (int i = 0; i < m_cache->paramValues.longKpV.size(); i++) {
+        kpVStr += QString("%1").arg(m_cache->paramValues.longKpV[i], 0, 'f', 3);
+        if (i < m_cache->paramValues.longKpV.size() - 1)
+          kpVStr += ", ";
       }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Safety group:" << e.what() << std::endl;
-    }
+      kpVStr += "]";
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(kpVStr);
 
-    // Update Vehicle Parameters group
-    try {
-      if (m_groups.contains("Vehicle Parameters")) {
-        int idx = 0;
-        auto &group = m_groups["Vehicle Parameters"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 kg").arg(m_paramValues.mass, 0, 'f', 0));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_paramValues.wheelbase, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.steerRatio, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1s").arg(m_paramValues.steerActuatorDelay, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1s").arg(m_paramValues.longitudinalActuatorDelay, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_paramValues.vEgoStopping, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_paramValues.vEgoStarting, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.tireStiffnessFactor, 0, 'f', 2));
+      QString kiBPStr = "[";
+      for (int i = 0; i < m_cache->paramValues.longKiBP.size(); i++) {
+        kiBPStr += QString("%1").arg(m_cache->paramValues.longKiBP[i], 0, 'f', 1);
+        if (i < m_cache->paramValues.longKiBP.size() - 1)
+          kiBPStr += ", ";
       }
-    } catch (const std::exception &e) {
-        std::cerr << "Error updating Vehicle Parameters group:" << e.what() << std::endl;
-    }
+      kiBPStr += "]";
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(kiBPStr);
 
-    // Update Cruise Control group
-    try {
-      if (m_groups.contains("Cruise Control")) {
-        int idx = 0;
-        auto &group = m_groups["Cruise Control"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.cruiseEnabled));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_carValues.cruiseSpeed, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.cruiseAvailable));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.cruiseStandstill));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_carValues.cruiseNonAdaptive));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_carValues.cruiseSpeedLimit, 0, 'f', 2));
+      QString kiVStr = "[";
+      for (int i = 0; i < m_cache->paramValues.longKiV.size(); i++) {
+        kiVStr += QString("%1").arg(m_cache->paramValues.longKiV[i], 0, 'f', 3);
+        if (i < m_cache->paramValues.longKiV.size() - 1)
+          kiVStr += ", ";
       }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Cruise Control group:" << e.what() << std::endl;
+      kiVStr += "]";
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(kiVStr);
+
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.longKf, 0, 'f', 4));
     }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Longitudinal Tuning group:" << e.what() << std::endl;
+  }
 
-    // Update Actuator Outputs group
-    try {
-      if (m_groups.contains("Actuator Outputs")) {
-        int idx = 0;
-        auto &group = m_groups["Actuator Outputs"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°").arg(m_outputValues.steeringAngleDeg, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_outputValues.torque, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_outputValues.curvature, 0, 'f', 6));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_outputValues.accel, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_outputValues.gas, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_outputValues.brake, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_outputValues.torqueOutputCan, 0, 'f', 3));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatLongControlState(m_outputValues.longControlState));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Actuator Outputs group:" << e.what() << std::endl;
-    }
-
-    //
-    // Radar Tab
-    //
-
-    // Update Radar Status
-    try {
-      if (m_radarGroups.contains("Radar Status")) {
-        int idx = 0;
-        auto &group = m_radarGroups["Radar Status"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.errors.canError));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.errors.radarFault));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.errors.wrongConfig));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.errors.radarUnavailableTemporary));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_paramValues.radarUnavailable));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Radar Status group:" << e.what() << std::endl;
-    }
-
-    // Update Lead1 group
-    try {
-      if (m_radarGroups.contains("Lead1")) {
-        int idx = 0;
-        auto &group = m_radarGroups["Lead1"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadOne.dRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadOne.yRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadOne.vRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_radarValues.leadOne.aRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadOne.vLead, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadOne.dPath, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadOne.vLat, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadOne.vLeadK, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_radarValues.leadOne.aLeadK, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadOne.fcw));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadOne.status, "Valid", "Not Valid"));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 s").arg(m_radarValues.leadOne.aLeadTau, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_radarValues.leadOne.modelProb, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadOne.radar));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_radarValues.leadOne.radarTrackId));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Lead1 group:" << e.what() << std::endl;
-    }
-
-    // Update Lead2 group
-    try {
-      if (m_radarGroups.contains("Lead2")) {
-        int idx = 0;
-        auto &group = m_radarGroups["Lead2"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadTwo.dRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadTwo.yRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadTwo.vRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_radarValues.leadTwo.aRel, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadTwo.vLead, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m").arg(m_radarValues.leadTwo.dPath, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadTwo.vLat, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_radarValues.leadTwo.vLeadK, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 m/s²").arg(m_radarValues.leadTwo.aLeadK, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadTwo.fcw));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadTwo.status, "Valid", "Not Valid"));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1 s").arg(m_radarValues.leadTwo.aLeadTau, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_radarValues.leadTwo.modelProb, 0, 'f', 2));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_radarValues.leadTwo.radar));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_radarValues.leadTwo.radarTrackId));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Lead2 group:" << e.what() << std::endl;
-    }
-
-    //
-    // Tuning Tab
-    //
-
-    // Update Lateral Tuning
-    try {
-      if (m_tuningGroups.contains("Lateral Tuning")) {
-        int idx = 0;
-        auto &group = m_tuningGroups["Lateral Tuning"];
-
-        if (m_paramValues.lateralTuningType == LateralTuningType::PID) {
-          if (idx < group.size())
-            group[idx++].valueLabel->setText("PID");
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.pidKp, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.pidKi, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.pidKf, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText("N/A"); // Friction
-          if (idx < group.size())
-            group[idx++].valueLabel->setText("N/A"); // LatAccelFactor
-          if (idx < group.size())
-            group[idx++].valueLabel->setText("N/A"); // LatAccelOffset
-        } else if (m_paramValues.lateralTuningType == LateralTuningType::TORQUE) {
-          if (idx < group.size())
-            group[idx++].valueLabel->setText("Torque");
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueKp, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueKi, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueKf, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueFriction, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueLatAccelFactor, 0, 'f', 4));
-          if (idx < group.size())
-            group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.torqueLatAccelOffset, 0, 'f', 4));
-        }
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Lateral Tuning group:" << e.what() << std::endl;
-    }
-
-    // Update Longitudinal Tuning
-    try {
-      if (m_tuningGroups.contains("Longitudinal Tuning")) {
-        int idx = 0;
-        auto &group = m_tuningGroups["Longitudinal Tuning"];
-
-        QString kpBPStr = "[";
-        for (int i = 0; i < m_paramValues.longKpBP.size(); i++) {
-          kpBPStr += QString("%1").arg(m_paramValues.longKpBP[i], 0, 'f', 1);
-          if (i < m_paramValues.longKpBP.size() - 1)
-            kpBPStr += ", ";
-        }
-        kpBPStr += "]";
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(kpBPStr);
-
-        QString kpVStr = "[";
-        for (int i = 0; i < m_paramValues.longKpV.size(); i++) {
-          kpVStr += QString("%1").arg(m_paramValues.longKpV[i], 0, 'f', 3);
-          if (i < m_paramValues.longKpV.size() - 1)
-            kpVStr += ", ";
-        }
-        kpVStr += "]";
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(kpVStr);
-
-        QString kiBPStr = "[";
-        for (int i = 0; i < m_paramValues.longKiBP.size(); i++) {
-          kiBPStr += QString("%1").arg(m_paramValues.longKiBP[i], 0, 'f', 1);
-          if (i < m_paramValues.longKiBP.size() - 1)
-            kiBPStr += ", ";
-        }
-        kiBPStr += "]";
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(kiBPStr);
-
-        QString kiVStr = "[";
-        for (int i = 0; i < m_paramValues.longKiV.size(); i++) {
-          kiVStr += QString("%1").arg(m_paramValues.longKiV[i], 0, 'f', 3);
-          if (i < m_paramValues.longKiV.size() - 1)
-            kiVStr += ", ";
-        }
-        kiVStr += "]";
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(kiVStr);
-
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.longKf, 0, 'f', 4));
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Longitudinal Tuning group:" << e.what() << std::endl;
-    }
-
-    // Update Safety Model section
+  // Update Safety Model section
+  try {
     if (m_tuningGroups.contains("Safety Model")) {
       int idx = 0;
       auto &group = m_tuningGroups["Safety Model"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatSafetyModel(m_paramValues.safetyModel));
+        group[idx++].valueLabel->setText(formatSafetyModel(m_cache->paramValues.safetyModel));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("0x%1").arg(m_paramValues.safetyParam, 4, 16, QChar('0')));
+        group[idx++].valueLabel->setText(QString("0x%1").arg(m_cache->paramValues.safetyParam, 4, 16, QChar('0')));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.alternativeExperience));
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.alternativeExperience));
     }
+  } catch (const std::exception &e) {
+    qWarning() << "Error updating Safety Model group:" << e.what();
+  }
 
-    // Update Car Parameters section
+  // Update Car Parameters section
+  try {
     if (m_tuningGroups.contains("Car Parameters")) {
       int idx = 0;
       auto &group = m_tuningGroups["Car Parameters"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBool(m_paramValues.radarUnavailable));
+        group[idx++].valueLabel->setText(formatBool(m_cache->paramValues.radarUnavailable));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1").arg(m_paramValues.steerRateCost, 0, 'f', 4));
+        group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.steerRateCost, 0, 'f', 4));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 s").arg(m_paramValues.steerLimitTimer, 0, 'f', 2));
+        group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->paramValues.steerLimitTimer, 0, 'f', 2));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 s").arg(m_paramValues.steerActuatorDelay, 0, 'f', 3));
+        group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->paramValues.steerActuatorDelay, 0, 'f', 3));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 s").arg(m_paramValues.longitudinalActuatorDelay, 0, 'f', 3));
+        group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->paramValues.longitudinalActuatorDelay, 0, 'f', 3));
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Car Parameters group:" << e.what() << std::endl;
+  }
+}
+
+void OtherDebugPanel::updateFirmwareTable() {
+  // Skip if tab isn't visible
+  if (!m_firmwareTab->isVisible()) {
+    std::cout << "Firmware tab not visible, skipping update" << std::endl;
+    return;
+  }
+
+  // Update firmware table with batch updates
+  try {
+    if (!m_firmwareTable) {
+      std::cerr << "Firmware table widget is null" << std::endl;
+      return;
     }
 
-    //
-    // Firmware Tab
-    //
-
-    // Update car info section in the firmware tab
-    if (m_firmwareGroups.contains("Car Info") && !m_firmwareGroups["Car Info"].isEmpty()) {
-      int idx = 0;
-      auto &group = m_firmwareGroups["Car Info"];
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(m_paramValues.carFingerprint.isEmpty() ? "Not Available" : m_paramValues.carFingerprint);
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(m_paramValues.carVin.isEmpty() ? "Not Available" : m_paramValues.carVin);
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(m_paramValues.brand.isEmpty() ? "Unknown" : m_paramValues.brand);
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(formatTransmissionType(m_paramValues.transmissionType));
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBool(m_paramValues.fuzzyFingerprint));
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(formatFingerprintSource(m_paramValues.fingerprintSource));
-      if (idx < group.size())
-        group[idx++].valueLabel->setText(formatNetworkLocation(m_paramValues.networkLocation));
+    if (!m_cache) {
+      std::cerr << "Cache is null" << std::endl;
+      return;
     }
 
-    // Update firmware table
-    if (m_firmwareTable) {
-      m_firmwareTable->setRowCount(0); // Clear existing rows
-      static const QRegularExpression fordPattern("^[A-Za-z0-9]{4}-[A-Za-z0-9]{5,6}-[A-Za-z0-9]{2,4}$");
+    // Disable updates for better performance
+    m_firmwareTable->setUpdatesEnabled(false);
+    m_firmwareTable->setRowCount(0); // Clear existing rows
 
-      for (int i = 0; i < m_paramValues.carFw.size(); i++) {
-        const auto &fw = m_paramValues.carFw[i];
+    // Debug: Print total number of firmware entries
+    // std::cout << "=== Firmware Table Update ===" << std::endl;
+    // std::cout << "Cache valid: " << (m_cache->valid ? "true" : "false") << std::endl;
+    // std::cout << "CarParams updated: " << (m_cache->updated.carParams ? "true" : "false") << std::endl;
+    // std::cout << "Total firmware entries in cache: " << m_cache->paramValues.carFw.size() << std::endl;
+    // std::cout << "Safety model: " << m_cache->paramValues.safetyModel << std::endl;
 
-        // Clean and validate the version string
-        QString cleanVersion;
-        for (QChar c : fw.fwVersion) {
-          if (c != QChar(0) && c.isPrint()) {
-            cleanVersion.append(c);
-          }
+    // Define Ford firmware pattern
+    static const QRegularExpression fordPattern("^[A-Za-z0-9]{4}-[A-Za-z0-9]{5,6}-[A-Za-z0-9]{2,4}$");
+
+    for (const auto &fw : m_cache->paramValues.carFw) {
+      // Clean and validate the version string
+      QString cleanVersion;
+      for (QChar c : fw.fwVersion) {
+        if (c != QChar(0) && c.isPrint()) {
+          cleanVersion.append(c);
         }
-        cleanVersion = cleanVersion.trimmed();
+      }
+      cleanVersion = cleanVersion.trimmed();
 
-        // Skip if not matching Ford firmware pattern
-        if (!fordPattern.match(cleanVersion).hasMatch()) {
-          continue;
-        }
+      // Skip if not matching Ford firmware pattern
+      if (!fordPattern.match(cleanVersion).hasMatch()) {
+        continue;
+      }
 
-        // Add a new row
-        int row = m_firmwareTable->rowCount();
-        m_firmwareTable->insertRow(row);
+      // Skip empty firmware versions
+      if (fw.fwVersion.isEmpty()) {
+        // std::cout << "  Skipping empty firmware version" << std::endl;
+        continue;
+      }
 
+      try {
         // Create and add each item
         QTableWidgetItem *ecuItem = new QTableWidgetItem(formatEcu(fw.ecu));
         QTableWidgetItem *versionItem = new QTableWidgetItem(fw.fwVersion);
-        // std::cout << "fw.ecu: " << fw.ecu << " fw.fwVersion: " << fw.fwVersion.toStdString() << " fw.address: " << fw.address << " fw.bus: " << fw.bus << std::endl;
         QTableWidgetItem *addressItem = new QTableWidgetItem(QString("0x%1").arg(fw.address, 0, 16));
         QTableWidgetItem *busItem = new QTableWidgetItem(QString("%1").arg(fw.bus));
 
@@ -2064,90 +2330,108 @@ void OtherDebugPanel::updateLabels() {
         busItem->setFont(largeFont);
 
         // Special highlight for Ford ECUs
-        if (m_paramValues.safetyModel == 6) {        // 6 is the Ford safety model
+        if (m_cache->paramValues.safetyModel == 6) { // 6 is the Ford safety model
           ecuItem->setForeground(QColor(0, 255, 0)); // Bright green
-          // Still use large font, just make it bold
           ecuItem->setFont(QFont("Arial", 28, QFont::Bold));
         }
 
+        // Add a new row
+        int row = m_firmwareTable->rowCount();
+        m_firmwareTable->insertRow(row);
         m_firmwareTable->setItem(row, 0, ecuItem);
         m_firmwareTable->setItem(row, 1, versionItem);
         m_firmwareTable->setItem(row, 2, addressItem);
         m_firmwareTable->setItem(row, 3, busItem);
+
+        // std::cout << "  Added row " << row << " to table" << std::endl;
+      } catch (const std::exception &e) {
+        std::cerr << "Error adding firmware row: " << e.what() << std::endl;
       }
     }
 
-    //
-    // Device Tab
-    //
+    // Re-enable updates now that we're done
+    m_firmwareTable->setUpdatesEnabled(true);
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating firmware table: " << e.what() << std::endl;
+  }
+}
 
-    // Update Device Status section
-    try {
-      if (m_deviceGroups.contains("Device Status")) {
-        int idx = 0;
-        auto &group = m_deviceGroups["Device Status"];
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatDeviceType(m_deviceValues.deviceType));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatBool(m_deviceValues.started));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(formatThermalStatus(m_deviceValues.thermalStatus));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.fanSpeedPercentDesired));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.screenBrightnessPercent));
+void OtherDebugPanel::updateDeviceLabels() {
+  // Helper to format boolean values
+  auto formatBool = [](bool value, const QString &trueText = "Yes", const QString &falseText = "No") { return value ? trueText : falseText; };
 
-        // Format last ping time
-        // QString pingTimeStr = "N/A";
-        // if (m_deviceValues.lastAthenaPingTime > 0) {
-        //   // Convert from nanoseconds to milliseconds for QDateTime
-        //   QDateTime pingTime = QDateTime::fromMSecsSinceEpoch(m_deviceValues.lastAthenaPingTime / 1000000);
-        //   pingTimeStr = pingTime.toString("yyyy-MM-dd hh:mm:ss");
-        // }
-        // if (idx < group.size())
-        //   group[idx++].valueLabel->setText(pingTimeStr);
-      }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating Device Status section:" << e.what() << std::endl;
+  // Update Device Status section
+  try {
+    if (m_deviceGroups.contains("Device Status")) {
+      int idx = 0;
+      auto &group = m_deviceGroups["Device Status"];
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatDeviceType(m_cache->deviceValues.deviceType));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->deviceValues.started));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatThermalStatus(m_cache->deviceValues.thermalStatus));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->deviceValues.fanSpeedPercentDesired));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->deviceValues.screenBrightnessPercent));
+
+      // Format last ping time
+      // QString pingTimeStr = "N/A";
+      // if (m_deviceValues.lastAthenaPingTime > 0) {
+      //   // Convert from nanoseconds to milliseconds for QDateTime
+      //   QDateTime pingTime = QDateTime::fromMSecsSinceEpoch(m_deviceValues.lastAthenaPingTime / 1000000);
+      //   pingTimeStr = pingTime.toString("yyyy-MM-dd hh:mm:ss");
+      // }
+      // if (idx < group.size())
+      //   group[idx++].valueLabel->setText(pingTimeStr);
     }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Device Status section:" << e.what() << std::endl;
+  }
 
-    // Update Power section
+  // Update Power section
+  try {
     if (m_deviceGroups.contains("Power")) {
       int idx = 0;
       auto &group = m_deviceGroups["Power"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 W").arg(m_deviceValues.powerDrawW, 0, 'f', 2));
+        group[idx++].valueLabel->setText(QString("%1 W").arg(m_cache->deviceValues.powerDrawW, 0, 'f', 2));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 W").arg(m_deviceValues.somPowerDrawW, 0, 'f', 2));
+        group[idx++].valueLabel->setText(QString("%1 W").arg(m_cache->deviceValues.somPowerDrawW, 0, 'f', 2));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_deviceValues.offroadPowerUsageUwh));
+        group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_cache->deviceValues.offroadPowerUsageUwh));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_deviceValues.carBatteryCapacityUwh));
+        group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_cache->deviceValues.carBatteryCapacityUwh));
     }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Power section:" << e.what() << std::endl;
+  }
 
-    // Update Network section
+  // Update Network section
+  try {
     if (m_deviceGroups.contains("Network")) {
       int idx = 0;
       auto &group = m_deviceGroups["Network"];
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatNetworkType(m_deviceValues.networkType));
+        group[idx++].valueLabel->setText(formatNetworkType(m_cache->deviceValues.networkType));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatNetworkStrength(m_deviceValues.networkStrength));
+        group[idx++].valueLabel->setText(formatNetworkStrength(m_cache->deviceValues.networkStrength));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBool(m_deviceValues.networkMetered));
+        group[idx++].valueLabel->setText(formatBool(m_cache->deviceValues.networkMetered));
 
       // If we have network, show the details
-      if (m_deviceValues.networkType != 0) { // 0 = None
+      if (m_cache->deviceValues.networkType != 0) { // 0 = None
         if (idx < group.size())
-          group[idx++].valueLabel->setText(m_deviceValues.networkInfo.technology);
+          group[idx++].valueLabel->setText(m_cache->deviceValues.networkInfo.technology);
         if (idx < group.size())
-          group[idx++].valueLabel->setText(m_deviceValues.networkInfo.operator_);
+          group[idx++].valueLabel->setText(m_cache->deviceValues.networkInfo.operator_);
         if (idx < group.size())
-          group[idx++].valueLabel->setText(m_deviceValues.networkInfo.band);
+          group[idx++].valueLabel->setText(m_cache->deviceValues.networkInfo.band);
         if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1").arg(m_deviceValues.networkInfo.channel));
+          group[idx++].valueLabel->setText(QString("%1").arg(m_cache->deviceValues.networkInfo.channel));
         if (idx < group.size())
-          group[idx++].valueLabel->setText(m_deviceValues.networkInfo.state);
+          group[idx++].valueLabel->setText(m_cache->deviceValues.networkInfo.state);
       } else {
         // Set N/A for all network details when there's no network
         for (int i = 0; i < 6; i++) {
@@ -2157,28 +2441,34 @@ void OtherDebugPanel::updateLabels() {
       }
 
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBytes(m_deviceValues.networkStats.wwanTx));
+        group[idx++].valueLabel->setText(formatBytes(m_cache->deviceValues.networkStats.wwanTx));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(formatBytes(m_deviceValues.networkStats.wwanRx));
+        group[idx++].valueLabel->setText(formatBytes(m_cache->deviceValues.networkStats.wwanRx));
     }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Network section:" << e.what() << std::endl;
+  }
 
-    // Update System Usage section
-    if (m_deviceGroups.contains("System Usage")) {
+  // Update System & Temperatures section
+  try {
+    if (m_deviceGroups.contains("System & Temperatures")) {
       int idx = 0;
-      auto &group = m_deviceGroups["System Usage"];
+      auto &group = m_deviceGroups["System & Temperatures"];
+
+      // System usage information
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.freeSpacePercent, 0, 'f', 1));
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->deviceValues.freeSpacePercent, 0, 'f', 1));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.memoryUsagePercent));
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->deviceValues.memoryUsagePercent));
       if (idx < group.size())
-        group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.gpuUsagePercent));
+        group[idx++].valueLabel->setText(QString("%1%").arg(m_cache->deviceValues.gpuUsagePercent));
 
       // Create CPU usage string showing all cores with line breaks every 4 cores
       QString cpuUsageStr = "";
-      for (int i = 0; i < m_deviceValues.cpuUsagePercent.size(); i++) {
-        cpuUsageStr += QString("C%1:%2% ").arg(i).arg(m_deviceValues.cpuUsagePercent[i]);
+      for (int i = 0; i < m_cache->deviceValues.cpuUsagePercent.size(); i++) {
+        cpuUsageStr += QString("C%1:%2% ").arg(i).arg(m_cache->deviceValues.cpuUsagePercent[i]);
         // Add a line break after every 4 cores (except at the end)
-        if ((i + 1) % 2 == 0 && i < m_deviceValues.cpuUsagePercent.size() - 1) {
+        if ((i + 1) % 4 == 0 && i < m_cache->deviceValues.cpuUsagePercent.size() - 1) {
           cpuUsageStr += "<br>";
         }
       }
@@ -2187,115 +2477,84 @@ void OtherDebugPanel::updateLabels() {
         cpuUsageLabel->setText(cpuUsageStr);
         cpuUsageLabel->setTextFormat(Qt::RichText); // Enable rich text formatting to support HTML tags
       }
-    }
 
-    // Update System & Temperatures section
-    try {
-      if (m_deviceGroups.contains("System & Temperatures")) {
-        int idx = 0;
-        auto &group = m_deviceGroups["System & Temperatures"];
-
-        // System usage information
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.freeSpacePercent, 0, 'f', 1));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.memoryUsagePercent));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1%").arg(m_deviceValues.gpuUsagePercent));
-
-        // Create CPU usage string showing all cores with line breaks every 4 cores
-        QString cpuUsageStr = "";
-        for (int i = 0; i < m_deviceValues.cpuUsagePercent.size(); i++) {
-          cpuUsageStr += QString("C%1:%2% ").arg(i).arg(m_deviceValues.cpuUsagePercent[i]);
-          // Add a line break after every 4 cores (except at the end)
-          if ((i + 1) % 4 == 0 && i < m_deviceValues.cpuUsagePercent.size() - 1) {
-            cpuUsageStr += "<br>";
-          }
+      // CPU temps - add line breaks for better display
+      QString cpuTempStr = "";
+      for (int i = 0; i < m_cache->deviceValues.cpuTempC.size(); i++) {
+        if (i > 0 && i % 4 == 0) { // Add a line break after every 4 values
+          cpuTempStr += "<br>";
+        } else if (i > 0) {
+          cpuTempStr += " ";
         }
-        if (idx < group.size()) {
-          QLabel *cpuUsageLabel = group[idx++].valueLabel;
-          cpuUsageLabel->setText(cpuUsageStr);
-          cpuUsageLabel->setTextFormat(Qt::RichText); // Enable rich text formatting to support HTML tags
-        }
-
-        // CPU temps - add line breaks for better display
-        QString cpuTempStr = "";
-        for (int i = 0; i < m_deviceValues.cpuTempC.size(); i++) {
-          if (i > 0 && i % 4 == 0) { // Add a line break after every 4 values
-            cpuTempStr += "<br>";
-          } else if (i > 0) {
-            cpuTempStr += " ";
-          }
-          cpuTempStr += QString("%1°C").arg(m_deviceValues.cpuTempC[i], 0, 'f', 1);
-        }
-
-        if (idx < group.size()) {
-          QLabel *cpuTempLabel = group[idx++].valueLabel;
-          cpuTempLabel->setText(cpuTempStr.isEmpty() ? "N/A" : cpuTempStr);
-          cpuTempLabel->setTextFormat(Qt::RichText); // Enable rich text formatting
-        }
-
-        // GPU temps
-        QString gpuTempStr = "";
-        for (int i = 0; i < m_deviceValues.gpuTempC.size(); i++) {
-          if (i > 0)
-            gpuTempStr += " ";
-          gpuTempStr += QString("%1°C").arg(m_deviceValues.gpuTempC[i], 0, 'f', 1);
-        }
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(gpuTempStr.isEmpty() ? "N/A" : gpuTempStr);
-
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°C").arg(m_deviceValues.memoryTempC, 0, 'f', 1));
-
-        // NVME temps
-        QString nvmeTempStr = "";
-        for (int i = 0; i < m_deviceValues.nvmeTempC.size(); i++) {
-          if (i > 0)
-            nvmeTempStr += " ";
-          nvmeTempStr += QString("%1°C").arg(m_deviceValues.nvmeTempC[i], 0, 'f', 1);
-        }
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(nvmeTempStr.isEmpty() ? "N/A" : nvmeTempStr);
-
-        // Modem temps
-        QString modemTempStr = "";
-        for (int i = 0; i < m_deviceValues.modemTempC.size(); i++) {
-          if (i > 0)
-            modemTempStr += " ";
-          modemTempStr += QString("%1°C").arg(m_deviceValues.modemTempC[i], 0, 'f', 1);
-        }
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(modemTempStr.isEmpty() ? "N/A" : modemTempStr);
-
-        // PMIC temps
-        QString pmicTempStr = "";
-        for (int i = 0; i < m_deviceValues.pmicTempC.size(); i++) {
-          if (i > 0)
-            pmicTempStr += " ";
-          pmicTempStr += QString("%1°C").arg(m_deviceValues.pmicTempC[i], 0, 'f', 1);
-        }
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(pmicTempStr.isEmpty() ? "N/A" : pmicTempStr);
-
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°C").arg(m_deviceValues.intakeTempC, 0, 'f', 1));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°C").arg(m_deviceValues.exhaustTempC, 0, 'f', 1));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°C").arg(m_deviceValues.caseTempC, 0, 'f', 1));
-        if (idx < group.size())
-          group[idx++].valueLabel->setText(QString("%1°C").arg(m_deviceValues.maxTempC, 0, 'f', 1));
+        cpuTempStr += QString("%1°C").arg(m_cache->deviceValues.cpuTempC[i], 0, 'f', 1);
       }
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating System & Temperatures section:" << e.what() << std::endl;
+
+      if (idx < group.size()) {
+        QLabel *cpuTempLabel = group[idx++].valueLabel;
+        cpuTempLabel->setText(cpuTempStr.isEmpty() ? "N/A" : cpuTempStr);
+        cpuTempLabel->setTextFormat(Qt::RichText); // Enable rich text formatting
+      }
+
+      // GPU temps
+      QString gpuTempStr = "";
+      for (int i = 0; i < m_cache->deviceValues.gpuTempC.size(); i++) {
+        if (i > 0)
+          gpuTempStr += " ";
+        gpuTempStr += QString("%1°C").arg(m_cache->deviceValues.gpuTempC[i], 0, 'f', 1);
+      }
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(gpuTempStr.isEmpty() ? "N/A" : gpuTempStr);
+
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.memoryTempC, 0, 'f', 1));
+
+      // NVME temps
+      QString nvmeTempStr = "";
+      for (int i = 0; i < m_cache->deviceValues.nvmeTempC.size(); i++) {
+        if (i > 0)
+          nvmeTempStr += " ";
+        nvmeTempStr += QString("%1°C").arg(m_cache->deviceValues.nvmeTempC[i], 0, 'f', 1);
+      }
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(nvmeTempStr.isEmpty() ? "N/A" : nvmeTempStr);
+
+      // Modem temps
+      QString modemTempStr = "";
+      for (int i = 0; i < m_cache->deviceValues.modemTempC.size(); i++) {
+        if (i > 0)
+          modemTempStr += " ";
+        modemTempStr += QString("%1°C").arg(m_cache->deviceValues.modemTempC[i], 0, 'f', 1);
+      }
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(modemTempStr.isEmpty() ? "N/A" : modemTempStr);
+
+      // PMIC temps
+      QString pmicTempStr = "";
+      for (int i = 0; i < m_cache->deviceValues.pmicTempC.size(); i++) {
+        if (i > 0)
+          pmicTempStr += " ";
+        pmicTempStr += QString("%1°C").arg(m_cache->deviceValues.pmicTempC[i], 0, 'f', 1);
+      }
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(pmicTempStr.isEmpty() ? "N/A" : pmicTempStr);
+
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.intakeTempC, 0, 'f', 1));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.exhaustTempC, 0, 'f', 1));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.caseTempC, 0, 'f', 1));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.maxTempC, 0, 'f', 1));
     }
   } catch (const std::exception &e) {
-    std::cout << "Error updating labels:" << e.what() << std::endl;
+    std::cerr << "Error updating System & Temperatures section:" << e.what() << std::endl;
   }
 }
 
-// Helper formatting functions
+
+
+// Helper formatting functions with implementations
 QString OtherDebugPanel::formatBool(bool value, const QString &trueText, const QString &falseText) { return value ? trueText : falseText; }
 
 QString OtherDebugPanel::formatSafetyModel(int model) {
@@ -2642,4 +2901,31 @@ void OtherDebugPanel::paintEvent(QPaintEvent *event) {
   p.drawPath(path);
 
   QWidget::paintEvent(event);
+}
+
+void OtherDebugPanel::updateFirmwareLabels() {
+  try {
+    if (m_firmwareGroups.contains("Car Info")) {
+      int idx = 0;
+      auto &group = m_firmwareGroups["Car Info"];
+
+      // Update car information
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(m_cache->paramValues.carFingerprint.isEmpty() ? "Not Available" : m_cache->paramValues.carFingerprint);
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(m_cache->paramValues.carVin.isEmpty() ? "Not Available" : m_cache->paramValues.carVin);
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(m_cache->paramValues.brand.isEmpty() ? "Unknown" : m_cache->paramValues.brand);
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatTransmissionType(m_cache->paramValues.transmissionType));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatBool(m_cache->paramValues.fuzzyFingerprint));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatFingerprintSource(m_cache->paramValues.fingerprintSource));
+      if (idx < group.size())
+        group[idx++].valueLabel->setText(formatNetworkLocation(m_cache->paramValues.networkLocation));
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error updating Car Info group:" << e.what() << std::endl;
+  }
 }

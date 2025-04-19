@@ -1,6 +1,7 @@
 // selfdrive/ui/bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc
 
 #include "selfdrive/ui/bluepilot/qt/onroad/widgets/hybrid_drive_gauge.h"
+#include "common/timing.h"
 #include <QColor>
 #include <QFont>
 #include <QPainter>
@@ -307,8 +308,27 @@ QColor HybridDriveGauge::getBorderAndBackgroundColor(float value, const QString 
   return color;
 }
 
+float HybridBatteryGauge::lastDisplayedAmps = 0.0f;
+double HybridBatteryGauge::lastAmpsUpdateTime = 0.0;
+
 void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual, float battSocMin, float battSocMax, float battVoltActual, float battVoltLow, float battVoltHigh,
                                    float battAmpsActual) {
+  // Get current time
+  double currentTime = millis_since_boot() / 1000.0;
+
+  // Determine which amp value to display (current or cached)
+  float displayAmps = battAmpsActual;
+
+  // Only update the displayed amp value if enough time has passed
+  // or if the value has changed significantly (e.g., more than 1.0A difference)
+  if (currentTime - lastAmpsUpdateTime < AMPS_UPDATE_INTERVAL && std::abs(battAmpsActual - lastDisplayedAmps) < 1.0f) {
+    displayAmps = lastDisplayedAmps;
+  } else {
+    // Time to update the displayed value
+    lastDisplayedAmps = battAmpsActual;
+    lastAmpsUpdateTime = currentTime;
+  }
+
   p.save();
 
   // Compute a scaling factor based on the battery gauge's height.
@@ -396,7 +416,8 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
 
   // Prepare voltage and amps text.
   QString voltText = QString::number(battVoltActual, 'f', 0) + "V";
-  QString ampText = QString("%1%2A").arg(battAmpsActual < 0 ? "+" : "-").arg(QString::number(qAbs(battAmpsActual), 'f', 1));
+  // Use displayAmps instead of battAmpsActual
+  QString ampText = QString("%1%2A").arg(displayAmps < 0 ? "+" : "-").arg(QString::number(qAbs(displayAmps), 'f', 1));
 
   // Use a scaled margin.
   QRect metricsRect = adjustedTextRect.adjusted(textMargin, 0, -textMargin, 0);
@@ -410,7 +431,7 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
 
   // Set font for amps text (using the same scaled size).
   p.setFont(textFont);
-  p.setPen(battAmpsActual < 0 ? QColor(0, 255, 0) : QColor(255, 255, 255));
+  p.setPen(displayAmps < 0 ? QColor(0, 255, 0) : QColor(255, 255, 255));
   p.drawText(metricsRect, Qt::AlignVCenter | Qt::AlignRight, ampText);
 
   p.restore();

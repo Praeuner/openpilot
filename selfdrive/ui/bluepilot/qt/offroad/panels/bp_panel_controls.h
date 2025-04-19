@@ -520,8 +520,13 @@ public:
     )");
 
     // Initialize param with default if not found
-    if (!ParamUtils::initializeParam(paramName) && !defaultValue.isEmpty()) {
-      // If no default was found and constructor default is available
+    // Get existing parameter value first
+    std::string existingValue = params.get(paramName);
+    if (!existingValue.empty()) {
+      // If parameter already exists with a value, don't modify it
+      std::cout << "Using existing parameter - " << paramName << ": " << existingValue << std::endl;
+    } else if (!defaultValue.isEmpty()) {
+      // Only set default if param doesn't exist yet
       params.put(paramName, defaultValue.toStdString());
       std::cout << "Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from constructor default)" << std::endl;
     }

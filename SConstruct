@@ -175,8 +175,8 @@ if arch != "Darwin":
   ldflags += ["-Wl,--as-needed", "-Wl,--no-undefined"]
 
 if not GetOption('stock_ui'):
-  cflags += ["-DSUNNYPILOT"]
-  cxxflags += ["-DSUNNYPILOT"]
+  cflags += ["-DSUNNYPILOT", "-DBLUEPILOT"]
+  cxxflags += ["-DSUNNYPILOT", "-DBLUEPILOT"]
 
 ccflags_option = GetOption('ccflags')
 if ccflags_option:

@@ -1,9 +1,9 @@
 import os
 import json
-
 Import('qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
 
-base_libs = [common, messaging, visionipc, transformations, 'm', 'OpenCL', 'ssl', 'crypto', 'pthread'] + qt_env["LIBS"]
+base_libs = [common, messaging, visionipc, transformations,
+             'm', 'OpenCL', 'ssl', 'crypto', 'pthread'] + qt_env["LIBS"]
 
 if arch == 'larch64':
   base_libs.append('EGL')
@@ -38,6 +38,8 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel
   "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
+  # BluePilot Data Collection Panel
+  "bluepilot/qt/offroad/panels/bp_data_collect.cc",
   # BluePilot Onroad Widgets
   "bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc",
   # "bluepilot/qt/onroad/steer_graph_panel.cc",
@@ -55,56 +57,22 @@ bp_qt_src = [
 qt_env['CXXFLAGS'] += ["-Wno-deprecated-declarations"]
 
 qt_util = qt_env.Library("qt_util", ["#selfdrive/ui/qt/api.cc", "#selfdrive/ui/qt/util.cc"] + sp_qt_util, LIBS=base_libs)
-widgets_src = [
-  "qt/widgets/input.cc",
-  "qt/widgets/wifi.cc",
-  "qt/prime_state.cc",
-  "qt/widgets/ssh_keys.cc",
-  "qt/widgets/toggle.cc",
-  "qt/widgets/controls.cc",
-  "qt/widgets/offroad_alerts.cc",
-  "qt/widgets/prime.cc",
-  "qt/widgets/keyboard.cc",
-  "qt/widgets/scrollview.cc",
-  "qt/widgets/cameraview.cc",
-  "#third_party/qrcode/QrCode.cc",
-  "qt/request_repeater.cc",
-  "qt/qt_window.cc",
-  "qt/network/networking.cc",
-  "qt/network/wifi_manager.cc",
-] + sp_widgets_src
+widgets_src = ["qt/widgets/input.cc", "qt/widgets/wifi.cc", "qt/prime_state.cc",
+               "qt/widgets/ssh_keys.cc", "qt/widgets/toggle.cc", "qt/widgets/controls.cc",
+               "qt/widgets/offroad_alerts.cc", "qt/widgets/prime.cc", "qt/widgets/keyboard.cc",
+               "qt/widgets/scrollview.cc", "qt/widgets/cameraview.cc", "#third_party/qrcode/QrCode.cc",
+               "qt/request_repeater.cc", "qt/qt_window.cc", "qt/network/networking.cc", "qt/network/wifi_manager.cc"] + sp_widgets_src
 
 widgets = qt_env.Library("qt_widgets", widgets_src, LIBS=base_libs)
 Export('widgets')
 qt_libs = [widgets, qt_util] + base_libs
 
-qt_src = (
-  [
-    "main.cc",
-    "ui.cc",
-    "qt/sidebar.cc",
-    "qt/body.cc",
-    "qt/window.cc",
-    "qt/home.cc",
-    "qt/offroad/settings.cc",
-    "qt/offroad/offroad_home.cc",
-    "qt/offroad/software_settings.cc",
-    "qt/offroad/developer_panel.cc",
-    "qt/offroad/onboarding.cc",
-    "qt/offroad/driverview.cc",
-    "qt/offroad/experimental_mode.cc",
-    "qt/offroad/firehose.cc",
-    "qt/onroad/onroad_home.cc",
-    "qt/onroad/annotated_camera.cc",
-    "qt/onroad/model.cc",
-    "qt/onroad/buttons.cc",
-    "qt/onroad/alerts.cc",
-    "qt/onroad/driver_monitoring.cc",
-    "qt/onroad/hud.cc",
-  ]
-  + sp_qt_src
-  + bp_qt_src
-)
+qt_src = ["main.cc", "ui.cc", "qt/sidebar.cc", "qt/body.cc",
+          "qt/window.cc", "qt/home.cc", "qt/offroad/settings.cc", "qt/offroad/offroad_home.cc",
+          "qt/offroad/software_settings.cc", "qt/offroad/developer_panel.cc", "qt/offroad/onboarding.cc",
+          "qt/offroad/driverview.cc", "qt/offroad/experimental_mode.cc", "qt/offroad/firehose.cc",
+          "qt/onroad/onroad_home.cc", "qt/onroad/annotated_camera.cc", "qt/onroad/model.cc",
+          "qt/onroad/buttons.cc", "qt/onroad/alerts.cc", "qt/onroad/driver_monitoring.cc", "qt/onroad/hud.cc"] + sp_qt_src + bp_qt_src
 
 # build translation files
 with open(File("translations/languages.json").abspath) as f:
@@ -145,7 +113,8 @@ if GetOption('extras'):
 
   # setup and factory resetter
   qt_env.Program("qt/setup/reset", ["qt/setup/reset.cc"], LIBS=qt_libs)
-  qt_env.Program("qt/setup/setup", ["qt/setup/setup.cc", asset_obj], LIBS=qt_libs + ['curl', 'common'])
+  qt_env.Program("qt/setup/setup", ["qt/setup/setup.cc", asset_obj],
+                 LIBS=qt_libs + ['curl', 'common'])
 
   # build updater UI
   qt_env.Program("qt/setup/updater", ["qt/setup/updater.cc", asset_obj], LIBS=qt_libs)
@@ -163,7 +132,8 @@ if GetOption('extras'):
       ("openpilot_internal", "nightly-dev"),
     ]
 
-    cont = senv.Command(f"installer/continue_openpilot.o", f"installer/continue_openpilot.sh", "ld -r -b binary -o $TARGET $SOURCE")
+    cont = senv.Command(f"installer/continue_openpilot.o", f"installer/continue_openpilot.sh",
+                        "ld -r -b binary -o $TARGET $SOURCE")
     for name, branch in installers:
       d = {'BRANCH': f"'\"{branch}\"'"}
       if "internal" in name:
@@ -172,7 +142,7 @@ if GetOption('extras'):
       obj = senv.Object(f"installer/installers/installer_{name}.o", ["installer/installer.cc"], CPPDEFINES=d)
       f = senv.Program(f"installer/installers/installer_{name}", [obj, cont], LIBS=qt_libs)
       # keep installers small
-      assert f[0].get_size() < 370 * 1e3
+      assert f[0].get_size() < 370*1e3
 
 # build watch3
 if arch in ['x86_64', 'aarch64', 'Darwin'] or GetOption('extras'):

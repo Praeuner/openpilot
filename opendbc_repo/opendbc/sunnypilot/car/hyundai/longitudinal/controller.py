@@ -16,10 +16,11 @@ LongCtrlState = structs.CarControl.Actuators.LongControlState
 
 @dataclass
 class LongitudinalState:
-  actual_accel: float = 0.0
   desired_accel: float = 0.0
+  actual_accel: float = 0.0
   jerk_upper: float = 0.0
   jerk_lower: float = 0.0
+  stopping: bool = False
 
 
 class LongitudinalController:
@@ -28,34 +29,37 @@ class LongitudinalController:
   def __init__(self, CP: structs.CarParams, CP_SP: structs.CarParamsSP) -> None:
     self.tuning = LongitudinalTuningController(CP, CP_SP)
     self.long_state = LongitudinalState()
+    self.long_control_state_last = LongCtrlState.off
 
-  def calculate_and_get_jerk(self, CC: structs.CarControl, CS: CarStateBase,
-                             long_control_state: LongCtrlState) -> None:
+  def get_stopping_state(self, long_control_state: LongCtrlState) -> None:
+    self.tuning.get_stopping_state(long_control_state, self.long_control_state_last)
+    self.long_state.stopping = self.tuning.stopping
+    self.long_control_state_last = long_control_state
+
+  def calculate_jerk(self, CC: structs.CarControl, CS: CarStateBase, long_control_state: LongCtrlState) -> None:
     """Calculate jerk based on tuning."""
-    self.tuning.make_jerk(CC, CS, long_control_state)
+    self.tuning.calculate_jerk(CC, CS, long_control_state)
+
+    if not CC.longActive:
+      self.long_state.jerk_upper = 0.0
+      self.long_state.jerk_lower = 0.0
+      return
 
     self.long_state.jerk_upper = self.tuning.jerk_upper
     self.long_state.jerk_lower = self.tuning.jerk_lower
 
-  def calculate_accel(self, CC: structs.CarControl) -> None:
-    """Calculate acceleration based on tuning and return the value."""
-    self.long_state.desired_accel = self.tuning.calculate_accel(CC)
-
   def calculate_a_value(self, CC: structs.CarControl) -> None:
     """Calculate aReqValue."""
-    self.long_state.actual_accel = self.tuning.calculate_a_value(CC)
+    self.tuning.calculate_a_value(CC)
 
-  def update(self, CC: structs.CarControl, CS: CarStateBase, frame: int) -> None:
+    self.long_state.desired_accel = self.tuning.desired_accel
+    self.long_state.actual_accel = self.tuning.actual_accel
+
+  def update(self, CC: structs.CarControl, CS: CarStateBase) -> None:
     """Inject Longitudinal Controls for HKG Vehicles."""
     actuators = CC.actuators
     long_control_state = actuators.longControlState
 
-    self.calculate_and_get_jerk(CC, CS, long_control_state)
-    self.calculate_accel(CC)
+    self.get_stopping_state(long_control_state)
+    self.calculate_jerk(CC, CS, long_control_state)
     self.calculate_a_value(CC)
-
-    if (CS.out.brakeLightsDEPRECATED and CS.out.standstill) and not CS.out.brakePressed:
-      # Force zero acceleration during standstill delay
-      self.long_state.actual_accel = 0.0
-      self.long_state.jerk_upper = 0.0
-      self.long_state.jerk_lower = 0.0

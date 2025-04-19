@@ -72,8 +72,8 @@
     },
     {
       "name": "FordPrefHybridDriveGaugeSize",
-      "default": true,
-      "type": "bool",
+      "default": 1,
+      "type": "int",
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": true,
       "enabled": true
@@ -210,6 +210,14 @@
     },
     {
       "name": "FordPrefHevBattDataAvailable",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "EnableBluepilotRlogUploader",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],

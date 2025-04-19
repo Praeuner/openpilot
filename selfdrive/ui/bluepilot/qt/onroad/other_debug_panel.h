@@ -12,6 +12,12 @@
 #include <QHeaderView>
 #include <QDateTime>
 #include <QVBoxLayout>
+#include <QThread>
+#include <QMutex>
+#include <QWaitCondition>
+#include <QTimer>
+#include <atomic>
+#include <map>
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/ui.h"
@@ -20,26 +26,69 @@
 #include "selfdrive/ui/ui.h"
 #endif
 
+namespace UpdateRates {
+static constexpr uint64_t MIN_UPDATE_INTERVAL_MS = 33;     // 30 Hz max update rate
+static constexpr uint64_t DYNAMICS_UPDATE_RATE_MS = 50;    // 20 Hz
+static constexpr uint64_t STEERING_UPDATE_RATE_MS = 50;    // 20 Hz
+static constexpr uint64_t SYSTEMS_UPDATE_RATE_MS = 200;    // 5 Hz
+static constexpr uint64_t DEVICE_UPDATE_RATE_MS = 500;     // 2 Hz
+static constexpr uint64_t FIRMWARE_UPDATE_RATE_MS = 30000; // Every 30 seconds
+} // namespace UpdateRates
+
+// Forward declarations
+struct OtherDataCache;
+
+// Worker class to process data off the UI thread
+class OtherDataWorker : public QObject {
+  Q_OBJECT
+public:
+  OtherDataWorker(QObject *parent = nullptr);
+  ~OtherDataWorker();
+
+public slots:
+  void processData(const UIState *s);
+
+signals:
+  void dataReady(const OtherDataCache &cache);
+
+private:
+  QMutex m_mutex;
+  QWaitCondition m_condition;
+  std::atomic<bool> m_abort;
+  OtherDataCache *m_lastCache;
+
+  // Helper methods to process different data sections
+  void processCarState(const UIState *s, OtherDataCache *cache);
+  void processRadarState(const UIState *s, OtherDataCache *cache);
+  void processCarOutput(const UIState *s, OtherDataCache *cache);
+  void processCarParams(const UIState *s, OtherDataCache *cache);
+  void processDeviceState(const UIState *s, OtherDataCache *cache);
+};
+
 class OtherDebugPanel : public QWidget {
   Q_OBJECT
 
 public:
   OtherDebugPanel(QWidget *parent = nullptr);
+  ~OtherDebugPanel();
   void updateState(const UIState &s);
 
 protected:
   void paintEvent(QPaintEvent *event) override;
 
-private:
-  uint64_t m_lastFirmwareUpdateTime = 0;
-  static constexpr uint64_t FIRMWARE_UPDATE_INTERVAL_MS = 30000; // 30 seconds
-  enum class LateralTuningType { PID, TORQUE };
+signals:
+  void processStateUpdate(const UIState *s);
 
+private slots:
+  void updateFromWorker(const OtherDataCache &cache);
+  void updateUI();
+  void updateVisibleTab();
+
+private:
+  // Setup functions
   void setupMaterialStyle();
   void setupLabelStyles();
   void setupTableStyle();
-
-  // Functions to setup UI components
   void setupTabs();
   void setupMainTab();
   void setupRadarTab();
@@ -47,10 +96,14 @@ private:
   void setupFirmwareTab();
   void setupDeviceTab();
   QFrame *createLabelFrame(QGridLayout *layout, QString title);
-  void updateLabels();
 
-  QString nameStyle;
-  QString valueStyle;
+  // UI update methods by section
+  void updateMainLabels();
+  void updateRadarLabels();
+  void updateTuningLabels();
+  void updateFirmwareLabels();
+  void updateFirmwareTable();
+  void updateDeviceLabels();
 
   // Helper functions for formatting
   QString formatBool(bool value, const QString &trueText = "Yes", const QString &falseText = "No");
@@ -66,7 +119,83 @@ private:
   QString formatThermalStatus(int status);
   QString formatBytes(qint64 bytes);
 
-  // Data structures to hold vehicle information
+  // Update timestamp tracking
+  struct UpdateTimestamps {
+    uint64_t dynamicsLastUpdate = 0;
+    uint64_t steeringLastUpdate = 0;
+    uint64_t systemsLastUpdate = 0;
+    uint64_t deviceLastUpdate = 0;
+    uint64_t firmwareLastUpdate = 0;
+    uint64_t lastPanelUpdate = 0;
+  } m_lastUpdates;
+
+  // Style properties
+  QString nameStyle;
+  QString valueStyle;
+
+  // Thread management
+  QThread m_workerThread;
+  OtherDataWorker *m_worker;
+  std::atomic<bool> m_dataProcessing;
+  QTimer m_updateTimer;
+  QTimer m_tabChangeTimer;
+
+  // Cached drawing components
+  QLinearGradient m_backgroundGradient;
+  bool m_gradientInitialized = false;
+
+  // UI components
+  QTabWidget *m_tabWidget;
+  QWidget *m_mainTab;
+  QWidget *m_radarTab;
+  QWidget *m_tuningTab;
+  QWidget *m_firmwareTab;
+  QWidget *m_deviceTab;
+
+  // Scroll areas
+  QScrollArea *m_mainScrollArea;
+  QScrollArea *m_radarScrollArea;
+  QScrollArea *m_tuningScrollArea;
+  QScrollArea *m_firmwareScrollArea;
+  QScrollArea *m_deviceScrollArea;
+
+  // Scroll content widgets
+  QWidget *m_mainScrollContent;
+  QWidget *m_radarScrollContent;
+  QWidget *m_tuningScrollContent;
+  QWidget *m_firmwareScrollContent;
+  QWidget *m_deviceScrollContent;
+
+  // Layouts
+  QGridLayout *m_mainLayout;
+  QGridLayout *m_radarLayout;
+  QGridLayout *m_tuningLayout;
+  QGridLayout *m_deviceLayout;
+  QVBoxLayout *m_firmwareLayout;
+
+  // Special widgets for firmware tab
+  QLabel *m_vinLabel;
+  QTableWidget *m_firmwareTable;
+
+  // Organized by groups
+  struct LabelPair {
+    QLabel *nameLabel;
+    QLabel *valueLabel;
+  };
+
+  // Label groups for each tab
+  QMap<QString, QList<LabelPair>> m_groups;         // Main tab
+  QMap<QString, QList<LabelPair>> m_radarGroups;    // Radar tab
+  QMap<QString, QList<LabelPair>> m_tuningGroups;   // Tuning tab
+  QMap<QString, QList<LabelPair>> m_firmwareGroups; // Firmware tab
+  QMap<QString, QList<LabelPair>> m_deviceGroups;   // Device tab
+
+  OtherDataCache *m_cache;
+};
+
+// Data cache structure to store all the debug data
+struct OtherDataCache {
+  // All the existing data structures from the OtherDebugPanel
   struct CarStateValues {
     // Basic vehicle dynamics
     float vEgo = 0.0f;       // Vehicle speed in m/s
@@ -123,7 +252,7 @@ private:
     // Battery/fuel
     float fuelGauge = 0.0f; // Fuel gauge level (0-1)
     bool charging = false;  // EV charging
-  };
+  } carValues;
 
   struct RadarValues {
     struct RadarError {
@@ -153,7 +282,7 @@ private:
 
     LeadData leadOne;
     LeadData leadTwo;
-  };
+  } radarValues;
 
   struct OutputValues {
     float accel = 0.0f;            // Acceleration command
@@ -165,9 +294,11 @@ private:
     float curvature = 0.0f;        // Curvature command
     float torqueOutputCan = 0.0f;  // Torque sent to CAN
     int longControlState = 0;      // Longitudinal control state
-  };
+  } outputValues;
 
   struct CarParameterValues {
+    enum class LateralTuningType { PID, TORQUE };
+
     // Car parameters
     float mass = 0.0f;                      // Vehicle mass
     float wheelbase = 0.0f;                 // Wheelbase
@@ -229,7 +360,7 @@ private:
     };
 
     QList<CarFirmware> carFw;
-  };
+  } paramValues;
 
   struct DeviceStateValues {
     // General
@@ -284,58 +415,20 @@ private:
       int64_t wwanTx = 0;
       int64_t wwanRx = 0;
     } networkStats;
-  };
+  } deviceValues;
 
-  // Tab widgets
-  QTabWidget *m_tabWidget;
-  QWidget *m_mainTab;
-  QWidget *m_radarTab;
-  QWidget *m_tuningTab;
-  QWidget *m_firmwareTab;
-  QWidget *m_deviceTab;
+  uint64_t lastUpdateTime = 0;
+  bool valid = false;
 
-  // Scroll areas
-  QScrollArea *m_mainScrollArea;
-  QScrollArea *m_radarScrollArea;
-  QScrollArea *m_tuningScrollArea;
-  QScrollArea *m_firmwareScrollArea;
-  QScrollArea *m_deviceScrollArea;
-
-  // Scroll content widgets
-  QWidget *m_mainScrollContent;
-  QWidget *m_radarScrollContent;
-  QWidget *m_tuningScrollContent;
-  QWidget *m_firmwareScrollContent;
-  QWidget *m_deviceScrollContent;
-
-  // Layouts
-  QGridLayout *m_mainLayout;
-  QGridLayout *m_radarLayout;
-  QGridLayout *m_tuningLayout;
-  QGridLayout *m_deviceLayout;
-  QVBoxLayout *m_firmwareLayout;
-
-  // Special widgets for firmware tab
-  QLabel *m_vinLabel;
-  QTableWidget *m_firmwareTable;
-
-  // Stored values for each tab
-  CarStateValues m_carValues;
-  RadarValues m_radarValues;
-  OutputValues m_outputValues;
-  CarParameterValues m_paramValues;
-  DeviceStateValues m_deviceValues;
-
-  // Organized by groups
-  struct LabelPair {
-    QLabel *nameLabel;
-    QLabel *valueLabel;
-  };
-
-  // Label groups for each tab
-  QMap<QString, QList<LabelPair>> m_groups;         // Main tab
-  QMap<QString, QList<LabelPair>> m_radarGroups;    // Radar tab
-  QMap<QString, QList<LabelPair>> m_tuningGroups;   // Tuning tab
-  QMap<QString, QList<LabelPair>> m_firmwareGroups; // Firmware tab
-  QMap<QString, QList<LabelPair>> m_deviceGroups;   // Device tab
+  // Track if sections have been updated
+  struct UpdateFlags {
+    bool carState = false;
+    bool radarState = false;
+    bool carOutput = false;
+    bool carParams = false;
+    bool deviceState = false;
+  } updated;
 };
+
+// Register types for cross-thread use
+Q_DECLARE_METATYPE(OtherDataCache)

@@ -243,25 +243,43 @@ def log(level: LogLevel, message: str, *args, console_output: bool = False) -> N
     if not _running:
       initialize_logger()
 
-    # Add message to queue (modified to handle exceptions safely)
-    try:
-      _log_queue.put((level, message, console_output, args))
-    except Exception as e:
-      print(f"Error adding message to queue: {e}")
-
     # Always print to console if console_output is True
     if console_output:
       print(message)
+
+    # For error and critical messages, process immediately
+    if level in [LogLevel.ERROR, LogLevel.CRITICAL]:
+      if _logger:
+        if level == LogLevel.ERROR:
+          _logger.error(message, *args)
+        else:
+          _logger.critical(message, *args)
+
+        # Force flush the handlers
+        for handler in _logger.handlers:
+          handler.flush()
+
+      # Also queue it for consistency
+      try:
+        _log_queue.put((level, message, console_output, args))
+      except Exception as e:
+        print(f"Error adding message to queue: {e}")
+    else:
+      # Queue other messages as before
+      try:
+        _log_queue.put((level, message, console_output, args))
+      except Exception as e:
+        print(f"Error adding message to queue: {e}")
 
     # Try to check debug_enabled flag safely
     debug_enabled = False
     try:
       params = Params()
       try:
-        debug_enabled = params.checkKey("FordPrefEnableDebugLogs") and params.getBool("FordPrefEnableDebugLogs", default=False)
-      except:
+        debug_enabled = params.check_key("FordPrefEnableDebugLogs") and params.get_bool("FordPrefEnableDebugLogs", default=False)
+      except (KeyError, ValueError, TypeError):
         debug_enabled = False
-    except:
+    except (KeyError, ValueError, TypeError):
       pass
 
     # If debug mode is enabled via params, also log to cloudlog

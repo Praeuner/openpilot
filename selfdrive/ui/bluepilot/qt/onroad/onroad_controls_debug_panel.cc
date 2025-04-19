@@ -9,6 +9,7 @@
 #include <QStyleOption>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QDateTime>
 #include <iostream>
 
 ControlNavButton::ControlNavButton(const QIcon &icon, QWidget *parent) : QPushButton(parent) {
@@ -57,7 +58,10 @@ ControlNavButton::ControlNavButton(const QIcon &icon, QWidget *parent) : QPushBu
 
 void ControlNavButton::setSelected(bool selected) { setChecked(selected); }
 
-OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(parent) {
+OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(parent), m_updatePending(false) {
+  // Register pointer type for cross-thread signal/slot usage
+  qRegisterMetaType<const UIState *>("const UIState*");
+
   // Initialize panel dimensions
   m_panelWidth = parent->width() * PANEL_RATIO;
   setFixedWidth(m_panelWidth);
@@ -128,10 +132,12 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
     }
   });
 
-  // Timer for updates
-  m_timer = new QTimer(this);
-  connect(m_timer, &QTimer::timeout, this, QOverload<>::of(&OnroadControlsDebugPanel::update));
-  m_timer->start(50);
+  // Initialize update timer
+  m_updateTimer = new QTimer(this);
+  m_updateTimer->setInterval(UPDATE_INTERVAL_MS);
+  m_updateTimer->setSingleShot(false);
+  connect(m_updateTimer, &QTimer::timeout, this, &OnroadControlsDebugPanel::updatePanels);
+  m_updateTimer->start();
 
   // Gesture recognition
   grabGesture(Qt::SwipeGesture);
@@ -140,10 +146,25 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   // Ensure we're on top
   raise();
 
+  // Initialize gradients
+  m_mainGradient = QLinearGradient(0, 0, 0, height());
+  m_mainGradient.setColorAt(0, QColor(30, 30, 30, 230));
+  m_mainGradient.setColorAt(1, QColor(20, 20, 20, 230));
+  m_mainGradient.setCoordinateMode(QGradient::ObjectBoundingMode);
+
+  m_navGradient = QLinearGradient(0, 0, 0, height());
+  m_navGradient.setColorAt(0, QColor(30, 30, 30, 230));
+  m_navGradient.setColorAt(1, QColor(20, 20, 20, 230));
+  m_navGradient.setCoordinateMode(QGradient::ObjectBoundingMode);
+
+  m_gradientsInitialized = true;
+
   // Initialize as hidden but don't actually toggle animation
   hide();
   m_visible = false;
 }
+
+OnroadControlsDebugPanel::~OnroadControlsDebugPanel() { delete m_updateTimer; }
 
 void OnroadControlsDebugPanel::setupCloseButton() {
   m_closeButton = new QPushButton("X", this);
@@ -247,11 +268,37 @@ void OnroadControlsDebugPanel::tabSelected(int index) {
   update();
 }
 
-void OnroadControlsDebugPanel::updateState(const UIState &s) {
-  // Update all panels with the current state
-  m_lateralPanel->updateState(s);
-  m_longPanel->updateState(s);
-  m_otherPanel->updateState(s);
+void OnroadControlsDebugPanel::updateState(const UIState &s) { scheduleUpdate(s); }
+
+void OnroadControlsDebugPanel::scheduleUpdate(const UIState &s) {
+  // Store a pointer to the state for processing in the timer callback
+  QMutexLocker locker(&m_updateMutex);
+  m_lastState = &s;
+  m_updatePending.store(true);
+}
+
+void OnroadControlsDebugPanel::updatePanels() {
+  // Process the pending update if there is one
+  if (m_updatePending.load() && m_lastState != nullptr) {
+    QMutexLocker locker(&m_updateMutex);
+
+    // Only update the currently visible panel to save resources
+    if (m_visible) {
+      switch (m_currentTabIndex) {
+      case 0:
+        m_lateralPanel->updateState(*m_lastState);
+        break;
+      case 1:
+        m_longPanel->updateState(*m_lastState);
+        break;
+      case 2:
+        m_otherPanel->updateState(*m_lastState);
+        break;
+      }
+    }
+
+    m_updatePending.store(false);
+  }
 }
 
 bool OnroadControlsDebugPanel::event(QEvent *event) {
@@ -374,20 +421,15 @@ void OnroadControlsDebugPanel::drawBackground(QPainter &p) {
   QPainterPath mainPath;
   mainPath.addRoundedRect(rect(), 15, 15);
 
-  QLinearGradient mainGradient(0, 0, 0, height());
-  mainGradient.setColorAt(0, QColor(30, 30, 30, 230));
-  mainGradient.setColorAt(1, QColor(20, 20, 20, 230));
-  p.fillPath(mainPath, mainGradient);
+  // Use cached gradients
+  p.fillPath(mainPath, m_mainGradient);
 
   // Draw nav panel background with same style
   QRect navRect(width() - 160, 0, 160, height());
   QPainterPath navPath;
   navPath.addRoundedRect(navRect, 15, 15);
 
-  QLinearGradient navGradient(navRect.x(), 0, navRect.x(), height());
-  navGradient.setColorAt(0, QColor(30, 30, 30, 230));
-  navGradient.setColorAt(1, QColor(20, 20, 20, 230));
-  p.fillPath(navPath, navGradient);
+  p.fillPath(navPath, m_navGradient);
 
   // Draw subtle borders
   p.setPen(QPen(QColor(60, 60, 60, 150), 1));

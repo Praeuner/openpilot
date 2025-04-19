@@ -130,17 +130,17 @@ def create_acc_control(packer, CAN, enabled, accel_last, accel, stopping, gas_ov
   if not enabled or gas_override:
     a_val, a_raw = 0, 0
   else:
-    a_raw = accel
-    a_val = np.clip(accel, accel_last - jn, accel_last + jn)
+    a_raw = accel  # noqa: F841
+    a_val = np.clip(accel, accel_last - jn, accel_last + jn)  # noqa: F841
 
   values = {
     "ACCMode": 0 if not enabled else (2 if gas_override else 1),
     "MainMode_ACC": 1 if main_cruise_enabled else 0,
     "StopReq": 1 if stopping else 0,
-    "aReqValue": long_state.actual_accel if enabled else a_val,
-    "aReqRaw": a_raw,
+    "aReqValue": long_state.actual_accel,
+    "aReqRaw": long_state.actual_accel,
     "VSetDis": set_speed,
-    "JerkLowerLimit": long_state.jerk_lower if enabled else 1,
+    "JerkLowerLimit": long_state.jerk_lower,
     "JerkUpperLimit": long_state.jerk_upper,
 
     "ACC_ObjDist": 1,

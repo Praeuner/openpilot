@@ -14,14 +14,14 @@ class OnroadWindow : public QWidget {
   Q_OBJECT
 
 public:
-  OnroadWindow(QWidget* parent = 0);
+  OnroadWindow(QWidget *parent = 0);
 
 protected:
   void paintEvent(QPaintEvent *event);
   OnroadAlerts *alerts;
   AnnotatedCameraWidget *nvg;
   QColor bg = bg_colors[STATUS_DISENGAGED];
-  QHBoxLayout* split;
+  QHBoxLayout *split;
 
 protected slots:
   virtual void offroadTransition(bool offroad);

@@ -12,7 +12,10 @@
 
 class ModelRenderer {
 public:
-  ModelRenderer() {}
+  ModelRenderer() {
+    radar_icon.load("../assets/img_radar.png");
+    vision_icon.load("../assets/img_vision.png");
+  }
   void setTransform(const Eigen::Matrix3f &transform) { car_space_transform = transform; }
   void draw(QPainter &painter, const QRect &surface_rect);
 
@@ -46,9 +49,32 @@ private:
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
 
+  int lead_active_counter[2] = {0, 0};
+  bool virtual_lead_active[2] = {false, false};
+  float distance_confidence_threshold = 5.0f; // Minimum distance for high confidence
+  bool stable_lead[2] = {false, false};
+
   QPointF prev_lead_positions[2] = {QPointF(0, 0), QPointF(0, 0)}; // Track previous lead positions
   float smoothed_yRel[2] = {0.0f, 0.0f};                           // Smoothed lateral positions for two leads
   bool prev_lead_status[2] = {false, false};                       // Previous status of each lead
+
+  // Cached icons for leads
+  QPixmap radar_icon;
+  QPixmap vision_icon;
+
+  struct StopState {
+    bool active = false;
+    int stability_counter = 0;
+    float stopping_distance = 0.0f;
+    QPointF last_valid_position;
+    float fade_alpha = 0.0f;
+  };
+  StopState stop_state;
+
+  // Stop sign overlay tracking
+  int stop_frame_count = 0;
+  bool prev_stop_sign_visible = false;
+  float stop_sign_opacity = 0.0f;
 
   // Blindspot detection
   bool left_blindspot = false;
@@ -62,5 +88,6 @@ private:
   void updateBlindspotAnimation();
   void drawBlindspotIndicators(QPainter &painter);
 
-  void drawStopSignOverlay(QPainter &painter, const QPointF &point, int size);
+  void drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float stopping_distance, float v_ego, float fade_alpha);
+
 };

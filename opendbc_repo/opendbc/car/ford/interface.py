@@ -43,6 +43,7 @@ class CarInterface(CarInterfaceBase):
     ret.steerControlType = structs.CarParams.SteerControlType.angle
     ret.steerActuatorDelay = 0.05
     ret.steerLimitTimer = 1.0
+    ret.steerAtStandstill = True
 
     ret.longitudinalTuning.kiBP = [0.]
     ret.longitudinalTuning.kpV = [0.]
@@ -74,8 +75,8 @@ class CarInterface(CarInterfaceBase):
     if ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
 
-    for fw in car_fw:
-      debug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}', True)
+    # for fw in car_fw:
+    #  debug(f'ECU: {fw.ecu}, FW Version: {fw.fwVersion}', True)
 
       # TRON (SecOC) platforms are not supported
       # LateralMotionControl2, ACCDATA are 16 bytes on these platforms

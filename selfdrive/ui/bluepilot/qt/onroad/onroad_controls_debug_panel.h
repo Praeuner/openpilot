@@ -14,6 +14,8 @@
 #include <vector>
 #include <deque>
 #include <utility>
+#include <atomic>
+#include <QMutex>
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/ui.h"
@@ -43,6 +45,7 @@ class OnroadControlsDebugPanel : public QWidget {
 
 public:
   OnroadControlsDebugPanel(QWidget *parent = nullptr);
+  ~OnroadControlsDebugPanel();
   void updateState(const UIState &s);
   bool gestureEvent(QGestureEvent *event);
   void toggleVisibility();
@@ -54,13 +57,17 @@ protected:
 
 private slots:
   void tabSelected(int index);
+  void updatePanels();
 
 private:
   int m_xPosition;
   int m_panelWidth;
   bool m_visible = false;
   QPropertyAnimation *m_animation;
-  QTimer *m_timer;
+  QTimer *m_updateTimer;
+  QMutex m_updateMutex;
+  std::atomic<bool> m_updatePending;
+  const UIState *m_lastState = nullptr; // Store pointer instead of copy
 
   // UI Components
   QVBoxLayout *m_navLayout;
@@ -74,11 +81,18 @@ private:
   // Constants
   static constexpr float PANEL_RATIO = 0.9f; // 90% of screen width for right side panel
   static constexpr int BORDER_RADIUS = 0;
+  static constexpr int UPDATE_INTERVAL_MS = 50; // 20 Hz update rate
 
   void setupTabs();
   void drawBackground(QPainter &p);
-  void updatePosition(); // New method to handle positioning
+  void updatePosition(); // Method to handle positioning
+  void scheduleUpdate(const UIState &s);
 
   QPushButton *m_closeButton;
   void setupCloseButton();
+
+  // Cached drawing components
+  QLinearGradient m_mainGradient;
+  QLinearGradient m_navGradient;
+  bool m_gradientsInitialized = false;
 };

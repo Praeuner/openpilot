@@ -48,8 +48,8 @@ VehiclePanel::VehiclePanel(QWidget *parent) : QFrame(parent) {
     "HyundaiLongTune",
     tr("HKG Custom Longitudinal Tuning"),
     tr("Select a tuning mode. 'Off' means no custom tuning is applied. "
-       "'Long Tune' is a dynamic acceleration/brake tune individualized to your car. "
-       "'Tune + Smoother Braking' is the dynamic tuning with even smoother braking."),
+       "'Long Tune' is a dynamic acceleration/brake tune to smoothen out braking. "
+       "'Tune + Smoother Braking' is the tuning, but with even smoother braking thanks to dynamic jerk."),
        "../assets/offroad/icon_shell.png",
     tuning_buttons
   );
@@ -80,24 +80,34 @@ void VehiclePanel::updatePanel(bool _offroad) {
   offroad = _offroad;
 }
 
+QString VehiclePanel::toggleDisableMsg(bool openpilotLong) const {
+  if (!offroad) {
+    return tr("Enable 'Always Offroad' in device panel, or turn vehicle off to activate this toggle");
+  }
+  if (!openpilotLong) {
+    return tr("Enable sunnypilot longitudinal control first.");
+  }
+  return QString();
+}
+
 void VehiclePanel::updateCarToggles() {
   bool openpilotLong = params.getBool("ExperimentalLongitudinalEnabled");
   QString brand = platformSelector->getPlatformBundle("brand").toString();
 
   if (brand == "hyundai") {
     hkgtuningToggle->setVisible(true);
-    // Set enabled state/description based on openpilotLong
-    hkgtuningToggle->setEnabled(openpilotLong);
-    hkgtuningToggle->setDescription(openpilotLong ?
-      hkgtuningToggle->property("originalDesc").toString() :
-      tr("Enable openpilot longitudinal control first."));
-    // If not enabled, show disabled description.
-    if (!openpilotLong) {
+    QString msg = toggleDisableMsg(openpilotLong);
+    if (!msg.isEmpty()) {
+      hkgtuningToggle->setEnabled(false);
+      hkgtuningToggle->setDescription(msg);
       hkgtuningToggle->showDescription();
       return;
     }
+    hkgtuningToggle->setEnabled(true);
+    hkgtuningToggle->setDescription(hkgtuningToggle->property("originalDesc").toString());
+
     int tuningOption = QString::fromStdString(params.get("HyundaiLongTune")).toInt();
-    hkg_state = tuningOption;  // Off=0, LongTune=1, EvenSmootherBraking=2
+    hkg_state = tuningOption;
     hkgtuningToggle->setCheckedButton(hkg_state);
     hkgtuningToggle->showDescription();
   } else {

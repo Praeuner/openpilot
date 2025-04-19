@@ -83,7 +83,8 @@
     "variant": "cpp",
     "vector": "cpp",
     "algorithm": "cpp",
-    "regex": "cpp"
+    "regex": "cpp",
+    "memory": "cpp"
   },
   "C_Cpp.errorSquiggles": "disabled"
 }

@@ -10,7 +10,7 @@ For example, in our jerk calculations throughout this tune, you will see how max
 In the tuning you will see a set of equations, the first being jerk, **but what exactly is jerk?**
 Jerk is the rate of change of acceleration (how quickly acceleration changes). It's calculated by finding the 
 difference between the new filtered acceleration and the previous one. This difference is divided by the
-time step (3 × 0.05 seconds = 0.15 seconds). The result tells you how quickly the acceleration is changing in m/s³:
+time step (2 × 0.01 seconds = 0.02 seconds). The result tells you how quickly the acceleration is changing in m/s³:
 
     planned_accel = CC.actuators.accel
     current_accel = CS.out.aEgo
@@ -52,7 +52,7 @@ This equation above is set by ISO 15622, and dictates that jerk lower limit can 
 
     self.car_config.jerk_limits[1] 
 
-Jerk_limits[1] represents a jerk value of 3.3 m/s^3, which is the maximum analyzed lower jerk rate seen on stock SCC CAN.
+Jerk_limits[1] represents a jerk value of 5.0 m/s^3, which is the maximum analyzed lower jerk rate seen on stock SCC CAN.
 Between 5 m/s and 20 m/s jerk is capped using the calculation:
 
     decel_jerk_max = 5.83 - (velocity/6)
@@ -86,7 +86,7 @@ As shown above, lower jerk minimum of 0.53 is used for our lower_jerk minimum bo
 
 Our minimum upper band jerk is conditional as well and is denoted below:
 
-    min_upper_jerk = self.car_config.jerk_limits[0] if (velocity > 3.611) else 0.60
+    min_upper_jerk = self.car_config.jerk_limits[0] if (velocity > 3.611) else 0.725
 
 This means that for speeds under 3.611 m/s (8.077 mph/ 13 kph) we have a minimum jerk of 0.60. This allows for smooth
 takeoffs while not causing lag. For all other speeds, we use our normal min jerk_limit, which is 0.53.
