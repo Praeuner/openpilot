@@ -6,6 +6,7 @@
 #include <cmath>
 #include <iostream>
 
+#include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
 
 // Window that shows camera view and variety of info drawn on top
@@ -287,7 +288,7 @@ void AnnotatedCameraWidget::paintGL() {
   double dt = cur_draw_t - prev_draw_t;
   double fps = fps_filter.update(1. / dt * 1000);
   if (fps < 15) {
-    std::cout << "slow frame rate: " << fps << std::endl;
+    LOGW("slow frame rate: %.2f fps", fps);
   }
   prev_draw_t = cur_draw_t;
 
