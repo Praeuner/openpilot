@@ -23,6 +23,7 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
     {"regulatoryBtn", tr("Regulatory"), ""},
     {"translateBtn", tr("Language"), ""},
     {"resetParams", tr("Reset Settings"), ""},
+    {"restartUI", tr("Restart UI"), ""},
   };
 
   int row = 0, col = 0;
@@ -74,6 +75,11 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
   });
 
   connect(buttons["resetParams"], &PushButtonSP::clicked, this, &DevicePanelSP::resetSettings);
+
+  connect(buttons["restartUI"], &PushButtonSP::clicked, [=]() {
+    qApp->exit(18);
+    watchdog_kick(0);
+  });
 
   // Max Time Offroad
   maxTimeOffroad = new MaxTimeOffroad();
