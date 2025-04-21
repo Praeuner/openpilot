@@ -125,7 +125,7 @@ class CarController(CarControllerBase):
     self.path_angle_k_i = 0.05
     self.path_angle_pid_controller = PIDController(k_p=(self.path_angle_k_p_bp, self.path_angle_k_p_v), k_i=self.path_angle_k_i, rate=20)
     self.wheel_angle_lookup_time = 0.1
-    self.pswa_blend_ratio_low = 0.8
+    self.pswa_blend_ratio_low = 0.9
     self.pswa_blend_ratio_high = 0.3
     self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
 
