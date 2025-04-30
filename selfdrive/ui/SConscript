@@ -101,6 +101,12 @@ asset_obj = qt_env.Object("assets", assets)
 
 # build main UI
 qt_env.Program("ui", qt_src + [asset_obj], LIBS=qt_libs)
+
+if arch == 'larch64':
+  # bp_spinner and bp_updater
+  qt_env.Program("qt/bp_spinner_larch64", ["qt/bp_spinner.cc", "bluepilot/qt/offroad/panels/bp_updater_panel.cc"], LIBS=qt_libs)
+  # qt_env.Program("_bp_updater", ["bluepilot/qt/offroad/panels/bp_updater_panel.cc"], LIBS=qt_libs)
+
 if GetOption('extras'):
   qt_src.remove("main.cc")  # replaced by test_runner
   qt_env.Program('tests/test_translations', [asset_obj, 'tests/test_runner.cc', 'tests/test_translations.cc'] + qt_src, LIBS=qt_libs)

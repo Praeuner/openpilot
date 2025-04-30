@@ -76,6 +76,7 @@ AddOption('--stock-ui',
           default=False,
           help='Build stock openpilot UI instead of sunnypilot UI')
 
+
 ## Architecture name breakdown (arch)
 ## - larch64: linux tici aarch64
 ## - aarch64: linux pc aarch64
@@ -250,10 +251,73 @@ Clean(["."], cache_dir)
 
 node_interval = 5
 node_count = 0
+
+
+def get_build_status(node):
+  if not node.has_builder():
+    return "Processing", node.path
+
+  builder = node.builder
+
+  # Check suffix/prefix for clues
+  if hasattr(builder, 'suffix'):
+    suffix = str(builder.suffix)
+    if suffix.endswith('OBJSUFFIX'):
+      return "Compiling", node.path
+    elif suffix.endswith('SHLIB'):
+      return "Linking shared lib", node.path
+    elif suffix.endswith('EXE'):
+      return "Linking executable", node.path
+
+  # Check action for clues
+  if hasattr(builder, 'action'):
+    action_str = str(builder.action)
+    if 'Mkdir' in action_str:
+      return "Creating directory", node.path
+    elif 'Link' in action_str:
+      return "Linking", node.path
+    elif 'Compile' in action_str:
+      return "Compiling", node.path
+
+  # Default fallback
+  return "Building", node.path
+
+
 def progress_function(node):
-  global node_count
-  node_count += node_interval
-  sys.stderr.write("progress: %d\n" % node_count)
+  try:
+    global node_count
+    node_count += node_interval
+    sys.stderr.write("progress: %d\n" % node_count)
+
+    # set the SPINNER_DETAILED environment variable to get detailed build output
+    os.environ['SPINNER_DETAILED'] = '1'
+    if os.environ.get('SPINNER_DETAILED'):
+      if node.has_builder():
+        try:
+          action, target = get_build_status(node)
+          sys.stderr.write(f"{action}: {target}\n")
+          # print(f"Node has builder: {node.builder}")
+          # builder_type = type(node.builder).__name__
+          # print(f"Builder type: {builder_type}")
+          # # See object structure
+
+          # print(node.builder.__dict__)
+
+          # # Get attribute names and values
+          # for attr in dir(node.builder):
+          #   if not attr.startswith('_'):
+          #     try:
+          #       print(f"{attr}: {getattr(node.builder, attr)}")
+          #     except Exception as e:
+          #       print(f"{attr}: <error: {e}>")
+        except Exception as e:
+          print(f"Error in progress_function: {e}")
+          sys.stderr.write(f"Error in build status: {e}\n")
+
+  except Exception as e:
+    print(f"Error in progress_function: {e}")
+    sys.stderr.write(f"Error in progress tracking: {e}\n")
+
 
 if os.environ.get('SCONS_PROGRESS'):
   Progress(progress_function, interval=node_interval)

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
 
 source "$DIR/launch_env.sh"
+source "$DIR/launch_bp_ssh_check.sh"
 
 function agnos_init {
   # TODO: move this to agnos
@@ -17,7 +18,7 @@ function agnos_init {
   sudo chmod 660 /dev/adsprpc-smd /dev/ion /dev/kgsl-3d0
 
   # Check if AGNOS update is required
-  if [ $(< /VERSION) != "$AGNOS_VERSION" ]; then
+  if [ $(</VERSION) != "$AGNOS_VERSION" ]; then
     AGNOS_PY="$DIR/system/hardware/tici/agnos.py"
     MANIFEST="$DIR/system/hardware/tici/agnos.json"
     if $AGNOS_PY --verify $MANIFEST; then
@@ -41,7 +42,7 @@ function launch {
   #    that completed successfully and synced to disk.
 
   if [ -f "${DIR}/.overlay_init" ]; then
-    find ${DIR}/.git -newer ${DIR}/.overlay_init | grep -q '.' 2> /dev/null
+    find ${DIR}/.git -newer ${DIR}/.overlay_init | grep -q '.' 2>/dev/null
     if [ $? -eq 0 ]; then
       echo "${DIR} has been modified, skipping overlay update installation"
     else
@@ -81,12 +82,13 @@ function launch {
   fi
 
   # write tmux scrollback to a file
-  tmux capture-pane -pq -S-1000 > /tmp/launch_log
+  tmux capture-pane -pq -S-1000 >/tmp/launch_log
 
   # start manager
   cd system/manager
   if [ ! -f $DIR/prebuilt ]; then
-    ./build.py
+    # ./build.py
+    ./bp_build.py
   fi
   ./manager.py
 

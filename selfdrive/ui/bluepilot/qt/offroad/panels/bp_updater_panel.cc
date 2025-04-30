@@ -394,7 +394,11 @@ BPUpdaterPanel::~BPUpdaterPanel() {
 BPUpdaterPanel::BPUpdaterPanel(QWidget *parent) : QWidget(parent), branchSelector(nullptr) {
   std::cout << "BPUpdaterPanel constructor start" << std::endl;
 
-  setFixedWidth(1640);
+  // setFixedWidth(1640);
+  setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+  // Add a small margin to the left and right of the panel
+  setContentsMargins(20, 0, 20, 0);
 
   if (!isValidGitRepo()) {
     showErrorState(tr("Error: Not a valid git repository.\nPlease ensure /data/openpilot is a valid git repository."));
@@ -814,6 +818,15 @@ void BPUpdaterPanel::startAutoUpdateChecks() {
   autoUpdateCheckTimer->start();
 }
 
+void BPUpdaterPanel::notifyShallowRepository() {
+  if (BPUpdateConfirmDialog::
+          confirm(tr("Shallow Repository Detected"),
+                  tr("This is a shallow git repository with limited history. Some branch operations may not work correctly. Would you like to fetch the full repository history?"),
+                  tr("Fetch Full History"), tr("Not Now"), this)) {
+    handleUnshallow();
+  }
+}
+
 void BPUpdaterPanel::handleUnshallow() {
   if (!BPUpdateConfirmDialog::confirm(tr("Fetch Full Repository"),
                                       tr("Are you sure you want to fetch the full repository history?\n"
@@ -941,8 +954,11 @@ BranchSelector::GitCommandResult BranchSelector::executeGitCommand(const QString
     return result;
   }
 
+  // Make sure we wait for the process to finish or kill it
   if (!process.waitForFinished(timeoutMs)) {
     process.kill();
+    // Wait a bit more to make sure it's terminated
+    process.waitForFinished(1000);
     result.success = false;
     result.error = "Command timed out: " + command;
     return result;
@@ -961,34 +977,18 @@ void BranchSelector::getBranchesAsync(bool includeRemote, std::function<void(QSt
   QtConcurrent::run([this, includeRemote, callback]() {
     QStringList branches;
     QString workingDir = qApp->applicationDirPath() + "/../..";
+    bool isShallow = false;
 
-    if (includeRemote) {
-      // Fetch all remote refs first
-      auto fetchResult = executeGitCommand("git fetch origin refs/heads/*:refs/remotes/origin/* --prune", workingDir, 30000);
-      if (!fetchResult.success) {
-        std::cerr << "Fetch failed: " << fetchResult.error.toStdString() << std::endl;
-      }
-
-      // Get all remote branches using ls-remote for completeness
-      auto remoteBranchResult = executeGitCommand("git ls-remote --heads origin | awk '{print $2}' | sed 's#refs/heads/##'", workingDir, 10000);
-
-      if (remoteBranchResult.success) {
-        QString output = remoteBranchResult.output;
-        for (QString branch : output.split("\n", QString::SkipEmptyParts)) {
-          branch = branch.trimmed();
-          if (!branch.isEmpty() && !branches.contains(branch)) {
-            branches.append(branch);
-          }
-        }
-      }
+    // Check if shallow repository
+    auto shallowCheck = executeGitCommand("git rev-parse --is-shallow-repository", workingDir, 5000);
+    if (shallowCheck.success && shallowCheck.output.trimmed() == "true") {
+      isShallow = true;
     }
 
-    // Get local branches
-    auto localBranchResult = executeGitCommand("git branch", workingDir, 5000);
-
+    // Always get local branches first
+    auto localBranchResult = executeGitCommand("git branch", workingDir, 10000);
     if (localBranchResult.success) {
-      QString output = localBranchResult.output;
-      for (QString branch : output.split("\n", QString::SkipEmptyParts)) {
+      for (QString branch : localBranchResult.output.split("\n", QString::SkipEmptyParts)) {
         branch = branch.trimmed();
         if (branch.startsWith("*")) {
           branch = branch.mid(2);
@@ -999,14 +999,62 @@ void BranchSelector::getBranchesAsync(bool includeRemote, std::function<void(QSt
       }
     }
 
+    // ALWAYS try to get remote branches, regardless of includeRemote parameter
+    // First try using git branch -r (works with cached info, no network needed)
+    auto remoteBranchResult = executeGitCommand("git branch -r", workingDir, 10000);
+    if (remoteBranchResult.success) {
+      for (QString branch : remoteBranchResult.output.split("\n", QString::SkipEmptyParts)) {
+        branch = branch.trimmed();
+        if (branch.contains("->"))
+          continue;
+
+        if (branch.startsWith("origin/")) {
+          branch = branch.mid(7); // Remove "origin/"
+          if (!branch.isEmpty() && !branches.contains(branch)) {
+            branches.append(branch);
+          }
+        }
+      }
+    }
+
+    // If internet is available (includeRemote = true), then also try fetching updates
+    if (includeRemote) {
+      // Use a more reliable way to get remote branches
+      auto lsRemoteResult = executeGitCommand("git ls-remote --heads origin", workingDir, 15000);
+      if (lsRemoteResult.success) {
+        QString output = lsRemoteResult.output;
+        QRegExp rx("refs/heads/([^\\s]+)");
+        int pos = 0;
+        while ((pos = rx.indexIn(output, pos)) != -1) {
+          QString branch = rx.cap(1);
+          if (!branch.isEmpty() && !branches.contains(branch)) {
+            branches.append(branch);
+          }
+          pos += rx.matchedLength();
+        }
+      }
+    }
+
     branches.sort();
 
     QMetaObject::invokeMethod(
         this,
-        [this, branches, callback]() {
+        [this, branches, isShallow, callback]() {
           showLoadingOverlay(false);
           emit branchLoadingFinished();
           callback(branches);
+
+          // Notify about shallow repository
+          if (isShallow) {
+            QWidget *parent = this->parentWidget();
+            while (parent) {
+              if (auto *panel = qobject_cast<BPUpdaterPanel *>(parent)) {
+                QMetaObject::invokeMethod(panel, "notifyShallowRepository", Qt::QueuedConnection);
+                break;
+              }
+              parent = parent->parentWidget();
+            }
+          }
         },
         Qt::QueuedConnection);
   });
@@ -1035,16 +1083,15 @@ void BPUpdaterPanel::updateBranchList() {
 
 void BPUpdaterPanel::handleBranchSelection() {
   QTimer::singleShot(0, this, [this]() {
-    bool internetAvailable = isInternetAvailable();
-
-    branchSelector->getBranchesAsync(internetAvailable, [this, internetAvailable](QStringList branches) {
+    // Always try to get remote branches
+    branchSelector->getBranchesAsync(true, [this](QStringList branches) {
       if (branches.isEmpty()) {
-        BPUpdateConfirmDialog::alert(tr("Unable to get branch list. Please check your internet connection or repository status."), this);
+        BPUpdateConfirmDialog::alert(tr("Unable to get branch list. Please check your repository status."), this);
         return;
       }
 
       QString currentBranch = branchSelector->getValue();
-      QString selection = BPUpdaterSelectionDialog::getSelection(internetAvailable ? tr("Select Branch (Online)") : tr("Select Branch (Offline)"), branches, currentBranch, this);
+      QString selection = BPUpdaterSelectionDialog::getSelection(tr("Select Branch"), branches, currentBranch, this);
 
       if (!selection.isEmpty()) {
         switchBranch(selection);
@@ -1062,13 +1109,77 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
     }
   }
 
-  QString command = QString("git checkout %1 -f && "
-                            "git reset --hard && "
-                            "git clean -fd && "
-                            "git submodule update --init --recursive && scons -j$(nproc)")
-                        .arg(branch);
+  // Check if branch exists locally and remotely
+  QProcess process;
+  process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
 
-  showCommandOutputDialog(tr("Switching Branch"), command, "", 1800000, true, true, true); // 30 minutes timeout
+  // Check local branches
+  process.start("git", QStringList() << "branch");
+  process.waitForFinished(5000);
+  QStringList localBranches = QString(process.readAllStandardOutput()).split("\n", QString::SkipEmptyParts);
+  bool branchExistsLocally = false;
+
+  for (QString localBranch : localBranches) {
+    localBranch = localBranch.trimmed();
+    if (localBranch.startsWith("*")) {
+      localBranch = localBranch.mid(2);
+    }
+    if (localBranch == branch) {
+      branchExistsLocally = true;
+      break;
+    }
+  }
+
+  // Check remote branches
+  process.start("git", QStringList() << "branch" << "-r");
+  process.waitForFinished(5000);
+  QStringList remoteBranches = QString(process.readAllStandardOutput()).split("\n", QString::SkipEmptyParts);
+  bool branchExistsRemotely = false;
+
+  for (QString remoteBranch : remoteBranches) {
+    remoteBranch = remoteBranch.trimmed();
+    if (remoteBranch == "origin/" + branch) {
+      branchExistsRemotely = true;
+      break;
+    }
+  }
+
+  QString command;
+
+  if (branchExistsLocally && branchExistsRemotely) {
+    // Branch exists both locally and remotely - handle potential rebase
+    command = QString("git checkout -f %1 && "
+                      "git fetch origin && "
+                      "git reset --hard origin/%1 && " // Reset to remote version
+                      "git clean -fd && git pull && "
+                      "git submodule update --init --recursive && scons -j$(nproc)")
+                  .arg(branch);
+  } else if (branchExistsLocally) {
+    // Branch exists only locally
+    command = QString("git checkout -f %1 && "
+                      "git reset --hard && "
+                      "git clean -fd && git pull && "
+                      "git submodule update --init --recursive && scons -j$(nproc)")
+                  .arg(branch);
+  } else if (branchExistsRemotely) {
+    // Branch exists only remotely - create tracking branch
+    command = QString("git checkout -f -b %1 origin/%1 && "
+                      "git reset --hard && "
+                      "git clean -fd && git pull && "
+                      "git submodule update --init --recursive && scons -j$(nproc)")
+                  .arg(branch);
+  } else {
+    // Try to fetch the branch from remote
+    command = QString("git fetch origin %1:%1 && "
+                      "git checkout -f %1 && "
+                      "git reset --hard && "
+                      "git clean -fd && "
+                      "git pull && "
+                      "git submodule update --init --recursive && scons -j$(nproc)")
+                  .arg(branch);
+  }
+
+  showCommandOutputDialog(tr("Switching Branch"), command, "", 1800000, true, true, true);
 }
 
 bool BPUpdaterPanel::hasUncommittedChanges() const {

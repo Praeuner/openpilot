@@ -151,6 +151,9 @@ public:
 #endif
   }
 
+public slots:
+  void notifyShallowRepository();
+
 private slots:
   void refreshAll();
   void handleRepoUpdate();
