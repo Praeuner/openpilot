@@ -1757,13 +1757,13 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   QPushButton *killButton = nullptr;
   if (showKillBtn) {
     killButton = new QPushButton(tr("Stop Command"), currentDialog);
-    killButton->setFixedHeight(160);
+    killButton->setFixedHeight(100);
     killButton->setStyleSheet(R"(
             QPushButton {
                 background-color: #EA4646;
                 font-size: 55px;
                 font-weight: 400;
-                border-radius: 10px;
+                border-radius: 20px;
                 color: white;
             }
             QPushButton:pressed {
@@ -1777,14 +1777,14 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   QPushButton *retryButton = nullptr;
   if (showRetryBtn) {
     retryButton = new QPushButton(tr("Retry"), currentDialog);
-    retryButton->setFixedHeight(160);
+    retryButton->setFixedHeight(100);
     retryButton->setVisible(false); // Hide initially
     retryButton->setStyleSheet(R"(
             QPushButton {
                 background-color: #7B1FA2;
                 font-size: 55px;
                 font-weight: 400;
-                border-radius: 10px;
+                border-radius: 20px;
                 color: white;
             }
             QPushButton:pressed {
@@ -1802,14 +1802,14 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   QPushButton *rebootButton = nullptr;
   if (showRebootBtn) {
     rebootButton = new QPushButton(tr("Reboot"), currentDialog);
-    rebootButton->setFixedHeight(160);
+    rebootButton->setFixedHeight(100);
     rebootButton->setVisible(false); // Hide initially
     rebootButton->setStyleSheet(R"(
             QPushButton {
                 background-color: #33Ab4C;
                 font-size: 55px;
                 font-weight: 400;
-                border-radius: 10px;
+                border-radius: 20px;
                 color: white;
             }
             QPushButton:pressed {
@@ -1822,13 +1822,13 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Close button (initially disabled)
   QPushButton *closeButton = new QPushButton(tr("Command is Running..."), currentDialog);
   closeButton->setEnabled(false);
-  closeButton->setFixedHeight(160);
+  closeButton->setFixedHeight(100);
   closeButton->setStyleSheet(R"(
         QPushButton {
             background-color: #465BEA;
             font-size: 55px;
             font-weight: 400;
-            border-radius: 10px;
+            border-radius: 20px;
             color: white;
         }
         QPushButton:pressed {
@@ -1874,12 +1874,13 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       }
       closeButton->setEnabled(true);
       closeButton->setText(tr("Close (Timed Out)"));
+      closeButton->setFixedHeight(100);
       closeButton->setStyleSheet(R"(
                 QPushButton {
                     background-color: #EA4646;
                     font-size: 55px;
                     font-weight: 400;
-                    border-radius: 10px;
+                    border-radius: 20px;
                     color: white;
                 }
                 QPushButton:pressed {
@@ -1905,7 +1906,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
                         background-color: #EA4646;
                         font-size: 55px;
                         font-weight: 400;
-                        border-radius: 10px;
+                        border-radius: 20px;
                         color: white;
                     }
                     QPushButton:pressed {
