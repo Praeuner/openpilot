@@ -272,7 +272,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
 
     // These signals are not yet tested with the current safety limits
     bool violation = (raw_curvature_rate != FORD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
-    bool violation = false; // allow all variables to be active
+    violation = false; // allow all variables to be active
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
@@ -296,7 +296,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
 
     // These signals are not yet tested with the current safety limits
     bool violation = (raw_curvature_rate != FORD_CANFD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
-    bool violation = false; // allow all variables to be active
+    violation = false; // allow all variables to be active
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
