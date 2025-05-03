@@ -130,8 +130,8 @@ class CarController(CarControllerBase):
     self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
 
     # max absolute values for all four signals
-    self.path_angle_max = 0.5  # from dbc files
-    self.path_offset_max = 5.11  # from dbc files
+    self.path_angle_max = 0.25  # too much path angle is dangerious
+    self.path_offset_max = 1.0  # too much path offset causes issues
     self.curvature_max = 0.02  # from dbc files
     self.curvature_rate_max = 0.001023  # from dbc files
 
@@ -380,9 +380,6 @@ class CarController(CarControllerBase):
           CC.latActive,
           self.CP
         )
-
-        # remove this line for public releases
-        apply_curvature = requested_curvature
 
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
