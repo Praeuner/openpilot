@@ -361,13 +361,13 @@ class SelfdriveD(CruiseHelper):
     controlstate = self.sm['controlsState']
     lac = getattr(controlstate.lateralControlState, controlstate.lateralControlState.which())
     if lac.active and not recent_steer_pressed and not self.CP.notCar:
-      # clipped_speed = max(CS.vEgo, 0.3)
-      # actual_lateral_accel = controlstate.curvature * (clipped_speed**2)
-      # desired_lateral_accel = self.sm['modelV2'].action.desiredCurvature * (clipped_speed**2)
-      # undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2
-      # turning = abs(desired_lateral_accel) > 1.0
+      clipped_speed = max(CS.vEgo, 0.3)
+      actual_lateral_accel = controlstate.curvature * (clipped_speed**2)
+      desired_lateral_accel = self.sm['modelV2'].action.desiredCurvature * (clipped_speed**2)
+      undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2
+      turning = abs(desired_lateral_accel) > 1.0
       # TODO: lac.saturated includes speed and other checks, should be pulled out
-      if False:  # undershooting and turning and lac.saturated:
+      if undershooting and turning and lac.saturated:
         self.events.add(EventName.steerSaturated)
 
     # Check for FCW
@@ -381,8 +381,8 @@ class SelfdriveD(CruiseHelper):
     if not SIMULATION or REPLAY:
       # Not show in first 1.5 km to allow for driving out of garage. This event shows after 5 minutes
       gps_ok = self.sm.recv_frame[self.gps_location_service] > 0 and (self.sm.frame - self.sm.recv_frame[self.gps_location_service]) * DT_CTRL < 2.0
-      # if not gps_ok and self.sm['livePose'].inputsOK and (self.distance_traveled > 1500):
-      # self.events.add(EventName.noGps)
+      if not gps_ok and self.sm['livePose'].inputsOK and (self.distance_traveled > 1500):
+        self.events.add(EventName.noGps)
       if gps_ok:
         self.distance_traveled = 0
       self.distance_traveled += abs(CS.vEgo) * DT_CTRL
