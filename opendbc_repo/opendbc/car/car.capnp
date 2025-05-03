@@ -382,9 +382,7 @@ struct CarControl {
     fordVariables @9: FordVariables;
 
     struct FordVariables {
-      maxAbsPredictedCurvature @0 :Float32;
-      predictedSteeringAngleDegSP @1 :Float32;
-      pathAngleKp @2 :Float32;
+      steerWarning @0 :Float32;
     }
 
     enum LongControlState @0xe40f3a917d908282{

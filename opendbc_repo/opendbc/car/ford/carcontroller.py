@@ -99,15 +99,18 @@ class CarController(CarControllerBase):
     self.path_lookup_time = CP.steerActuatorDelay  # how far into the future to we need to look for our path_angle signals.
     self.precision_type = 1  # precise or comfort
     self.human_turn = False  # have we detected a human override in a turn
-    self.enable_AdvLatCtrl = True # Updated form UI: enable Advanced Lane Control
+    self.enable_AdvLatCtrl = False # Updated form UI: enable Advanced Lateral Control
 
     # Curvature variables
-    self.requested_curvature_filtered = FirstOrderFilter(0.0, 0.3, 0.05)  # filter for apply_curvature
     self.curvature_lookup_time = 0.05
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
-    self.pc_blend_ratio = 0.60 # 60% Predicted Curvature and 40% Desired Curvature
+    self.pc_blend_ratio_ALC = 0.60 # 60% Predicted Curvature and 40% Desired Curvature
+    self.pc_blend_ratio = 0.0 # 0% Predicted Curvature and 100% Desired Curvature
+    self.steering_limited = False # if steering was limited
+    self.steer_warning_count = 0 # count of cycles with steering limited
+    self.steer_warning = False # if steer_warning is active
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -119,7 +122,7 @@ class CarController(CarControllerBase):
     # path angle variables
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
-    self.path_angle_wheel_angle_conversion = (np.pi/180)/10 # degrees to radians, divide by 10 to reduce the gain
+    self.path_angle_wheel_angle_conversion = (np.pi/180)/10 # degrees to radians, divide by 10 to increase the gain
     self.path_angle_k_p_bp = [8.94, 24.58]  # speed breakpoints in m/s
     self.path_angle_k_p_v = [0.5, 0.015]  # corresponding k_p values
     self.path_angle_k_i = 0.05
@@ -301,7 +304,9 @@ class CarController(CarControllerBase):
         # steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # determine if we are using Advanced Lateral Control
-        if not self.enable_AdvLatCtrl:
+        if self.enable_AdvLatCtrl:
+          self.pc_blend_ratio = self.pc_blend_ratio_ALC
+        else:
           self.pc_blend_ratio = 0.0 #   00% Predicted Curvature and 100% Desired Curvature
 
         # calculate current curvature and model desired curvature
@@ -316,7 +321,6 @@ class CarController(CarControllerBase):
             predicted_steering_angle_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
             predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
             max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
-            self.fordVariables.maxAbsPredictedCurvature = float(max_abs_predicted_curvature)
           else:
             predicted_curvature = 0.0
 
@@ -331,8 +335,6 @@ class CarController(CarControllerBase):
           max_abs_predicted_curvature = 0.0
           self.predictedSteeringAngleDeg_SP = 0.0
           self.pswa_blend_ratio = 0.0
-
-        self.fordVariables.predictedSteeringAngleDegSP = float(self.predictedSteeringAngleDeg_SP)
 
         # determine requested curvature
         if self.enable_AdvLatCtrl:
@@ -367,10 +369,7 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-
-        # for now requested_curvature is just the desired_curvature
-        # requested_curvature = desired_curvature
-
+        # Apply curvature limits
         apply_curvature = apply_ford_curvature_limits(
           requested_curvature,
           self.apply_curvature_last,
@@ -380,6 +379,27 @@ class CarController(CarControllerBase):
           CC.latActive,
           self.CP
         )
+
+      # detect if steering was limited (lanes changes always trigger, but complete just fine)
+        if (requested_curvature != apply_curvature) and (not steeringPressed) and (not self.lane_change):
+           self.steering_limited = True
+        else:
+          self.steering_limited =False
+
+        # if steering was limited turn on steer_warning if above 15mph
+        if self.steering_limited and CS.out.vEgoRaw > 7:
+            self.steer_warning = True
+
+        # latch steer_warning and count cycles before clearing
+        if self.steer_warning and not self.steering_limited:
+            self.steer_warning_count = self.steer_warning_count + 1
+
+        # clear steer_warning after 10 counts of no steering limited
+        if self.steer_warning_count > 10:
+          self.steer_warning = False
+          self.steer_warning_count = 0
+
+        self.fordVariables.steerWarning = float(self.steer_warning)
 
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
@@ -441,6 +461,10 @@ class CarController(CarControllerBase):
         if self.lane_change:
           path_angle = 0.0
 
+        # rate limit path_angle
+        path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
+        path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+
         # Apply post lane change transition logic
         path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
             path_angle, path_offset, desired_curvature_rate
@@ -478,7 +502,6 @@ class CarController(CarControllerBase):
           path_angle = 0
           desired_curvature_rate = 0
           ramp_type = 3
-          self.requested_curvature_filtered.x = 0.0
           self.path_angle_deque.clear()
           self.path_angle_pid_controller.reset()
         else:
@@ -488,7 +511,6 @@ class CarController(CarControllerBase):
         desired_curvature_rate = 0.0
         path_offset = 0.0
         path_angle = 0.0
-        self.requested_curvature_filtered.x = 0.0
         self.path_angle_deque.clear()
         self.path_angle_pid_controller.reset()
         ramp_type = 0
