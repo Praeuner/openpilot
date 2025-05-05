@@ -277,7 +277,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
     unsigned int raw_ramp_type = (GET_BYTE(to_send, 6) >> 4) & 0x3U;
     FORD_STEERING_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
-    FORD_PATH_ANGLE_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
+
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
@@ -306,7 +306,6 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
     unsigned int raw_ramp_type = (GET_BYTE(to_send, 0) >> 1) & 0x3U;  // Extract bits 1-2 from byte 0
     FORD_STEERING_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
-    FORD_PATH_ANGLE_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
