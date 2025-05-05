@@ -106,8 +106,7 @@ class CarController(CarControllerBase):
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
-    self.pc_blend_ratio_ALC = 0.60 # 60% Predicted Curvature and 40% Desired Curvature
-    self.pc_blend_ratio = 0.0 # 0% Predicted Curvature and 100% Desired Curvature
+    self.pc_blend_ratio = 0.60 # Updated from UI: %-Predicted Curvature
     self.steering_limited = False # if steering was limited
     self.steer_warning_count = 0 # count of cycles with steering limited
     self.steer_warning = False # if steer_warning is active
@@ -303,12 +302,6 @@ class CarController(CarControllerBase):
         steeringAngleDeg_PV = CS.out.steeringAngleDeg
         # steeringAngleDeg_SP = actuators.steeringAngleDeg
 
-        # determine if we are using Advanced Lateral Control
-        if self.enable_AdvLatCtrl:
-          self.pc_blend_ratio = self.pc_blend_ratio_ALC
-        else:
-          self.pc_blend_ratio = 0.0 #   00% Predicted Curvature and 100% Desired Curvature
-
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
         desired_curvature = actuators.curvature  # get desired curvature from model
@@ -445,6 +438,10 @@ class CarController(CarControllerBase):
 
         # if a lane change is active, zero out the steering_wheel_delta
         if self.lane_change:
+          steering_wheel_delta = 0.0
+
+        # if we are really low speeds, no steering wheel delta because the model does stupid things
+        if CS.out.vEgoRaw < 2:
           steering_wheel_delta = 0.0
 
         # if we are not using Advanced Lateral Control, zero out the steering_wheel_delta
