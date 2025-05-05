@@ -110,8 +110,8 @@ static bool ford_lkas_msg_check(int addr) {
       .max_angle = 1000,         /* 0.02 curvature */                                                                                                                              \
       .angle_deg_to_can = 50000, /* 1 / (2e-5) rad to can */                                                                                                                       \
       .max_angle_error = 100,    /* 0.002 * FORD_STEERING_LIMITS.angle_deg_to_can */                                                                                               \
-      .angle_rate_up_lookup = {{5., 25., 25.}, {0.00045, 0.0001, 0.0001}},                                                                                                         \
-      .angle_rate_down_lookup = {{5., 25., 25.}, {0.00045, 0.00015, 0.00015}},                                                                                                     \
+      .angle_rate_up_lookup = {{5., 16., 25.}, {0.0026, 0.0013, 0.0001}},                                                                                                         \
+      .angle_rate_down_lookup = {{5., 13., 25.}, {0.0026, 0.0015, 0.0002}},                                                                                                     \
                                                                                                                                                                                    \
       /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */                                                                                \
       .angle_error_min_speed = 10.0, /* m/s */                                                                                                                                     \
@@ -274,6 +274,11 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     bool violation = (raw_curvature_rate != FORD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
     violation = false; // allow all variables to be active
 
+    // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
+    unsigned int raw_ramp_type = (GET_BYTE(to_send, 6) >> 4) & 0x3U;
+    FORD_STEERING_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
+    FORD_PATH_ANGLE_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
+
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS);
@@ -297,6 +302,11 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // These signals are not yet tested with the current safety limits
     bool violation = (raw_curvature_rate != FORD_CANFD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
     violation = false; // allow all variables to be active
+
+    // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
+    unsigned int raw_ramp_type = (GET_BYTE(to_send, 0) >> 1) & 0x3U;  // Extract bits 1-2 from byte 0
+    FORD_STEERING_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
+    FORD_PATH_ANGLE_LIMITS.angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
