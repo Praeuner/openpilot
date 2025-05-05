@@ -122,6 +122,17 @@
       "enabled": true
     },
     {
+      "name": "FordLatTuningPCBlendRatio",
+      "default": 0.60,
+      "min": 0.0,
+      "max": 1.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "pc_blend_ratio",
+      "create_default": true,
+      "enabled": true
+    },
+    {
       "name": "FordLatTuningEnableAdvLatCtrl",
       "default": false,
       "type": "bool",
