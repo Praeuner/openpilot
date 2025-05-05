@@ -89,7 +89,7 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
 
 static bool ford_canfd = false;
 static bool ford_longitudinal = false;
-static float ford_angle_error_min_speed = 10.0;  // Default minimum speed for angle error checks
+float ford_angle_error_min_speed = 10.0;
 
 #define FORD_INACTIVE_CURVATURE 1000U
 #define FORD_INACTIVE_CURVATURE_RATE 4096U
@@ -279,9 +279,11 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     unsigned int raw_ramp_type = (GET_BYTE(to_send, 6) >> 4) & 0x3U;
     ford_angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
 
+    AngleSteeringLimits FORD_STEERING_LIMITS_BP = FORD_LIMITS(true, ford_angle_error_min_speed);
+
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
-    violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS);
+    violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS_BP);
 
     if (violation) {
       tx = false;
@@ -290,7 +292,6 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
 
   // Safety check for LateralMotionControl2 action
   if (addr == FORD_LateralMotionControl2) {
-    static const AngleSteeringLimits FORD_CANFD_STEERING_LIMITS = FORD_LIMITS(true, ford_angle_error_min_speed);
 
     // Signal: LatCtl_D2_Rq
     bool steer_control_enabled = ((GET_BYTE(to_send, 0) >> 4) & 0x7U) != 0U;
@@ -306,6 +307,8 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
     unsigned int raw_ramp_type = (GET_BYTE(to_send, 0) >> 1) & 0x3U;  // Extract bits 1-2 from byte 0
     ford_angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;
+
+    AngleSteeringLimits FORD_CANFD_STEERING_LIMITS = FORD_LIMITS(true, ford_angle_error_min_speed);
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE; // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
