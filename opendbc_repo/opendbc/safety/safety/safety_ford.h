@@ -106,7 +106,7 @@ static bool ford_lkas_msg_check(int addr) {
 }
 
 // Curvature rate limits
-#define FORD_LIMITS(limit_lateral_acceleration)                                                                                                                                    \
+#define FORD_LIMITS(limit_lateral_acceleration, ford_angle_error_min_speed)                                                                                                                                    \
   {                                                                                                                                                                                \
       .max_angle = 1000,         /* 0.02 curvature */                                                                                                                              \
       .angle_deg_to_can = 50000, /* 1 / (2e-5) rad to can */                                                                                                                       \
@@ -122,7 +122,7 @@ static bool ford_lkas_msg_check(int addr) {
       .inactive_angle_is_zero = true,                                                                                                                                              \
   }
 
-static const AngleSteeringLimits FORD_STEERING_LIMITS = FORD_LIMITS(false);
+static const AngleSteeringLimits FORD_STEERING_LIMITS = FORD_LIMITS(false, 10.0);
 
 static void ford_rx_hook(const CANPacket_t *to_push) {
   if (GET_BUS(to_push) == FORD_MAIN_BUS) {
@@ -290,7 +290,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
 
   // Safety check for LateralMotionControl2 action
   if (addr == FORD_LateralMotionControl2) {
-    static const AngleSteeringLimits FORD_CANFD_STEERING_LIMITS = FORD_LIMITS(true);
+    static const AngleSteeringLimits FORD_CANFD_STEERING_LIMITS = FORD_LIMITS(true, ford_angle_error_min_speed);
 
     // Signal: LatCtl_D2_Rq
     bool steer_control_enabled = ((GET_BYTE(to_send, 0) >> 4) & 0x7U) != 0U;
