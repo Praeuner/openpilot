@@ -363,6 +363,8 @@ struct CarControl {
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
 
+  steeringTorqueDEPRECATED @19 :Float32;  # Added for Ford steer warning
+
   struct Actuators {
     # lateral commands, mutually exclusive
     torque @2: Float32;  # [0.0, 1.0]
@@ -378,12 +380,6 @@ struct CarControl {
     brake @1: Float32; # [0.0, 1.0]
     torqueOutputCan @8: Float32;   # value sent over can to the car
     speed @6: Float32;  # m/s
-
-    fordVariables @9: FordVariables;
-
-    struct FordVariables {
-      steerWarning @0 :Float32;
-    }
 
     enum LongControlState @0xe40f3a917d908282{
       off @0;
