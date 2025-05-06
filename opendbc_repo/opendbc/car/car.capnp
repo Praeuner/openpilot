@@ -363,7 +363,6 @@ struct CarControl {
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
 
-  steeringTorqueDEPRECATED @19 :Float32;  # Added for Ford steer warning
 
   struct Actuators {
     # lateral commands, mutually exclusive
@@ -446,7 +445,7 @@ struct CarControl {
 
   gasDEPRECATED @1 :Float32;
   brakeDEPRECATED @2 :Float32;
-  steeringTorqueDEPRECATED @3 :Float32;
+  steeringTorqueDEPRECATED @3 :Float32; # used for ford steering warning
   activeDEPRECATED @7 :Bool;
   rollDEPRECATED @8 :Float32;
   pitchDEPRECATED @9 :Float32;
