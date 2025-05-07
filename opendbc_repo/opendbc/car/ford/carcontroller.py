@@ -107,9 +107,6 @@ class CarController(CarControllerBase):
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
     self.pc_blend_ratio = 0.60 # Updated from UI: %-Predicted Curvature
-    self.steering_limited = False # if steering was limited
-    self.steer_warning_count = 0 # count of cycles with steering limited
-    self.steer_warning = False # if steer_warning is active
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -143,8 +140,6 @@ class CarController(CarControllerBase):
     self.path_angle_last = 0.0
     self.curvature_rate = 0  # initialize curvature_rate
 
-    # Define the Ford Variables object
-    # self.fordVariables = None
 
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
@@ -300,7 +295,6 @@ class CarController(CarControllerBase):
         self.precision_type = 1
         steeringPressed = CS.out.steeringPressed
         steeringAngleDeg_PV = CS.out.steeringAngleDeg
-        # steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
@@ -372,25 +366,6 @@ class CarController(CarControllerBase):
           CC.latActive,
           self.CP
         )
-
-      # detect if steering was limited (lanes changes always trigger, but complete just fine)
-        if (requested_curvature != apply_curvature) and (not steeringPressed) and (not self.lane_change):
-           self.steering_limited = True
-        else:
-          self.steering_limited =False
-
-        # if steering was limited turn on steer_warning if above 15mph
-        if self.steering_limited and CS.out.vEgoRaw > 7:
-            self.steer_warning = True
-
-        # latch steer_warning and count cycles before clearing
-        if self.steer_warning and not self.steering_limited:
-            self.steer_warning_count = self.steer_warning_count + 1
-
-        # clear steer_warning after 10 counts of no steering limited
-        if self.steer_warning_count > 10:
-          self.steer_warning = False
-          self.steer_warning_count = 0
 
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
@@ -643,7 +618,5 @@ class CarController(CarControllerBase):
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
     new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
-    new_actuators.torqueOutputCan = float(self.steer_warning)
-    # new_actuators.fordVariables = self.fordVariables
     self.frame += 1
     return new_actuators, can_sends
