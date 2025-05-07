@@ -348,49 +348,6 @@
       ]
     },
     {
-      "name": "Long. Tuning",
-      "icon": "../assets/offroad/icon_brake_gas_pedals.png",
-      "groups": [
-        {
-          "groupName": "longitudinalTuningGroup",
-          "title": "Brake Tuning:",
-          "enableResetButton": true,
-          "controls": [
-            {
-              "type": "float",
-              "param": "FordLongTuningBrakeActuatorActivate",
-              "title": "Brake Actuator Activate",
-              "desc": "Acceleration setpoint for brake actuator activation.",
-              "hidden": false,
-              "min": -0.2,
-              "max": 0.2,
-              "increment": 0.01,
-              "division": 100.0,
-              "conditions": {
-                "git_remote": ["ford-op/sp-dev-c3"],
-                "git_branch": []
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLongTuningBrakeActuatorReleaseDelta",
-              "title": "Brake Actuator Release Delta",
-              "desc": "Sets the gap between activation and release.",
-              "hidden": false,
-              "min": 0.0,
-              "max": 0.2,
-              "increment": 0.01,
-              "division": 100.0,
-              "conditions": {
-                "git_remote": ["ford-op/sp-dev-c3"],
-                "git_branch": []
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Utilities",
       "icon": "../assets/offroad/icon_toolbox.png",
       "groups": [
