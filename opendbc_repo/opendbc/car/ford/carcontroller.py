@@ -392,8 +392,6 @@ class CarController(CarControllerBase):
           self.steer_warning = False
           self.steer_warning_count = 0
 
-        CC.steeringTorqueDEPRECATED = float(self.steer_warning)
-
         # compute curvature rate
         self.curvature_rate_deque.append(apply_curvature)
         if len(self.curvature_rate_deque) > 1:
@@ -645,6 +643,7 @@ class CarController(CarControllerBase):
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
     new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
+    new_actuators.steeringTorqueDEPRECATED = float(self.steer_warning)
     # new_actuators.fordVariables = self.fordVariables
     self.frame += 1
     return new_actuators, can_sends

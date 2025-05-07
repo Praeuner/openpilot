@@ -369,6 +369,10 @@ class SelfdriveD(CruiseHelper):
       # TODO: lac.saturated includes speed and other checks, should be pulled out
       if undershooting and turning and lac.saturated:
         self.events.add(EventName.steerSaturated)
+      if self.sm['carOutput'].actuatorsOutput.steeringTorqueDEPRECATED > 0.0:
+        self.events.add(EventName.steerSaturated)
+
+
 
     # Check for FCW
     stock_long_is_braking = self.enabled and not self.CP.openpilotLongitudinalControl and CS.aEgo < -1.25
