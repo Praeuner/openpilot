@@ -369,7 +369,7 @@ class SelfdriveD(CruiseHelper):
       # TODO: lac.saturated includes speed and other checks, should be pulled out
       if undershooting and turning and lac.saturated:
         self.events.add(EventName.steerSaturated)
-      if self.sm['carOutput'].actuatorsOutput.torqueOutputCan > 0.0:
+      if self.sm['carOutput'].actuatorsOutput.torqueOutputCan > 0.5:
         self.events.add(EventName.steerSaturated)
 
 
