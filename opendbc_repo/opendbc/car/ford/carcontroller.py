@@ -643,7 +643,7 @@ class CarController(CarControllerBase):
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
     new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
-    new_actuators.steeringTorqueDEPRECATED = float(self.steer_warning)
+    new_actuators.torqueOutputCan = float(self.steer_warning)
     # new_actuators.fordVariables = self.fordVariables
     self.frame += 1
     return new_actuators, can_sends
