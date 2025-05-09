@@ -123,7 +123,7 @@
     },
     {
       "name": "FordLatTuningPCBlendRatio",
-      "default": 0.60,
+      "default": 0.30,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
@@ -142,15 +142,6 @@
       "enabled": true
     },
     {
-      "name": "FordLatTuningEnableLanefullMode",
-      "default": false,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "enable_lanefull_mode",
-      "create_default": true,
-      "enabled": true
-    },
-    {
       "name": "FordLatTuningCustomPathOffset",
       "default": 0.0,
       "min": -0.5,
@@ -158,24 +149,6 @@
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
       "ccProp": "custom_path_offset",
-      "create_default": true,
-      "enabled": true
-    },
-    {
-      "name": "FordLongTuningBrakeActuatorActivate",
-      "default": 0.0,
-      "min": 0.0,
-      "max": 1.0,
-      "type": "float",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true
-    },
-    {
-      "name": "FordLongTuningBrakeActuatorReleaseDelta",
-      "default": null,
-      "type": "float",
-      "flags": ["PERSISTENT", "BACKUP"],
       "create_default": true,
       "enabled": true
     },
