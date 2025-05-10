@@ -32,8 +32,6 @@ class CarInterface(CarInterfaceBase):
     print("| CarParams Debug")
     debug(f'| Candidate (interface): {candidate}', True)
     ret.brand = "ford"
-    ret.dashcamOnly = False # not (ret.flags & FordFlags.CANFD)
-    info(f'| Dashcam Only Mode: {ret.dashcamOnly}', True)
     ret.radarUnavailable = Bus.radar not in DBC[candidate]
     info(f'| Radar Unavailable: {ret.radarUnavailable}', True)
 
