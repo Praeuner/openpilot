@@ -144,6 +144,17 @@
       "enabled": true
     },
     {
+      "name": "FordLatTuningPathAngleOffsetFactor",
+      "default": 0.05,
+      "min": 0.0,
+      "max": 1.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "path_angle_offset_factor",
+      "create_default": true,
+      "enabled": true
+    },
+    {
       "name": "FordLatTuningEnableAdvLatCtrl",
       "default": false,
       "type": "bool",

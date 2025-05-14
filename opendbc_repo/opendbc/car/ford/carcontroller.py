@@ -131,7 +131,7 @@ class CarController(CarControllerBase):
     self.pswa_blend_ratio_low = 0.8
     self.pswa_blend_ratio_high = 0.3
     self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
-
+    self.path_angle_offset_factor = 0.05 # multipiler to convert path_offset to path_angle
     # max absolute values for all four signals
     self.path_angle_max = 0.25  # too much path angle is dangerious
     self.path_offset_max = 1.0  # too much path offset causes issues
@@ -430,9 +430,12 @@ class CarController(CarControllerBase):
         if self.lane_change:
           path_angle = 0.0
 
+        # convert path_offset to path_angle
+        path_angle = path_offset * self.path_angle_offset_factor
+
         # rate limit path_angle
-        path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
-        path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+        # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
+        # path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
 
         # Apply post lane change transition logic
         path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
