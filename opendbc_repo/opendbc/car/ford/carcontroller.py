@@ -102,7 +102,7 @@ class CarController(CarControllerBase):
     self.enable_AdvLatCtrl = False # Updated form UI: enable Advanced Lateral Control
 
     # Curvature variables
-    self.curvature_lookup_time = 0.05
+    self.curvature_lookup_time = CP.steerActuatorDelay
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
@@ -118,6 +118,7 @@ class CarController(CarControllerBase):
 
     # path offset variables
     self.custom_path_offset = 0.0 # updated from UI: applies a custom offset to help with in-lane positioning
+    self.path_offset_lookup_time = 0.1 # in seconds
 
     # path angle variables
     self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
@@ -131,9 +132,10 @@ class CarController(CarControllerBase):
     self.pswa_blend_ratio_low = 0.8
     self.pswa_blend_ratio_high = 0.3
     self.pswa_blend_ratio_bp = [8.94, 28.82] # blend ratio from 20mph to 65mph
-    self.path_angle_offset_factor = 0.05 # multipiler to convert path_offset to path_angle
+    self.path_angle_offset_factor = 100 # multipiler to convert path_offset to path_angle
+
     # max absolute values for all four signals
-    self.path_angle_max = 0.25  # too much path angle is dangerious
+    self.path_angle_max = 0.5  # too much path angle is dangerious
     self.path_offset_max = 1.0  # too much path offset causes issues
     self.curvature_max = 0.02  # from dbc files
     self.curvature_rate_max = 0.001023  # from dbc files
@@ -383,7 +385,7 @@ class CarController(CarControllerBase):
           self.human_turn = False
 
         # get path offset from model.position.y
-        path_offset = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
+        path_offset = interp(self.path_offset_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
 
         # no path_offset during lane changes (it will fight you until it swaps to new lane if you don't set to zero)
         if self.lane_change:
@@ -426,12 +428,13 @@ class CarController(CarControllerBase):
         # output the PID into path_angle
         path_angle = path_angle_PID
 
+        # convert path_offset to path_angle
+        path_angle = path_offset * (self.path_angle_offset_factor/10000)
+
         # zero path_angle during lane changes
         if self.lane_change:
           path_angle = 0.0
 
-        # convert path_offset to path_angle
-        path_angle = path_offset * self.path_angle_offset_factor
 
         # rate limit path_angle
         # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
