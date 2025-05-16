@@ -128,7 +128,7 @@
       "max": 1.0,
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "pc_blend_ratio_high_C",
+      "ccProp": "pc_blend_ratio_high_C_UI",
       "create_default": true,
       "enabled": true
     },
@@ -139,18 +139,7 @@
       "max": 1.0,
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "pc_blend_ratio_low_C",
-      "create_default": true,
-      "enabled": true
-    },
-    {
-      "name": "FordLatTuningPathAngleOffsetFactor",
-      "default": 100,
-      "min": 0.0,
-      "max": 500,
-      "type": "float",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "path_angle_offset_factor",
+      "ccProp": "pc_blend_ratio_low_C_UI",
       "create_default": true,
       "enabled": true
     },
@@ -171,6 +160,48 @@
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
       "ccProp": "custom_path_offset",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningEnableLanefullMode",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "enable_lane_full_mode",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningTuningProfileUI",
+      "default": 2,
+      "min": 1,
+      "max": 4,
+      "type": "int",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "tuning_profile_UI",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningPathAngleHIghSpeedFactorUI",
+      "default": 5.0,
+      "min": 0.0,
+      "max": 10.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "path_angle_high_speed_factor_UI",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningPathAngleHighCurvatureFactorUI",
+      "default": 0.6,
+      "min": 0.0,
+      "max": 1.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "path_angle_high_curvature_factor_UI",
       "create_default": true,
       "enabled": true
     },

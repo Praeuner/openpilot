@@ -11,67 +11,6 @@
       "icon": "../assets/offroad/icon_user_prefs.png",
       "groups": [
         {
-          "groupName": "systemPreferencesGroup",
-          "title": "System Preferences:",
-          "enableResetButton": false,
-          "controls": [
-            {
-              "type": "selection",
-              "param": "FordSelectedVehicleModel",
-              "title": "Vehicle Model",
-              "desc": "This will for the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
-              "requiresReboot": true,
-              "hidden": false,
-              "options": [
-                {
-                  "name": "Ford Bronco Sport (2021-2024)",
-                  "value": "FORD_BRONCO_SPORT_MK1"
-                },
-                {
-                  "name": "Ford Edge (2022)",
-                  "value": "FORD_EDGE_MK2"
-                },
-                {
-                  "name": "Ford Explorer (2020-2024)",
-                  "value": "FORD_EXPLODER_MK6"
-                },
-                {
-                  "name": "Ford F-150 (2021-2023)",
-                  "value": "FORD_F_150_MK14"
-                },
-                {
-                  "name": "Ford F-150 Lightning (2022-2023)",
-                  "value": "FORD_F_150_LIGHTNING_MK1"
-                },
-                {
-                  "name": "Ford Mustang Mach-E (2021-2023)",
-                  "value": "FORD_MUSTANG_MACH_E_MK1"
-                },
-
-                {
-                  "name": "Ford Maverick 1st Gen",
-                  "value": "FORD_MAVERICK_MK1"
-                },
-                {
-                  "name": "Ford Ranger (2023-2024)",
-                  "value": "FORD_RANGER_MK2"
-                }
-              ]
-            },
-            {
-              "type": "toggle",
-              "param": "QuietMode",
-              "title": "Quiet Mode - Warnings/Alerts Only",
-              "desc": "BluePilot displays alerts but only plays important warning sounds.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            }
-          ]
-        },
-        {
           "groupName": "visualOnroadPreferencesGroup",
           "title": "Visual Onroad Preferences:",
           "enableResetButton": false,
@@ -328,23 +267,6 @@
               }
             },
             {
-              "type": "float",
-              "param": "FordLatTuningPathAngleOffsetFactor",
-              "title": "Path Angle Offset Factor",
-              "desc": "Adjust the factor of path angle offset.",
-              "hidden": false,
-              "min": 0.0,
-              "max": 500,
-              "increment": 10,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] }
-                ]
-              }
-            },
-            {
               "type": "toggle",
               "param": "FordLatTuningEnableAdvLatCtrl",
               "title": "Enable Advanced Lateral Control",
@@ -374,6 +296,82 @@
                       "FordLatTuningEnableAdvLatCtrl": "1"
                     }
                   }
+                ]
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "FordLatTuningEnableLanefullMode",
+              "title": "Enable Lane Full Mode",
+              "desc": "Enable Auto Lanefull Mode similar to legacy SunnyPilot",
+              "hidden": false,
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningEnableAdvLatCtrl": "1"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "segmented_control",
+              "param": "FordLatTuningTuningProfileUI",
+              "title": "Tuning Profile",
+              "desc": "Sets the tuning aggressiveness profile",
+              "hidden": false,
+              "options": [
+                { "name": "Low", "value": "1"},
+                { "name": "Medium", "value": "2", "default": true},
+                { "name": "High", "value": "3" },
+                { "name": "Custom", "value": "4" }
+              ],
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
+                ]
+              }
+            },
+            {
+              "type": "float",
+              "param": "FordLatTuningPathAngleHighSpeedFactorUI",
+              "title": "Path Angle Amplitude",
+              "desc": "Lower numbers to reduce twitchy steering, higher numbers decreaase wadnering or slow ping pong",
+              "hidden": false,
+              "min": 0.0,
+              "max": 10.0,
+              "increment": 0.1,
+              "division": 100.0,
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  { "paramValueEquals": { "FordLatTuningTuningProfileUI": "4" } },
+                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
+                ]
+              }
+            },
+            {
+              "type": "float",
+              "param": "FordLatTuningPathAngleHighCurvatureFactorUI",
+              "title": "Path Angle in-curve Reuction",
+              "desc": "Lower numbers to reduce twitchy steering, higher numbers decreaase wadnering or slow ping pong",
+              "hidden": false,
+              "min": 0.0,
+              "max": 1.0,
+              "increment": 0.05,
+              "division": 100.0,
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  { "paramValueEquals": { "FordLatTuningTuningProfileUI": "4" } },
+                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
                 ]
               }
             }
