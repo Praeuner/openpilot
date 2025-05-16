@@ -184,6 +184,17 @@
       "enabled": true
     },
     {
+      "name": "FordLatTuningPathAngleHighSpeedFactorUI",
+      "default": 5.0,
+      "min": 0.0,
+      "max": 10.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "path_angle_high_speed_factor_UI",
+      "create_default": true,
+      "enabled": true
+    },
+    {
       "name": "FordLatTuningPathAngleHighCurvatureFactorUI",
       "default": 0.6,
       "min": 0.0,

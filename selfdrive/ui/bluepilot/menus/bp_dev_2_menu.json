@@ -339,7 +339,7 @@
             },
             {
               "type": "float",
-              "param": "FordLatTuningPathAngleHighCurvatureFactorUI",
+              "param": "FordLatTuningPathAngleHighSpeedFactorUI",
               "title": "Path Angle Amplitude",
               "desc": "Lower numbers to reduce twitchy steering, higher numbers decreaase wadnering or slow ping pong",
               "hidden": false,
