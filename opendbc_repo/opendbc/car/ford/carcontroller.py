@@ -106,7 +106,7 @@ class CarController(CarControllerBase):
     self.path_angle_high_curvature_factor = 0.17
 
     # Curvature variables
-    self.curvature_lookup_time = CP.steerActuatorDelay
+    self.curvature_lookup_time = 0.22 #from lagd branches
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
