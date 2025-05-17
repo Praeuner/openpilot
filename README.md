@@ -29,7 +29,7 @@ installer.comaa.ai/BluePilotDev/"branch name"
 
 For example
 
-isntaller.comma.ai/BluePilotDev/bp-2.1 
+installer.comma.ai/BluePilotDev/bp-2.1 
 
 will install the bp-2.1 branch.  Branches known to no longer work due to changes in the comma codebase will be apended with -deprecated so it will be obvious they will not install or work correctly.
 
