@@ -23,7 +23,7 @@ Table of Contents
 
 As of May 2025, we are updating the way branches are named and how links are generated. We had intially intended to use a branch naming system similar to openpilot and sunnypilot where there was a "stable" or "release" branch which included all fully vetted code, and then "staging" or "beta" branches with new code that would eventually move into the stable/release branches.  However as we evolved we found everyone like being able to bounce between newer and older branches to compare features and control. Moving forwards all releases will simply be named bp-"feature release number" as an example "staging-1.1" which features the bluepilot 1.1 features (custom tuning) will become "bp-1.1".
 
-To install any version of bleupilot, use the following URL formula
+To install any version of bleupilot, use the following URL formula (URL is case sensitive)
 
 installer.comaa.ai/BluePilotDev/"branch name"  
 
@@ -42,8 +42,8 @@ will install the bp-2.1 branch.  Branches known to no longer work due to changes
 
 ---
 
-Join the official Ford channel at the sunnypilot Discord server to stay up to date with all the latest features and be a part of shaping the future of bluepilot!
-* https://discord.com/channels/880416502577266699/1064822699085545522
+Join the official #ford channel at the sunnypilot Discord server to stay up to date with all the latest features and be a part of shaping the future of bluepilot!
+* [sunnypilot Discord server](https://discord.sunnypilot.com)
 
 </details>
 
@@ -74,12 +74,10 @@ The following changes are a **VIOLATION** of this policy and **ARE NOT** include
 
 <details><summary><h3>⚒ Installation</h3></summary>
 
-Please refer to [Recommended Branches](#-recommended-branches) to find your preferred/supported branch. This guide will assume you want to install the latest `stable` branch.
-
 * bluepilot not installed
   1. [Factory reset/uninstall](https://github.com/commaai/openpilot/wiki/FAQ#how-can-i-reset-the-device) the previous software if you have another software/fork installed.
   2. After factory reset/uninstall and upon reboot, select `Custom Software` when given the option.
-  3. Input the installation URL per [Recommended Branches](#-recommended-branches). Example: ```installter.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
+  3. Input the installation URL based on the desired branch. Example: ```installter.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
   4. Complete the rest of the installation following the onscreen instructions.
 
 * bluepilot already installed and you installed a version after 0.8.17?
