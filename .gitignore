@@ -124,6 +124,8 @@ selfdrive/assets/*.backup
 *.a
 *.tmp
 *.dylib
+!third_party/sentry/ubuntu_larch64/libsentry.so
+!third_party/sentry/macos_arm64/libsentry.dylib
 .*.swp
 .DS_Store
 .sconsign.dblite
