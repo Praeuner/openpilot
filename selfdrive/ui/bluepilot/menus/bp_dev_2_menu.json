@@ -318,17 +318,11 @@
               }
             },
             {
-              "type": "segmented_control",
-              "param": "FordLatTuningTuningProfileUI",
-              "title": "Tuning Profile",
-              "desc": "Sets the tuning aggressiveness profile",
+              "type": "toggle",
+              "param": "FordLatTuningTuningCustomProfile",
+              "title": "Use Custom Tuning Profile",
+              "desc": "Use custom tuning profile for advanced lateral control",
               "hidden": false,
-              "options": [
-                { "name": "Low", "value": "1"},
-                { "name": "Medium", "value": "2", "default": true},
-                { "name": "High", "value": "3" },
-                { "name": "Custom", "value": "4" }
-              ],
               "conditions": {
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },

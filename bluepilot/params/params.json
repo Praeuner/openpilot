@@ -173,13 +173,13 @@
       "enabled": true
     },
     {
-      "name": "FordLatTuningTuningProfileUI",
-      "default": 2,
-      "min": 1,
-      "max": 4,
+      "name": "FordLatTuningTuningCustomProfile",
+      "default": 0,
+      "min": 0,
+      "max": 1,
       "type": "int",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "tuning_profile_UI",
+      "ccProp": "custom_profile",
       "create_default": true,
       "enabled": true
     },
