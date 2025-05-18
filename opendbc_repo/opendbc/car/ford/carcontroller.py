@@ -99,8 +99,8 @@ class CarController(CarControllerBase):
     self.path_lookup_time = CP.steerActuatorDelay  # how far into the future to we need to look for our path_angle signals.
     self.precision_type = 1  # precise or comfort
     self.human_turn = False  # have we detected a human override in a turn
-    self.enable_AdvLatCtrl = False # Updated form UI: enable Advanced Lateral Control
-    self.tuning_profile_UI = 4 # 1: Low, 2: Mid, 3: High, 4: UI
+    self.enable_AdvLatCtrl = False # Updated from UI: enable Advanced Lateral Control
+    self.custom_profile = 0 # updated from UI
     self.pc_blend_ratio = 0.5
     self.path_angle_high_speed_factor = 5.0
     self.path_angle_high_curvature_factor = 0.17
@@ -131,16 +131,14 @@ class CarController(CarControllerBase):
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_speed_bp = [4.4, 40.23]  # what speeds to adjust path_angle_speed_factor over.
     self.path_angle_low_speed_factor = 0.05 # path_angle_speed_factor at 4.45 m/s
-    self.path_angle_high_speed_factor_low = 2.25 # path_angle_speed_factor at 40.23 m/s
-    self.path_angle_high_speed_factor_mid = 5.0 # path_angle_speed_factor at 40.23 m/s
-    self.path_angle_high_speed_factor_high = 7.5 # path_angle_speed_factor at 40.23 m/s
+    self.path_angle_high_speed_factor_CANFD = 1.8 # path_angle_speed_factor at 40.23 m/s
+    self.path_angle_high_speed_factor_CAN = 7.5 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_UI = 5.0 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_curvature_factor_bp = [0.00025, 0.001] # what curvature to adjust path_angle.
     self.path_angle_low_curvature_factor = 1.0 # path_angle_curvature_factor at 0.001
-    self.path_angle_high_curvature_factor_low = 0.20 # path_angle_curvature_factor at 0.002
-    self.path_angle_high_curvature_factor_mid = 0.22 # path_angle_curvature_factor at 0.002
-    self.path_angle_high_curvature_factor_high = 0.25 # path_angle_curvature_factor at 0.002
-    self.path_angle_high_curvature_factor_UI = 0.22 # path_angle_curvature_factor at 0.002
+    self.path_angle_high_curvature_factor_CANFD = 0.00 # path_angle_curvature_factor at 0.002
+    self.path_angle_high_curvature_factor_CAN = 0.20 # path_angle_curvature_factor at 0.002
+    self.path_angle_high_curvature_factor_UI = 0.10 # path_angle_curvature_factor at 0.002
 
     # max absolute values for all four signals
     self.path_angle_max = 0.1  # too much path angle is dangerious
@@ -312,26 +310,22 @@ class CarController(CarControllerBase):
         steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # determine tuning profile
-        if self.tuning_profile_UI == 1:
-          self.pc_blend_ratio_low_C = 0.5
-          self.pc_blend_ratio_high_C = 0.3
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_low
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_low
-        elif self.tuning_profile_UI == 2:
-          self.pc_blend_ratio_low_C = 0.4
-          self.pc_blend_ratio_high_C = 0.2
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_mid
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_mid
-        elif self.tuning_profile_UI == 3:
-          self.pc_blend_ratio_low_C = 0.3
-          self.pc_blend_ratio_high_C = 0.1
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_high
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_high
-        elif self.tuning_profile_UI == 4:
+        if self.custom_profile == 1: # custom tuning profile
           self.pc_blend_ratio_low_C =  self.pc_blend_ratio_low_C_UI
           self.pc_blend_ratio_high_C =  self.pc_blend_ratio_high_C_UI
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_UI
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_UI
+        elif self.CP.flags & FordFlags.CANFD:
+          self.pc_blend_ratio_low_C = 0.6
+          self.pc_blend_ratio_high_C = 0.4
+          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CANFD
+          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CANFD
+        else:
+          self.pc_blend_ratio_low_C = 0.4
+          self.pc_blend_ratio_high_C = 0.2
+          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CAN
+          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CAN
+
 
         self.pc_blend_ratio_v = [self.pc_blend_ratio_low_C, self.pc_blend_ratio_high_C] # %-Predicted Curvature
 
