@@ -106,7 +106,7 @@ class CarController(CarControllerBase):
     self.path_angle_high_curvature_factor = 0.17
 
     # Curvature variables
-    self.curvature_lookup_time = 0.22 #from lagd branches
+    self.curvature_lookup_time = 0.05 #from bp-2.1
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
@@ -114,15 +114,13 @@ class CarController(CarControllerBase):
     self.pc_blend_ratio_high_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_bp = [0.0, 0.001] # curvature breakpoints in 1/m
 
-
-
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
     self.curvature_rate_deque = deque(maxlen=int(round(self.curvature_rate_delta_t / 0.05)))  # 0.3 seconds at 20Hz
 
     # path offset variables
     self.custom_path_offset = 0.0 # updated from UI: applies a custom offset to help with in-lane positioning
-    self.path_offset_lookup_time = 0.1 # in seconds
+    self.path_offset_lookup_time = 0.2 # in seconds (from bp-2.1)
     self.lane_width_tolerance_factor = 0.75
     self.min_laneline_confidence_bp = [0.6, 0.8]
     self.enable_lanefull_mode = True
