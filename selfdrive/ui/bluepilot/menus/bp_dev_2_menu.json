@@ -345,7 +345,7 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningProfileUI": "4" } },
+                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
                   { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
                 ]
               }
@@ -364,7 +364,7 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningProfileUI": "4" } },
+                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
                   { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
                 ]
               }
