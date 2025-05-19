@@ -143,3 +143,4 @@ opendbc/dbc/*_generated.dbc
 
 cppcheck-addon-ctu-file-list
 opendbc/safety/tests/coverage-out
+.sentry-native/
