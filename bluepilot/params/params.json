@@ -144,6 +144,17 @@
       "enabled": true
     },
     {
+      "name": "FordLatTuningLargeCurveFactor_high",
+      "default": 0.97,
+      "min": 0.8,
+      "max": 1.0,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "large_curve_factor_high",
+      "create_default": true,
+      "enabled": true
+    },
+    {
       "name": "FordLatTuningEnableAdvLatCtrl",
       "default": false,
       "type": "bool",

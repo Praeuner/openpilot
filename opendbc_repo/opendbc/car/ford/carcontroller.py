@@ -110,9 +110,17 @@ class CarController(CarControllerBase):
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
+    self.pc_blend_ratio_low_C_CAN = 0.40 # %-Predicted Curvature
+    self.pc_blend_ratio_high_C_CAN = 0.20 # %-Predicted Curvature
+    self.pc_blend_ratio_low_C_CANFD = 0.65 # %-Predicted Curvature
+    self.pc_blend_ratio_high_C_CANFD = 0.40 # %-Predicted Curvature
     self.pc_blend_ratio_low_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_high_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_bp = [0.0, 0.001] # curvature breakpoints in 1/m
+    self.large_curve_factor_low = 1.0 # factor to reduce curvature for small curves
+    self.large_curve_factor_high = 0.97 # Updated from UI: factor to reduce curvature for large curves
+    self.large_curve_factor_bp = [0.001, 0.02] # curvature breakpoints in 1/m
+    self.large_curve_factor_v = [self.large_curve_factor_low, self.large_curve_factor_high] #  determine factor to reduce curvature for large curves
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -316,13 +324,13 @@ class CarController(CarControllerBase):
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_UI
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_UI
         elif self.CP.flags & FordFlags.CANFD:
-          self.pc_blend_ratio_low_C = 0.6
-          self.pc_blend_ratio_high_C = 0.4
+          self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CANFD
+          self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CANFD
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CANFD
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CANFD
         else:
-          self.pc_blend_ratio_low_C = 0.4
-          self.pc_blend_ratio_high_C = 0.2
+          self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CAN
+          self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CAN
           self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CAN
           self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CAN
 
@@ -373,6 +381,16 @@ class CarController(CarControllerBase):
               requested_curvature = requested_curvature # if we are moving back left to correct for over travel, do not reduce curvature
 
           self.precision_type = 0 # use comfort mode
+
+        # determine large curve factor
+        large_curve_factor = interp(abs(requested_curvature), self.large_curve_factor_bp, self.large_curve_factor_v)
+
+        #no large curve factor in lane changes
+        if self.lane_change:
+          large_curve_factor = 1.0
+
+        # apply large curve factor
+        requested_curvature = requested_curvature * large_curve_factor
 
         # Apply curvature limits
         apply_curvature = apply_ford_curvature_limits(
