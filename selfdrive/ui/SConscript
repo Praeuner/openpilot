@@ -12,6 +12,25 @@ if arch == "Darwin":
   del base_libs[base_libs.index('OpenCL')]
   qt_env['FRAMEWORKS'] += ['OpenCL']
 
+print(f"Current architecture: {arch}")
+if arch in ['larch64', 'Darwin']:
+  if arch == 'larch64':
+    sentry_lib_file = File('#third_party/sentry/ubuntu_larch64/libsentry.so')
+    qt_env.Append(LINKFLAGS=[r'-Wl,-rpath,\$$ORIGIN/../../third_party/sentry/ubuntu_larch64'])
+  elif arch == 'Darwin':
+    sentry_lib_file = File('#third_party/sentry/macos_arm64/libsentry.dylib')
+    qt_env.Append(LINKFLAGS=['-Wl,-rpath,@loader_path/../../third_party/sentry/macos_arm64'])
+  if not sentry_lib_file.exists():
+    print(f"Error: Sentry library not found: {sentry_lib_file}")
+
+  qt_env.Append(CPPDEFINES=['SENTRY_ENABLED'])  # Define macro for supported platforms
+  print(f"Sentry library found: {sentry_lib_file}")
+  sentry_lib_dir = sentry_lib_file.dir
+  qt_env.Append(LIBPATH=[sentry_lib_dir])
+
+  qt_env.Append(CPPPATH=['#third_party/sentry/include'])
+  base_libs.append('sentry')  # Add Sentry to the list of libraries
+
 sp_widgets_src = []
 sp_qt_src = []
 sp_qt_util = []
@@ -105,7 +124,6 @@ qt_env.Program("ui", qt_src + [asset_obj], LIBS=qt_libs)
 if arch == 'larch64':
   # bp_spinner and bp_updater
   qt_env.Program("qt/bp_spinner_larch64", ["qt/bp_spinner.cc", "bluepilot/qt/offroad/panels/bp_updater_panel.cc"], LIBS=qt_libs)
-  # qt_env.Program("_bp_updater", ["bluepilot/qt/offroad/panels/bp_updater_panel.cc"], LIBS=qt_libs)
 
 if GetOption('extras'):
   qt_src.remove("main.cc")  # replaced by test_runner

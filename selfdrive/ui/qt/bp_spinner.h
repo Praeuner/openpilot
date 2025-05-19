@@ -87,6 +87,7 @@ private:
   OutputModal *outputModal;
   std::deque<std::string> outputBuffer;
   bool hasError;
+  QTimer outputUpdateTimer;
 
   void update(int n);
   void parseInput(const std::string &line);
@@ -94,6 +95,7 @@ private:
   void updateStatusText(const QString &text);
   void storeOutput(const QString &text);
   void updateOutputModalText();
+  void queueOutputUpdate();
 };
 
 // QT widget to display animated spinner

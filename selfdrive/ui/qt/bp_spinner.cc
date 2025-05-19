@@ -25,61 +25,85 @@ constexpr QSize spinner_size = QSize(500, 500);
 // BPTrackWidget implementation for animated spinner
 BPTrackWidget::BPTrackWidget(QWidget *parent) : QWidget(parent) {
   setAttribute(Qt::WA_OpaquePaintEvent);
+  setAttribute(Qt::WA_PaintOnScreen, false);
   setFixedSize(spinner_size);
 
-  // Load the comma image at original size
+  // Load the spinner track image
+  QPixmap track_original = loadPixmap("../assets/img_spinner_track.png");
+
+  // Load the comma image
   QPixmap comma_original = loadPixmap("../assets/img_spinner_comma.png");
 
-  // Calculate size for larger comma (80% of spinner size)
-  int comma_size = qMin(width(), height()) * 1.3;
+  // Calculate size for comma (larger - 100% of spinner size)
+  int comma_size = qMin(width(), height());
 
-  // Scale the comma image to the new size
-  QPixmap comma_img = comma_original.scaled(comma_size, comma_size,
-                                           Qt::KeepAspectRatio,
-                                           Qt::SmoothTransformation);
+  // Scale the comma image (stationary)
+  QPixmap comma_img = comma_original.scaled(comma_size, comma_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
   // Calculate position to center the comma
-  int x_pos = (width() - comma_img.width()) / 2;
-  int y_pos = (height() - comma_img.height()) / 2;
+  int comma_x = (width() - comma_img.width()) / 2;
+  int comma_y = (height() - comma_img.height()) / 2;
 
-  // Create animation frames
-  QTransform transform(1, 0, 0, 1, width() / 2, height() / 2);
-  QPixmap pm(spinner_size);
-  QPainter p(&pm);
-  p.setRenderHint(QPainter::Antialiasing);
-  p.setRenderHint(QPainter::SmoothPixmapTransform);
+  // Calculate size for track (smaller - 90% of spinner size)
+  int track_size = qMin(width(), height()) * 0.9;
 
+  // Scale the track image
+  QPixmap track_img = track_original.scaled(track_size, track_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+  // Calculate position to center the track
+  int track_x = (width() - track_img.width()) / 2;
+  int track_y = (height() - track_img.height()) / 2;
+
+  // Create animation frames for rotating track
   for (int i = 0; i < track_imgs.size(); ++i) {
+    // Create fresh pixmap for this frame
+    QPixmap pm(spinner_size);
+    pm.fill(Qt::black);
+
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+
+    // Setup transformation to rotate the track around center
+    p.translate(width() / 2, height() / 2);
+    p.rotate(i * (360.0 / spinner_fps));
+    p.translate(-width() / 2, -height() / 2);
+
+    // Draw the rotating track image (centered)
+    p.drawPixmap(track_x, track_y, track_img);
+
+    // Reset transformation to draw comma in fixed position
     p.resetTransform();
-    p.fillRect(0, 0, spinner_size.width(), spinner_size.height(), Qt::black);
 
-    // Draw the scaled and centered comma
-    p.drawPixmap(x_pos, y_pos, comma_img);
+    // Draw the stationary comma in the center
+    p.drawPixmap(comma_x, comma_y, comma_img);
 
-    p.setTransform(transform.rotate(360 / spinner_fps));
-
-    // Draw native Qt arc
-    p.setPen(QPen(Qt::white, 10));
-    p.setBrush(Qt::NoBrush);
-
-    int diameter = qMin(width(), height()) - 40;
-    p.drawArc(-diameter/2, -diameter/2, diameter, diameter, 0, 270 * 16);
-
+    // Store the completed frame
     track_imgs[i] = pm.copy();
   }
 
-  // Animation setup remains the same
+  // Use optimized animation setup to reduce flickering
   m_anim.setDuration(1000);
   m_anim.setStartValue(0);
-  m_anim.setEndValue(int(track_imgs.size() -1));
+  m_anim.setEndValue(int(track_imgs.size() - 1));
   m_anim.setLoopCount(-1);
   m_anim.start();
-  connect(&m_anim, SIGNAL(valueChanged(QVariant)), SLOT(update()));
-}
 
+  // Use the improved connection that reduces unnecessary repaints
+  connect(&m_anim, &QVariantAnimation::valueChanged, [this](const QVariant &value) {
+    // Only update if the frame actually changed (avoids duplicate repaints)
+    static int lastFrame = -1;
+    int currentFrame = value.toInt();
+    if (currentFrame != lastFrame) {
+      lastFrame = currentFrame;
+      update();
+    }
+  });
+}
 
 void BPTrackWidget::paintEvent(QPaintEvent *event) {
   QPainter painter(this);
+  painter.setClipRect(event->rect());
   painter.drawPixmap(0, 0, track_imgs[m_anim.currentValue().toInt()]);
 }
 
@@ -87,6 +111,10 @@ void BPTrackWidget::paintEvent(QPaintEvent *event) {
 OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(parent) {
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
   setStyleSheet("background-color: #121212; font-size: 30px;");
+
+  // Enable double buffering to reduce flicker
+  setAttribute(Qt::WA_PaintOnScreen, false);
+  setAttribute(Qt::WA_OpaquePaintEvent, true);
 
   // Create main layout
   layout = new QVBoxLayout(this);
@@ -99,7 +127,8 @@ OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(par
   // Create circular X button
   closeButton = new QPushButton("×", this);
   closeButton->setFixedSize(90, 90);
-  closeButton->setStyleSheet("QPushButton { background-color: #333333; color: white; border-radius: 40px; font-size: 80px; font-weight: bold; } QPushButton:pressed { background-color: #444444; }");
+  closeButton->setStyleSheet(
+      "QPushButton { background-color: #333333; color: white; border-radius: 40px; font-size: 80px; font-weight: bold; } QPushButton:pressed { background-color: #444444; }");
   headerLayout->addWidget(closeButton);
 
   // Title
@@ -117,7 +146,8 @@ OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(par
   // Text area for compile output
   textArea = new QTextEdit(this);
   textArea->setReadOnly(true);
-  textArea->setStyleSheet("QTextEdit { background-color: #1e1e1e; color: white; border-radius: 10px; font-family: monospace; font-size: 40px; padding: 10px; } QTextEdit::selection { background-color: transparent; }");
+  textArea->setStyleSheet("QTextEdit { background-color: #1e1e1e; color: white; border-radius: 10px; font-family: monospace; font-size: 40px; padding: 10px; } "
+                          "QTextEdit::selection { background-color: transparent; }");
   layout->addWidget(textArea, 1);
 
   // Configure text area to prevent text selection during touch scrolling
@@ -131,14 +161,16 @@ OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(par
 
   // Reboot button (hidden by default)
   rebootButton = new QPushButton("Reboot", this);
-  rebootButton->setStyleSheet("QPushButton { background-color:rgb(228, 19, 19); color: white; border-radius: 20px; padding: 20px; font-size: 60px; } QPushButton:pressed { background-color:rgb(112, 10, 10); }");
+  rebootButton->setStyleSheet("QPushButton { background-color:rgb(228, 19, 19); color: white; border-radius: 20px; padding: 20px; font-size: 60px; } QPushButton:pressed { "
+                              "background-color:rgb(112, 10, 10); }");
   rebootButton->setFixedHeight(100);
   rebootButton->setVisible(false);
   buttonLayout->addWidget(rebootButton);
 
   // Update Tool button (hidden by default)
   updateToolButton = new QPushButton("Updater", this);
-  updateToolButton->setStyleSheet("QPushButton { background-color: #33aa33; color: white; border-radius: 20px; padding: 20px; font-size: 60px; } QPushButton:pressed { background-color: #228822; }");
+  updateToolButton->setStyleSheet(
+      "QPushButton { background-color: #33aa33; color: white; border-radius: 20px; padding: 20px; font-size: 60px; } QPushButton:pressed { background-color: #228822; }");
   updateToolButton->setFixedHeight(100);
   updateToolButton->setVisible(false);
   buttonLayout->addWidget(updateToolButton);
@@ -148,7 +180,8 @@ OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(par
   // Add scroll-to-bottom button
   scrollToBottomButton = new QPushButton("↓", this);
   scrollToBottomButton->setFixedSize(120, 120);
-  scrollToBottomButton->setStyleSheet("QPushButton { background-color: #465BEA; color: white; border-radius: 40px; font-size: 80px; font-weight: bold; } QPushButton:pressed { background-color: rgba(100, 100, 100, 0.8); }");
+  scrollToBottomButton->setStyleSheet("QPushButton { background-color: #465BEA; color: white; border-radius: 40px; font-size: 80px; font-weight: bold; } QPushButton:pressed { "
+                                      "background-color: rgba(100, 100, 100, 0.8); }");
   scrollToBottomButton->setCursor(Qt::PointingHandCursor);
   scrollToBottomButton->setToolTip("Scroll to bottom");
   scrollToBottomButton->setVisible(false); // Initially hidden
@@ -156,9 +189,7 @@ OutputModal::OutputModal(BPSpinner *parent) : QDialog(parent), spinnerParent(par
 
   // Connect signals
   connect(closeButton, &QPushButton::clicked, this, &QDialog::accept);
-  connect(rebootButton, &QPushButton::clicked, []() {
-    QProcess::execute("reboot");
-  });
+  connect(rebootButton, &QPushButton::clicked, []() { QProcess::execute("reboot"); });
   connect(updateToolButton, &QPushButton::clicked, [this]() {
     hide();
     if (spinnerParent) {
@@ -238,9 +269,7 @@ void OutputModal::setupTouchScrolling() {
 bool OutputModal::eventFilter(QObject *obj, QEvent *event) {
   // Prevent text selection during touch scrolling
   if (obj == textArea->viewport()) {
-    if (event->type() == QEvent::MouseButtonPress ||
-        event->type() == QEvent::MouseMove ||
-        event->type() == QEvent::MouseButtonRelease) {
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease) {
       if (QScroller::hasScroller(textArea->viewport())) {
         // If we're in a scrolling session, don't select text
         return true;
@@ -251,11 +280,13 @@ bool OutputModal::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void OutputModal::setText(const QString &text) {
+  // Skip update if text hasn't changed
+  if (textArea->toPlainText() == text) {
+    return;
+  }
+
   // Block signals to prevent unnecessary processing during text update
   textArea->blockSignals(true);
-
-  // Update scroll button visibility
-  updateScrollButtonVisibility();
 
   // Store the current scroll position and check if we're at the bottom
   QScrollBar *scrollBar = textArea->verticalScrollBar();
@@ -264,23 +295,31 @@ void OutputModal::setText(const QString &text) {
     // Consider "at bottom" if within 30 pixels of maximum
     wasAtBottom = (scrollBar->value() >= scrollBar->maximum() - 30);
   }
-  textArea->setText(text);
+
+  // Use document-based update instead of setText for better performance
+  QTextDocument *doc = textArea->document();
+  doc->setPlainText(text);
 
   // Only auto-scroll if we were already at the bottom
   if (wasAtBottom && scrollBar) {
-    QTextCursor cursor = textArea->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    textArea->setTextCursor(cursor);
-    scrollBar->setValue(scrollBar->maximum());
+    // Use a single-shot timer to defer scrolling until after layout
+    QTimer::singleShot(0, this, [this]() {
+      QScrollBar *scrollBar = textArea->verticalScrollBar();
+      if (scrollBar) {
+        scrollBar->setValue(scrollBar->maximum());
+      }
+      // Update scroll button visibility after scroll completes
+      updateScrollButtonVisibility();
+    });
+  } else {
+    updateScrollButtonVisibility();
   }
 
   // Re-enable signals
   textArea->blockSignals(false);
 }
 
-void OutputModal::setTitle(const QString &title) {
-  titleLabel->setText(title);
-}
+void OutputModal::setTitle(const QString &title) { titleLabel->setText(title); }
 
 void OutputModal::setErrorMode(bool isError) {
   if (isError) {
@@ -336,10 +375,7 @@ void OutputModal::resizeEvent(QResizeEvent *event) {
 
 void OutputModal::positionScrollButton() {
   // Position at bottom right with 30px margin
-  scrollToBottomButton->move(
-    width() - scrollToBottomButton->width() - 100,
-    height() - scrollToBottomButton->height() - 150
-  );
+  scrollToBottomButton->move(width() - scrollToBottomButton->width() - 100, height() - scrollToBottomButton->height() - 150);
 }
 
 void OutputModal::showEvent(QShowEvent *event) {
@@ -355,11 +391,12 @@ void OutputModal::applyRotation() {
   // Set fixed size first
   setFixedSize(2160, 1080);
 
+  // Prevent UI drawing during rotation
+  setUpdatesEnabled(false);
+
   QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
   if (native && windowHandle()) {
-    wl_surface *s = reinterpret_cast<wl_surface *>(
-      native->nativeResourceForWindow("surface", windowHandle())
-    );
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", windowHandle()));
 
     if (s) {
       wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
@@ -370,47 +407,84 @@ void OutputModal::applyRotation() {
     }
     positionScrollButton();
   }
+
+  // Re-enable updates and do a single repaint
+  QTimer::singleShot(100, this, [this]() {
+    setUpdatesEnabled(true);
+    update();
+  });
 #endif
 }
 
 // BPSpinner implementation
 BPSpinner::BPSpinner(QWidget *parent) : QWidget(parent), hasError(false) {
+  // Enable double buffering to reduce flicker
+  setAttribute(Qt::WA_PaintOnScreen, false);
+  setAttribute(Qt::WA_OpaquePaintEvent, true);
+
   QVBoxLayout *mainLayout = new QVBoxLayout();
-  mainLayout->setContentsMargins(200, 200, 200, 200);
+  mainLayout->setContentsMargins(150, 100, 150, 200); // Reduced top margin to push spinner higher
   mainLayout->setSpacing(15);
-  mainLayout->addStretch(1); // Stretch for vertical centering
+
+  // Less stretch at top - use integer values for addStretch
+  mainLayout->addStretch(1);
 
   BPTrackWidget *trackWidget = new BPTrackWidget(this);
   mainLayout->addWidget(trackWidget, 0, Qt::AlignHCenter);
 
-  // Larger spacer to move progress bar down
-  mainLayout->addSpacing(150); // Increased from 50px
+  // More spacing to ensure separation between spinner and progress bar
+  mainLayout->addSpacing(250);
 
-  QVBoxLayout *statusLayout = new QVBoxLayout();
-  statusLayout->setSpacing(30);
+  // Fixed container for progress bar and status text
+  QWidget *statusContainer = new QWidget();
+  statusContainer->setFixedHeight(300);
 
+  // Use grid layout with fixed row heights for stability
+  QGridLayout *statusGridLayout = new QGridLayout(statusContainer);
+  statusGridLayout->setRowMinimumHeight(0, 50);  // Fixed height for progress bar row
+  statusGridLayout->setRowMinimumHeight(1, 250); // For status text row
+  statusGridLayout->setVerticalSpacing(40);
+  statusGridLayout->setContentsMargins(0, 0, 0, 0); // Reduce internal margins
+
+  // Progress bar in row 0
   progressBar = new QProgressBar();
   progressBar->setRange(0, 100);
   progressBar->setTextVisible(false);
   progressBar->setFixedHeight(30);
   progressBar->setFixedWidth(800);
-  statusLayout->addWidget(progressBar, 0, Qt::AlignHCenter);
+  statusGridLayout->addWidget(progressBar, 0, 0, 1, 1, Qt::AlignHCenter);
+
+  // Status text in row 1
+  QVBoxLayout *textContainer = new QVBoxLayout();
+  textContainer->setContentsMargins(0, 0, 0, 0);
+  textContainer->setSpacing(0);
 
   statusTextLabel = new QLabel();
   statusTextLabel->setWordWrap(true);
   statusTextLabel->setAlignment(Qt::AlignCenter);
-  statusTextLabel->setFixedWidth(1200);
-  statusLayout->addWidget(statusTextLabel, 0, Qt::AlignHCenter);
+  statusTextLabel->setFixedWidth(1600);
 
-  mainLayout->addLayout(statusLayout);
-  mainLayout->addStretch(1); // Equal stretch for vertical centering
+  // Set a larger font with more line height for better readability
+  QFont textFont = statusTextLabel->font();
+  textFont.setPointSize(30);
+  statusTextLabel->setFont(textFont);
+  statusTextLabel->setMinimumHeight(200);
+
+  textContainer->addWidget(statusTextLabel, 0, Qt::AlignHCenter | Qt::AlignTop);
+  statusGridLayout->addLayout(textContainer, 1, 0, 1, 1);
+
+  mainLayout->addWidget(statusContainer, 0, Qt::AlignHCenter);
+
+  // More stretch at bottom - use integer values for addStretch
+  mainLayout->addStretch(3);
 
   setLayout(mainLayout);
 
   // Hollow info button
   infoButton = new QPushButton(this);
   infoButton->setFixedSize(80, 80);
-  infoButton->setStyleSheet("QPushButton { background-color: transparent; color: white; border: 2px solid white; border-radius: 40px; } QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
+  infoButton->setStyleSheet("QPushButton { background-color: transparent; color: white; border: 2px solid white; border-radius: 40px; } QPushButton:pressed { background-color: "
+                            "rgba(255, 255, 255, 0.2); }");
   infoButton->setText("i");
   QFont font = infoButton->font();
   font.setPointSize(60);
@@ -418,9 +492,7 @@ BPSpinner::BPSpinner(QWidget *parent) : QWidget(parent), hasError(false) {
   infoButton->setFont(font);
 
   // Connect signals
-  connect(infoButton, &QPushButton::clicked, [this]() {
-    showOutputModal(false);
-  });
+  connect(infoButton, &QPushButton::clicked, [this]() { showOutputModal(false); });
 
   // Create output modal
   outputModal = new OutputModal(this);
@@ -428,6 +500,10 @@ BPSpinner::BPSpinner(QWidget *parent) : QWidget(parent), hasError(false) {
   // Setup stdin notifier for progress and text updates
   notifier = new QSocketNotifier(fileno(stdin), QSocketNotifier::Read);
   QObject::connect(notifier, &QSocketNotifier::activated, this, &BPSpinner::update);
+
+  // Setup output update timer for debouncing
+  outputUpdateTimer.setSingleShot(true);
+  connect(&outputUpdateTimer, &QTimer::timeout, this, &BPSpinner::updateOutputModalText);
 
   // Set widget style
   setStyleSheet(R"(
@@ -455,12 +531,8 @@ void BPSpinner::update(int n) {
 void BPSpinner::parseInput(const std::string &line) {
   // Trim whitespace
   std::string trimmedLine = line;
-  trimmedLine.erase(trimmedLine.begin(), std::find_if(trimmedLine.begin(), trimmedLine.end(), [](unsigned char ch) {
-    return !std::isspace(ch);
-  }));
-  trimmedLine.erase(std::find_if(trimmedLine.rbegin(), trimmedLine.rend(), [](unsigned char ch) {
-    return !std::isspace(ch);
-  }).base(), trimmedLine.end());
+  trimmedLine.erase(trimmedLine.begin(), std::find_if(trimmedLine.begin(), trimmedLine.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+  trimmedLine.erase(std::find_if(trimmedLine.rbegin(), trimmedLine.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), trimmedLine.end());
 
   // Handle build retry
   if (trimmedLine == "BUILD_RETRY") {
@@ -488,11 +560,8 @@ void BPSpinner::parseInput(const std::string &line) {
   }
 
   // Check for build error patterns
-  if (trimmedLine.find("error:") != std::string::npos ||
-      trimmedLine.find("ERROR:") != std::string::npos ||
-      trimmedLine.find("fatal:") != std::string::npos ||
-      trimmedLine.find("FAILED") != std::string::npos ||
-      trimmedLine.find("Build failed") != std::string::npos) {
+  if (trimmedLine.find("error:") != std::string::npos || trimmedLine.find("ERROR:") != std::string::npos || trimmedLine.find("fatal:") != std::string::npos ||
+      trimmedLine.find("FAILED") != std::string::npos || trimmedLine.find("Build failed") != std::string::npos) {
 
     std::cout << "Build error detected: " << trimmedLine << std::endl;
     hasError = true;
@@ -513,7 +582,9 @@ void BPSpinner::parseInput(const std::string &line) {
     try {
       int percentage = std::stoi(percentageStr);
       progressBar->setValue(percentage);
-      updateStatusText(QString::fromStdString(text));
+      // Don't call updateStatusText, call storeOutput directly to avoid duplication
+      statusTextLabel->setText(QString::fromStdString(text));
+      storeOutput(QString::fromStdString(text));
     } catch (const std::exception &e) {
       storeOutput(QString::fromStdString(line));
     }
@@ -530,7 +601,7 @@ void BPSpinner::parseInput(const std::string &line) {
       }
     } else {
       // Otherwise, update status text and store output
-      updateStatusText(QString::fromStdString(line));
+      statusTextLabel->setText(QString::fromStdString(line));
       storeOutput(QString::fromStdString(line));
     }
   }
@@ -542,6 +613,10 @@ void BPSpinner::updateProgress(float cur, float total) {
 }
 
 void BPSpinner::updateStatusText(const QString &text) {
+  // Update the label text
+  statusTextLabel->setText(text);
+
+  // Separately store output
   storeOutput(text);
 }
 
@@ -551,33 +626,37 @@ void BPSpinner::storeOutput(const QString &text) {
     return;
   }
 
-  // Skip duplicates
-  if (!outputBuffer.empty() && outputBuffer.back() == text.toStdString()) {
-    if (outputModal && outputModal->isVisible()) {
-      updateOutputModalText();
-    }
-    return;
-  }
+  bool needsUpdate = false;
 
-  // Store output line (limit to 1000 lines)
-  outputBuffer.push_back(text.toStdString());
-  if (outputBuffer.size() > 1000) {
-    outputBuffer.pop_front();
+  // Skip duplicates
+  if (outputBuffer.empty() || outputBuffer.back() != text.toStdString()) {
+    // Store output line (limit to 1000 lines)
+    outputBuffer.push_back(text.toStdString());
+    if (outputBuffer.size() > 1000) {
+      outputBuffer.pop_front();
+    }
+    needsUpdate = true;
   }
 
   // Check for build completion
-  if (text.contains("Build completed", Qt::CaseInsensitive) ||
-      text.contains("Build finished", Qt::CaseInsensitive)) {
+  if (text.contains("Build completed", Qt::CaseInsensitive) || text.contains("Build finished", Qt::CaseInsensitive)) {
     if (hasError) {
       std::cout << "Build completed with errors, showing error modal" << std::endl;
       showOutputModal(true);
+      // Modal will be updated when shown, no need for extra update
+      return;
     }
   }
 
-  // Update modal if visible
-  if (outputModal && outputModal->isVisible()) {
-    updateOutputModalText();
+  // Update modal if visible and changes were made
+  if (needsUpdate && outputModal && outputModal->isVisible()) {
+    queueOutputUpdate();
   }
+}
+
+void BPSpinner::queueOutputUpdate() {
+  // Debounce multiple rapid updates (30ms is usually a good debounce time)
+  outputUpdateTimer.start(30);
 }
 
 void BPSpinner::updateOutputModalText() {
@@ -614,23 +693,23 @@ void BPSpinner::launchUpdaterPanel() {
   errorModalWasVisible = outputModal->isVisible() && hasError;
 
   // Create container widget
-  QWidget* container = new QWidget(nullptr);
+  QWidget *container = new QWidget(nullptr);
   container->setObjectName("updaterContainer");
 
   // Create horizontal layout
-  QHBoxLayout* layout = new QHBoxLayout(container);
+  QHBoxLayout *layout = new QHBoxLayout(container);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
 
   // Create sidebar
-  QWidget* sidebar = new QWidget(container);
+  QWidget *sidebar = new QWidget(container);
   sidebar->setFixedWidth(100);
   sidebar->setStyleSheet("background-color: #121212;");
 
-  QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
+  QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
 
   // Create close button
-  QPushButton* closeButton = new QPushButton("×", sidebar);
+  QPushButton *closeButton = new QPushButton("×", sidebar);
   closeButton->setFixedSize(100, 100);
   closeButton->setStyleSheet(R"(
     QPushButton {
@@ -649,13 +728,13 @@ void BPSpinner::launchUpdaterPanel() {
   sidebarLayout->addStretch();
 
   // Create scroll area
-  QScrollArea* scrollArea = new QScrollArea(container);
+  QScrollArea *scrollArea = new QScrollArea(container);
   scrollArea->setWidgetResizable(true);
   scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
   // Create updater panel
-  BPUpdaterPanel* panel = new BPUpdaterPanel(scrollArea);
+  BPUpdaterPanel *panel = new BPUpdaterPanel(scrollArea);
   scrollArea->setWidget(panel);
 
   // Add sidebar and scroll area to layout
@@ -666,9 +745,7 @@ void BPSpinner::launchUpdaterPanel() {
   connect(closeButton, &QPushButton::clicked, container, &QWidget::close);
 
   // Clean up
-  connect(container, &QWidget::destroyed, [panel]() {
-    panel->deleteLater();
-  });
+  connect(container, &QWidget::destroyed, [panel]() { panel->deleteLater(); });
 
   // Apply styling
   container->setStyleSheet(R"(
@@ -733,9 +810,7 @@ void BPSpinner::launchUpdaterPanel() {
   // Restore error modal when panel closes
   connect(container, &QWidget::destroyed, [this]() {
     if (errorModalWasVisible) {
-      QTimer::singleShot(100, [this]() {
-        showOutputModal(true);
-      });
+      QTimer::singleShot(100, [this]() { showOutputModal(true); });
     }
   });
 
@@ -745,11 +820,9 @@ void BPSpinner::launchUpdaterPanel() {
 
   // Apply rotation after widget is shown
   QTimer::singleShot(0, [container]() {
-    QPlatformNativeInterface* native = QGuiApplication::platformNativeInterface();
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
     if (native && container->windowHandle()) {
-      wl_surface* s = reinterpret_cast<wl_surface*>(
-        native->nativeResourceForWindow("surface", container->windowHandle())
-      );
+      wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", container->windowHandle()));
 
       if (s) {
         wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);

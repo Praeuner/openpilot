@@ -30,15 +30,7 @@ void LateralDataWorker::processData(const UIState *s) {
       try {
         auto actuators = sm["carControl"].getCarControl().getActuators();
         cache.desiredSteerAngle = actuators.getSteeringAngleDeg();
-
-        // Check for Ford variables
-        // if (actuators.hasFordVariables()) {
-        //   auto fordVars = actuators.getFordVariables();
-        //   cache.maxAbsPredictedCurvature = fordVars.getMaxAbsPredictedCurvature();
-        //   cache.predictedSteeringAngleDegSP = fordVars.getPredictedSteeringAngleDegSP();
-        //   cache.pathAngleKp = fordVars.getPathAngleKp();
-        //   cache.hasFordVariables = true;
-        // }
+        cache.hasFordVariables = false;
       } catch (const std::exception &) {
         cache.desiredSteerAngle = cache.actualSteerAngle;
         cache.hasFordVariables = false;

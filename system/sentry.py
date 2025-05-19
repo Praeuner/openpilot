@@ -18,6 +18,16 @@ from openpilot.sunnypilot.sunnylink.api import UNREGISTERED_SUNNYLINK_DONGLE_ID
 
 CRASHES_DIR = Paths.crash_log_root()
 
+# Check if profiling is available in this version of sentry-sdk
+SENTRY_PROFILING_AVAILABLE = False
+try:
+  # Try to access the profiler module - will raise attribute error if not available
+  if hasattr(sentry_sdk, 'profiler'):
+    SENTRY_PROFILING_AVAILABLE = True
+    cloudlog.info("Sentry profiling is available")
+except Exception:
+  cloudlog.info("Sentry profiling is not available")
+
 
 class SentryProject(Enum):
   # python project
@@ -56,10 +66,7 @@ def save_exception(content: str) -> None:
     if not os.path.exists(CRASHES_DIR):
       os.makedirs(CRASHES_DIR)
 
-    files = [
-      os.path.join(CRASHES_DIR, datetime.now().strftime("%Y-%m-%d--%H-%M-%S.log")),
-      os.path.join(CRASHES_DIR, "error.log")
-    ]
+    files = [os.path.join(CRASHES_DIR, datetime.now().strftime("%Y-%m-%d--%H-%M-%S.log")), os.path.join(CRASHES_DIR, "error.log")]
 
     for fn in files:
       with open(fn, 'w') as f:
@@ -116,6 +123,92 @@ def get_properties() -> tuple[str, str, str]:
   return dongle_id, git_username, sunnylink_dongle_id
 
 
+def start_ui_monitoring(pid: int = None) -> None:
+  """Start specific monitoring for the UI process to detect hangs."""
+  if pid is None:
+    return
+
+  try:
+    set_tag("ui_process_id", str(pid))
+
+    # Start a transaction for monitoring the UI process
+    with sentry_sdk.start_transaction(op="ui_monitoring", name="UI Process Monitoring") as transaction:
+      transaction.set_tag("ui_pid", str(pid))
+
+      # Explicitly start profiling for the UI process if available
+      # Following the official recommendation for manual profiling
+      if SENTRY_PROFILING_AVAILABLE:
+        try:
+          # Directly call the start_profiler as recommended by Sentry
+          sentry_sdk.profiler.start_profiler()
+          cloudlog.info(f"Started profiling UI process {pid} using recommended approach")
+        except Exception as e:
+          cloudlog.exception(f"Failed to start profiler: {e}")
+  except Exception as e:
+    cloudlog.exception(f"Failed to start UI monitoring: {e}")
+
+
+def profile_ui_process(pid: int, duration: int = 60) -> None:
+  """Explicitly profile the UI process for a specific duration following Sentry's recommended approach.
+
+  Args:
+      pid: Process ID of the UI process
+      duration: Duration in seconds to collect profile data (default: 60s)
+  """
+  if not SENTRY_PROFILING_AVAILABLE:
+    cloudlog.warning("Cannot profile UI process: profiling not available in this version of sentry-sdk")
+    return
+
+  try:
+    set_tag("profiled_ui_pid", str(pid))
+    set_tag("profiled_duration", str(duration))
+
+    # Start a transaction for the profiling session
+    with sentry_sdk.start_transaction(op="ui_profile", name="UI Process Profiling") as transaction:
+      # Use the recommended approach to start profiling
+      sentry_sdk.profiler.start_profiler()
+
+      # Log the start of profiling
+      cloudlog.info(f"Started profiling UI process {pid} for {duration} seconds using recommended approach")
+
+      # Sleep for the specified duration
+      import time
+
+      time.sleep(duration)
+
+      # Stop the profiler as recommended by Sentry
+      sentry_sdk.profiler.stop_profiler()
+
+      # Log the completion of profiling
+      cloudlog.info(f"Completed profiling UI process {pid}")
+
+      # Ensure the transaction gets the proper tags
+      transaction.set_tag("profiling_completed", "true")
+      transaction.set_data("profile_duration", duration)
+  except Exception as e:
+    cloudlog.exception(f"Failed to profile UI process: {e}")
+    # Make sure to stop the profiler even if there was an error
+    if SENTRY_PROFILING_AVAILABLE:
+      try:
+        sentry_sdk.profiler.stop_profiler()
+      except:
+        pass
+
+
+def ui_watchdog_breadcrumb(last_watchdog_time: float, current_time: float, max_dt: float) -> None:
+  """Add a breadcrumb for UI watchdog activity to help diagnose hangs."""
+  try:
+    dt = current_time - last_watchdog_time
+    sentry_sdk.add_breadcrumb(
+      category="ui_watchdog",
+      message=f"UI watchdog check",
+      data={"last_watchdog_time": last_watchdog_time, "current_time": current_time, "dt": dt, "max_dt": max_dt, "is_hanging": dt > max_dt},
+      level="info" if dt <= max_dt else "warning",
+    )
+  except Exception as e:
+    cloudlog.exception(f"Failed to add UI watchdog breadcrumb: {e}")
+
+
 def init(project: SentryProject) -> bool:
   build_metadata = get_build_metadata()
 
@@ -124,16 +217,27 @@ def init(project: SentryProject) -> bool:
 
   integrations = []
   if project == SentryProject.SELFDRIVE:
+    # Add threading integration to monitor threads
     integrations.append(ThreadingIntegration(propagate_hub=True))
 
-  sentry_sdk.init(project.value,
-                  default_integrations=False,
-                  release=get_version(),
-                  integrations=integrations,
-                  traces_sample_rate=1.0,
-                  max_value_length=8192,
-                  environment=env)
+  # Initialize Sentry with enhanced features
+  init_options = {
+    "default_integrations": False,
+    "release": get_version(),
+    "integrations": integrations,
+    "traces_sample_rate": 1.0,  # Enable tracing for all transactions
+    "max_value_length": 8192,
+    "environment": env,
+  }
 
+  # Add profiling options if available - using the official recommended approach
+  if SENTRY_PROFILING_AVAILABLE:
+    # Set profile_session_sample_rate to 1.0 to profile 100% of sessions
+    init_options["profile_session_sample_rate"] = 1.0
+
+  sentry_sdk.init(project.value, **init_options)
+
+  # Set important tags
   sentry_sdk.set_user({"id": dongle_id, "name": git_username})
   sentry_sdk.set_tag("dirty", build_metadata.openpilot.is_dirty)
   sentry_sdk.set_tag("origin", build_metadata.openpilot.git_origin)
@@ -142,4 +246,24 @@ def init(project: SentryProject) -> bool:
   sentry_sdk.set_tag("device", HARDWARE.get_device_type())
   sentry_sdk.set_tag("sunnylink_dongle_id", sunnylink_dongle_id)
 
+  # Add a tag to indicate if profiling is available
+  sentry_sdk.set_tag("profiling_available", str(SENTRY_PROFILING_AVAILABLE))
+
   return True
+
+
+def capture_process_lifecycle(process_name: str, event_type: str, details: dict = None) -> None:
+  """Capture process lifecycle events like start/stop/restart."""
+  try:
+    if details is None:
+      details = {}
+
+    sentry_sdk.add_breadcrumb(category="process_lifecycle", message=f"Process {process_name} {event_type}", data=details, level="info")
+
+    # For critical events, capture as transactions
+    if event_type in ("crash", "restart", "watchdog_timeout"):
+      with sentry_sdk.start_transaction(op="process_event", name=f"{process_name} {event_type}") as transaction:
+        for key, value in details.items():
+          transaction.set_tag(key, str(value))
+  except Exception as e:
+    cloudlog.exception(f"Failed to capture process lifecycle event: {e}")

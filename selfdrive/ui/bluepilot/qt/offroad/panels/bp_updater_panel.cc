@@ -1705,33 +1705,12 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Add title
   QLabel *titleLabel = new QLabel(title);
   titleLabel->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black;");
-
-  // Create header container with horizontal layout
-  QWidget *headerContainer = new QWidget(currentDialog);
-  QHBoxLayout *headerLayout = new QHBoxLayout(headerContainer);
-  headerLayout->setContentsMargins(0, 0, 0, 0);
-  headerLayout->setSpacing(0);
-
-  // Add title to the left side
-  headerLayout->addWidget(titleLabel);
-
-  // Add timer label to the right side
-  QLabel *timerLabel = new QLabel(currentDialog);
-  timerLabel->setStyleSheet("font-size: 70px; color: #50d332; text-align: right;"); // Green text
-  timerLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  headerLayout->addWidget(timerLabel);
-
-  // Replace the original titleLabel addition with the container
-  layout->addWidget(headerContainer);
+  layout->addWidget(titleLabel);
   layout->addSpacing(30);
 
   // Create elapsed timer to track runtime
   QElapsedTimer *elapsedTimer = new QElapsedTimer();
   elapsedTimer->start();
-
-  // Create runtime display timer
-  QTimer *runtimeTimer = new QTimer(currentDialog);
-  runtimeTimer->setInterval(1000); // Update every second
 
   // Format time values as m:ss
   auto formatTime = [](int totalSeconds) {
@@ -1739,19 +1718,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
     int seconds = totalSeconds % 60;
     return QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QChar('0'));
   };
-
-  // Update the timer display
-  connect(runtimeTimer, &QTimer::timeout, [=]() {
-    int elapsedSecs = elapsedTimer->elapsed() / 1000;
-    int timeoutSecs = timeoutMs / 1000;
-
-    QString timerText = QString("Running: %1 | Timeout: %2").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
-
-    timerLabel->setText(timerText);
-  });
-
-  // Start the runtime timer
-  runtimeTimer->start();
 
   // Create output text area
   QTextEdit *outputText = new QTextEdit(currentDialog);
@@ -1865,7 +1831,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   }
 
   // Close button (initially disabled)
-  QPushButton *closeButton = new QPushButton(tr("Command is Running..."), currentDialog);
+  QPushButton *closeButton = new QPushButton(tr("Command Running..."), currentDialog);
   closeButton->setEnabled(false);
   closeButton->setFixedHeight(100);
   closeButton->setStyleSheet(R"(
@@ -1881,7 +1847,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         }
         QPushButton:disabled {
             background-color: #4F4F4F;
-            color: #888888;
+            color: white;
         }
     )");
   buttonLayout->addWidget(closeButton);
@@ -1893,6 +1859,29 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   QTimer *timeoutTimer = new QTimer(currentDialog);
   timeoutTimer->setSingleShot(true);
   timeoutTimer->setInterval(timeoutMs);
+
+  // Create runtime display timer that updates every second
+  QTimer *runtimeTimer = new QTimer(currentDialog);
+  runtimeTimer->setInterval(1000); // Update every second
+
+  // Update the runtime timer on the button
+  connect(runtimeTimer, &QTimer::timeout, [=]() {
+    if (process->state() == QProcess::NotRunning) {
+      return; // Skip updating if process has finished
+    }
+
+    int elapsedSecs = elapsedTimer->elapsed() / 1000;
+    int timeoutSecs = timeoutMs / 1000;
+
+    // Format as Command Running: (MM:SS/TT:TT)
+    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
+
+    // Set the button text with formatting (green timer text)
+    closeButton->setText(timerText);
+  });
+
+  // Start the runtime timer immediately
+  runtimeTimer->start();
 
   // Connect process signals for output
   connect(process, &QProcess::readyReadStandardOutput, [=]() {
@@ -1935,10 +1924,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
       // Stop the runtime timer
       runtimeTimer->stop();
-
-      // Show timeout message
-      timerLabel->setText("Command Timed Out!");
-      timerLabel->setStyleSheet("font-size: 70px; color: #EA4646; text-align: right;"); // Red text for timeout
     }
   });
 
@@ -1972,8 +1957,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         // Show terminated message
         int elapsedSecs = elapsedTimer->elapsed() / 1000;
         QString finalTime = QString("Terminated at %1").arg(formatTime(elapsedSecs));
-        timerLabel->setText(finalTime);
-        timerLabel->setStyleSheet("font-size: 70px; color: #EA4646; text-align: right;"); // Red text
       }
     });
   }
@@ -1999,8 +1982,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         retryButton->setVisible(true);
         retryButton->setEnabled(true);
       }
-      timerLabel->setText(finalTime + " (Crashed)");
-      timerLabel->setStyleSheet("font-size: 70px; color: #EA4646; text-align: right;"); // Red text
+      closeButton->setText(tr("Close (Crashed)"));
     } else if (exitCode != 0) {
       outputText->append(QString("\n<span style='color: #ff7c30;'>Command failed with exit code: %1</span>").arg(exitCode));
       closeButton->setText(tr("Close (Command Failed | Exit code: %1)").arg(exitCode));
@@ -2021,8 +2003,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         retryButton->setVisible(true);
         retryButton->setEnabled(true);
       }
-      timerLabel->setText(finalTime + " (Failed)");
-      timerLabel->setStyleSheet("font-size: 70px; color: #EA4646; text-align: right;"); // Red text
     } else {
       outputText->append("\n<span style='color: #50d332;'>Command completed successfully</span>");
       closeButton->setText(tr("Close (Completed Successfully)"));
@@ -2049,9 +2029,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         rebootButton->setVisible(true);
       }
 
-      timerLabel->setText(finalTime + " (Success)");
-      timerLabel->setStyleSheet("font-size: 70px; color: #50d332; text-align: right;"); // Green text
-
       // Refresh everything after successful completion
       if (mainRepoStatus) {
         mainRepoStatus->refresh();
@@ -2072,7 +2049,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       retryButton->setEnabled(false);
       retryButton->setVisible(false); // Hide when retrying
       closeButton->setEnabled(false);
-      closeButton->setText(tr("Command is Running..."));
+      closeButton->setText(tr("Command Running..."));
       closeButton->setStyleSheet(R"(
                 QPushButton {
                     background-color: #465BEA;
@@ -2086,7 +2063,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
                 }
                 QPushButton:disabled {
                     background-color: #4F4F4F;
-                    color: #888888;
+                    color: white;
                 }
             )");
       if (killButton) {
@@ -2097,7 +2074,6 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       elapsedTimer->restart();
 
       // Reset and start timer display
-      timerLabel->setStyleSheet("font-size: 70px; color: #50d332; text-align: right;"); // Green text
       runtimeTimer->start();
 
       // Reset and start timeout timer
@@ -2374,7 +2350,7 @@ void BPUpdaterPanel::showCommitHistory(QWidget *parent, const QString &title, co
   closeButton->setStyleSheet(R"(
         QPushButton {
             border-radius: 10px;
-            font-size: 35px;
+            font-size: 55px;
             padding: 15px;
             background-color: #465BEA;
             color: white;
