@@ -102,7 +102,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   panels.insert(7, PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"));
   panels.insert(8, PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
   panels.insert(9, PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"));
-  panels.insert(10, PanelInfo("   " + tr("Data Collect"), new BPDataCollectPanel(this), "../assets/offroad/icon_data.png"));
+  // panels.insert(10, PanelInfo("   " + tr("Data Collect"), new BPDataCollectPanel(this), "../assets/offroad/icon_data.png"));
   std::cout << "Adding BluePilot panels" << std::endl;
 
   nav_btns = new QButtonGroup(this);
