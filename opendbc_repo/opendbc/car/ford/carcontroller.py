@@ -139,7 +139,7 @@ class CarController(CarControllerBase):
     self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
     self.path_angle_speed_bp = [4.4, 40.23]  # what speeds to adjust path_angle_speed_factor over.
     self.path_angle_low_speed_factor = 0.05 # path_angle_speed_factor at 4.45 m/s
-    self.path_angle_high_speed_factor_CANFD = 1.8 # path_angle_speed_factor at 40.23 m/s
+    self.path_angle_high_speed_factor_CANFD = 1.4 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_CAN = 7.5 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_high_speed_factor_UI = 5.0 # path_angle_speed_factor at 40.23 m/s
     self.path_angle_curvature_factor_bp = [0.00025, 0.001] # what curvature to adjust path_angle.
