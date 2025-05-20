@@ -473,8 +473,13 @@ void Sidebar::drawSidebar(QPainter &p) {
   const float scale = 0.5;            // Reduced scale for more padding
   const int buttonSize = 120;         // Button size
 
-  // Settings button on the left
-  settings_btn = QRect(20, bottomY, buttonSize, buttonSize);
+  // Calculate the starting position to center both buttons
+  const int totalWidth = buttonSize * 2 + 30; // 30px spacing between buttons
+  const int startX = (width() - totalWidth) / 2;
+
+  // Position buttons centered horizontally
+  settings_btn = QRect(startX, bottomY, buttonSize, buttonSize);
+  home_btn = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
 
   // Draw settings button background and border
   p.setPen(QPen(QColor(255, 255, 255, 80), 2));
@@ -486,9 +491,6 @@ void Sidebar::drawSidebar(QPainter &p) {
   p.drawPixmap(settings_btn.x() + (settings_btn.width() - settings_img.width() * scale) / 2, settings_btn.y() + (settings_btn.height() - settings_img.height() * scale) / 2,
                settings_img.scaled(settings_img.width() * scale, settings_img.height() * scale, Qt::KeepAspectRatio));
   p.setOpacity(1.0);
-
-  // Flag button on the right - only show when onroad
-  home_btn = QRect(170, bottomY, buttonSize, buttonSize);
 
   // Only show flag button when onroad
   if (onroad) {
