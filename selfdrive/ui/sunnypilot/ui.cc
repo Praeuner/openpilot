@@ -40,8 +40,7 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
                                                              "backupManagerSP",
                                                              "carStateBP",
                                                              "carControl",
-                                                             "carOutput",
-                                                             "liveDelay"});
+                                                             "carOutput"});
 
   // update timer
   timer = new QTimer(this);
