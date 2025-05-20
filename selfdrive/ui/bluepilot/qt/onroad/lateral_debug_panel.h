@@ -34,6 +34,11 @@ struct LateralDataCache {
   float maxAbsPredictedCurvature = 0.0f;
   float predictedSteeringAngleDegSP = 0.0f;
   float pathAngleKp = 0.0f;
+  // Live delay data
+  float lateralDelay = 0.0f;
+  float lateralDelayEstimate = 0.0f;
+  float lateralDelayEstimateStd = 0.0f;
+  bool hasLiveDelay = false;
   bool hasFordVariables = false;
   uint64_t lastUpdateTime = 0;
   bool valid = false;
@@ -50,7 +55,12 @@ struct LateralDataCache {
     // Check if important values changed (with smaller thresholds)
     return (std::abs(newCache.actualSteerAngle - actualSteerAngle) > 0.01f || std::abs(newCache.desiredSteerAngle - desiredSteerAngle) > 0.01f ||
             std::abs(newCache.actualCurvature - actualCurvature) > 0.00001f || std::abs(newCache.desiredCurvature - desiredCurvature) > 0.00001f ||
-            // Add Ford variables to comparison
+            // Add liveDelay variables to comparison
+            (newCache.hasLiveDelay != hasLiveDelay) ||
+            (hasLiveDelay && newCache.hasLiveDelay &&
+             (std::abs(newCache.lateralDelay - lateralDelay) > 0.001f || std::abs(newCache.lateralDelayEstimate - lateralDelayEstimate) > 0.001f ||
+              std::abs(newCache.lateralDelayEstimateStd - lateralDelayEstimateStd) > 0.001f)) ||
+            // Ford variables comparison
             (newCache.hasFordVariables != hasFordVariables) ||
             (hasFordVariables && newCache.hasFordVariables &&
              (std::abs(newCache.maxAbsPredictedCurvature - maxAbsPredictedCurvature) > 0.00001f ||

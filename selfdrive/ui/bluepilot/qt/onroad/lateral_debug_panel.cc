@@ -45,6 +45,30 @@ void LateralDataWorker::processData(const UIState *s) {
       }
     }
 
+    // Set default values - always show steer delay by default
+    cache.lateralDelay = 0.0f;
+    cache.lateralDelayEstimate = 0.0f;
+    cache.lateralDelayEstimateStd = 0.0f;
+    cache.hasLiveDelay = false;
+
+    // Let's add a compile flag check - this will allow the code to compile
+    // regardless of whether liveDelay exists
+#ifdef HAS_LIVE_DELAY
+    // This section will only be compiled if HAS_LIVE_DELAY is defined
+    try {
+      if (sm.valid("liveDelay")) {
+        auto liveDelay = sm["liveDelay"];
+        cache.lateralDelay = liveDelay.getLateralDelay();
+        cache.lateralDelayEstimate = liveDelay.getLateralDelayEstimate();
+        cache.lateralDelayEstimateStd = liveDelay.getLateralDelayEstimateStd();
+        cache.hasLiveDelay = true;
+      }
+    } catch (...) {
+      // Silently ignore errors
+      cache.hasLiveDelay = false;
+    }
+#endif
+
     if (sm.valid("controlsState")) {
       try {
         auto controls = sm["controlsState"].getControlsState();
@@ -183,7 +207,8 @@ void LateralDebugPanel::updateUI() {
 
   // Update the graph with the latest data
   lateralGraph->setData(m_cache.steerData, m_cache.maxAngle, m_cache.desiredSteerAngle, m_cache.actualSteerAngle, m_cache.steerActuatorDelay, m_cache.desiredCurvature,
-                        m_cache.actualCurvature, m_cache.hasFordVariables, m_cache.maxAbsPredictedCurvature, m_cache.predictedSteeringAngleDegSP, m_cache.pathAngleKp);
+                        m_cache.actualCurvature, m_cache.hasFordVariables, m_cache.maxAbsPredictedCurvature, m_cache.predictedSteeringAngleDegSP, m_cache.pathAngleKp,
+                        m_cache.lateralDelay, m_cache.lateralDelayEstimate, m_cache.lateralDelayEstimateStd, m_cache.hasLiveDelay);
 
   m_dataProcessing.store(false);
   update(); // Trigger a repaint

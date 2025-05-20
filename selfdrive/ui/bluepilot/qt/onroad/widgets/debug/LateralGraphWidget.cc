@@ -13,7 +13,7 @@ LateralGraphWidget::LateralGraphWidget(QWidget *parent) : QWidget(parent) {
 
 void LateralGraphWidget::setData(const std::deque<std::pair<float, float>> &steerData, float maxAngle, float desiredSteerAngle, float actualSteerAngle, float steerActuatorDelay,
                                  float desiredCurvature, float actualCurvature, bool hasFordVariables, float maxAbsPredictedCurvature, float predictedSteeringAngleDegSP,
-                                 float pathAngleKp) {
+                                 float pathAngleKp, float lateralDelay, float lateralDelayEstimate, float lateralDelayEstimateStd, bool hasLiveDelay) {
   m_steerData = steerData;
   m_maxAngle = maxAngle;
   m_desiredSteerAngle = desiredSteerAngle;
@@ -25,6 +25,10 @@ void LateralGraphWidget::setData(const std::deque<std::pair<float, float>> &stee
   m_maxAbsPredictedCurvature = maxAbsPredictedCurvature;
   m_predictedSteeringAngleDegSP = predictedSteeringAngleDegSP;
   m_pathAngleKp = pathAngleKp;
+  m_lateralDelay = lateralDelay;
+  m_lateralDelayEstimate = lateralDelayEstimate;
+  m_lateralDelayEstimateStd = lateralDelayEstimateStd;
+  m_hasLiveDelay = hasLiveDelay;
   update();
 }
 
@@ -184,8 +188,14 @@ void LateralGraphWidget::paintEvent(QPaintEvent *event) {
   p.fillRect(graph_x + column_width, legend_row1, 20, 20, QColor(0, 255, 255, 200));
   p.drawText(graph_x + column_width + 30, legend_row1 + 16, QString("Desired Curv: %1").arg(m_desiredCurvature, 0, 'f', 4));
 
-  // Column 3: Steer Delay
-  p.drawText(graph_x + 2 * column_width + 30, legend_row1 + 16, QString("Steer Delay: %1s").arg(m_steerActuatorDelay, 0, 'f', 3));
+  // Column 3: Delay information
+  if (m_hasLiveDelay) {
+    // If we have live delay data, show lateral delay
+    p.drawText(graph_x + 2 * column_width + 30, legend_row1 + 16, QString("Lateral Delay: %1s").arg(m_lateralDelay, 0, 'f', 3));
+  } else {
+    // Otherwise show the original steer delay
+    p.drawText(graph_x + 2 * column_width + 30, legend_row1 + 16, QString("Steer Delay: %1s").arg(m_steerActuatorDelay, 0, 'f', 3));
+  }
 
   // Second row
   int legend_row2 = legend_row1 + 40; // Space between rows
@@ -198,23 +208,24 @@ void LateralGraphWidget::paintEvent(QPaintEvent *event) {
   p.fillRect(graph_x + column_width, legend_row2, 20, 20, QColor(255, 100, 255, 200));
   p.drawText(graph_x + column_width + 30, legend_row2 + 16, QString("Actual Curv: %1").arg(m_actualCurvature, 0, 'f', 4));
 
+  // Column 3: Show delay estimate if available
+  if (m_hasLiveDelay) {
+    p.drawText(graph_x + 2 * column_width + 30, legend_row2 + 16, QString("Delay Est: %1s ±%2").arg(m_lateralDelayEstimate, 0, 'f', 3).arg(m_lateralDelayEstimateStd, 0, 'f', 3));
+  }
+
+  // Add Ford variables on third row if available
   if (m_hasFordVariables) {
     int legend_row3 = legend_row2 + 40; // Space between rows
 
     // Column 1: Predicted Steering Angle
     p.fillRect(graph_x, legend_row3, 20, 20, QColor(100, 200, 255, 200));
-    p.drawText(graph_x + 30, legend_row3 + 16,
-              QString("Pred Angle: %1°").arg(m_predictedSteeringAngleDegSP, 0, 'f', 1));
+    p.drawText(graph_x + 30, legend_row3 + 16, QString("Pred Angle: %1°").arg(m_predictedSteeringAngleDegSP, 0, 'f', 1));
 
     // Column 2: Max Abs Predicted Curvature
     p.fillRect(graph_x + column_width, legend_row3, 20, 20, QColor(255, 160, 0, 200));
-    p.drawText(graph_x + column_width + 30, legend_row3 + 16,
-              QString("Max Pred Curv: %1").arg(m_maxAbsPredictedCurvature, 0, 'f', 4));
+    p.drawText(graph_x + column_width + 30, legend_row3 + 16, QString("Max Pred Curv: %1").arg(m_maxAbsPredictedCurvature, 0, 'f', 4));
 
     // Column 3: Path Angle Kp
-    p.drawText(graph_x + 2 * column_width + 30, legend_row3 + 16,
-              QString("Path Angle Kp: %1").arg(m_pathAngleKp, 0, 'f', 3));
+    p.drawText(graph_x + 2 * column_width + 30, legend_row3 + 16, QString("Path Angle Kp: %1").arg(m_pathAngleKp, 0, 'f', 3));
   }
-
-  // Column 3: Empty (as per requested layout)
 }

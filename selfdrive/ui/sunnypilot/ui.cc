@@ -20,13 +20,28 @@
 void UIStateSP::updateStatus() { UIState::updateStatus(); }
 
 UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
-  sm = std::make_unique<SubMaster>(std::vector<const char*>{
-    "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState",
-    "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
-    "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
-    "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-    "carStateBP", "carControl", "carOutput"
-  });
+  sm = std::make_unique<SubMaster>(std::vector<const char *>{"modelV2",
+                                                             "controlsState",
+                                                             "liveCalibration",
+                                                             "radarState",
+                                                             "deviceState",
+                                                             "pandaStates",
+                                                             "carParams",
+                                                             "driverMonitoringState",
+                                                             "carState",
+                                                             "driverStateV2",
+                                                             "wideRoadCameraState",
+                                                             "managerState",
+                                                             "selfdriveState",
+                                                             "longitudinalPlan",
+                                                             "modelManagerSP",
+                                                             "selfdriveStateSP",
+                                                             "longitudinalPlanSP",
+                                                             "backupManagerSP",
+                                                             "carStateBP",
+                                                             "carControl",
+                                                             "carOutput",
+                                                             "liveDelay"});
 
   // update timer
   timer = new QTimer(this);

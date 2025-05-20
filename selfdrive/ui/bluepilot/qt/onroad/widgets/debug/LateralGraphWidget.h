@@ -10,7 +10,7 @@ public:
   LateralGraphWidget(QWidget *parent = nullptr);
   void setData(const std::deque<std::pair<float, float>> &steerData, float maxAngle, float desiredSteerAngle, float actualSteerAngle, float steerActuatorDelay,
                float desiredCurvature, float actualCurvature, bool hasFordVariables = false, float maxAbsPredictedCurvature = 0.0f, float predictedSteeringAngleDegSP = 0.0f,
-               float pathAngleKp = 0.0f);
+               float pathAngleKp = 0.0f, float lateralDelay = 0.0f, float lateralDelayEstimate = 0.0f, float lateralDelayEstimateStd = 0.0f, bool hasLiveDelay = false);
 
 protected:
   void paintEvent(QPaintEvent *event) override;
@@ -27,4 +27,10 @@ private:
   float m_maxAbsPredictedCurvature;
   float m_predictedSteeringAngleDegSP;
   float m_pathAngleKp;
+
+  // New live delay variables
+  float m_lateralDelay;
+  float m_lateralDelayEstimate;
+  float m_lateralDelayEstimateStd;
+  bool m_hasLiveDelay;
 };
