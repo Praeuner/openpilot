@@ -481,11 +481,11 @@ class CarController(CarControllerBase):
         path_angle_raw = steering_wheel_delta * self.path_angle_wheel_angle_conversion * path_angle_speed_factor * path_angle_curvature_factor
 
         # on striaight aways, only allow path_angle to adjust the steering wheel if it is in the same direction as the path_offset
-        if abs(apply_curvature) < 0.001:
-          if path_offset > 0 and path_angle_raw < 0:
-            path_angle_raw = 0.0
-          elif path_offset < 0 and path_angle_raw > 0:
-            path_angle_raw = 0.0
+        # if abs(apply_curvature) < 0.001:
+        #  if path_offset > 0 and path_angle_raw < 0:
+        #    path_angle_raw = 0.0
+        #  elif path_offset < 0 and path_angle_raw > 0:
+        #    path_angle_raw = 0.0
 
         # filter path_angle for smoothing
         self.path_angle_deque.append(path_angle_raw)
