@@ -37,12 +37,12 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   vehicle_speed = car_state.getVEgo();
 
   // Debug logging for standstill detection
-  static int debug_counter = 0;
-  debug_counter++;
-  if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
-    std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
-              << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
-  }
+  // static int debug_counter = 0;
+  // debug_counter++;
+  // if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
+  //   std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
+  //             << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
+  // }
 
   // Enhanced standstill detection with multiple criteria
   bool velocity_standstill = vehicle_speed < STANDSTILL_THRESHOLD;
@@ -51,9 +51,9 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   // Additional check: if speed is very low but CAN doesn't report standstill
   if (!standStill && vehicle_speed < 0.05f) {
     combined_standstill = true;
-    if (debug_counter % 100 == 0) {
-      std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
-    }
+    // if (debug_counter % 100 == 0) {
+    //   std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
+    // }
   }
 
   // Stand Still Timer logic with improved state tracking
@@ -66,7 +66,7 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
       standstill_start_time = current_time;
       standstill_exit_time = 0.0;
       standstillElapsedTime = 0.0;
-      std::cout << "Standstill: Timer started" << std::endl;
+      // std::cout << "Standstill: Timer started" << std::endl;
     } else if (combined_standstill) {
       // Update the elapsed time while in standstill
       standstillElapsedTime = current_time - standstill_start_time;
@@ -84,9 +84,9 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
       }
 
       if (current_time - standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
-        if (standstillElapsedTime > 0) {
-          std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
-        }
+        // if (standstillElapsedTime > 0) {
+        //   std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
+        // }
         standstillElapsedTime = 0.0;
         standstill_start_time = current_time;
       }
@@ -214,28 +214,20 @@ void AnnotatedCameraWidget::paintGL() {
       skip_frame_count = 5;
     }
 
-    // Modified wide cam logic with parameter support
+    // Wide or narrow cam dependent on speed
     bool has_wide_cam = available_streams.count(VISION_STREAM_WIDE_ROAD);
+    // std::cout << "has_wide_cam: " << has_wide_cam << std::endl;
     if (has_wide_cam) {
       float v_ego = sm["carState"].getCarState().getVEgo();
-      float v_ego_kmh = v_ego * 3.6f; // Convert m/s to km/h
-
-      if (s->scene.wide_camera_low_speed) {
-        // Use parameter-configurable speed threshold
-        if (v_ego_kmh < s->scene.wide_camera_speed_threshold || available_streams.size() == 1) {
-          wide_cam_requested = true;
-        } else if (v_ego_kmh > (s->scene.wide_camera_speed_threshold + 2.0f)) { // Add hysteresis
-          wide_cam_requested = false;
-        }
-      } else {
-        // Original logic
-        if ((v_ego < 10) || available_streams.size() == 1) {
-          wide_cam_requested = true;
-        } else if (v_ego > 15) {
-          wide_cam_requested = false;
-        }
+      if ((v_ego < 10) || available_streams.size() == 1) {
+        wide_cam_requested = true;
+      } else if (v_ego > 15) {
+        wide_cam_requested = false;
       }
-      wide_cam_requested = wide_cam_requested && sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
+      if (!s->scene.wide_camera_low_speed) {
+        wide_cam_requested = wide_cam_requested && sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
+      }
+      // std::cout << "wide_cam_requested: " << wide_cam_requested << std::endl;
     }
     CameraWidget::setStreamType(wide_cam_requested ? VISION_STREAM_WIDE_ROAD : VISION_STREAM_ROAD);
     CameraWidget::setFrameId(sm["modelV2"].getModelV2().getFrameId());
@@ -480,11 +472,11 @@ void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
   drawColoredText(p, x, y + 90, timeText, QColor(255, 255, 255, 240));
 
   // Debug output
-  static int draw_debug_counter = 0;
-  draw_debug_counter++;
-  if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
-    std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
-  }
+  // static int draw_debug_counter = 0;
+  // draw_debug_counter++;
+  // if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
+  //   std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
+  // }
 }
 
 void AnnotatedCameraWidget::showEvent(QShowEvent *event) {

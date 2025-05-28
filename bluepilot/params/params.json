@@ -273,7 +273,7 @@
       "enabled": true
     },
     {
-      "name": "WideCameraLowSpeed",
+      "name": "ShowWideCameraAtLowSpeed",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],

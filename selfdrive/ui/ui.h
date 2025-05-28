@@ -76,7 +76,6 @@ typedef struct UIScene {
   bool show_stop_indicator_overlay;
 
   bool wide_camera_low_speed;
-  float wide_camera_speed_threshold;
 } UIScene;
 
 class UIState : public QObject {

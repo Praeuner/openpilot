@@ -76,8 +76,7 @@ void ui_update_params(UIState *s) {
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
 
-  s->scene.wide_camera_low_speed = params.getBool("WideCameraLowSpeed");
-  s->scene.wide_camera_speed_threshold = 8.0f;
+  s->scene.wide_camera_low_speed = params.getBool("ShowWideCameraAtLowSpeed");
 
   // std::cout << "hybrid_drive_gauge_size: " << s->scene.hybrid_drive_gauge_size << std::endl;
   // std::cout << "StandStillTimer: " << s->scene.stand_still_timer << std::endl;
