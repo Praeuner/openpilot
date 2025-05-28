@@ -466,7 +466,7 @@ void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
   QString timeText = QString("%1:%2").arg(minute).arg(second, 2, 10, QChar('0'));
 
   // Draw background for better visibility
-  QRect backgroundRect(x - 120, y - 20, 240, 120);
+  QRect backgroundRect(x - 120, y - 70, 240, 180);
   p.setPen(Qt::NoPen);
   p.setBrush(QColor(0, 0, 0, 120)); // Semi-transparent black background
   p.drawRoundedRect(backgroundRect, 15, 15);

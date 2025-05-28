@@ -34,8 +34,7 @@ class Sidebar : public QFrame {
   Q_PROPERTY(QString gpuUsage MEMBER gpu_usage NOTIFY valueChanged);
   Q_PROPERTY(QString memoryUsage MEMBER memory_usage NOTIFY valueChanged);
   Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
-  Q_PROPERTY(QString fanRpm MEMBER fan_rpm NOTIFY valueChanged);
-  Q_PROPERTY(bool showFanSpeed MEMBER show_fan_speed NOTIFY valueChanged);
+  Q_PROPERTY(bool showFanInsteadOfMemory MEMBER show_fan_instead_memory NOTIFY valueChanged);
 
 public:
   explicit Sidebar(QWidget *parent = 0);
@@ -70,7 +69,7 @@ protected:
                                                                         {cereal::DeviceState::NetworkType::CELL4_G, tr("LTE")},
                                                                         {cereal::DeviceState::NetworkType::CELL5_G, tr("5G")}};
 
-  QRect gpu_fan_btn = QRect(30, 250, 240, 100); // Position of GPU card
+  QRect memory_fan_btn = QRect(30, 360, 240, 100); // Position of memory card
 
   // Button rectangles will be set dynamically in drawSidebar
   QRect settings_btn;
@@ -117,6 +116,5 @@ private:
   std::unique_ptr<PubMaster> pm;
   Networking *networking = nullptr;
   QString fan_demand = "0%";
-  QString fan_rpm = "0 RPM";
-  bool show_fan_speed = false;
+  bool show_fan_instead_memory = false;
 };

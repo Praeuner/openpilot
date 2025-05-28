@@ -150,6 +150,17 @@
                 "git_remote": ["any"],
                 "git_branch": []
               }
+            },
+            {
+              "type": "toggle",
+              "param": "WideCameraLowSpeed",
+              "title": "Show Wide Camera at Low Speed",
+              "desc": "Show the wide camera at low speed.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
             }
           ]
         },
@@ -259,7 +270,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -277,7 +292,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -295,7 +314,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -324,7 +347,9 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
+                  {
+                    "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" }
+                  }
                 ]
               }
             },
@@ -338,7 +363,9 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": {"FordLatTuningEnableAdvLatCtrl": "1"}}
+                  {
+                    "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" }
+                  }
                 ]
               }
             },
@@ -356,8 +383,14 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
-                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" }
+                  }
                 ]
               }
             },
@@ -375,8 +408,14 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
-                  { "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": { "FordLatTuningEnableAdvLatCtrl": "1" }
+                  }
                 ]
               }
             }
