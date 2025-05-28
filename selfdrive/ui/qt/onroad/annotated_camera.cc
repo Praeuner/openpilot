@@ -212,7 +212,6 @@ void AnnotatedCameraWidget::paintGL() {
 
   // Disable anti-aliasing when frame times are high (target 30fps)
   bool use_antialiasing = frame_time < 33.0;
-  model.setUseAntialiasing(use_antialiasing);
 
   // draw camera frame
   {
@@ -252,7 +251,7 @@ void AnnotatedCameraWidget::paintGL() {
   }
 
   QPainter painter(this);
-  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setRenderHint(QPainter::Antialiasing, use_antialiasing);
   painter.setPen(Qt::NoPen);
 
   model.draw(painter, rect());
