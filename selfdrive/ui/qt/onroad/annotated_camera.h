@@ -50,10 +50,10 @@ private:
   bool prev_standStill = false;
   double standstill_start_time = 0.0;
   float standstillElapsedTime = 0.0;
-  double standstill_exit_time = 0.0;  // New: for debounce
-  float vehicle_speed = 0.0;          // New: for velocity check
-  static constexpr float STANDSTILL_THRESHOLD = 0.1f;  // New: speed threshold in m/s
-  static constexpr float STANDSTILL_DEBOUNCE_TIME = 0.5f;  // New: debounce time in seconds
+  double standstill_exit_time = 0.0;                      // New: for debounce
+  float vehicle_speed = 0.0;                              // New: for velocity check
+  static constexpr float STANDSTILL_THRESHOLD = 0.1f;     // New: speed threshold in m/s
+  static constexpr float STANDSTILL_DEBOUNCE_TIME = 0.5f; // New: debounce time in seconds
 
   // Helper methods
   void drawLeftTurnSignal(QPainter &painter, int x, int y, int circle_size, int state);

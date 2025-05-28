@@ -172,6 +172,10 @@ void Sidebar::mousePressEvent(QMouseEvent *event) {
   } else if (settings_btn.contains(event->pos())) {
     settings_pressed = true;
     update();
+  } else if (gpu_fan_btn.contains(event->pos())) {
+    // Toggle between GPU and fan speed display
+    show_fan_speed = !show_fan_speed;
+    update();
   }
 }
 
@@ -298,6 +302,26 @@ void Sidebar::updateState(const UIState &s) {
     float gpu_usage_val = deviceState.getGpuUsagePercent();
     QString gpu_usage_str = QString("%1%").arg(QString::number(gpu_usage_val, 'f', 0));
     setProperty("gpuUsage", gpu_usage_str);
+
+    /// Get fan data from deviceState and pandaStates
+    float fan_demand_val = deviceState.getFanSpeedPercentDesired();
+    QString fan_demand_str = QString("%1%").arg(QString::number(fan_demand_val, 'f', 0));
+    setProperty("fanDemand", fan_demand_str);
+
+    // Get fan RPM from pandaStates if available
+    auto pandaStates = sm["pandaStates"].getPandaStates();
+    float fan_rpm_val = 0;
+    if (pandaStates.size() > 0) {
+      auto pandaState = pandaStates[0];
+      fan_rpm_val = pandaState.getFanPower(); // Use fanPower instead
+    }
+    QString fan_rpm_str;
+    // if (fan_rpm_val > 0) {
+    fan_rpm_str = QString("%1 RPM").arg(QString::number(fan_rpm_val, 'f', 0));
+    // } else {
+    //   fan_rpm_str = QString("%1%%").arg(QString::number(fan_rpm_val, 'f', 0)); // Show as power %
+    // }
+    setProperty("fanRpm", fan_rpm_str);
 
     // Get memory usage from deviceState
     float memory_usage_val = deviceState.getMemoryUsagePercent() / 100.0f; // Convert to 0-1 range
@@ -433,16 +457,28 @@ void Sidebar::drawSidebar(QPainter &p) {
   }
   drawMetric(p, tr("CPU"), tr(""), cpu_usage, cpu_temp, cpuColor, metricsY, true);
 
-  // GPU card with compact layout
-  QColor gpuColor = good_color;
-  // Make a temporary copy for value comparison
-  float gpuTempValue = gpu_temp.mid(0, gpu_temp.length() - 2).toFloat();
-  if (gpuTempValue > 75.0) {
-    gpuColor = danger_color;
-  } else if (gpuTempValue > 65.0) {
-    gpuColor = warning_color;
+  // GPU/Fan card with toggle functionality
+  QColor gpuFanColor = good_color;
+  if (show_fan_speed) {
+    // Show fan speed with demand and RPM
+    // Set color based on fan demand (high demand = warmer color)
+    float fanDemandValue = fan_demand.mid(0, fan_demand.length() - 1).toFloat();
+    if (fanDemandValue > 80.0) {
+      gpuFanColor = danger_color;
+    } else if (fanDemandValue > 60.0) {
+      gpuFanColor = warning_color;
+    }
+    drawMetric(p, tr("FAN"), tr(""), fan_demand, fan_rpm, gpuFanColor, metricsY + 110, true);
+  } else {
+    // Show GPU as before
+    float gpuTempValue = gpu_temp.mid(0, gpu_temp.length() - 2).toFloat();
+    if (gpuTempValue > 75.0) {
+      gpuFanColor = danger_color;
+    } else if (gpuTempValue > 65.0) {
+      gpuFanColor = warning_color;
+    }
+    drawMetric(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuFanColor, metricsY + 110, true);
   }
-  drawMetric(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuColor, metricsY + 110, true);
 
   // Memory card with compact layout
   QColor memoryColor = good_color;

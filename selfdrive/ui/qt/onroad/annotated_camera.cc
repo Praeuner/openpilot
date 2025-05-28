@@ -1,4 +1,3 @@
-
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"
 
 #include <QPainter>
@@ -10,9 +9,8 @@
 #include "selfdrive/ui/qt/util.h"
 
 // Window that shows camera view and variety of info drawn on top
-AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent)
-    : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
-  pm = std::make_unique<PubMaster>(std::vector<const char*>{"uiDebug"});
+AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
+  pm = std::make_unique<PubMaster>(std::vector<const char *>{"uiDebug"});
 
   main_layout = new QVBoxLayout(this);
   main_layout->setMargin(UI_BORDER_SIZE);
@@ -38,11 +36,27 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   // Store vehicle speed for velocity-based standstill validation
   vehicle_speed = car_state.getVEgo();
 
-  // Enhanced standstill detection with velocity check
+  // Debug logging for standstill detection
+  static int debug_counter = 0;
+  debug_counter++;
+  if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
+    std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
+              << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
+  }
+
+  // Enhanced standstill detection with multiple criteria
   bool velocity_standstill = vehicle_speed < STANDSTILL_THRESHOLD;
   bool combined_standstill = standStill && velocity_standstill;
 
-  // Stand Still Timer logic with debounce mechanism
+  // Additional check: if speed is very low but CAN doesn't report standstill
+  if (!standStill && vehicle_speed < 0.05f) {
+    combined_standstill = true;
+    if (debug_counter % 100 == 0) {
+      std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
+    }
+  }
+
+  // Stand Still Timer logic with improved state tracking
   prev_standStill = standStill;
   double current_time = millis_since_boot() / 1000.0;
 
@@ -50,12 +64,13 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
     if (!prev_standStill && combined_standstill) {
       // Just entered standstill - start the timer
       standstill_start_time = current_time;
-      standstill_exit_time = 0.0; // Reset exit timer
+      standstill_exit_time = 0.0;
       standstillElapsedTime = 0.0;
+      std::cout << "Standstill: Timer started" << std::endl;
     } else if (combined_standstill) {
       // Update the elapsed time while in standstill
       standstillElapsedTime = current_time - standstill_start_time;
-      standstill_exit_time = 0.0; // Reset exit timer
+      standstill_exit_time = 0.0;
 
       // Add a sanity check to prevent unreasonable values
       if (standstillElapsedTime > 86400.0) { // 24 hours max
@@ -63,29 +78,24 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
         standstillElapsedTime = 86400.0;
       }
     } else {
-      // Not in standstill - reset timer immediately or after debounce
+      // Not in standstill - use debounce mechanism
       if (standstill_exit_time == 0.0) {
         standstill_exit_time = current_time;
       }
 
       if (current_time - standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
+        if (standstillElapsedTime > 0) {
+          std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
+        }
         standstillElapsedTime = 0.0;
-        standstill_start_time = current_time; // Also reset start time
+        standstill_start_time = current_time;
       }
     }
   } else {
     standstillElapsedTime = 0.0;
     standstill_exit_time = 0.0;
-    standstill_start_time = current_time; // Reset start time when timer disabled
+    standstill_start_time = current_time;
   }
-
-  // std::cout << "Standstill values: prev=" << prev_standStill
-  //         << " current=" << standStill
-  //         << " velocity=" << vehicle_speed
-  //         << " combined=" << combined_standstill
-  //         << " flag=" << s.scene.stand_still_timer
-  //         << " elapsed=" << standstillElapsedTime
-  //         << " exit_timer=" << standstill_exit_time << std::endl;
 
   // Rest of the function remains unchanged
   if (sm.updated("carStateBP") && sm.valid("carStateBP")) {
@@ -114,10 +124,10 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
 
 void AnnotatedCameraWidget::initializeGL() {
   CameraWidget::initializeGL();
-  qInfo() << "OpenGL version:" << QString((const char*)glGetString(GL_VERSION));
-  qInfo() << "OpenGL vendor:" << QString((const char*)glGetString(GL_VENDOR));
-  qInfo() << "OpenGL renderer:" << QString((const char*)glGetString(GL_RENDERER));
-  qInfo() << "OpenGL language version:" << QString((const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
+  qInfo() << "OpenGL version:" << QString((const char *)glGetString(GL_VERSION));
+  qInfo() << "OpenGL vendor:" << QString((const char *)glGetString(GL_VENDOR));
+  qInfo() << "OpenGL renderer:" << QString((const char *)glGetString(GL_RENDERER));
+  qInfo() << "OpenGL language version:" << QString((const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
 
   prev_draw_t = millis_since_boot();
   setBackgroundColor(bg_colors[STATUS_DISENGAGED]);
@@ -135,7 +145,7 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   const auto &intrinsic_matrix = wide_cam ? ECAM_INTRINSIC_MATRIX : FCAM_INTRINSIC_MATRIX;
   const auto &calibration = wide_cam ? s->scene.view_from_wide_calib : s->scene.view_from_calib;
 
-   // Compute the calibration transformation matrix
+  // Compute the calibration transformation matrix
   const auto calib_transform = intrinsic_matrix * calibration;
 
   float zoom = wide_cam ? 2.0 : 1.1;
@@ -155,20 +165,30 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   // 1) Put (0, 0) in the middle of the video
   // 2) Apply same scaling as video
   // 3) Put (0, 0) in top left corner of video
-  Eigen::Matrix3f video_transform =(Eigen::Matrix3f() <<
-    zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom),
-    0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom),
-    0.0f, 0.0f, 1.0f).finished();
+  Eigen::Matrix3f video_transform =
+      (Eigen::Matrix3f() << zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom), 0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom), 0.0f, 0.0f, 1.0f).finished();
 
   model.setTransform(video_transform * calib_transform);
 
   float zx = zoom * 2 * center_x / w;
   float zy = zoom * 2 * center_y / h;
   return mat4{{
-    zx, 0.0, 0.0, -x_offset / w * 2,
-    0.0, zy, 0.0, y_offset / h * 2,
-    0.0, 0.0, 1.0, 0.0,
-    0.0, 0.0, 0.0, 1.0,
+      zx,
+      0.0,
+      0.0,
+      -x_offset / w * 2,
+      0.0,
+      zy,
+      0.0,
+      y_offset / h * 2,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
   }};
 }
 
@@ -194,14 +214,26 @@ void AnnotatedCameraWidget::paintGL() {
       skip_frame_count = 5;
     }
 
-    // Wide or narrow cam dependent on speed
+    // Modified wide cam logic with parameter support
     bool has_wide_cam = available_streams.count(VISION_STREAM_WIDE_ROAD);
     if (has_wide_cam) {
       float v_ego = sm["carState"].getCarState().getVEgo();
-      if ((v_ego < 10) || available_streams.size() == 1) {
-        wide_cam_requested = true;
-      } else if (v_ego > 15) {
-        wide_cam_requested = false;
+      float v_ego_kmh = v_ego * 3.6f; // Convert m/s to km/h
+
+      if (s->scene.wide_camera_low_speed) {
+        // Use parameter-configurable speed threshold
+        if (v_ego_kmh < s->scene.wide_camera_speed_threshold || available_streams.size() == 1) {
+          wide_cam_requested = true;
+        } else if (v_ego_kmh > (s->scene.wide_camera_speed_threshold + 2.0f)) { // Add hysteresis
+          wide_cam_requested = false;
+        }
+      } else {
+        // Original logic
+        if ((v_ego < 10) || available_streams.size() == 1) {
+          wide_cam_requested = true;
+        } else if (v_ego > 15) {
+          wide_cam_requested = false;
+        }
       }
       wide_cam_requested = wide_cam_requested && sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
     }
@@ -278,9 +310,8 @@ void AnnotatedCameraWidget::paintGL() {
     blinker_frame = 0;
   }
 
-  // Draw stand still timer if active
-  if (s->scene.stand_still_timer && standStill) {
-    // std::cout << "Drawing timer with elapsed time: " << standstillElapsedTime << std::endl;
+  // Draw stand still timer if active - enhanced logic
+  if (s->scene.stand_still_timer && standStill && standstillElapsedTime > 0.1) {
     drawStandstillTimer(painter, rect().right() - 200, rect().center().y() - 45);
   }
 
@@ -421,30 +452,38 @@ void AnnotatedCameraWidget::drawRightTurnSignal(QPainter &painter, int x, int y,
 }
 
 void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
-  // Initialize strings with empty values
-  char lab_str[16] = "";
-  char val_str[32] = "";
+  // Only draw if we have meaningful time and are actually stopped
+  if (standstillElapsedTime < 0.1 || !standStill || vehicle_speed >= STANDSTILL_THRESHOLD) {
+    return;
+  }
 
   // Calculate time components
   int minute = (int)(standstillElapsedTime / 60);
-  int second = (int)((standstillElapsedTime) - (minute * 60));
+  int second = (int)(standstillElapsedTime) - (minute * 60);
 
-  // Only format and display if actually in standstill
-  if (standStill && vehicle_speed < STANDSTILL_THRESHOLD) {
-    // Format label
-    snprintf(lab_str, sizeof(lab_str), "STOP");
-    snprintf(val_str, sizeof(val_str), "%01d:%02d", minute, second);
+  // Format strings
+  QString labelText = "STOP";
+  QString timeText = QString("%1:%2").arg(minute).arg(second, 2, 10, QChar('0'));
 
-    // Only draw if we have text to display
-    if (strlen(lab_str) > 0) {
-      p.setFont(InterFont(80, QFont::DemiBold));
-      drawColoredText(p, x, y, QString(lab_str), QColor(255, 175, 3, 240));
-    }
+  // Draw background for better visibility
+  QRect backgroundRect(x - 120, y - 20, 240, 120);
+  p.setPen(Qt::NoPen);
+  p.setBrush(QColor(0, 0, 0, 120)); // Semi-transparent black background
+  p.drawRoundedRect(backgroundRect, 15, 15);
 
-    if (strlen(val_str) > 0) {
-      p.setFont(InterFont(95, QFont::DemiBold));
-      drawColoredText(p, x, y + 90, QString(val_str), QColor(255, 255, 255, 240));
-    }
+  // Draw label
+  p.setFont(InterFont(80, QFont::DemiBold));
+  drawColoredText(p, x, y, labelText, QColor(255, 175, 3, 240));
+
+  // Draw time
+  p.setFont(InterFont(95, QFont::DemiBold));
+  drawColoredText(p, x, y + 90, timeText, QColor(255, 255, 255, 240));
+
+  // Debug output
+  static int draw_debug_counter = 0;
+  draw_debug_counter++;
+  if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
+    std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
   }
 }
 
