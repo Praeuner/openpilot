@@ -55,6 +55,9 @@ private:
   static constexpr float STANDSTILL_THRESHOLD = 0.1f;     // New: speed threshold in m/s
   static constexpr float STANDSTILL_DEBOUNCE_TIME = 0.5f; // New: debounce time in seconds
 
+  // Performance monitoring
+  double last_frame_time = 0.0;
+
   // Helper methods
   void drawLeftTurnSignal(QPainter &painter, int x, int y, int circle_size, int state);
   void drawRightTurnSignal(QPainter &painter, int x, int y, int circle_size, int state);

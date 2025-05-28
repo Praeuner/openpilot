@@ -450,6 +450,7 @@ void Sidebar::drawSidebar(QPainter &p) {
   } else if (gpuTempValue > 65.0) {
     gpuColor = warning_color;
   }
+  drawMetric(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuColor, metricsY + 110, true);
 
   // Memory/Fan card with toggle functionality
   QColor memoryFanColor = good_color;

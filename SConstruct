@@ -322,6 +322,7 @@ def progress_function(node):
 if os.environ.get('SCONS_PROGRESS'):
   Progress(progress_function, interval=node_interval)
 
+
 # Cython build environment
 py_include = sysconfig.get_paths()['include']
 envCython = env.Clone()
@@ -460,10 +461,10 @@ SConscript(['selfdrive/SConscript'])
 
 SConscript(['sunnypilot/SConscript'])
 
-# if Dir('#tools/cabana/').exists(): # and GetOption('extras'):
-  # SConscript(['tools/replay/SConscript'])
-  # if arch != "larch64":
-  #   SConscript(['tools/cabana/SConscript'])
+if Dir('#tools/cabana/').exists() and arch != "larch64":  # and GetOption('extras'):
+  SConscript(['tools/replay/SConscript'])
+  if arch != "larch64":
+    SConscript(['tools/cabana/SConscript'])
 
 external_sconscript = GetOption('external_sconscript')
 if external_sconscript:

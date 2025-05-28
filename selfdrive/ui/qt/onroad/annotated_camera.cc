@@ -8,6 +8,10 @@
 #include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
 
+#ifdef SENTRY_ENABLED
+#include "third_party/sentry/include/sentry.h"
+#endif
+
 // Window that shows camera view and variety of info drawn on top
 AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
   pm = std::make_unique<PubMaster>(std::vector<const char *>{"uiDebug"});
@@ -195,7 +199,20 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
 void AnnotatedCameraWidget::paintGL() {
   UIState *s = uiState();
   SubMaster &sm = *(s->sm);
+
+#ifdef SENTRY_ENABLED
+  const double paint_start = millis_since_boot();
+#endif
+
   const double start_draw_t = millis_since_boot();
+
+  // Add frame time tracking and performance optimization
+  double current_time = millis_since_boot();
+  double frame_time = current_time - prev_draw_t;
+
+  // Disable anti-aliasing when frame times are high (target 30fps)
+  bool use_antialiasing = frame_time < 33.0;
+  model.setUseAntialiasing(use_antialiasing);
 
   // draw camera frame
   {
@@ -314,12 +331,29 @@ void AnnotatedCameraWidget::paintGL() {
     LOGW("slow frame rate: %.2f fps", fps);
   }
   prev_draw_t = cur_draw_t;
+  last_frame_time = dt; // Store for future performance monitoring
 
   // publish debug msg
   MessageBuilder msg;
   auto m = msg.initEvent().initUiDebug();
   m.setDrawTimeMillis(cur_draw_t - start_draw_t);
   pm->send("uiDebug", msg);
+
+#ifdef SENTRY_ENABLED
+  const double paint_end = millis_since_boot();
+  const double paint_duration = paint_end - paint_start;
+  if (paint_duration > 33.0) { // 30fps threshold
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(event, "message", sentry_value_new_string("Camera render frame exceeds threshold"));
+    sentry_value_set_by_key(event, "extra.paint_duration", sentry_value_new_double(paint_duration));
+    sentry_value_set_by_key(event, "extra.fps", sentry_value_new_double(fps));
+    sentry_value_set_by_key(event, "extra.frame_id", sentry_value_new_int32(sm.frame));
+    sentry_value_set_by_key(event, "extra.frames_dropped", sentry_value_new_int32(frames.empty() ? -1 : 0));
+    sentry_value_set_by_key(event, "extra.wide_cam", sentry_value_new_bool(wide_cam_requested));
+    sentry_value_set_by_key(event, "extra.antialiasing", sentry_value_new_bool(use_antialiasing));
+    sentry_capture_event(event);
+  }
+#endif
 }
 
 void AnnotatedCameraWidget::drawColoredText(QPainter &p, int x, int y, const QString &text, QColor color) {
