@@ -104,6 +104,15 @@ private:
     float display_distance = 0.0f;
     QPointF last_valid_position;
     float fade_alpha = 0.0f;
+
+    // Add smoothing for position
+    QPointF smoothed_position;
+    bool has_previous_position = false;
+    float position_smoothing_factor = 0.15f; // Smoothing factor for position changes
+
+    // Add smoothing for size changes
+    float smoothed_size = 120.0f;
+    float size_smoothing_factor = 0.1f;
   };
   StopState stop_state;
 

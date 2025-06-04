@@ -1125,11 +1125,21 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
   stop_sign_opacity = std::min(1.0f, stop_frame_count / 10.0f); // Fade in over 10 frames
 
   // Base size for the stop sign
-  const int base_size = 120;
+  const float base_size = 120.0f;
 
-  // Dynamic size based on distance
+  // Dynamic size based on distance with smoothing
   float distanceFactor = 1.0 - std::min(0.7f, (stopping_distance - 5.0f) / 45.0f);
-  int dynamicSize = base_size * distanceFactor;
+  float target_size = base_size * distanceFactor;
+
+  // Smooth size changes
+  if (stop_state.has_previous_position) {
+    stop_state.smoothed_size = stop_state.smoothed_size * (1.0f - stop_state.size_smoothing_factor) +
+                               target_size * stop_state.size_smoothing_factor;
+  } else {
+    stop_state.smoothed_size = target_size;
+  }
+
+  int dynamicSize = static_cast<int>(stop_state.smoothed_size);
 
   // Slide to corner as we get closer (start sliding at 20m, complete at 10m)
   float slideThreshold = 20.0f;
@@ -1141,27 +1151,46 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
     slideAmount = 1.0f - std::clamp((stopping_distance - slideComplete) / (slideThreshold - slideComplete), 0.0f, 1.0f);
   }
 
-  // Calculate final position by interpolating between original and corner position
+  // Calculate target position by interpolating between original and corner position
   QPointF cornerPosition(painter.device()->width() - dynamicSize, painter.device()->height() - dynamicSize * 1.5);
-  QPointF finalPosition;
+  QPointF targetPosition;
 
   // Robust fallback positioning if point is outside the clip region
   if (!clip_region.contains(point)) {
     // Use a default position in the bottom right if original point is invalid
-    finalPosition = cornerPosition;
+    targetPosition = cornerPosition;
   } else {
     // Interpolate between original and corner position
-    finalPosition.setX(point.x() * (1.0f - slideAmount) + cornerPosition.x() * slideAmount);
-    finalPosition.setY(point.y() * (1.0f - slideAmount) + cornerPosition.y() * slideAmount);
+    targetPosition.setX(point.x() * (1.0f - slideAmount) + cornerPosition.x() * slideAmount);
+    targetPosition.setY(point.y() * (1.0f - slideAmount) + cornerPosition.y() * slideAmount);
   }
 
-  // Use final position for all drawing operations
+  // Apply position smoothing
+  QPointF finalPosition;
+  if (stop_state.has_previous_position) {
+    // Smooth transition between positions
+    finalPosition.setX(stop_state.smoothed_position.x() * (1.0f - stop_state.position_smoothing_factor) +
+                       targetPosition.x() * stop_state.position_smoothing_factor);
+    finalPosition.setY(stop_state.smoothed_position.y() * (1.0f - stop_state.position_smoothing_factor) +
+                       targetPosition.y() * stop_state.position_smoothing_factor);
+  } else {
+    // First frame - use target position directly
+    finalPosition = targetPosition;
+    stop_state.has_previous_position = true;
+  }
+
+  // Store smoothed position for next frame
+  stop_state.smoothed_position = finalPosition;
+
+  // Use smoothed final position for all drawing operations
   QPointF drawPoint = finalPosition;
 
-  // Pulsing effect with less distracting settings
-  float pulseRate = 0.5 + 1.0 * (1.0 - std::min(1.0f, stopping_distance / 50.0f)); // Capped at 1.5 max
-  float pulsePhase = (static_cast<int>(millis_since_boot()) % 1000) / 1000.0f;
-  float pulseOpacity = (0.7 + 0.3 * sin(pulsePhase * 2 * M_PI * pulseRate)) * stop_sign_opacity * fade_alpha;
+  // Reduced pulsing effect - much more subtle
+  float pulseRate = 0.3f + 0.5f * (1.0f - std::min(1.0f, stopping_distance / 50.0f)); // Capped at 0.8 max (was 1.5)
+  float pulsePhase = (static_cast<int>(millis_since_boot()) % 2000) / 2000.0f; // Slower pulse (2 seconds instead of 1)
+
+  // Much more subtle pulse - opacity varies between 0.85 and 1.0 instead of 0.7 to 1.0
+  float pulseOpacity = (0.85f + 0.15f * sin(pulsePhase * 2 * M_PI * pulseRate)) * stop_sign_opacity * fade_alpha;
 
   // FIXED: Safe octagon creation with bounds checking
   QPolygonF stopSign;
@@ -1196,7 +1225,8 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
     // Create a rectangular area for the text that's centered on the stop sign
     QRect textRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() - dynamicSize / 3, dynamicSize, dynamicSize * 2 / 3);
 
-    // Draw the text centered in this rectangle
+    // Draw the text centered in this rectangle with consistent opacity
+    painter.setPen(QColor(255, 255, 255, int(255 * pulseOpacity)));
     painter.drawText(textRect, Qt::AlignCenter, "STOP");
 
     // Add distance countdown below the stop sign
@@ -1208,7 +1238,7 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
       QFont distFont = painter.font();
       distFont.setPointSize(dynamicSize / 4.5);
       painter.setFont(distFont);
-      painter.setPen(QPen(Qt::white, 1.5));
+      painter.setPen(QPen(QColor(255, 255, 255, int(255 * pulseOpacity)), 1.5));
 
       // Create a wider rectangle to prevent text cutoff
       // Moved down slightly more to avoid overlap with sign
@@ -1219,7 +1249,7 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
       painter.drawText(distRect, Qt::AlignCenter, distanceText);
     }
 
-    // Draw time countdown circular indicator around stop sign
+    // Draw time countdown circular indicator around stop sign with consistent opacity
     if (v_ego > 0.1) {
       // Calculate time to stop, but limit to reasonable values
       float raw_time_to_stop = stopping_distance / v_ego;
@@ -1243,7 +1273,8 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
       int startAngle = 90 * 16; // Start at top (QPainter uses 1/16th of degrees)
       int spanAngle = std::min(360, int(360 * (1.0 - std::min(1.0f, timeToStop / 10.0f)))) * 16;
 
-      // Draw arc
+      // Draw arc with consistent opacity
+      painter.setPen(QPen(QColor(255, 255, 255, int(255 * pulseOpacity)), 3));
       painter.drawArc(drawPoint.x() - arcSize / 2, drawPoint.y() - arcSize / 2, arcSize, arcSize, startAngle, spanAngle);
 
       // Add time text with improved formatting
@@ -1259,10 +1290,11 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
         timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
       }
 
-      // Draw time text
+      // Draw time text with consistent opacity
       QFont timeFont = painter.font();
       timeFont.setPointSize(dynamicSize / 4.5);
       painter.setFont(timeFont);
+      painter.setPen(QColor(255, 255, 255, int(255 * pulseOpacity)));
       QRect timeRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.9, dynamicSize * 1.5, dynamicSize / 3);
       painter.drawText(timeRect, Qt::AlignCenter, timeText);
     }
