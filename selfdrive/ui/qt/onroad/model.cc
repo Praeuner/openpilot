@@ -314,84 +314,149 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
       float path_y = line_y[idx];
       float path_z = line_z[idx];
 
-      // Dynamic confidence threshold based on lead distance
-      // Closer leads use stricter filtering
-      float dynamic_threshold = std::min(distance_confidence_threshold, 5.0f + d_rel * 0.1f);
+      // FIXED: Stricter stability requirements for visual-only detections
+      // Radar-assisted leads require less stability, visual-only require much more
+      int required_stability = is_radar_assisted ? 2 : 8; // 8 frames for vision-only
+      int max_stability = is_radar_assisted ? 10 : 15;
 
-      // Close-range filtering - more strict for close objects
-      if (d_rel < dynamic_threshold) {
-        // For close objects without radar confirmation, require more stability
-        if (!is_radar_assisted) {
-          // Increase counter only if position is consistent
-          if (prev_lead_status[i] && fabs(raw_yRel - smoothed_yRel[i]) < 0.3) {
-            lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
-          } else {
-            lead_active_counter[i] = std::max(lead_active_counter[i] - 1, 0); // Gradually decrease
+      // FIXED: More restrictive filtering for visual-only detections
+      bool should_track = true;
+
+      if (!is_radar_assisted) {
+        // For visual-only detections, apply stricter criteria
+
+        // 1. Reasonable distance range
+        if (d_rel < 3.0f || d_rel > 80.0f) {
+          should_track = false;
+        }
+
+        // 2. Consistent lateral position (not jumping around)
+        if (prev_lead_status[i] && fabs(raw_yRel - smoothed_yRel[i]) > 0.5) {
+          should_track = false;
+        }
+
+        // 3. Not too far from path center
+        if (fabs(raw_yRel - path_y) > 2.0f) {
+          should_track = false;
+        }
+      }
+
+      // Update stability counter based on tracking decision
+      if (should_track && prev_lead_status[i]) {
+        lead_active_counter[i] = std::min(lead_active_counter[i] + 1, max_stability);
+      } else if (should_track) {
+        // First detection - start counter but don't activate yet
+        lead_active_counter[i] = 1;
+      } else {
+        // Failed criteria - decrease counter
+        lead_active_counter[i] = std::max(lead_active_counter[i] - 2, 0);
+      }
+
+      // FIXED: Only activate after meeting stability requirements
+      if (lead_active_counter[i] >= required_stability && should_track) {
+        stable_lead[i] = true;
+        virtual_lead_active[i] = true;
+
+        // For first detection, initialize with raw values
+        if (!prev_lead_status[i]) {
+          smoothed_yRel[i] = raw_yRel;
+        } else {
+          // Adaptive smoothing based on distance and radar assistance
+          float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
+
+          // More path influence for curves
+          float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
+
+          // Adaptive alpha based on distance - smoother for close objects, less for distant ones
+          float alpha = is_radar_assisted ?
+                        0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
+                        0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
+
+          // Clamp alpha to reasonable range
+          alpha = std::clamp(alpha, 0.025f, 0.25f);
+
+          // Add distance-based jitter suppression
+          float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
+          float lateral_diff = raw_yRel - smoothed_yRel[i];
+          if (fabs(lateral_diff) > max_lateral_change) {
+            // Limit lateral movement rate for stability
+            raw_yRel = smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
           }
-          // Only consider stable if consistently tracked for several frames
-          stable_lead[i] = lead_active_counter[i] >= 3;
 
-          // Skip this update if the lead isn't stable yet
-          if (!stable_lead[i]) {
+          // First smooth the raw radar reading
+          float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
+
+          // Then blend with the path position using dynamic path weight
+          smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
+        }
+
+        QPointF current_pos;
+        if (mapToScreen(d_rel, smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
+          // FIXED: Check if radar detection is mapping to reasonable screen position
+          bool reasonable_position = true;
+
+          if (is_radar_assisted) {
+            // For radar detections, check if the screen position is too extreme
+            QRectF screen_bounds = clip_region;
+            float margin = 100.0f; // Allow some margin beyond normal view
+            QRectF extended_bounds = screen_bounds.adjusted(-margin, -margin, margin, margin);
+
+            // If radar detection maps outside extended bounds, it's likely off-camera
+            if (!extended_bounds.contains(current_pos)) {
+              reasonable_position = false;
+
+              // Additional check: if lateral offset is too extreme, it's definitely off-screen
+              if (fabs(smoothed_yRel[i]) > 8.0f) { // More than 8m lateral offset
+                reasonable_position = false;
+              }
+            }
+
+            // For turning scenarios: if the lateral position suggests the object
+            // is way off to the side, reduce tracking confidence
+            if (fabs(smoothed_yRel[i]) > 5.0f) {
+              // Reduce stability counter for extreme lateral positions
+              lead_active_counter[i] = std::max(lead_active_counter[i] - 1, 0);
+
+              // If object is very far laterally and we're in a turn,
+              // it's likely an off-screen radar detection
+              if (fabs(smoothed_yRel[i]) > 6.5f) {
+                reasonable_position = false;
+              }
+            }
+          }
+
+          // Only update position if it's reasonable
+          if (reasonable_position) {
+            lead_vertices[i] = current_pos;
+            lead_radar_assisted[i] = is_radar_assisted;
+          } else {
+            // Off-screen radar detection - reduce stability and don't show
+            lead_active_counter[i] = std::max(lead_active_counter[i] - 2, 0);
             virtual_lead_active[i] = false;
-            continue;
           }
         } else {
-          // Radar-assisted close leads are considered more reliable
-          lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
-          stable_lead[i] = true;
+          // mapToScreen failed - position is definitely off-screen
+          virtual_lead_active[i] = false;
         }
       } else {
-        // Normal distance leads - standard tracking
-        lead_active_counter[i] = std::min(lead_active_counter[i] + 1, 10);
-        stable_lead[i] = lead_active_counter[i] >= 2;
-      }
-
-      virtual_lead_active[i] = true;
-
-      // For first detection, initialize with raw values
-      if (!prev_lead_status[i]) {
-        smoothed_yRel[i] = raw_yRel;
-      } else {
-        // Adaptive smoothing based on distance and radar assistance
-        float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
-
-        // More path influence for curves
-        float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
-
-        // Adaptive alpha based on distance - smoother for close objects, less for distant ones
-        float alpha = is_radar_assisted ?
-                      0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
-                      0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
-
-        // Clamp alpha to reasonable range
-        alpha = std::clamp(alpha, 0.025f, 0.25f);
-
-        // Add distance-based jitter suppression
-        float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
-        float lateral_diff = raw_yRel - smoothed_yRel[i];
-        if (fabs(lateral_diff) > max_lateral_change) {
-          // Limit lateral movement rate for stability
-          raw_yRel = smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
-        }
-
-        // First smooth the raw radar reading
-        float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * smoothed_yRel[i];
-
-        // Then blend with the path position using dynamic path weight
-        smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
-      }
-
-      QPointF current_pos;
-      if (mapToScreen(d_rel, smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
-        lead_vertices[i] = current_pos;
-        lead_radar_assisted[i] = is_radar_assisted;
+        // Not stable enough yet - don't activate
+        virtual_lead_active[i] = false;
+        stable_lead[i] = false;
       }
     } else {
-      // Lead disappeared - apply decay for smooth disappearance
+      // FIXED: Improved decay logic to prevent rapid flickering
       if (lead_active_counter[i] > 0) {
-        lead_active_counter[i] = std::max(lead_active_counter[i] - 1, 0);
-        virtual_lead_active[i] = lead_active_counter[i] > 0;
+        // Slower decay for radar-assisted leads, faster for vision-only
+        int decay_rate = lead_radar_assisted[i] ? 1 : 2;
+        lead_active_counter[i] = std::max(lead_active_counter[i] - decay_rate, 0);
+
+        // FIXED: Add hysteresis - keep showing until counter drops significantly
+        int deactivation_threshold = lead_radar_assisted[i] ? 1 : 3;
+        virtual_lead_active[i] = lead_active_counter[i] >= deactivation_threshold;
+
+        if (lead_active_counter[i] == 0) {
+          stable_lead[i] = false;
+        }
       } else {
         virtual_lead_active[i] = false;
         stable_lead[i] = false;
