@@ -1,81 +1,20 @@
 {
   "versions": {
-    "2025.6.4.0": {
+    "2025.6.4.1": {
       "changes": [
-        "Added new Recent Changes dialog that displays automatically when version updates",
-        "Improved touch scrolling performance across all BP panels",
-        "Enhanced parameter validation with better range checking",
-        "Added support for dynamic UI scaling based on display density",
-        "Implemented new activity simulation system for screen wake management",
-        "Added nested controls support for complex configuration panels"
+        "Added recent changes dialog functionality to offroad transition in UI",
+        "Enhanced stop sign detection and rendering with improved vehicle state checks and visual effects",
+        "Refactored HybridDriveGauge and HybridBatteryGauge with enhanced automotive styling",
+        "Enhanced stop sign rendering with improved position and size smoothing",
+        "Refactored lead tracking logic with enhanced stability requirements"
       ],
       "fixes": [
-        "Fixed memory leak in nested view cleanup",
-        "Resolved QCOM2 rotation issues on certain devices",
-        "Fixed parameter initialization race conditions",
-        "Corrected scroll position reset on dialog hide events",
-        "Fixed toggle control state synchronization",
-        "Resolved crash when loading malformed JSON configuration files"
-      ],
-      "removals": [
-        "Removed deprecated legacy parameter migration code",
-        "Eliminated unused debug logging that was impacting performance"
-      ],
-      "known_issues": [
-        "Occasional scroll stutter on devices with limited RAM",
-        "Minor visual artifact when rapidly switching between tabs"
-      ]
-    },
-    "2025.6.3.0": {
-      "changes": [
-        "Improved numeric control responsiveness",
-        "Enhanced file viewer with better syntax highlighting",
-        "Added command execution progress indicators",
-        "Improved parameter list view with search functionality"
-      ],
-      "fixes": [
-        "Fixed numeric control increment/decrement boundary checking",
-        "Resolved file viewer crash with very large files",
-        "Fixed command dialog output formatting issues",
-        "Corrected parameter viewer auto-refresh timing"
+        "Fixed typo in parameter name for standstill timer which was causing the timer to not display",
+        "Performance improvements to hopefully fix the random UI restarts",
+        "Enhanced stop detection and rendering with improved data validation"
       ],
       "removals": [],
-      "known_issues": ["File viewer may be slow with files larger than 10MB"]
-    },
-    "2025.6.2.0": {
-      "changes": [
-        "Added new segmented control widget",
-        "Implemented parameter conditions system",
-        "Enhanced dialog styling consistency",
-        "Added support for custom color themes"
-      ],
-      "fixes": [
-        "Fixed toggle control animation glitches",
-        "Resolved selection dialog button alignment",
-        "Fixed parameter reset functionality",
-        "Corrected nested view memory management"
-      ],
-      "removals": [
-        "Removed experimental gesture controls that were causing conflicts"
-      ],
       "known_issues": []
-    },
-    "2025.6.1.0": {
-      "changes": [
-        "Initial implementation of BluePilot UI framework",
-        "Added support for JSON-based configuration",
-        "Implemented touch-friendly controls",
-        "Added QCOM2 device support with proper rotation"
-      ],
-      "fixes": [
-        "Fixed initial parameter loading",
-        "Resolved display scaling issues on high-DPI screens"
-      ],
-      "removals": [],
-      "known_issues": [
-        "Some controls may not respond immediately after app launch",
-        "Occasional rendering delays during heavy parameter updates"
-      ]
     }
   }
 }

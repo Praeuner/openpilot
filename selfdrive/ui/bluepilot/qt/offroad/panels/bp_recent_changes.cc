@@ -282,11 +282,11 @@ QWidget *BPRecentChangesDialog::createChangeItem(const QString &text, const QStr
 
 QString BPRecentChangesDialog::getCurrentVersion() {
   QString gitRoot = getGitRootPath();
-  QString versionPath = QDir(gitRoot).filePath("bp_version");
+  QString versionPath = QDir(gitRoot).filePath("BPVERSION");
 
   QFile file(versionPath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    std::cerr << "Failed to read bp_version file: " << versionPath.toStdString() << std::endl;
+    std::cerr << "Failed to read BPVERSION file: " << versionPath.toStdString() << std::endl;
     return "unknown";
   }
 
