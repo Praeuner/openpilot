@@ -70,6 +70,7 @@ bp_qt_src = [
   "bluepilot/qt/onroad/widgets/debug/AccelGraphWidget.cc",
   "bluepilot/qt/onroad/widgets/debug/SpeedGraphWidget.cc",
   "bluepilot/qt/onroad/widgets/debug/LongControlGraphWidget.cc",
+  "bluepilot/qt/offroad/panels/bp_recent_changes.cc",
 ]
 
 # FIXME: remove this once we're on 5.15 (24.04)

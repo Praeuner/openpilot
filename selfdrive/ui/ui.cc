@@ -12,6 +12,7 @@
 #include "qt/util.h"
 #include <iostream>
 #include "system/hardware/hw.h"
+#include "bluepilot/qt/offroad/panels/bp_recent_changes.h"
 
 #define BACKLIGHT_DT 0.05
 #define BACKLIGHT_TS 10.00
@@ -113,6 +114,13 @@ void UIState::updateStatus() {
     }
     started_prev = scene.started;
     emit offroadTransition(!scene.started);
+
+    // Check and show recent changes when going offroad
+    if (!scene.started && started_prev) {
+      QTimer::singleShot(2000, []() {
+        RecentChangesManager::getInstance().showChangesDialog(nullptr);
+      });
+    }
   }
 }
 
@@ -131,6 +139,14 @@ UIState::UIState(QObject *parent) : QObject(parent) {
   QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
   timer->start(1000 / UI_FREQ);
 #endif
+
+  // Check for recent changes after a short delay to allow UI to initialize
+  QTimer::singleShot(3000, []() {
+    if (RecentChangesManager::getInstance().shouldShowChanges()) {
+      std::cout << "New version detected, showing recent changes dialog" << std::endl;
+      RecentChangesManager::getInstance().showChangesDialog(nullptr);
+    }
+  });
 }
 
 void UIState::update() {
