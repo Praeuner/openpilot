@@ -270,7 +270,7 @@
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": false,
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "ShowWideCameraAtLowSpeed",
