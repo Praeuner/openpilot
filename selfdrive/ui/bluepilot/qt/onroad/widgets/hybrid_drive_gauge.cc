@@ -8,6 +8,8 @@
 #include <QPainterPath>
 #include <QString>
 #include <QWidget>
+#include <QLinearGradient>
+#include <QRadialGradient>
 #include <iostream>
 
 HybridDriveGauge::HybridDriveGauge(QWidget *parent) : QWidget(parent) { setupAnimation(); }
@@ -38,113 +40,227 @@ void HybridDriveGauge::checkBracketProximity(float currentValue, float threshold
   }
 }
 
+QRadialGradient HybridDriveGauge::getBackgroundGradient(QRect rect, const QString &mode) {
+  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
+
+  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
+  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
+
+  if (isEvMode) {
+    gradient.setColorAt(0, QColor(30, 144, 255)); // Electric blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));   // Dark blue edge
+  } else if (isHybridMode) {
+    gradient.setColorAt(0, QColor(100, 149, 237)); // Cornflower blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+  } else {
+    gradient.setColorAt(0, QColor(70, 130, 180));  // Steel blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+  }
+
+  return gradient;
+}
+
+QLinearGradient HybridDriveGauge::createMetallicGradient(QRect rect, QColor baseColor) {
+  QLinearGradient gradient(rect.topLeft(), rect.bottomRight());
+
+  QColor highlight = baseColor.lighter(150);
+  QColor shadow = baseColor.darker(150);
+
+  gradient.setColorAt(0, highlight);
+  gradient.setColorAt(0.3, baseColor);
+  gradient.setColorAt(0.7, baseColor);
+  gradient.setColorAt(1, shadow);
+
+  return gradient;
+}
+
+void HybridDriveGauge::drawInsetBorder(QPainter &p, QRect rect, QColor borderColor) {
+  // Outer border (highlight)
+  p.setPen(QPen(borderColor, BORDER_WIDTH));
+  p.setBrush(Qt::NoBrush);
+  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+  // Inner shadow effect
+  QRect innerRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH);
+  QColor shadowColor = borderColor.darker(200);
+  shadowColor.setAlpha(100);
+  p.setPen(QPen(shadowColor, 1));
+  p.drawRoundedRect(innerRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
+}
+
+void HybridDriveGauge::drawMetallicBackground(QPainter &p, QRect rect, const QString &mode) {
+  // Draw neutral metallic background (not mode-dependent)
+  p.setPen(Qt::NoPen);
+  QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
+  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
+  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  p.setBrush(neutralBg);
+  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+  // Add inner highlight for metallic effect
+  QRect highlightRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH * 3);
+  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+  highlight.setColorAt(0, QColor(255, 255, 255, 20));
+  highlight.setColorAt(0.3, QColor(255, 255, 255, 5));
+  highlight.setColorAt(1, QColor(255, 255, 255, 0));
+
+  p.setBrush(highlight);
+  p.drawRoundedRect(highlightRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
+}
+
+QColor HybridDriveGauge::getBorderColor(float value, const QString &mode) {
+  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
+  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
+  bool isRegenMode = value < 0;
+
+  if (isRegenMode) {
+    return QColor(0, 255, 127); // Electric green for regen
+  } else if (isEvMode) {
+    return QColor(30, 144, 255); // Electric blue for EV
+  } else if (isHybridMode) {
+    return QColor(100, 149, 237); // Cornflower blue for hybrid
+  } else {
+    return QColor(70, 130, 180);   // Steel blue default
+  }
+}
+
 void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleDemandPercent, float hevThrottleThresholdPercent, QString hevPowerFlowMode,
                                      QString hevEngineOnReason) {
   // Check if the bracket should be animated
   checkBracketProximity(hevThrottleDemandPercent, hevThrottleThresholdPercent);
 
   p.save();
+  p.setRenderHint(QPainter::Antialiasing, true);
 
-  // --- Layout: split gauge into top (power bar) and bottom (text) ---
-  // Ratios for top/bottom sections
+  // Layout: split gauge into top (power bar) and bottom (text)
   const float powerBarRatio = 0.55f;
-  // const float textRatio = 0.35f;
-
-  // Dimensions for each section
   const int totalHeight = rect.height();
   const int powerBarHeight = int(totalHeight * powerBarRatio);
-  const int textHeight = totalHeight - powerBarHeight; // Ensures full usage
+  const int textHeight = totalHeight - powerBarHeight;
 
-  // --- Prepare fonts ---
+  // Prepare fonts with better scaling
   QFont font("Inter");
-  int maxWidth = rect.width() - 30;
+  int maxWidth = rect.width() - 40; // More margin for text
   int fontSize = int(rect.width() * 0.06);
   font.setPixelSize(fontSize);
-  p.setFont(font);
 
-  // --- Prepare text strings ---
+  // Prepare text strings
   QString modeText = hevPowerFlowMode;
   QString reasonText = hevEngineOnReason;
   QString combinedText = modeText.isEmpty() ? reasonText : (reasonText.isEmpty() ? modeText : modeText + " | " + reasonText);
 
-  // Scale text down if needed
+  // Scale text down more aggressively to ensure fit
   QFontMetrics fm(font);
   int textWidth = fm.horizontalAdvance(combinedText);
-  while (textWidth > maxWidth && fontSize > 12) {
+  while (textWidth > maxWidth && fontSize > 8) { // Lower minimum to 8px
     fontSize--;
     font.setPixelSize(fontSize);
     fm = QFontMetrics(font);
     textWidth = fm.horizontalAdvance(combinedText);
   }
-  // make the font weight bold
+
+  // If still too wide, try without the mode prefix
+  if (textWidth > maxWidth && !reasonText.isEmpty() && !modeText.isEmpty()) {
+    combinedText = reasonText; // Use just the reason text
+    fm = QFontMetrics(font);
+    textWidth = fm.horizontalAdvance(combinedText);
+
+    // Scale reason text if needed
+    while (textWidth > maxWidth && fontSize > 8) {
+      fontSize--;
+      font.setPixelSize(fontSize);
+      fm = QFontMetrics(font);
+      textWidth = fm.horizontalAdvance(combinedText);
+    }
+  }
+
   font.setWeight(QFont::Bold);
+  p.setFont(font); // Apply the scaled font
   p.setFont(font);
 
-  // --- Draw overall rounded border (outer frame) ---
-  QColor borderColor = getBorderAndBackgroundColor(hevThrottleDemandPercent, hevPowerFlowMode, true);
-  p.setPen(QPen(borderColor, 2));
-  p.setBrush(Qt::NoBrush);
-  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+  // Draw automotive-style background and border
+  drawMetallicBackground(p, rect, hevPowerFlowMode);
+  drawInsetBorder(p, rect, getBorderColor(hevThrottleDemandPercent, hevPowerFlowMode));
 
-  // --- Draw the semi-transparent background for the entire gauge ---
-  p.setPen(Qt::NoPen);
-  QColor bgColor(0, 0, 0, 80);
-  p.setBrush(bgColor);
-  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
-
-  // -----------------------
-  // 1) Draw the power bar
-  // -----------------------
+  // Draw the power bar
   {
-    // Leave some margin so we don’t collide with the outer frame
-    const int margin = 5;
+    const int margin = 8; // Increased margin for automotive look
     QRect barRect(rect.left() + margin, rect.top() + margin, rect.width() - 2 * margin, powerBarHeight - 2 * margin);
-
     drawPowerBar(p, barRect, hevThrottleDemandPercent, hevThrottleThresholdPercent, hevPowerFlowMode);
   }
 
-  // -------------------------------------------------
-  // 2) Draw the text background with only bottom
-  //    corners rounded, and then draw the text
-  // -------------------------------------------------
+  // Draw the text area with automotive styling
   {
-    QRect textRect(rect.left(),                 // same x
-                   rect.top() + powerBarHeight, // directly after the power bar
-                   rect.width(), textHeight);
+    QRect textRect(rect.left(), rect.top() + powerBarHeight, rect.width(), textHeight);
 
-    // Decide background color
-    QColor textBgColor = getBorderAndBackgroundColor(hevThrottleDemandPercent, hevPowerFlowMode, false);
-    p.setBrush(textBgColor);
+    // Create metallic text background
+    QRect textBgRect = textRect.adjusted(BORDER_WIDTH, 0, -BORDER_WIDTH, -BORDER_WIDTH);
+    QLinearGradient textBgGradient = createMetallicGradient(textBgRect, QColor(44, 62, 80));
 
-    // Create a path that has bottom corners rounded, top corners straight
     QPainterPath textBgPath;
     textBgPath.setFillRule(Qt::WindingFill);
+    textBgPath.addRoundedRect(textBgRect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
 
-    // Add a rounded rect for the bottom corners
-    textBgPath.addRoundedRect(textRect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
-
-    // Add a rectangle to "unround" the top corners
-    // (this rectangle covers the top rounding)
-    QRectF topRect = textRect.adjusted(0, 0, 0, -BAR_ROUND_RADIUS);
+    // "Unround" the top corners
+    QRectF topRect = textBgRect.adjusted(0, 0, 0, -BAR_ROUND_RADIUS);
     textBgPath.addRect(topRect);
 
-    p.fillPath(textBgPath, p.brush());
+    p.fillPath(textBgPath, textBgGradient);
 
-    // Draw text centered (both horizontally and vertically)
-    p.setPen(QColor(255, 255, 255, 230));
+    // Add inner shadow to text area
+    QRect shadowRect = textBgRect.adjusted(2, 2, -2, -2);
+    QColor shadowColor(0, 0, 0, 50);
+    p.setPen(QPen(shadowColor, 1));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(shadowRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
+
+    // Draw text with automotive-style shadow
+    p.setPen(QColor(0, 0, 0, 100)); // Text shadow
+    p.drawText(textRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, combinedText);
+
+    p.setPen(QColor(236, 240, 241, 230)); // Main text color
     p.drawText(textRect, Qt::AlignCenter, combinedText);
   }
 
   p.restore();
 }
 
+QLinearGradient HybridDriveGauge::getPowerBarGradient(QRect rect, float value, float threshold, const QString &mode) {
+  QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
+
+  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
+
+  if (value < 0) {
+    // Regen braking - pure green gradient
+    gradient.setColorAt(0, QColor(0, 255, 0));   // Bright green
+    gradient.setColorAt(1, QColor(0, 200, 0));   // Darker green
+  } else if (isEvMode) {
+    // Electric mode - pure blue gradient
+    gradient.setColorAt(0, QColor(0, 150, 255)); // Electric blue
+    gradient.setColorAt(1, QColor(0, 100, 200)); // Darker blue
+  } else {
+    // Engine on - orange/red for power demand
+    if (value > 50) {
+      gradient.setColorAt(0, QColor(255, 140, 0)); // Orange
+      gradient.setColorAt(1, QColor(255, 69, 0));  // Red-orange
+    } else {
+      gradient.setColorAt(0, QColor(200, 200, 200)); // Light gray
+      gradient.setColorAt(1, QColor(150, 150, 150)); // Gray
+    }
+  }
+
+  return gradient;
+}
+
 void HybridDriveGauge::drawPowerBar(QPainter &p, QRect rect, float value, float threshold, const QString &mode) {
   const int centerX = rect.center().x();
   bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
 
-  // Draw bar background with transparency
+  // Draw bar background with automotive inset style
   p.setPen(Qt::NoPen);
-  p.setBrush(QColor(40, 40, 40, 30));
+  QLinearGradient bgGradient(rect.topLeft(), rect.bottomLeft());
+  bgGradient.setColorAt(0, QColor(52, 73, 94));
+  bgGradient.setColorAt(1, QColor(44, 62, 80));
 
   if (isEvMode) {
     // In EV mode, only draw background for EV range
@@ -152,36 +268,65 @@ void HybridDriveGauge::drawPowerBar(QPainter &p, QRect rect, float value, float 
     QRect evRect = rect;
     evRect.setWidth(evWidth);
     evRect.moveCenter(QPoint(centerX, rect.center().y()));
+    p.setBrush(bgGradient);
     p.drawRoundedRect(evRect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+    // Add inset shadow
+    QRect shadowRect = evRect.adjusted(2, 2, -2, -2);
+    p.setBrush(QColor(0, 0, 0, 40));
+    p.drawRoundedRect(shadowRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
   } else {
+    p.setBrush(bgGradient);
     p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+    // Add inset shadow
+    QRect shadowRect = rect.adjusted(2, 2, -2, -2);
+    p.setBrush(QColor(0, 0, 0, 40));
+    p.drawRoundedRect(shadowRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
   }
 
-  // Draw active bar
+  // Draw active bar with automotive gradient
   if (value != 0) {
     int width = rect.width() * (std::abs(value) / 100.0);
     QRect barRect = rect;
     barRect.setLeft(centerX - width / 2);
     barRect.setRight(centerX + width / 2);
-    p.setBrush(getPowerBarColor(value, threshold, mode));
+
+    p.setBrush(getPowerBarGradient(barRect, value, threshold, mode));
     p.drawRoundedRect(barRect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+    // Add highlight on top edge for 3D effect
+    QRect highlightRect = barRect.adjusted(2, 2, -2, -barRect.height()/2);
+    QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+    highlight.setColorAt(0, QColor(255, 255, 255, 30));
+    highlight.setColorAt(1, QColor(255, 255, 255, 0));
+    p.setBrush(highlight);
+    p.drawRoundedRect(highlightRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
   }
 
-  // Draw threshold markers
+  // Draw threshold markers with automotive styling
   if (isEvMode) {
     drawThresholdBrackets(p, rect, threshold, value);
   }
 
-  // Draw center line
-  p.setPen(QPen(Qt::white, 2));
+  // Draw center line with metallic effect
+  QLinearGradient centerGradient(QPointF(centerX, rect.top()), QPointF(centerX, rect.bottom()));
+  centerGradient.setColorAt(0, QColor(236, 240, 241, 150));
+  centerGradient.setColorAt(0.5, QColor(255, 255, 255, 200));
+  centerGradient.setColorAt(1, QColor(236, 240, 241, 150));
+
+  p.setPen(QPen(QBrush(centerGradient), 2));
   p.drawLine(centerX, rect.top(), centerX, rect.bottom());
 
-  // Draw scale markers
+  // Draw scale markers with automotive styling
   if (!isEvMode) {
-    p.setPen(QPen(Qt::white, 1));
     for (int i = -75; i <= 75; i += 25) {
       int x = centerX + (rect.width() * i / 200);
       int markerHeight = (i % 50 == 0) ? 10 : 5;
+
+      QColor markerColor = (i % 50 == 0) ? QColor(236, 240, 241, 200) : QColor(189, 195, 199, 150);
+      p.setPen(QPen(markerColor, 1));
+
       p.drawLine(x, rect.top(), x, rect.top() + markerHeight);
       p.drawLine(x, rect.bottom() - markerHeight, x, rect.bottom());
     }
@@ -192,27 +337,32 @@ void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float thre
   const int centerX = rect.center().x();
   float halfThreshold = threshold / 2.0;
 
-  // Calculate how close we are to the threshold as a percentage
+  // Calculate proximity for warning effect
   float proximityPercent = (std::abs(currentValue) / threshold) * 100.0f;
 
-  // Define color based on proximity
+  // Automotive warning colors
   QColor bracketColor;
   if (proximityPercent < 80.0f) {
-    bracketColor = QColor(255, 255, 255, 180); // White until 80%
+    bracketColor = QColor(243, 156, 18, 200); // Amber
   } else {
-    // Calculate transition from white to orange from 80% to 100%
-    float t = (proximityPercent - 80.0f) / 20.0f; // 0 to 1 for last 20%
-    bracketColor = QColor(255,                    // Red stays at 255
-                          255 - (t * 140),        // Green transitions from 255 to 115
-                          255 - (t * 255),        // Blue transitions from 255 to 0
-                          180 + (t * 75)          // Alpha increases for more visibility
-    );
+    // Transition to red for warning
+    float t = (proximityPercent - 80.0f) / 20.0f;
+    bracketColor = QColor(243 - (t * 43),      // R: 243 -> 200
+                          156 - (t * 156),     // G: 156 -> 0
+                          18,                  // B: stays 18
+                          200 + (t * 55));     // Alpha increases
   }
 
-  QPen bracketPen(bracketColor, 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+  // Create gradient for metallic bracket effect
+  QLinearGradient bracketGradient(QPointF(0, rect.top()), QPointF(0, rect.bottom()));
+  bracketGradient.setColorAt(0, bracketColor.lighter(130));
+  bracketGradient.setColorAt(0.5, bracketColor);
+  bracketGradient.setColorAt(1, bracketColor.darker(130));
+
+  QPen bracketPen(QBrush(bracketGradient), 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
   p.setPen(bracketPen);
 
-  // Draw left and right brackets with scaling
+  // Draw left and right brackets with automotive styling
   for (int side = -1; side <= 1; side += 2) {
     int x = centerX + side * (rect.width() * halfThreshold / 100.0);
 
@@ -223,9 +373,9 @@ void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float thre
     p.scale(m_bracketScale, m_bracketScale);
     p.translate(-center);
 
-    int bracketWidth = 10;
-    int bracketDepth = 6;
-    int curveSize = 3;
+    int bracketWidth = 12;  // Slightly wider for automotive look
+    int bracketDepth = 8;   // Deeper for more prominence
+    int curveSize = 4;      // Larger curve for smoother appearance
 
     // Top bracket
     QPainterPath topPath;
@@ -254,202 +404,253 @@ void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float thre
     p.drawPath(topPath);
     p.drawPath(bottomPath);
 
+    // Add glow effect for warning state
+    if (proximityPercent > 80.0f) {
+      p.setPen(QPen(bracketColor, 6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      p.setOpacity(0.3);
+      p.drawPath(topPath);
+      p.drawPath(bottomPath);
+      p.setOpacity(1.0);
+    }
+
     p.restore();
   }
-}
-
-QColor HybridDriveGauge::getPowerBarColor(float value, float threshold, const QString &mode) {
-  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
-  // bool isIdleMode = mode.contains("Idle", Qt::CaseInsensitive);
-
-  if (value < 0 || isEvMode) {
-    // Simple white bar for regen and EV modes
-    return QColor(255, 255, 255);
-  } else {
-    // Engine on - gradient from white to yellow to orange to red starting at 50%
-    if (value > 50) {
-      float gradientPosition = (value - 50) / 50.0; // Now using 50% range (50-100)
-      gradientPosition = std::min(1.0f, std::max(0.0f, gradientPosition));
-
-      if (gradientPosition < 0.33) {
-        float t = gradientPosition * 3;
-        return QColor(255, 255, 255 * (1.0 - t));
-      } else if (gradientPosition < 0.66) {
-        float t = (gradientPosition - 0.33) * 3;
-        return QColor(255, 255 * (1.0 - t * 0.5), 0);
-      } else {
-        float t = (gradientPosition - 0.66) * 3;
-        return QColor(255, 128 * (1.0 - t), 0);
-      }
-    } else {
-      return QColor(255, 255, 255); // White for 0-50%
-    }
-  }
-}
-
-QColor HybridDriveGauge::getBorderAndBackgroundColor(float value, const QString &mode, bool isBorder) {
-  bool isIdleMode = mode.contains("Idle", Qt::CaseInsensitive);
-  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
-  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
-  bool isRegenMode = value < 0 && !isIdleMode;
-
-  QColor color;
-  if (isRegenMode) {
-    color = QColor(0, 220, 100); // Vibrant green for regen
-  } else if (isEvMode) {
-    color = QColor(0, 140, 255); // Vibrant blue for EV
-  } else if (isHybridMode) {
-    color = QColor(148, 0, 211); // Violet purple for hybrid
-  } else {
-    color = isBorder ? QColor(255, 255, 255) : QColor(0, 0, 0); // White border or black background
-  }
-
-  color.setAlpha(isBorder ? 240 : 200);
-  return color;
 }
 
 float HybridBatteryGauge::lastDisplayedAmps = 0.0f;
 double HybridBatteryGauge::lastAmpsUpdateTime = 0.0;
 
+QRadialGradient HybridBatteryGauge::getBatteryBackgroundGradient(QRect rect, float batteryPercent) {
+  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
+
+  if (batteryPercent > 50.0f) {
+    gradient.setColorAt(0, QColor(39, 174, 96)); // Green center
+    gradient.setColorAt(1, QColor(30, 132, 73)); // Darker green edge
+  } else if (batteryPercent > 25.0f) {
+    gradient.setColorAt(0, QColor(241, 196, 15)); // Yellow center
+    gradient.setColorAt(1, QColor(212, 172, 13)); // Darker yellow edge
+  } else {
+    gradient.setColorAt(0, QColor(231, 76, 60)); // Red center
+    gradient.setColorAt(1, QColor(192, 57, 43)); // Darker red edge
+  }
+
+  return gradient;
+}
+
+QLinearGradient HybridBatteryGauge::getBatteryGradient(QRect rect, float value, float min, float max) {
+  QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
+
+  float perc = (value - min) / (max - min);
+  if (perc > 0.5) {
+    gradient.setColorAt(0, QColor(46, 204, 113)); // Green
+    gradient.setColorAt(1, QColor(39, 174, 96));  // Darker green
+  } else if (perc > 0.25) {
+    gradient.setColorAt(0, QColor(241, 196, 15)); // Yellow
+    gradient.setColorAt(1, QColor(243, 156, 18)); // Orange
+  } else {
+    gradient.setColorAt(0, QColor(231, 76, 60));  // Red
+    gradient.setColorAt(1, QColor(192, 57, 43));  // Dark red
+  }
+
+  return gradient;
+}
+
+void HybridBatteryGauge::drawAutomotiveBattery(QPainter &p, QRect batteryRect, float fillPerc) {
+  // Draw battery outline with automotive styling
+  QLinearGradient outlineGradient(batteryRect.topLeft(), batteryRect.bottomLeft());
+  outlineGradient.setColorAt(0, QColor(236, 240, 241));
+  outlineGradient.setColorAt(1, QColor(189, 195, 199));
+
+  p.setPen(QPen(QBrush(outlineGradient), 2));
+  p.setBrush(Qt::NoBrush);
+  p.drawRect(batteryRect);
+
+  // Draw positive terminal with metallic effect
+  int tabWidth = qRound(batteryRect.height() * 0.2);
+  int tabHeight = qRound(batteryRect.height() * 0.4);
+  QRect tabRect(batteryRect.right(), batteryRect.center().y() - (tabHeight / 2), tabWidth, tabHeight);
+
+  QLinearGradient tabGradient(tabRect.topLeft(), tabRect.bottomLeft());
+  tabGradient.setColorAt(0, QColor(236, 240, 241));
+  tabGradient.setColorAt(1, QColor(189, 195, 199));
+
+  p.setBrush(tabGradient);
+  p.setPen(QPen(QBrush(outlineGradient), 2));
+  p.drawRect(tabRect);
+
+  // Draw battery background with inset effect
+  QRect bgRect = batteryRect.adjusted(2, 2, -2, -2);
+  QLinearGradient bgGradient(bgRect.topLeft(), bgRect.bottomLeft());
+  bgGradient.setColorAt(0, QColor(52, 73, 94));
+  bgGradient.setColorAt(1, QColor(44, 62, 80));
+
+  p.setBrush(bgGradient);
+  p.setPen(Qt::NoPen);
+  p.drawRect(bgRect);
+
+  // Draw battery fill with automotive gradient
+  if (fillPerc > 0) {
+    QRect fillRect = bgRect;
+    fillRect.setWidth(int(fillRect.width() * fillPerc));
+
+    // Create dynamic gradient based on charge level
+    QLinearGradient fillGradient = getBatteryGradient(fillRect, fillPerc * 100, 0, 100);
+
+    p.setBrush(fillGradient);
+    p.drawRect(fillRect);
+
+    // Add highlight for 3D effect
+    QRect highlightRect = fillRect.adjusted(1, 1, -1, -fillRect.height()/2);
+    QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+    highlight.setColorAt(0, QColor(255, 255, 255, 40));
+    highlight.setColorAt(1, QColor(255, 255, 255, 0));
+    p.setBrush(highlight);
+    p.drawRect(highlightRect);
+  }
+}
+
 void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual, float battSocMin, float battSocMax, float battVoltActual, float battVoltLow, float battVoltHigh,
                                    float battAmpsActual) {
-  // Get current time
+  // Get current time for amp display smoothing
   double currentTime = millis_since_boot() / 1000.0;
-
-  // Determine which amp value to display (current or cached)
   float displayAmps = battAmpsActual;
 
-  // Only update the displayed amp value if enough time has passed
-  // or if the value has changed significantly (e.g., more than 1.0A difference)
   if (currentTime - lastAmpsUpdateTime < AMPS_UPDATE_INTERVAL && std::abs(battAmpsActual - lastDisplayedAmps) < 1.0f) {
     displayAmps = lastDisplayedAmps;
   } else {
-    // Time to update the displayed value
     lastDisplayedAmps = battAmpsActual;
     lastAmpsUpdateTime = currentTime;
   }
 
   p.save();
+  p.setRenderHint(QPainter::Antialiasing, true);
 
-  // Compute a scaling factor based on the battery gauge's height.
-  // For gauge_scale == 1, we expect the height to be 100.
+  // Scale factor for responsive sizing
   float scaleFactor = rect.height() / 100.0f;
-
-  // Optionally, adjust the container width as before.
   rect.setWidth(rect.width() * 1.45);
+  int cornerRadius = qRound(6 * scaleFactor); // Reduced for automotive look
 
-  // Use a scaled corner radius
-  int cornerRadius = qRound(10 * scaleFactor);
+  // Calculate battery percentage for dynamic theming
+  float fillPerc = (battSocActual - battSocMin) / (battSocMax - battSocMin);
+  float batteryPercent = fillPerc * 100.0f;
 
-  // Draw main border and background with scaled parameters.
-  p.setPen(QPen(QColor(255, 255, 255, 240), 2 * scaleFactor));
-  p.setBrush(QColor(0, 0, 0, 80));
+  // Draw automotive-style background (neutral metallic look)
+  p.setPen(Qt::NoPen);
+  QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
+  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
+  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  p.setBrush(neutralBg);
   p.drawRoundedRect(rect, cornerRadius, cornerRadius);
 
-  // Split into main area and text bar using the same ratio as HybridDriveGauge.
+  // Draw main border with color matching battery state
+  QLinearGradient borderGradient(rect.topLeft(), rect.bottomLeft());
+  if (batteryPercent > 50.0f) {
+    borderGradient.setColorAt(0, QColor(46, 204, 113));
+    borderGradient.setColorAt(1, QColor(39, 174, 96));
+  } else if (batteryPercent > 25.0f) {
+    borderGradient.setColorAt(0, QColor(241, 196, 15));
+    borderGradient.setColorAt(1, QColor(212, 172, 13));
+  } else {
+    borderGradient.setColorAt(0, QColor(231, 76, 60));
+    borderGradient.setColorAt(1, QColor(192, 57, 43));
+  }
+
+  p.setPen(QPen(QBrush(borderGradient), 3 * scaleFactor));
+  p.setBrush(Qt::NoBrush);
+  p.drawRoundedRect(rect, cornerRadius, cornerRadius);
+
+  // Add inner highlight for metallic effect
+  QRect highlightRect = rect.adjusted(3, 3, -3, -rect.height()/2);
+  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+  highlight.setColorAt(0, QColor(255, 255, 255, 20));
+  highlight.setColorAt(1, QColor(255, 255, 255, 0));
+  p.setBrush(highlight);
+  p.setPen(Qt::NoPen);
+  p.drawRoundedRect(highlightRect, cornerRadius - 2, cornerRadius - 2);
+
+  // Split layout
   const float powerBarRatio = 0.55f;
   QRect mainArea = rect;
   mainArea.setHeight(int(rect.height() * powerBarRatio));
 
-  // Draw battery in main area.
+  // Draw battery icon
   const int batteryWidth = int(rect.width() * 0.5);
   const int batteryHeight = int(mainArea.height() * 0.6);
   QRect batteryRect(0, 0, batteryWidth, batteryHeight);
   batteryRect.moveCenter(mainArea.center());
-  // Use a scaled left margin.
   batteryRect.moveLeft(mainArea.left() + qRound(20 * scaleFactor));
 
-  // Draw battery outline and fill.
-  p.setPen(QPen(QColor(255, 255, 255, 200), 2 * scaleFactor));
-  p.drawRect(batteryRect);
-
-  // Draw positive terminal tab
-  int tabWidth = qRound(batteryHeight * 0.2);               // Tab width relative to battery height
-  int tabHeight = qRound(batteryHeight * 0.4);              // Tab height relative to battery height
-  QRect tabRect(batteryRect.right(),                        // Start at battery's right edge
-                batteryRect.center().y() - (tabHeight / 2), // Vertically centered
-                tabWidth, tabHeight);
-  p.setBrush(QColor(255, 255, 255, 200));                      // White fill
-  p.setPen(QPen(QColor(255, 255, 255, 200), 2 * scaleFactor)); // Match battery outline
-  p.drawRect(tabRect);
-
-  // Battery fill (draw after tab so it doesn't overlap)
-  float fillPerc = (battSocActual - battSocMin) / (battSocMax - battSocMin);
   int displayPercentage = qRound(fillPerc * 100);
-  QRect fillRect = batteryRect.adjusted(qRound(2 * scaleFactor), qRound(2 * scaleFactor), -qRound(2 * scaleFactor), -qRound(2 * scaleFactor));
-  fillRect.setWidth(int(fillRect.width() * fillPerc));
-  p.setBrush(getBatteryColor(battSocActual, battSocMin, battSocMax));
-  p.setPen(Qt::NoPen);
-  p.drawRect(fillRect);
 
-  // Draw percentage text (e.g. "75%") centered vertically with the battery.
-  // Scale the font size with scaleFactor.
+  drawAutomotiveBattery(p, batteryRect, fillPerc);
+
+  // Draw percentage text with automotive styling
   int percentFontSize = qRound(24 * scaleFactor);
   QFont percentFont("Inter", percentFontSize, QFont::Bold);
   p.setFont(percentFont);
-  p.setPen(QColor(255, 255, 255, 230));
-  // Use a scaled margin for the text offset.
+
+  // Text shadow for automotive look
+  p.setPen(QColor(0, 0, 0, 150));
   int textMargin = qRound(15 * scaleFactor);
   QRect textRect = mainArea;
   textRect.setLeft(batteryRect.right() + textMargin);
+  p.drawText(textRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignLeft, QString::number(displayPercentage) + "%");
+
+  // Main text
+  p.setPen(QColor(236, 240, 241, 230));
   p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, QString::number(displayPercentage) + "%");
 
-  // Draw bottom text section for voltage and amps.
-  const int textAreaHeight = int(rect.height() * (1.0f - powerBarRatio)); // Remaining space.
+  // Draw bottom text section with automotive styling
+  const int textAreaHeight = int(rect.height() * (1.0f - powerBarRatio));
   QRect textRect2(rect.left(), rect.bottom() - textAreaHeight, rect.width(), textAreaHeight);
-  QColor textBgColor(0, 0, 0, 200);
-  p.setBrush(textBgColor);
 
-  // FIX: Adjust text background rect to prevent overlapping with main border
-  // Inset the rectangle by the border width to avoid overlap
-  int borderWidth = qRound(2 * scaleFactor);
+  // Automotive metallic text background
+  int borderWidth = qRound(3 * scaleFactor);
   QRect adjustedTextRect = textRect2.adjusted(borderWidth, 0, -borderWidth, -borderWidth);
 
-  // Create a path for text background with only bottom corners rounded.
+  QLinearGradient textBgGradient(adjustedTextRect.topLeft(), adjustedTextRect.bottomLeft());
+  textBgGradient.setColorAt(0, QColor(44, 62, 80));
+  textBgGradient.setColorAt(1, QColor(52, 73, 94));
+
   QPainterPath textBgPath;
   textBgPath.setFillRule(Qt::WindingFill);
   textBgPath.addRoundedRect(adjustedTextRect, cornerRadius, cornerRadius);
-  // "Unround" the top corners.
   QRectF topRect = adjustedTextRect.adjusted(0, 0, 0, -cornerRadius);
   textBgPath.addRect(topRect);
-  p.fillPath(textBgPath, p.brush());
+  p.fillPath(textBgPath, textBgGradient);
 
-  // Prepare voltage and amps text.
+  // Prepare text
   QString voltText = QString::number(battVoltActual, 'f', 0) + "V";
-  // Use displayAmps instead of battAmpsActual
   QString ampText = QString("%1%2A").arg(displayAmps < 0 ? "+" : "-").arg(QString::number(qAbs(displayAmps), 'f', 1));
 
-  // Use a scaled margin.
   QRect metricsRect = adjustedTextRect.adjusted(textMargin, 0, -textMargin, 0);
 
-  // Set font for voltage text with scaled size.
+  // Draw voltage text with automotive styling
   int textFontSize = qRound(24 * scaleFactor);
   QFont textFont("Inter", textFontSize, QFont::Bold);
   p.setFont(textFont);
-  p.setPen(getVoltageColor(battVoltActual, battVoltLow, battVoltHigh));
+
+  // Voltage text with shadow
+  QColor voltColor = getVoltageColor(battVoltActual, battVoltLow, battVoltHigh);
+  p.setPen(QColor(0, 0, 0, 100));
+  p.drawText(metricsRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignLeft, voltText);
+  p.setPen(voltColor);
   p.drawText(metricsRect, Qt::AlignVCenter | Qt::AlignLeft, voltText);
 
-  // Set font for amps text (using the same scaled size).
-  p.setFont(textFont);
-  p.setPen(displayAmps < 0 ? QColor(0, 255, 0) : QColor(255, 255, 255));
+  // Amps text with shadow
+  QColor ampColor = displayAmps < 0 ? QColor(46, 204, 113) : QColor(236, 240, 241);
+  p.setPen(QColor(0, 0, 0, 100));
+  p.drawText(metricsRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignRight, ampText);
+  p.setPen(ampColor);
   p.drawText(metricsRect, Qt::AlignVCenter | Qt::AlignRight, ampText);
 
   p.restore();
 }
 
-QColor HybridBatteryGauge::getBatteryColor(float value, float min, float max) {
-  float perc = (value - min) / (max - min);
-  if (perc > 0.5)
-    return QColor(0, 255, 0, 200);
-  if (perc > 0.25)
-    return QColor(255, 255, 0, 200);
-  return QColor(255, 0, 0, 200);
-}
-
 QColor HybridBatteryGauge::getVoltageColor(float voltage, float lowLimit, float highLimit) {
   if (voltage <= lowLimit + 10)
-    return QColor(255, 0, 0, 255);
+    return QColor(231, 76, 60, 255);   // Red
   if (voltage >= highLimit - 10)
-    return QColor(255, 255, 0, 255);
-  return QColor(255, 255, 255, 255);
+    return QColor(241, 196, 15, 255);  // Yellow
+  return QColor(236, 240, 241, 255);   // White
 }

@@ -8,6 +8,8 @@
 #include <QPropertyAnimation>
 #include <QString>
 #include <QWidget>
+#include <QLinearGradient>
+#include <QRadialGradient>
 
 class HybridDriveGauge : public QWidget {
   Q_OBJECT
@@ -45,8 +47,14 @@ private:
                      QString hevPowerFlowMode, QString hevEngineOnReason);
   void drawPowerBar(QPainter &p, QRect rect, float value, float threshold, const QString &mode);
   void drawThresholdBrackets(QPainter &p, QRect rect, float threshold, float currentValue);
-  QColor getPowerBarColor(float value, float threshold, const QString &mode);
-  QColor getBorderAndBackgroundColor(float value, const QString &mode, bool isBorder);
+  QLinearGradient getPowerBarGradient(QRect rect, float value, float threshold, const QString &mode);
+  QRadialGradient getBackgroundGradient(QRect rect, const QString &mode);
+  QColor getBorderColor(float value, const QString &mode);
+
+  // New automotive-style helper methods
+  void drawInsetBorder(QPainter &p, QRect rect, QColor borderColor);
+  void drawMetallicBackground(QPainter &p, QRect rect, const QString &mode);
+  QLinearGradient createMetallicGradient(QRect rect, QColor baseColor);
 
   void setupAnimation();
   void checkBracketProximity(float currentValue, float threshold);
@@ -59,16 +67,12 @@ private:
   // Constants
   static constexpr int BAR_HEIGHT = 60;
   static constexpr int TEXT_HEIGHT = 40;
-  static constexpr float BAR_ROUND_RADIUS = 10.0;
+  static constexpr float BAR_ROUND_RADIUS = 6.0;  // Reduced for automotive look
   static constexpr int MARKER_WIDTH = 4;
   static constexpr int MARKER_HEIGHT = 20;
   static constexpr int TEXT_PADDING = 10;
-  static constexpr int BORDER_ALPHA = 210;
-  static constexpr int BACKGROUND_ALPHA = 100;
-  static constexpr int POWER_BAR_BG_ALPHA = 60;
-  static constexpr int TEXT_BG_ALPHA = 140;
-  static constexpr int TEXT_ALPHA = 270;
-  static constexpr int BRACKET_ALPHA = 240;
+  static constexpr int BORDER_WIDTH = 3;  // Thicker border for automotive style
+  static constexpr int INSET_DEPTH = 2;   // For 3D inset effect
 };
 
 class HybridBatteryGauge {
@@ -77,8 +81,11 @@ public:
                         float battVoltActual, float battVoltLow, float battVoltHigh, float battAmpsActual);
 
 private:
-  static QColor getBatteryColor(float value, float min, float max);
+  static QLinearGradient getBatteryGradient(QRect rect, float value, float min, float max);
   static QColor getVoltageColor(float voltage, float lowLimit, float highLimit);
+  static QRadialGradient getBatteryBackgroundGradient(QRect rect, float batteryPercent);
+  static void drawAutomotiveBattery(QPainter &p, QRect batteryRect, float fillPerc);
+
   static float lastDisplayedAmps;
   static double lastAmpsUpdateTime;
   static constexpr double AMPS_UPDATE_INTERVAL = 0.5; // Update every 0.5 seconds
