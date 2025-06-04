@@ -41,12 +41,12 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   vehicle_speed = car_state.getVEgo();
 
   // Debug logging for standstill detection
-  static int debug_counter = 0;
-  debug_counter++;
-  if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
-    std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
-              << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
-  }
+  // static int debug_counter = 0;
+  // debug_counter++;
+  // if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
+  //   std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
+  //             << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
+  // }
 
   // Enhanced standstill detection with multiple criteria
   bool velocity_standstill = vehicle_speed < STANDSTILL_THRESHOLD;
@@ -55,9 +55,9 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
   // Additional check: if speed is very low but CAN doesn't report standstill
   if (!standStill && vehicle_speed < 0.05f) {
     combined_standstill = true;
-    if (debug_counter % 100 == 0) {
-      std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
-    }
+    // if (debug_counter % 100 == 0) {
+    //   std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
+    // }
   }
 
   // Stand Still Timer logic with improved state tracking
@@ -88,9 +88,9 @@ void AnnotatedCameraWidget::updateState(const UIState &s) {
       }
 
       if (current_time - standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
-        if (standstillElapsedTime > 0) {
-          std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
-        }
+        // if (standstillElapsedTime > 0) {
+        //   std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
+        // }
         standstillElapsedTime = 0.0;
         standstill_start_time = current_time;
       }
@@ -505,11 +505,11 @@ void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
   drawColoredText(p, x, y + 90, timeText, QColor(255, 255, 255, 240));
 
   // Debug output
-  static int draw_debug_counter = 0;
-  draw_debug_counter++;
-  if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
-    std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
-  }
+  // static int draw_debug_counter = 0;
+  // draw_debug_counter++;
+  // if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
+  //   std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
+  // }
 }
 
 void AnnotatedCameraWidget::showEvent(QShowEvent *event) {
