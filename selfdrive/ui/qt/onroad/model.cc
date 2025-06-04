@@ -42,13 +42,26 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   drawBlindspotIndicators(painter);
   drawPath(painter, model, surface_rect.height());
 
+  // FIXED: Check if vehicle is actually stopped - hide stop sign when stopped
+  bool vehicle_stopped = v_ego < 0.5f; // Vehicle is considered stopped below 0.5 m/s
+
+  // If vehicle is stopped, immediately start fading out the stop sign
+  if (vehicle_stopped && stop_state.active) {
+    stop_state.active = false;
+    stop_state.stability_counter = 0;
+    // Keep fade_alpha as is to allow smooth fade out
+  }
+
   // FIXED: Stop detection logic with bounds checking and performance limits
   const auto &velocity = model.getVelocity().getX();
   const auto &position_x = model.getPosition().getX();
   const auto &position_y = model.getPosition().getY();
   const auto &position_z = model.getPosition().getZ();
 
-  if (s->scene.show_stop_indicator_overlay) {
+  // Declare variables in proper scope
+  int stop_idx = -1;
+
+  if (s->scene.show_stop_indicator_overlay && !vehicle_stopped) { // Only show when not stopped
     // Add comprehensive data validation
     size_t vel_size = velocity.size();
     size_t pos_x_size = position_x.size();
@@ -64,7 +77,6 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
 
     if (data_valid) {
       float stopping_distance = -1.0f;
-      int stop_idx = -1;
 
       // Limit search to reasonable distance/time ahead
       size_t max_search_idx = std::min(vel_size, static_cast<size_t>(200)); // Limit iterations
@@ -134,7 +146,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
         }
       }
 
-      // Use brake data to enhance stop confidence
+      // Use brake data to enhance stop confidence - but not when vehicle is stopped
       if (stop_idx != -1 && stop_idx < static_cast<int>(pos_x_size) && stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
         // Increase stability when brakes are applied
         if (brake_pressed || brake_value > 0.1f) {
@@ -181,73 +193,6 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
           stop_state.active = false;
         }
       }
-
-      // Handle fade animation
-      if (stop_state.active && stop_state.fade_alpha < 1.0f) {
-        stop_state.fade_alpha = std::min(1.0f, stop_state.fade_alpha + 0.1f);
-      } else if (!stop_state.active && stop_state.fade_alpha > 0.0f) {
-        stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.05f);
-      }
-
-      // Draw stop sign with fade effect if active or fading out
-      if (stop_state.fade_alpha > 0.0f && stop_state.stopping_distance > 0) {
-        // Get position for stop sign (use last valid if current is invalid)
-        QPointF screen_point;
-        bool valid_position = false;
-
-        if (stop_idx != -1 && stop_idx < static_cast<int>(pos_x_size)) {
-          float x = position_x[stop_idx];
-          float y = position_y[stop_idx];
-          float z = position_z[stop_idx];
-
-          valid_position = mapToScreen(x, y, z + path_offset_z, &screen_point);
-        }
-
-        if (!valid_position && !stop_state.last_valid_position.isNull()) {
-          // Use last valid position if current is invalid
-          screen_point = stop_state.last_valid_position;
-          valid_position = true;
-        }
-
-        if (valid_position) {
-          const int stop_sign_size = 100; // Base size
-
-          // Position relative to lane lines as in original code
-          if (!lane_line_vertices[2].isEmpty()) {
-            // Find the closest point on the right lane line to the stopping point
-            int closest_idx = 0;
-            float min_dist = std::numeric_limits<float>::max();
-            for (int i = 0; i < lane_line_vertices[2].size(); ++i) {
-              float dist = std::hypot(screen_point.x() - lane_line_vertices[2][i].x(), screen_point.y() - lane_line_vertices[2][i].y());
-              if (dist < min_dist) {
-                min_dist = dist;
-                closest_idx = i;
-              }
-            }
-
-            // Position the stop sign to the right of the closest lane line point
-            QPointF lane_point = lane_line_vertices[2][closest_idx];
-            QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
-
-            // Ensure the stop sign stays within the clip region
-            if (clip_region.contains(stop_point)) {
-              drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
-            } else {
-              // Adjust if partially out of bounds
-              float adjusted_x = std::clamp(stop_point.x(), clip_region.left() + stop_sign_size / 2, clip_region.right() - stop_sign_size / 2);
-              stop_point.setX(adjusted_x);
-              if (clip_region.contains(stop_point)) {
-                drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
-              }
-            }
-          } else {
-            // Fallback: Use the original stopping point if no lane line data
-            if (clip_region.contains(screen_point)) {
-              drawStopSignOverlay(painter, screen_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
-            }
-          }
-        }
-      }
     } else {
       // Data is invalid - reset stop state safely
       stop_state.active = false;
@@ -255,6 +200,79 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
       stop_state.stopping_distance = -1.0f;
       stop_state.display_distance = -1.0f;
       stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.1f);
+    }
+  } else if (vehicle_stopped) {
+    // Vehicle is stopped - ensure stop sign is deactivated and fading out
+    stop_state.active = false;
+    stop_state.stability_counter = 0;
+    stop_state.stopping_distance = -1.0f;
+    stop_state.display_distance = -1.0f;
+  }
+
+  // Handle fade animation
+  if (stop_state.active && stop_state.fade_alpha < 1.0f) {
+    stop_state.fade_alpha = std::min(1.0f, stop_state.fade_alpha + 0.1f);
+  } else if (!stop_state.active && stop_state.fade_alpha > 0.0f) {
+    stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.05f);
+  }
+
+  // Draw stop sign with fade effect if active or fading out, but never when vehicle is stopped
+  if (stop_state.fade_alpha > 0.0f && stop_state.stopping_distance > 0 && !vehicle_stopped) {
+    // Get position for stop sign (use last valid if current is invalid)
+    QPointF screen_point;
+    bool valid_position = false;
+
+    if (stop_idx != -1 && stop_idx < static_cast<int>(position_x.size())) {
+      float x = position_x[stop_idx];
+      float y = position_y[stop_idx];
+      float z = position_z[stop_idx];
+
+      valid_position = mapToScreen(x, y, z + path_offset_z, &screen_point);
+    }
+
+    if (!valid_position && !stop_state.last_valid_position.isNull()) {
+      // Use last valid position if current is invalid
+      screen_point = stop_state.last_valid_position;
+      valid_position = true;
+    }
+
+    if (valid_position) {
+      const int stop_sign_size = 100; // Base size
+
+      // Position relative to lane lines as in original code
+      if (!lane_line_vertices[2].isEmpty()) {
+        // Find the closest point on the right lane line to the stopping point
+        int closest_idx = 0;
+        float min_dist = std::numeric_limits<float>::max();
+        for (int i = 0; i < lane_line_vertices[2].size(); ++i) {
+          float dist = std::hypot(screen_point.x() - lane_line_vertices[2][i].x(), screen_point.y() - lane_line_vertices[2][i].y());
+          if (dist < min_dist) {
+            min_dist = dist;
+            closest_idx = i;
+          }
+        }
+
+        // Position the stop sign to the right of the closest lane line point
+        QPointF lane_point = lane_line_vertices[2][closest_idx];
+        QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
+
+        // Ensure the stop sign stays within the clip region
+        if (clip_region.contains(stop_point)) {
+          drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
+        } else {
+          // Adjust if partially out of bounds
+          float adjusted_x = std::clamp(stop_point.x(), clip_region.left() + stop_sign_size / 2, clip_region.right() - stop_sign_size / 2);
+          stop_point.setX(adjusted_x);
+          if (clip_region.contains(stop_point)) {
+            drawStopSignOverlay(painter, stop_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
+          }
+        }
+      } else {
+        // Fallback: Use the original stopping point if no lane line data
+        if (clip_region.contains(screen_point)) {
+          drawStopSignOverlay(painter, screen_point, stop_sign_size, stop_state.display_distance, v_ego, stop_state.fade_alpha);
+        }
+      }
     }
   }
 
@@ -1104,7 +1122,6 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
 
 void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size,
                                        float stopping_distance, float v_ego, float fade_alpha) {
-  // FIXED: Input validation
   if (stopping_distance <= 0.0f || size <= 0 || size > 500) {
     return;
   }
