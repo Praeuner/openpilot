@@ -42,28 +42,54 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
   drawBlindspotIndicators(painter);
   drawPath(painter, model, surface_rect.height());
 
-  // New stop detection logic using velocity and brake data
+  // FIXED: Stop detection logic with bounds checking and performance limits
   const auto &velocity = model.getVelocity().getX();
   const auto &position_x = model.getPosition().getX();
   const auto &position_y = model.getPosition().getY();
   const auto &position_z = model.getPosition().getZ();
 
   if (s->scene.show_stop_indicator_overlay) {
-    if (velocity.size() > 0 && position_x.size() == velocity.size() && position_y.size() == velocity.size() && position_z.size() == velocity.size()) {
+    // Add comprehensive data validation
+    size_t vel_size = velocity.size();
+    size_t pos_x_size = position_x.size();
+    size_t pos_y_size = position_y.size();
+    size_t pos_z_size = position_z.size();
+
+    // Validate array sizes are reasonable and consistent
+    const size_t MAX_ARRAY_SIZE = 1000; // Prevent excessive iterations
+    const size_t MIN_ARRAY_SIZE = 2;    // Need at least 2 points
+
+    bool data_valid = (vel_size >= MIN_ARRAY_SIZE && vel_size <= MAX_ARRAY_SIZE &&
+                       pos_x_size == vel_size && pos_y_size == vel_size && pos_z_size == vel_size);
+
+    if (data_valid) {
       float stopping_distance = -1.0f;
       int stop_idx = -1;
 
-      // Find potential stop point from velocity
-      for (size_t i = 0; i < velocity.size(); ++i) {
+      // Limit search to reasonable distance/time ahead
+      size_t max_search_idx = std::min(vel_size, static_cast<size_t>(200)); // Limit iterations
+
+      // Find potential stop point with bounds checking
+      for (size_t i = 0; i < max_search_idx; ++i) {
+        // Additional bounds check (defensive programming)
+        if (i >= vel_size || i >= pos_x_size) {
+          break;
+        }
+
+        // Skip if position data is unreasonable
+        if (position_x[i] < 0 || position_x[i] > 200.0f) { // Max 200m ahead
+          continue;
+        }
+
         if (velocity[i] < 0.5f) {
           stopping_distance = position_x[i];
-          stop_idx = i;
+          stop_idx = static_cast<int>(i);
           break;
         }
       }
 
       // Add better bounds checking and logic for distance calculation
-      if (stopping_distance > 0) {
+      if (stop_idx >= 0 && stop_idx < static_cast<int>(pos_x_size) && stopping_distance > 0) {
         // Cap maximum distance to a reasonable value
         stopping_distance = std::min(stopping_distance, 50.0f);
 
@@ -95,7 +121,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
           stop_state.stopping_distance = stopping_distance;
 
           // Also check if we need to map to screen for position tracking
-          if (stop_idx != -1) {
+          if (stop_idx != -1 && stop_idx < static_cast<int>(pos_x_size)) {
             float x = position_x[stop_idx];
             float y = position_y[stop_idx];
             float z = position_z[stop_idx];
@@ -109,7 +135,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
       }
 
       // Use brake data to enhance stop confidence
-      if (stop_idx != -1 && stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
+      if (stop_idx != -1 && stop_idx < static_cast<int>(pos_x_size) && stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
         // Increase stability when brakes are applied
         if (brake_pressed || brake_value > 0.1f) {
           // Braking confirms stop point - increase stability quickly
@@ -169,7 +195,7 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
         QPointF screen_point;
         bool valid_position = false;
 
-        if (stop_idx != -1) {
+        if (stop_idx != -1 && stop_idx < static_cast<int>(pos_x_size)) {
           float x = position_x[stop_idx];
           float y = position_y[stop_idx];
           float z = position_z[stop_idx];
@@ -222,6 +248,13 @@ void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
           }
         }
       }
+    } else {
+      // Data is invalid - reset stop state safely
+      stop_state.active = false;
+      stop_state.stability_counter = 0;
+      stop_state.stopping_distance = -1.0f;
+      stop_state.display_distance = -1.0f;
+      stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.1f);
     }
   }
 
@@ -257,10 +290,29 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
       float raw_yRel = lead_data.getYRel();
       bool is_radar_assisted = lead_data.getRadar();
 
+      // FIXED: Validate line data before access
+      const auto &line_x = line.getX();
+      const auto &line_y = line.getY();
+      const auto &line_z = line.getZ();
+
+      if (line_x.size() == 0 || line_y.size() != line_x.size() || line_z.size() != line_x.size()) {
+        // Invalid data - skip this lead update
+        virtual_lead_active[i] = false;
+        continue;
+      }
+
       // Get the path's y-coordinate at the lead's distance
       int idx = get_path_length_idx(line, d_rel);
-      float path_y = line.getY()[idx];
-      float path_z = line.getZ()[idx];
+
+      // FIXED: Ensure idx is within bounds
+      if (idx < 0 || idx >= static_cast<int>(line_y.size()) || idx >= static_cast<int>(line_z.size())) {
+        // Index out of bounds - use fallback or skip
+        virtual_lead_active[i] = false;
+        continue;
+      }
+
+      float path_y = line_y[idx];
+      float path_z = line_z[idx];
 
       // Dynamic confidence threshold based on lead distance
       // Closer leads use stricter filtering
@@ -302,7 +354,7 @@ void ModelRenderer::update_leads(const cereal::RadarState::Reader &radar_state, 
         smoothed_yRel[i] = raw_yRel;
       } else {
         // Adaptive smoothing based on distance and radar assistance
-        float path_curvature = (idx > 1) ? fabs(line.getY()[idx] - line.getY()[idx - 1]) : 0.0f;
+        float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
 
         // More path influence for curves
         float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
@@ -363,39 +415,48 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
     mapLineToPolygon(lane_lines[i], 0.025 * lane_line_probs[i], 0, &lane_line_vertices[i], max_idx);
   }
 
-  // Create lane barrier polygons for blindspot indication
-  // Now using current lane lines with wider gradient effect
+  // FIXED: Safe blindspot polygon creation
   if (lane_lines.size() >= 4) {
-    // Left blind spot: From lane line to left (y - BLINDSPOT_WIDTH)
     const auto &left_lane = lane_lines[1];
-    lane_barrier_vertices[0].clear();
-    for (int i = 0; i <= max_idx; i++) {
-      QPointF lane_pt, offset_pt;
-      if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
-          mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
-        lane_barrier_vertices[0].append(offset_pt); // Outer left edge
-      }
-    }
-    for (int i = max_idx; i >= 0; i--) {
-      QPointF lane_pt;
-      if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
-        lane_barrier_vertices[0].append(lane_pt); // Lane line edge
-      }
-    }
-
-    // Right blind spot: From lane line to right (y + BLINDSPOT_WIDTH)
     const auto &right_lane = lane_lines[2];
-    lane_barrier_vertices[1].clear();
-    for (int i = 0; i <= max_idx; i++) {
-      QPointF lane_pt;
-      if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
-        lane_barrier_vertices[1].append(lane_pt); // Lane line edge
+
+    // Validate lane data before processing
+    if (left_lane.getX().size() == 0 || right_lane.getX().size() == 0) {
+      lane_barrier_vertices[0].clear();
+      lane_barrier_vertices[1].clear();
+    } else {
+      // Limit blindspot polygon complexity
+      int safe_max_idx = std::min(max_idx, 50); // Limit to 50 points max
+
+      // Left blind spot
+      lane_barrier_vertices[0].clear();
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(left_lane.getX().size()); i++) {
+        QPointF lane_pt, offset_pt;
+        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
+            mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
+          lane_barrier_vertices[0].append(offset_pt);
+        }
       }
-    }
-    for (int i = max_idx; i >= 0; i--) {
-      QPointF offset_pt;
-      if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
-        lane_barrier_vertices[1].append(offset_pt); // Outer right edge
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()); i--) {
+        QPointF lane_pt;
+        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
+          lane_barrier_vertices[0].append(lane_pt);
+        }
+      }
+
+      // Right blind spot with same safety
+      lane_barrier_vertices[1].clear();
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(right_lane.getX().size()); i++) {
+        QPointF lane_pt;
+        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
+          lane_barrier_vertices[1].append(lane_pt);
+        }
+      }
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()); i--) {
+        QPointF offset_pt;
+        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
+          lane_barrier_vertices[1].append(offset_pt);
+        }
       }
     }
   }
@@ -441,8 +502,21 @@ void ModelRenderer::drawLaneLines(QPainter &painter) {
   // Enable anti-aliasing for lane lines
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  // lanelines
+  // FIXED: Safe lane line drawing with validation
   for (int i = 0; i < std::size(lane_line_vertices); ++i) {
+    const QPolygonF &polygon = lane_line_vertices[i];
+
+    // SAFETY: Skip degenerate or oversized polygons
+    if (polygon.isEmpty() || polygon.size() > 400) {
+      continue;
+    }
+
+    // Validate polygon bounds
+    QRectF bounds = polygon.boundingRect();
+    if (!bounds.isValid() || bounds.width() > 5000 || bounds.height() > 5000) {
+      continue;
+    }
+
     // Check if this line is on the left or right side
     bool is_left_line = (i == 0);
     bool is_right_line = (i == 3);
@@ -456,13 +530,24 @@ void ModelRenderer::drawLaneLines(QPainter &painter) {
       painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, std::clamp<float>(lane_line_probs[i], 0.0, 0.7)));
     }
 
-    painter.drawPolygon(lane_line_vertices[i]);
+    painter.drawPolygon(polygon);
   }
 
-  // road edges
+  // FIXED: Safe road edge drawing
   for (int i = 0; i < std::size(road_edge_vertices); ++i) {
+    const QPolygonF &polygon = road_edge_vertices[i];
+
+    if (polygon.isEmpty() || polygon.size() > 400) {
+      continue;
+    }
+
+    QRectF bounds = polygon.boundingRect();
+    if (!bounds.isValid() || bounds.width() > 5000 || bounds.height() > 5000) {
+      continue;
+    }
+
     painter.setBrush(QColor::fromRgbF(1.0, 0, 0, std::clamp<float>(1.0 - road_edge_stds[i], 0.0, 1.0)));
-    painter.drawPolygon(road_edge_vertices[i]);
+    painter.drawPolygon(polygon);
   }
 }
 
@@ -708,8 +793,6 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
       // Scale opacity based on stability
       confidence_alpha = std::min(0.4f + (lead_active_counter[lead_idx] * 0.06f), 1.0f);
     } else {
-      // Improved error handling for unexpected case
-      // std::cout << "Lead index not found for vertex at (" << vd.x() << ", " << vd.y() << ")" << std::endl;
       confidence_alpha = 0.7; // Default fallback
     }
   }
@@ -766,11 +849,11 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
                   icon_center_y - icon_size / 2, // Vertical center, adjusted for chevron shape
                   icon_size, icon_size);
 
-  // Use cached icons instead of loading every frame
+  // FIXED: Simply use cached icons
   QPixmap icon = isRadarAssisted ? radar_icon : vision_icon;
 
   if (!icon.isNull()) {
-    // Apply opacity to the icon
+    // Apply opacity and render
     QPixmap translucent_icon = icon;
     QPainter icon_painter(&translucent_icon);
     icon_painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
@@ -778,14 +861,14 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
     icon_painter.end();
 
     if (isRadarAssisted) {
-      // Rotate radar-assisted icon by 90 degrees
       painter.save();
-      painter.translate(iconRect.center()); // Move origin to icon center
-      painter.rotate(90);                   // Rotate 90 degrees clockwise
-      painter.drawPixmap(QRectF(-iconRect.width() / 2, -iconRect.height() / 2, iconRect.width(), iconRect.height()), translucent_icon, translucent_icon.rect());
+      painter.translate(iconRect.center());
+      painter.rotate(90);
+      painter.drawPixmap(QRectF(-iconRect.width() / 2, -iconRect.height() / 2,
+                               iconRect.width(), iconRect.height()),
+                        translucent_icon, translucent_icon.rect());
       painter.restore();
     } else {
-      // Draw vision icon without rotation
       painter.drawPixmap(iconRect, translucent_icon, translucent_icon.rect());
     }
   }
@@ -846,24 +929,56 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
-void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert) {
+void ModelRenderer::mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off,
+                                    QPolygonF *pvd, int max_idx, bool allow_invert) {
   const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
+
+  // FIXED: Limit polygon complexity to prevent GPU hangs
+  const int MAX_VERTICES = 200;  // Reasonable limit for UI polygons
+
   QPointF left, right;
   pvd->clear();
-  for (int i = 0; i <= max_idx; i++) {
-    // highly negative x positions  are drawn above the frame and cause flickering, clip to zy plane of camera
-    if (line_x[i] < 0)
-      continue;
+
+  // Ensure max_idx is reasonable
+  max_idx = std::min(max_idx, static_cast<int>(line_x.size()) - 1);
+  max_idx = std::max(0, max_idx);
+
+  int vertex_count = 0;
+  int skip_factor = 1;
+
+  // Calculate skip factor if we'd exceed vertex limit
+  if (max_idx * 2 > MAX_VERTICES) {
+    skip_factor = (max_idx * 2) / MAX_VERTICES + 1;
+  }
+
+  for (int i = 0; i <= max_idx; i += skip_factor) {
+    // Safety bounds check
+    if (i >= static_cast<int>(line_x.size()) ||
+        i >= static_cast<int>(line_y.size()) ||
+        i >= static_cast<int>(line_z.size())) {
+      break;
+    }
+
+    // Skip highly negative x positions that cause flickering
+    if (line_x[i] < 0) continue;
 
     bool l = mapToScreen(line_x[i], line_y[i] - y_off, line_z[i] + z_off, &left);
     bool r = mapToScreen(line_x[i], line_y[i] + y_off, line_z[i] + z_off, &right);
+
     if (l && r) {
-      // For wider lines the drawn polygon will "invert" when going over a hill and cause artifacts
+      // Inversion check for wide lines
       if (!allow_invert && pvd->size() && left.y() > pvd->back().y()) {
         continue;
       }
+
       pvd->push_back(left);
       pvd->push_front(right);
+      vertex_count += 2;
+
+      // Emergency brake if polygon gets too complex
+      if (vertex_count >= MAX_VERTICES) {
+        break;
+      }
     }
   }
 }
@@ -922,13 +1037,13 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
   }
 }
 
-void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float stopping_distance, float v_ego, float fade_alpha) {
-  // Validate input data
-  if (stopping_distance <= 0.0f) {
+void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size,
+                                       float stopping_distance, float v_ego, float fade_alpha) {
+  // FIXED: Input validation
+  if (stopping_distance <= 0.0f || size <= 0 || size > 500) {
     return;
   }
 
-  // Enable anti-aliasing for smoother shape
   painter.setRenderHint(QPainter::Antialiasing, true);
 
   // Track stop sign visibility for animations
@@ -983,100 +1098,109 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
   float pulsePhase = (static_cast<int>(millis_since_boot()) % 1000) / 1000.0f;
   float pulseOpacity = (0.7 + 0.3 * sin(pulsePhase * 2 * M_PI * pulseRate)) * stop_sign_opacity * fade_alpha;
 
-  // Draw octagon shape for stop sign
+  // FIXED: Safe octagon creation with bounds checking
   QPolygonF stopSign;
-  const float angle_increment = 2 * M_PI / 8;    // 8 sides
-  const float start_angle = angle_increment / 2; // Rotate to get flat sides top/bottom
+  const float angle_increment = 2 * M_PI / 8;
+  const float start_angle = angle_increment / 2;
+  const float max_radius = std::min(static_cast<float>(dynamicSize) / 2.0f, 250.0f); // Cap radius
 
   for (int i = 0; i < 8; i++) {
     float angle = start_angle + i * angle_increment;
-    stopSign << QPointF(drawPoint.x() + dynamicSize / 2 * cos(angle), drawPoint.y() + dynamicSize / 2 * sin(angle));
+    QPointF vertex(drawPoint.x() + max_radius * cos(angle),
+                   drawPoint.y() + max_radius * sin(angle));
+
+    // Validate vertex is reasonable
+    if (std::isfinite(vertex.x()) && std::isfinite(vertex.y())) {
+      stopSign << vertex;
+    }
   }
 
-  // Draw red stop sign with white border
-  painter.setPen(QPen(Qt::white, 4));                           // Slightly thicker border
-  painter.setBrush(QColor(255, 0, 0, int(220 * pulseOpacity))); // Red with pulsing transparency
-  painter.drawPolygon(stopSign);
+  // Only draw if we have a valid octagon
+  if (stopSign.size() == 8) {
+    painter.setPen(QPen(Qt::white, 4));
+    painter.setBrush(QColor(255, 0, 0, int(220 * pulseOpacity)));
+    painter.drawPolygon(stopSign);
 
-  // Draw "STOP" text centered in the middle of the sign
-  painter.setPen(Qt::white);
-  QFont stopFont = painter.font();
-  stopFont.setPointSize(dynamicSize / 4); // Adjusted text size ratio
-  stopFont.setBold(true);
-  painter.setFont(stopFont);
+    // Draw "STOP" text centered in the middle of the sign
+    painter.setPen(Qt::white);
+    QFont stopFont = painter.font();
+    stopFont.setPointSize(dynamicSize / 4); // Adjusted text size ratio
+    stopFont.setBold(true);
+    painter.setFont(stopFont);
 
-  // Create a rectangular area for the text that's centered on the stop sign
-  QRect textRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() - dynamicSize / 3, dynamicSize, dynamicSize * 2 / 3);
+    // Create a rectangular area for the text that's centered on the stop sign
+    QRect textRect(drawPoint.x() - dynamicSize / 2, drawPoint.y() - dynamicSize / 3, dynamicSize, dynamicSize * 2 / 3);
 
-  // Draw the text centered in this rectangle
-  painter.drawText(textRect, Qt::AlignCenter, "STOP");
+    // Draw the text centered in this rectangle
+    painter.drawText(textRect, Qt::AlignCenter, "STOP");
 
-  // Add distance countdown below the stop sign
-  if (stopping_distance > 0) {
-    // Format distance with proper precision
-    QString distanceText = QString("%1 m").arg(stopping_distance, 0, 'f', 1);
+    // Add distance countdown below the stop sign
+    if (stopping_distance > 0) {
+      // Format distance with proper precision
+      QString distanceText = QString("%1 m").arg(stopping_distance, 0, 'f', 1);
 
-    // Use a more reasonable font size - reduced from /3 to /4.5
-    QFont distFont = painter.font();
-    distFont.setPointSize(dynamicSize / 4.5);
-    painter.setFont(distFont);
-    painter.setPen(QPen(Qt::white, 1.5));
+      // Use a more reasonable font size - reduced from /3 to /4.5
+      QFont distFont = painter.font();
+      distFont.setPointSize(dynamicSize / 4.5);
+      painter.setFont(distFont);
+      painter.setPen(QPen(Qt::white, 1.5));
 
-    // Create a wider rectangle to prevent text cutoff
-    // Moved down slightly more to avoid overlap with sign
-    QRect distRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.6,
-                   dynamicSize * 1.5, // Wider rectangle (1.5x instead of 1x)
-                   dynamicSize / 3);
+      // Create a wider rectangle to prevent text cutoff
+      // Moved down slightly more to avoid overlap with sign
+      QRect distRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.6,
+                     dynamicSize * 1.5, // Wider rectangle (1.5x instead of 1x)
+                     dynamicSize / 3);
 
-    painter.drawText(distRect, Qt::AlignCenter, distanceText);
-  }
-
-  // Draw time countdown circular indicator around stop sign
-  if (v_ego > 0.1) {
-    // Calculate time to stop, but limit to reasonable values
-    float raw_time_to_stop = stopping_distance / v_ego;
-    int arcSize = dynamicSize + 20; // Arc size is 20px larger than the stop sign
-
-    // As we get very close, time calculation becomes unstable, so clamp it
-    float timeToStop;
-
-    if (stopping_distance < 3.0f) {
-      // When very close, use a fixed small value
-      timeToStop = std::max(0.1f, stopping_distance * 0.5f);
-    } else if (v_ego < 0.5f) {
-      // At very low speeds, cap the maximum time to avoid unreasonable values
-      timeToStop = std::min(raw_time_to_stop, 10.0f);
-    } else {
-      // Normal case - apply reasonable limits
-      timeToStop = std::clamp(raw_time_to_stop, 0.1f, 30.0f);
+      painter.drawText(distRect, Qt::AlignCenter, distanceText);
     }
 
-    // Use decreasing arc length as we approach (making the arc grow clockwise)
-    int startAngle = 90 * 16; // Start at top (QPainter uses 1/16th of degrees)
-    int spanAngle = std::min(360, int(360 * (1.0 - std::min(1.0f, timeToStop / 10.0f)))) * 16;
+    // Draw time countdown circular indicator around stop sign
+    if (v_ego > 0.1) {
+      // Calculate time to stop, but limit to reasonable values
+      float raw_time_to_stop = stopping_distance / v_ego;
+      int arcSize = dynamicSize + 20; // Arc size is 20px larger than the stop sign
 
-    // Draw arc
-    painter.drawArc(drawPoint.x() - arcSize / 2, drawPoint.y() - arcSize / 2, arcSize, arcSize, startAngle, spanAngle);
+      // As we get very close, time calculation becomes unstable, so clamp it
+      float timeToStop;
 
-    // Add time text with improved formatting
-    QString timeText;
-    if (timeToStop < 0.5f) {
-      // When time is very short, just show "STOP"
-      timeText = "STOP";
-    } else if (timeToStop > 9.9f) {
-      // For long times, just show integer
-      timeText = QString("%1 s").arg(qRound(timeToStop));
-    } else {
-      // Normal case - one decimal place
-      timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
+      if (stopping_distance < 3.0f) {
+        // When very close, use a fixed small value
+        timeToStop = std::max(0.1f, stopping_distance * 0.5f);
+      } else if (v_ego < 0.5f) {
+        // At very low speeds, cap the maximum time to avoid unreasonable values
+        timeToStop = std::min(raw_time_to_stop, 10.0f);
+      } else {
+        // Normal case - apply reasonable limits
+        timeToStop = std::clamp(raw_time_to_stop, 0.1f, 30.0f);
+      }
+
+      // Use decreasing arc length as we approach (making the arc grow clockwise)
+      int startAngle = 90 * 16; // Start at top (QPainter uses 1/16th of degrees)
+      int spanAngle = std::min(360, int(360 * (1.0 - std::min(1.0f, timeToStop / 10.0f)))) * 16;
+
+      // Draw arc
+      painter.drawArc(drawPoint.x() - arcSize / 2, drawPoint.y() - arcSize / 2, arcSize, arcSize, startAngle, spanAngle);
+
+      // Add time text with improved formatting
+      QString timeText;
+      if (timeToStop < 0.5f) {
+        // When time is very short, just show "STOP"
+        timeText = "STOP";
+      } else if (timeToStop > 9.9f) {
+        // For long times, just show integer
+        timeText = QString("%1 s").arg(qRound(timeToStop));
+      } else {
+        // Normal case - one decimal place
+        timeText = QString("%1 s").arg(timeToStop, 0, 'f', 1);
+      }
+
+      // Draw time text
+      QFont timeFont = painter.font();
+      timeFont.setPointSize(dynamicSize / 4.5);
+      painter.setFont(timeFont);
+      QRect timeRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.9, dynamicSize * 1.5, dynamicSize / 3);
+      painter.drawText(timeRect, Qt::AlignCenter, timeText);
     }
-
-    // Draw time text
-    QFont timeFont = painter.font();
-    timeFont.setPointSize(dynamicSize / 4.5);
-    painter.setFont(timeFont);
-    QRect timeRect(drawPoint.x() - dynamicSize * 0.75, drawPoint.y() + dynamicSize * 0.9, dynamicSize * 1.5, dynamicSize / 3);
-    painter.drawText(timeRect, Qt::AlignCenter, timeText);
   }
 
   // Update previous visibility state for next frame

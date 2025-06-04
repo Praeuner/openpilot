@@ -13,8 +13,8 @@
 class ModelRenderer {
 public:
   ModelRenderer() {
-    radar_icon.load("../assets/img_radar.png");
-    vision_icon.load("../assets/img_vision.png");
+    // Initialize icons once in constructor
+    initializeIcons();
   }
   void setTransform(const Eigen::Matrix3f &transform) { car_space_transform = transform; }
   void draw(QPainter &painter, const QRect &surface_rect);
@@ -58,9 +58,44 @@ private:
   float smoothed_yRel[2] = {0.0f, 0.0f};                           // Smoothed lateral positions for two leads
   bool prev_lead_status[2] = {false, false};                       // Previous status of each lead
 
-  // Cached icons for leads
+  // Cached icons - loaded once
   QPixmap radar_icon;
   QPixmap vision_icon;
+  bool icons_initialized = false;
+
+  void initializeIcons() {
+    if (icons_initialized) return;
+
+    // Try loading real icons first
+    bool radar_loaded = radar_icon.load("../assets/img_radar.png");
+    bool vision_loaded = vision_icon.load("../assets/img_vision.png");
+
+    // Create fallbacks only if loading failed
+    if (!radar_loaded) {
+      radar_icon = createFallbackIcon("R", QColor(60, 170, 255));
+    }
+    if (!vision_loaded) {
+      vision_icon = createFallbackIcon("V", QColor(255, 255, 0));
+    }
+
+    icons_initialized = true;
+  }
+
+  QPixmap createFallbackIcon(const QString &text, const QColor &color) {
+    QPixmap fallback(32, 32);
+    fallback.fill(Qt::transparent);
+    QPainter painter(&fallback);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setBrush(color);
+    painter.setPen(Qt::white);
+    painter.drawEllipse(2, 2, 28, 28);
+    QFont font;
+    font.setPixelSize(14);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.drawText(fallback.rect(), Qt::AlignCenter, text);
+    return fallback;
+  }
 
   struct StopState {
     bool active = false;
