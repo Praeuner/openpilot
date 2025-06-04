@@ -239,14 +239,39 @@ QLinearGradient HybridDriveGauge::getPowerBarGradient(QRect rect, float value, f
     gradient.setColorAt(0, QColor(0, 150, 255)); // Electric blue
     gradient.setColorAt(1, QColor(0, 100, 200)); // Darker blue
   } else {
-    // Engine on - orange/red for power demand
-    if (value > 50) {
-      gradient.setColorAt(0, QColor(255, 140, 0)); // Orange
-      gradient.setColorAt(1, QColor(255, 69, 0));  // Red-orange
-    } else {
-      gradient.setColorAt(0, QColor(200, 200, 200)); // Light gray
-      gradient.setColorAt(1, QColor(150, 150, 150)); // Gray
+    // Engine on - progressive blend from light to orange based on demand
+    // No color change until 33% demand, then blend from 33-100%
+    float normalizedValue = std::clamp(value / 100.0f, 0.0f, 1.0f); // Normalize to 0-1
+
+    // Calculate blend factor - no change until 33%, then blend from 33-100%
+    float blendFactor = 0.0f;
+    if (normalizedValue > 0.33f) {
+      blendFactor = (normalizedValue - 0.33f) / 0.67f; // Scale 33-100% to 0-1
     }
+
+    // Light gray colors for low demand
+    QColor lightTop(220, 220, 220);    // Light gray
+    QColor lightBottom(180, 180, 180); // Darker gray
+
+    // Orange colors for high demand
+    QColor orangeTop(255, 140, 0);     // Orange
+    QColor orangeBottom(255, 69, 0);   // Red-orange
+
+    // Blend the colors progressively
+    QColor blendedTop(
+      lightTop.red() + (orangeTop.red() - lightTop.red()) * blendFactor,
+      lightTop.green() + (orangeTop.green() - lightTop.green()) * blendFactor,
+      lightTop.blue() + (orangeTop.blue() - lightTop.blue()) * blendFactor
+    );
+
+    QColor blendedBottom(
+      lightBottom.red() + (orangeBottom.red() - lightBottom.red()) * blendFactor,
+      lightBottom.green() + (orangeBottom.green() - lightBottom.green()) * blendFactor,
+      lightBottom.blue() + (orangeBottom.blue() - lightBottom.blue()) * blendFactor
+    );
+
+    gradient.setColorAt(0, blendedTop);
+    gradient.setColorAt(1, blendedBottom);
   }
 
   return gradient;
