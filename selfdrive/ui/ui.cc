@@ -71,7 +71,7 @@ void ui_update_params(UIState *s) {
   s->scene.hybrid_drive_gauge_size = params.getInt("FordPrefHybridDriveGaugeSize");
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
   s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
-  s->scene.stand_still_timer = params.getBool("StandStillTimer");
+  s->scene.stand_still_timer = params.getBool("StandstillTimer");
   s->scene.show_new_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
@@ -79,7 +79,7 @@ void ui_update_params(UIState *s) {
   s->scene.wide_camera_low_speed = params.getBool("ShowWideCameraAtLowSpeed");
 
   // std::cout << "hybrid_drive_gauge_size: " << s->scene.hybrid_drive_gauge_size << std::endl;
-  // std::cout << "StandStillTimer: " << s->scene.stand_still_timer << std::endl;
+  // std::cout << "StandstillTimer: " << s->scene.stand_still_timer << std::endl;
 }
 
 void UIState::updateStatus() {
