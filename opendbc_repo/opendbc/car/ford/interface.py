@@ -66,7 +66,7 @@ class CarInterface(CarInterfaceBase):
     info(f"| experimentalLongAvailable: {ret.experimentalLongitudinalAvailable}", True)
     info(f"| experimental_long: {experimental_long}", True)
     info(f"| ret.flags & FordFlags.CANFD: {ret.flags & FordFlags.CANFD}", True)
-    if experimental_long or not ret.flags & FordFlags.CANFD:
+    if experimental_long: # or not ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
 
