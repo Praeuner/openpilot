@@ -3,6 +3,8 @@
     "2025.6.4.1": {
       "changes": [
         "Added recent changes dialog functionality to offroad transition in UI",
+        "Controls in the bluepilot panels now hide when they are not needed instead of being disabled",
+        "Added the fan demand percentage to the sidebar.  Just tap on the memory card to toggle it",
         "Enhanced stop sign detection and rendering with improved vehicle state checks and visual effects",
         "Refactored HybridDriveGauge and HybridBatteryGauge with enhanced automotive styling",
         "Enhanced stop sign rendering with improved position and size smoothing",

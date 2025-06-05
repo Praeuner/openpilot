@@ -134,6 +134,7 @@ protected:
   struct GroupData {
     QGroupBox *groupBox;
     std::vector<QWidget *> controls;
+    std::vector<bool> isDivider;
   };
 
   // Core state
@@ -167,6 +168,7 @@ protected:
   // Condition and visibility management
   virtual void updateConditionsForAllControls();
   virtual void updateGroupVisibility();
+  virtual void updateDividerVisibility(const std::vector<QWidget *> &controls);
   virtual void updateToggles();
 
   // Event handlers

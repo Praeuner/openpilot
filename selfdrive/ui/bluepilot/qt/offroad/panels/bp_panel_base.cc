@@ -155,7 +155,7 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
   bool hideDividers = group["hideDividers"].toBool();
   if (hidden)
     return;
-  // std::cout << "Group type: " << type.toStdString() << std::endl;
+
   if (type == "tabPanel") {
     createTabPanel(group);
     return;
@@ -203,6 +203,7 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
       // Add divider line after each control except the last one
       if (i < controls.size() - 1 && !hideDividers) {
         QWidget *lineContainer = new QWidget();
+        lineContainer->setObjectName("divider"); // Mark as divider
         QVBoxLayout *containerLayout = new QVBoxLayout(lineContainer);
         containerLayout->setContentsMargins(5, 5, 5, 5);
 
@@ -218,7 +219,6 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
 
         containerLayout->addWidget(line);
         layout->addWidget(lineContainer);
-        // Store the container in groupData to handle visibility
         groupData.controls.push_back(lineContainer);
       }
     }
@@ -447,7 +447,7 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
     conditions.conditions = control["conditions"].toObject();
     conditions.hasConditions = true;
     PanelConditions::getInstance().controlConditions[widget] = conditions;
-    widget->setEnabled(true);
+    widget->setVisible(true);
     widget->update();
   }
 
@@ -691,6 +691,10 @@ void BPPanelBase::updateConditionsForAllControls() {
 
 void BPPanelBase::updateGroupVisibility() {
   for (auto &[groupName, groupData] : groups) {
+    // Update divider visibility first
+    updateDividerVisibility(groupData.controls);
+
+    // Then check if group has any visible controls
     bool hasVisibleControls = false;
     for (QWidget *control : groupData.controls) {
       if (control && control->isVisible()) {
@@ -699,6 +703,38 @@ void BPPanelBase::updateGroupVisibility() {
       }
     }
     groupData.groupBox->setVisible(hasVisibleControls);
+  }
+}
+
+void BPPanelBase::updateDividerVisibility(const std::vector<QWidget *> &controls) {
+  for (size_t i = 0; i < controls.size(); i++) {
+    QWidget *control = controls[i];
+    if (!control || control->objectName() != "divider") continue;
+
+    // Find the controls before and after this divider
+    QWidget *prevControl = nullptr;
+    QWidget *nextControl = nullptr;
+
+    // Look backwards for previous non-divider control
+    for (int j = i - 1; j >= 0; j--) {
+      if (controls[j] && controls[j]->objectName() != "divider") {
+        prevControl = controls[j];
+        break;
+      }
+    }
+
+    // Look forwards for next non-divider control
+    for (size_t j = i + 1; j < controls.size(); j++) {
+      if (controls[j] && controls[j]->objectName() != "divider") {
+        nextControl = controls[j];
+        break;
+      }
+    }
+
+    // Hide divider if either adjacent control is hidden or doesn't exist
+    bool shouldShow = prevControl && nextControl &&
+                      prevControl->isVisible() && nextControl->isVisible();
+    control->setVisible(shouldShow);
   }
 }
 
@@ -866,6 +902,9 @@ void BPPanelBase::refresh() {
       bool hasVisibleControls = false;
 
       for (QWidget *ctrl : groupData.controls) {
+        // Skip dividers in this loop - they'll be handled separately
+        if (ctrl && ctrl->objectName() == "divider") continue;
+
         // Refresh different control types
         if (auto toggle = qobject_cast<BPToggleControl *>(ctrl)) {
           toggle->refresh();
@@ -877,16 +916,30 @@ void BPPanelBase::refresh() {
 
         // Update control conditions
         auto conditionIt = PanelConditions::getInstance().controlConditions.find(ctrl);
-        if (conditionIt != PanelConditions::getInstance().controlConditions.end() && conditionIt->second.hasConditions) {
-          bool shouldBeEnabled = PanelConditions::getInstance().validateCompositeConditions(conditionIt->second.conditions);
+        if (conditionIt != PanelConditions::getInstance().controlConditions.end() &&
+            conditionIt->second.hasConditions) {
+          bool shouldBeEnabled = PanelConditions::getInstance().validateCompositeConditions(
+            conditionIt->second.conditions);
           if (ctrl->isEnabled() != shouldBeEnabled) {
             ctrl->setEnabled(shouldBeEnabled);
             ctrl->update();
           }
         }
 
-        if (ctrl->isEnabled() && ctrl->isVisible()) {
+        if (ctrl && ctrl->isEnabled() && ctrl->isVisible()) {
           hasVisibleControls = true;
+        }
+      }
+
+      // Update divider visibility after all control visibility is determined
+      updateDividerVisibility(groupData.controls);
+
+      // Check again for visible controls after divider update
+      hasVisibleControls = false;
+      for (QWidget *ctrl : groupData.controls) {
+        if (ctrl && ctrl->isVisible()) {
+          hasVisibleControls = true;
+          break;
         }
       }
 

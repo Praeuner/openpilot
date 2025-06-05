@@ -35,6 +35,8 @@ public:
   bool validateSingleCondition(const QString &conditionType, const QJsonValue &condition);
   bool validateConditionObject(const QJsonObject &conditionObj);
   bool isGitRemoteValid(const std::vector<std::string> &searchStrs, const std::vector<std::string> &branchNames);
+
+  // Updated to hide controls instead of disabling them
   void updateConditionsForAllControls(std::function<void()> updateGroupVisibility);
   bool updateConditionsForWidget(QWidget *widget, const ControlConditions &conditions);
   void logConditionCheck(const QString &controlName, const std::function<void()> &logFunc);
