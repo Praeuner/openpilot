@@ -297,7 +297,9 @@ QString BPRecentChangesDialog::getCurrentVersion() {
 QString BPRecentChangesDialog::getStoredVersion() {
   Params params;
   std::string storedVersion = params.get("BPLastSeenVersion");
-  return QString::fromStdString(storedVersion);
+  QString result = QString::fromStdString(storedVersion);
+  std::cout << "Retrieved stored version: '" << storedVersion << "' (length: " << storedVersion.length() << ")" << std::endl;
+  return result;
 }
 
 void BPRecentChangesDialog::setStoredVersion(const QString &version) {
@@ -350,8 +352,10 @@ bool BPRecentChangesDialog::checkAndShowChanges(QWidget *parent) {
   QString currentVersion = getCurrentVersion();
   QString storedVersion = getStoredVersion();
 
-  std::cout << "Current version: " << currentVersion.toStdString()
-            << ", Stored version: " << storedVersion.toStdString() << std::endl;
+  std::cout << "Current version: '" << currentVersion.toStdString() << "' (length: " << currentVersion.length() << ")" << std::endl;
+  std::cout << "Stored version: '" << storedVersion.toStdString() << "' (length: " << storedVersion.length() << ")" << std::endl;
+  std::cout << "Versions equal: " << (currentVersion == storedVersion) << std::endl;
+  std::cout << "Current != unknown: " << (currentVersion != "unknown") << std::endl;
 
   if (currentVersion != storedVersion && currentVersion != "unknown") {
     auto *dialog = new BPRecentChangesDialog(parent);

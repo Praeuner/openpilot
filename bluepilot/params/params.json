@@ -279,6 +279,14 @@
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": false,
       "enabled": true
+    },
+    {
+      "name": "BPLastSeenVersion",
+      "default": "",
+      "type": "string",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
     }
   ]
 }
