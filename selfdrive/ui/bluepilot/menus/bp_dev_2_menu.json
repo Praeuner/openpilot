@@ -312,7 +312,7 @@
               "type": "toggle",
               "param": "FordLatTuningTuningCustomProfile",
               "title": "Use Custom Tuning Profile",
-              "desc": "Use custom tuning profile for advanced lateral control",
+              "desc": "Use custom tuning profile for lateral control",
               "hidden": false,
               "conditions": {
                 "allConditionsTrue": [

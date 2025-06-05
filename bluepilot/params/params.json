@@ -134,7 +134,7 @@
     },
     {
       "name": "FordLatTuningPCBlendRatio_low_C",
-      "default": 0.75,
+      "default": 0.06,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
@@ -196,7 +196,7 @@
     },
     {
       "name": "FordLatTuningPathAngleHighSpeedFactorUI",
-      "default": 5.0,
+      "default": 1.0,
       "min": 0.0,
       "max": 10.0,
       "type": "float",
@@ -207,7 +207,7 @@
     },
     {
       "name": "FordLatTuningPathAngleHighCurvatureFactorUI",
-      "default": 0.6,
+      "default": 0.2,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
