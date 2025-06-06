@@ -195,17 +195,15 @@ void PanelConditions::updateConditionsForAllControls(std::function<void()> updat
       }
       processedControls.insert(controlName);
 
-      bool currentlyVisible = ctrl->isVisible();
-      bool shouldBeVisible = validateCompositeConditions(conds.conditions);
+      bool currentlyEnabled = ctrl->isEnabled();
+      bool shouldBeEnabled = validateCompositeConditions(conds.conditions);
 
-      if (currentlyVisible != shouldBeVisible) {
-        ctrl->setVisible(shouldBeVisible);
-        ctrl->setProperty("visible", QVariant(shouldBeVisible));
+      if (currentlyEnabled != shouldBeEnabled) {
+        ctrl->setEnabled(shouldBeEnabled);
+        ctrl->setProperty("enabled", QVariant(shouldBeEnabled));
         ctrl->update();
-        if (ctrl->style()) {
-          ctrl->style()->unpolish(ctrl);
-          ctrl->style()->polish(ctrl);
-        }
+        ctrl->style()->unpolish(ctrl);
+        ctrl->style()->polish(ctrl);
         ctrl->update();
       }
     }
@@ -277,19 +275,17 @@ bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlCo
     return true;
   }
 
-  bool currentlyVisible = widget->isVisible();
-  bool shouldBeVisible = validateCompositeConditions(conditions.conditions);
+  bool currentlyEnabled = widget->isEnabled();
+  bool shouldBeEnabled = validateCompositeConditions(conditions.conditions);
 
-  if (currentlyVisible != shouldBeVisible) {
-    widget->setVisible(shouldBeVisible);
-    widget->setProperty("visible", QVariant(shouldBeVisible));
+  if (currentlyEnabled != shouldBeEnabled) {
+    widget->setEnabled(shouldBeEnabled);
+    widget->setProperty("enabled", QVariant(shouldBeEnabled));
     widget->update();
-    if (widget->style()) {
-      widget->style()->unpolish(widget);
-      widget->style()->polish(widget);
-    }
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
     widget->update();
   }
 
-  return shouldBeVisible;
+  return shouldBeEnabled;
 }

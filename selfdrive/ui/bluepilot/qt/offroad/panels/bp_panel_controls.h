@@ -1024,6 +1024,14 @@ public:
     connect(viewButton, &BPButton::clicked, this, &BPParamViewerControl::viewClicked);
   }
 
+  void setEnabled(bool enabled) {
+    viewButton->setEnabled(enabled);
+    titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+    }
+  }
+
 signals:
   void viewClicked();
 
@@ -1085,6 +1093,14 @@ public:
     )");
 
     connect(viewButton, &BPButton::clicked, this, &BPParamListViewerControl::onViewClicked);
+  }
+
+  void setEnabled(bool enabled) {
+    viewButton->setEnabled(enabled);
+    titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+    }
   }
 
 signals:
@@ -1191,6 +1207,16 @@ public:
     layout->addLayout(textLayout, 1);
 
     connect(openButton, &BPButton::clicked, this, &BPNestedControlsButton::clicked);
+  }
+
+  void setEnabled(bool enabled) {
+    openButton->setEnabled(enabled);
+    if (titleLabel) {
+      titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+    }
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+    }
   }
 
 signals:
