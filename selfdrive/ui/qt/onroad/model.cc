@@ -5,6 +5,10 @@ constexpr int CLIP_MARGIN = 500;
 constexpr float MIN_DRAW_DISTANCE = 10.0;
 constexpr float MAX_DRAW_DISTANCE = 100.0;
 
+// Automotive styling constants
+constexpr int CORNER_RADIUS = 6;
+constexpr int BORDER_WIDTH = 3;
+
 static int get_path_length_idx(const cereal::XYZTData::Reader &line, const float path_height) {
   const auto &line_x = line.getX();
   int max_idx = 0;
@@ -12,6 +16,59 @@ static int get_path_length_idx(const cereal::XYZTData::Reader &line, const float
     max_idx = i;
   }
   return max_idx;
+}
+
+// Helper function to create automotive metallic gradient
+QLinearGradient createAutomotiveGradient(QRect rect, QColor baseColor, bool isVertical = true) {
+  QLinearGradient gradient = isVertical ?
+    QLinearGradient(rect.topLeft(), rect.bottomLeft()) :
+    QLinearGradient(rect.topLeft(), rect.topRight());
+
+  QColor highlight = baseColor.lighter(130);
+  QColor shadow = baseColor.darker(130);
+
+  gradient.setColorAt(0, highlight);
+  gradient.setColorAt(0.3, baseColor);
+  gradient.setColorAt(0.7, baseColor);
+  gradient.setColorAt(1, shadow);
+
+  return gradient;
+}
+
+// Helper function to create automotive background gradient
+QRadialGradient createAutomotiveBackground(QRect rect) {
+  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
+  gradient.setColorAt(0, QColor(44, 62, 80)); // Neutral center
+  gradient.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  return gradient;
+}
+
+// Helper function to draw inset border
+void drawInsetBorder(QPainter &painter, QRect rect, QColor borderColor, int radius = CORNER_RADIUS) {
+  // Outer border (highlight)
+  painter.setPen(QPen(borderColor, BORDER_WIDTH));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawRoundedRect(rect, radius, radius);
+
+  // Inner shadow effect
+  QRect innerRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH);
+  QColor shadowColor = borderColor.darker(200);
+  shadowColor.setAlpha(100);
+  painter.setPen(QPen(shadowColor, 1));
+  painter.drawRoundedRect(innerRect, radius - 2, radius - 2);
+}
+
+// Helper function to add metallic highlight
+void addMetallicHighlight(QPainter &painter, QRect rect, int radius = CORNER_RADIUS) {
+  QRect highlightRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -rect.height()/2);
+  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+  highlight.setColorAt(0, QColor(255, 255, 255, 20));
+  highlight.setColorAt(0.3, QColor(255, 255, 255, 5));
+  highlight.setColorAt(1, QColor(255, 255, 255, 0));
+
+  painter.setBrush(highlight);
+  painter.setPen(Qt::NoPen);
+  painter.drawRoundedRect(highlightRect, radius - 2, radius - 2);
 }
 
 void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
@@ -892,45 +949,64 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   // Enable anti-aliasing for smoother lead indicator
   painter.setRenderHint(QPainter::Antialiasing, true);
 
+  // ========== AUTOMOTIVE STYLING FOR CHEVRON ==========
+
   // Create the chevron polygon centered on the position
   QPolygonF chevronPolygon;
   chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
-  // Create gradient based on radar assistance with confidence alpha applied
-  QLinearGradient chevGradient(QPointF(x, y), QPointF(x, y + sz));
+  // Get automotive colors based on radar assistance
+  QColor baseChevronColor;
   if (isRadarAssisted) {
-    chevGradient.setColorAt(0, QColor(60, 170, 255, int(230 * confidence_alpha))); // Blue with confidence
-    chevGradient.setColorAt(1, QColor(30, 144, 255, int(200 * confidence_alpha))); // Darker blue with confidence
+    baseChevronColor = QColor(60, 170, 255); // Blue for radar
   } else {
-    chevGradient.setColorAt(0, QColor(255, 255, 0, int(230 * confidence_alpha))); // Yellow with confidence
-    chevGradient.setColorAt(1, QColor(220, 220, 0, int(200 * confidence_alpha))); // Darker yellow with confidence
+    baseChevronColor = QColor(241, 196, 15); // Amber for vision
   }
 
-  // Draw chevron with gradient
+  // Create automotive metallic gradient for chevron
+  QRect chevronBounds = chevronPolygon.boundingRect().toRect();
+  QLinearGradient chevronGradient = createAutomotiveGradient(chevronBounds, baseChevronColor);
+
+  // Apply confidence alpha to gradient colors
+  QGradientStops stops = chevronGradient.stops();
+  for (auto &stop : stops) {
+    QColor color = stop.second;
+    color.setAlpha(int(color.alpha() * confidence_alpha));
+    stop.second = color;
+  }
+  chevronGradient.setStops(stops);
+
+  // Draw chevron with automotive gradient
   painter.setPen(Qt::NoPen);
-  painter.setBrush(chevGradient);
+  painter.setBrush(chevronGradient);
   painter.drawPolygon(chevronPolygon);
 
-  // Draw border with color based on radar assistance and confidence
-  if (isRadarAssisted) {
-    painter.setPen(QPen(QColor(255, 255, 255, int(220 * confidence_alpha)), 2.5)); // White border with confidence
-  } else {
-    painter.setPen(QPen(QColor(0, 0, 0, int(220 * confidence_alpha)), 2.5)); // Black border with confidence
-  }
+  // Add automotive border with inset effect
+  QColor borderColor = baseChevronColor.lighter(120);
+  borderColor.setAlpha(int(220 * confidence_alpha));
+  painter.setPen(QPen(borderColor, 2.5));
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
 
+  // Add subtle inner highlight for 3D effect
+  QPolygonF innerChevron;
+  float insetAmount = 3.0f;
+  innerChevron << QPointF(x + (sz * 1.25) - insetAmount, y + sz - insetAmount)
+               << QPointF(x, y + insetAmount)
+               << QPointF(x - (sz * 1.25) + insetAmount, y + sz - insetAmount);
+
+  QLinearGradient innerHighlight(QPointF(x, y), QPointF(x, y + sz));
+  innerHighlight.setColorAt(0, QColor(255, 255, 255, int(30 * confidence_alpha)));
+  innerHighlight.setColorAt(1, QColor(255, 255, 255, 0));
+
+  painter.setBrush(innerHighlight);
+  painter.setPen(Qt::NoPen);
+  painter.drawPolygon(innerChevron);
+
   // Draw icon in the center of the chevron
-  // Calculate icon size based on chevron size
   float icon_size = sz * 0.8;
-
-  // For a chevron, the vertical center is roughly at y + sz/2
-  // Move it down a bit more to visually center it in the chevron shape
-  float icon_center_y = y + sz * 0.6; // Adjusted to move the icon down in the chevron
-
-  QRectF iconRect(x - icon_size / 2,             // Horizontal center
-                  icon_center_y - icon_size / 2, // Vertical center, adjusted for chevron shape
-                  icon_size, icon_size);
+  float icon_center_y = y + sz * 0.6;
+  QRectF iconRect(x - icon_size / 2, icon_center_y - icon_size / 2, icon_size, icon_size);
 
   // FIXED: Simply use cached icons
   QPixmap icon = isRadarAssisted ? radar_icon : vision_icon;
@@ -956,8 +1032,9 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
     }
   }
 
+  // ========== AUTOMOTIVE STYLING FOR INFO PANEL ==========
+
   // Position info panel centered below the lead vehicle
-  // Anchor panel to the chevron's bottom center point
   float panel_width = 300;
   float panel_height = 60;
   float panel_top = y + sz + 15;
@@ -981,34 +1058,48 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
     infoPanel.moveRight(surface_rect.width());
   }
 
-  // Draw a more transparent panel with a subtle gradient
-  QLinearGradient panelGradient(infoPanel.topLeft(), infoPanel.bottomLeft());
-  panelGradient.setColorAt(0, QColor(20, 20, 20, int(120 * confidence_alpha))); // Apply confidence alpha
-  panelGradient.setColorAt(1, QColor(40, 40, 40, int(120 * confidence_alpha))); // Apply confidence alpha
+  // Draw automotive-style metallic background
   painter.setPen(Qt::NoPen);
-  painter.setBrush(panelGradient);
-  painter.drawRoundedRect(infoPanel, 15, 15);
+  QRadialGradient panelBg = createAutomotiveBackground(infoPanel.toRect());
 
-  // Add a subtle border
-  painter.setPen(QPen(QColor(150, 150, 150, int(80 * confidence_alpha)), 1)); // Apply confidence alpha
-  painter.drawRoundedRect(infoPanel, 15, 15);
+  // Apply confidence alpha to background
+  QGradientStops bgStops = panelBg.stops();
+  for (auto &stop : bgStops) {
+    QColor color = stop.second;
+    color.setAlpha(int(color.alpha() * confidence_alpha));
+    stop.second = color;
+  }
+  panelBg.setStops(bgStops);
 
-  // Set up text formatting with larger size
-  QFont infoFont = painter.font();
-  infoFont.setPixelSize(33);
-  infoFont.setWeight(QFont::DemiBold);
+  painter.setBrush(panelBg);
+  painter.drawRoundedRect(infoPanel, CORNER_RADIUS, CORNER_RADIUS);
+
+  // Add automotive border
+  drawInsetBorder(painter, infoPanel.toRect(), baseChevronColor);
+
+  // Add metallic highlight to panel
+  addMetallicHighlight(painter, infoPanel.toRect());
+
+  // ========== AUTOMOTIVE TEXT STYLING ==========
+
+  // Set up text formatting with automotive font
+  QFont infoFont("Inter", 33, QFont::DemiBold);
   painter.setFont(infoFont);
 
   // Format distance and speed text
   QString distText = QString("%1 m").arg(qRound(distance_m));
   QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
-
-  // Display distance and speed on the same line
-  painter.setPen(QColor(255, 255, 255, int(255 * confidence_alpha))); // Apply confidence alpha to text
   QString combinedText = distText + "  |  " + speedText;
 
-  // Center the text in the panel
+  // Draw text with automotive shadow effect
   QRectF textRect = infoPanel.adjusted(7, 7, -7, -7);
+
+  // Text shadow
+  painter.setPen(QColor(0, 0, 0, int(150 * confidence_alpha)));
+  painter.drawText(textRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, combinedText);
+
+  // Main text with automotive color
+  painter.setPen(QColor(236, 240, 241, int(255 * confidence_alpha)));
   painter.drawText(textRect, Qt::AlignCenter, combinedText);
 }
 
