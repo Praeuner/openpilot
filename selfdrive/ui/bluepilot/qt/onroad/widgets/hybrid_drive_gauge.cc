@@ -152,7 +152,8 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
   // Scale text down more aggressively to ensure fit
   QFontMetrics fm(font);
   int textWidth = fm.horizontalAdvance(combinedText);
-  while (textWidth > maxWidth && fontSize > 8) { // Lower minimum to 8px
+  int iteration_limit = 8; // Prevent runaway loops
+  while (textWidth > maxWidth && fontSize > 8 && iteration_limit > 0) { // Lower minimum to 8px
     fontSize--;
     font.setPixelSize(fontSize);
     fm = QFontMetrics(font);
@@ -166,7 +167,8 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
     textWidth = fm.horizontalAdvance(combinedText);
 
     // Scale reason text if needed
-    while (textWidth > maxWidth && fontSize > 8) {
+    iteration_limit = 8; // Prevent runaway loops
+    while (textWidth > maxWidth && fontSize > 8 && iteration_limit > 0) {
       fontSize--;
       font.setPixelSize(fontSize);
       fm = QFontMetrics(font);
