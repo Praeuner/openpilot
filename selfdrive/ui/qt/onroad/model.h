@@ -129,6 +129,17 @@ private:
   float blindspot_opacity = 0.2;      // Base opacity for blindspot indicators
   static constexpr float BLINDSPOT_WIDTH = 1.0f; // Width of blind spot indicator in meters
 
+  // PERFORMANCE: Cached blindspot gradients
+  QLinearGradient cached_blindspot_gradient_left;
+  QLinearGradient cached_blindspot_gradient_right;
+  bool blindspot_gradients_dirty = true;
+  QRectF last_left_bounds, last_right_bounds;
+
+  // PERFORMANCE: Precomputed stop sign octagon template
+  static QPolygonF octagon_template;
+  static bool octagon_template_initialized;
+  void initOctagonTemplate();
+
   void updateBlindspotStatus(const cereal::CarState::Reader &car_state);
   void updateBlindspotAnimation();
   void drawBlindspotIndicators(QPainter &painter);

@@ -210,8 +210,8 @@ void AnnotatedCameraWidget::paintGL() {
   double current_time = millis_since_boot();
   double frame_time = current_time - prev_draw_t;
 
-  // Disable anti-aliasing when frame times are high (target 30fps)
-  bool use_antialiasing = frame_time < 33.0;
+  // PERFORMANCE: Tighter anti-aliasing threshold - target 40fps instead of 30fps
+  bool use_antialiasing = frame_time < 25.0;
 
   // draw camera frame
   {

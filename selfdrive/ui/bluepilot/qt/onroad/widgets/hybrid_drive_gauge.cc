@@ -149,11 +149,11 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
   QString reasonText = hevEngineOnReason;
   QString combinedText = modeText.isEmpty() ? reasonText : (reasonText.isEmpty() ? modeText : modeText + " | " + reasonText);
 
-  // Scale text down more aggressively to ensure fit
+  // PERFORMANCE: Scale text down with iteration limit to prevent runaway loops
   QFontMetrics fm(font);
   int textWidth = fm.horizontalAdvance(combinedText);
-  int iteration_limit = 8; // Prevent runaway loops
-  while (textWidth > maxWidth && fontSize > 8 && iteration_limit > 0) { // Lower minimum to 8px
+  int iteration_limit = 8; // Prevent excessive iterations
+  while (textWidth > maxWidth && fontSize > 8 && iteration_limit-- > 0) {
     fontSize--;
     font.setPixelSize(fontSize);
     fm = QFontMetrics(font);
@@ -166,9 +166,9 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
     fm = QFontMetrics(font);
     textWidth = fm.horizontalAdvance(combinedText);
 
-    // Scale reason text if needed
-    iteration_limit = 8; // Prevent runaway loops
-    while (textWidth > maxWidth && fontSize > 8 && iteration_limit > 0) {
+    // PERFORMANCE: Scale reason text with iteration limit
+    iteration_limit = 8; // Reset limit
+    while (textWidth > maxWidth && fontSize > 8 && iteration_limit-- > 0) {
       fontSize--;
       font.setPixelSize(fontSize);
       fm = QFontMetrics(font);

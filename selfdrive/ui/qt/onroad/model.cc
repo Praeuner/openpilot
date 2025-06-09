@@ -9,6 +9,10 @@ constexpr float MAX_DRAW_DISTANCE = 100.0;
 constexpr int CORNER_RADIUS = 6;
 constexpr int BORDER_WIDTH = 3;
 
+// PERFORMANCE: Static octagon template initialization
+QPolygonF ModelRenderer::octagon_template;
+bool ModelRenderer::octagon_template_initialized = false;
+
 static int get_path_length_idx(const cereal::XYZTData::Reader &line, const float path_height) {
   const auto &line_x = line.getX();
   int max_idx = 0;
@@ -69,6 +73,20 @@ void addMetallicHighlight(QPainter &painter, QRect rect, int radius = CORNER_RAD
   painter.setBrush(highlight);
   painter.setPen(Qt::NoPen);
   painter.drawRoundedRect(highlightRect, radius - 2, radius - 2);
+}
+
+void ModelRenderer::initOctagonTemplate() {
+  if (octagon_template_initialized) return;
+
+  const float angle_increment = 2 * M_PI / 8;
+  const float start_angle = angle_increment / 2;
+
+  octagon_template.clear();
+  for (int i = 0; i < 8; i++) {
+    float angle = start_angle + i * angle_increment;
+    octagon_template << QPointF(cos(angle), sin(angle)); // Unit circle
+  }
+  octagon_template_initialized = true;
 }
 
 void ModelRenderer::draw(QPainter &painter, const QRect &surface_rect) {
@@ -555,7 +573,7 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
     mapLineToPolygon(lane_lines[i], 0.025 * lane_line_probs[i], 0, &lane_line_vertices[i], max_idx);
   }
 
-  // FIXED: Safe blindspot polygon creation
+  // PERFORMANCE: Safe blindspot polygon creation with vertex limits
   if (lane_lines.size() >= 4) {
     const auto &left_lane = lane_lines[1];
     const auto &right_lane = lane_lines[2];
@@ -567,39 +585,49 @@ void ModelRenderer::update_model(const cereal::ModelDataV2::Reader &model, const
     } else {
       // Limit blindspot polygon complexity
       int safe_max_idx = std::min(max_idx, 50); // Limit to 50 points max
+      const int MAX_BLINDSPOT_VERTICES = 40; // Vertex limit for performance
 
       // Left blind spot
       lane_barrier_vertices[0].clear();
-      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(left_lane.getX().size()); i++) {
+      int left_vertex_count = 0;
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
         QPointF lane_pt, offset_pt;
         if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
             mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
           lane_barrier_vertices[0].append(offset_pt);
+          left_vertex_count++;
         }
       }
-      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()); i--) {
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
         QPointF lane_pt;
         if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
           lane_barrier_vertices[0].append(lane_pt);
+          left_vertex_count++;
         }
       }
 
-      // Right blind spot with same safety
+      // Right blind spot with same limits
       lane_barrier_vertices[1].clear();
-      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(right_lane.getX().size()); i++) {
+      int right_vertex_count = 0;
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
         QPointF lane_pt;
         if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
           lane_barrier_vertices[1].append(lane_pt);
+          right_vertex_count++;
         }
       }
-      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()); i--) {
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
         QPointF offset_pt;
         if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
           lane_barrier_vertices[1].append(offset_pt);
+          right_vertex_count++;
         }
       }
     }
   }
+
+  // PERFORMANCE: Mark gradients dirty after polygon updates
+  blindspot_gradients_dirty = true;
 
   // update road edges
   const auto &road_edges = model.getRoadEdges();
@@ -1082,7 +1110,7 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
 
   // ========== AUTOMOTIVE TEXT STYLING ==========
 
-  // Set up text formatting with automotive font
+ // Set up text formatting with responsive font sizing
   QFont infoFont("Inter", 33, QFont::DemiBold);
   painter.setFont(infoFont);
 
@@ -1091,8 +1119,25 @@ void ModelRenderer::drawLead(QPainter &painter, const cereal::RadarState::LeadDa
   QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
   QString combinedText = distText + "  |  " + speedText;
 
-  // Draw text with automotive shadow effect
+  // Scale font to fit container
   QRectF textRect = infoPanel.adjusted(7, 7, -7, -7);
+  QFontMetrics fm(infoFont);
+  int textWidth = fm.horizontalAdvance(combinedText);
+  int textHeight = fm.height();
+  int maxWidth = textRect.width();
+  int maxHeight = textRect.height();
+
+  int fontSize = 33;
+  int iteration_limit = 8; // Prevent runaway loops
+  while ((textWidth > maxWidth || textHeight > maxHeight) && fontSize > 8 && iteration_limit-- > 0) {
+      fontSize--;
+      infoFont.setPixelSize(fontSize);
+      fm = QFontMetrics(infoFont);
+      textWidth = fm.horizontalAdvance(combinedText);
+      textHeight = fm.height();
+  }
+
+  painter.setFont(infoFont);
 
   // Text shadow
   painter.setPen(QColor(0, 0, 0, int(150 * confidence_alpha)));
@@ -1182,30 +1227,48 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
 
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  // Draw left blindspot indicator
+  // PERFORMANCE: Update cached gradients only when bounds change
+  if (blindspot_gradients_dirty) {
+    if (left_blindspot && !lane_barrier_vertices[0].isEmpty()) {
+      QRectF leftBounds = lane_barrier_vertices[0].boundingRect();
+      if (leftBounds != last_left_bounds) {
+        cached_blindspot_gradient_left = QLinearGradient(leftBounds.center().x(), leftBounds.top(),
+                                                        leftBounds.center().x(), leftBounds.bottom());
+        cached_blindspot_gradient_left.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+        cached_blindspot_gradient_left.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
+        cached_blindspot_gradient_left.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity));
+        cached_blindspot_gradient_left.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
+        cached_blindspot_gradient_left.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
+        last_left_bounds = leftBounds;
+      }
+    }
+
+    if (right_blindspot && !lane_barrier_vertices[1].isEmpty()) {
+      QRectF rightBounds = lane_barrier_vertices[1].boundingRect();
+      if (rightBounds != last_right_bounds) {
+        cached_blindspot_gradient_right = QLinearGradient(rightBounds.center().x(), rightBounds.top(),
+                                                         rightBounds.center().x(), rightBounds.bottom());
+        cached_blindspot_gradient_right.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+        cached_blindspot_gradient_right.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
+        cached_blindspot_gradient_right.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity));
+        cached_blindspot_gradient_right.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
+        cached_blindspot_gradient_right.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
+        last_right_bounds = rightBounds;
+      }
+    }
+
+    blindspot_gradients_dirty = false;
+  }
+
+  // Draw using cached gradients
   if (left_blindspot && !lane_barrier_vertices[0].isEmpty()) {
-    QRectF leftBounds = lane_barrier_vertices[0].boundingRect();
-    QLinearGradient leftGradient(leftBounds.center().x(), leftBounds.top(), leftBounds.center().x(), leftBounds.bottom());
-    leftGradient.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));               // Top - transparent
-    leftGradient.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));              // Start fade
-    leftGradient.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity)); // Middle - animated opacity
-    leftGradient.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));              // Stronger opacity
-    leftGradient.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));               // Bottom - 100% opacity
-    painter.setBrush(leftGradient);
+    painter.setBrush(cached_blindspot_gradient_left);
     painter.setPen(Qt::NoPen);
     painter.drawPolygon(lane_barrier_vertices[0]);
   }
 
-  // Draw right blindspot indicator
   if (right_blindspot && !lane_barrier_vertices[1].isEmpty()) {
-    QRectF rightBounds = lane_barrier_vertices[1].boundingRect();
-    QLinearGradient rightGradient(rightBounds.center().x(), rightBounds.top(), rightBounds.center().x(), rightBounds.bottom());
-    rightGradient.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));               // Top - transparent
-    rightGradient.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));              // Start fade
-    rightGradient.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_opacity)); // Middle - animated opacity
-    rightGradient.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));              // Stronger opacity
-    rightGradient.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));               // Bottom - 100% opacity
-    painter.setBrush(rightGradient);
+    painter.setBrush(cached_blindspot_gradient_right);
     painter.setPen(Qt::NoPen);
     painter.drawPolygon(lane_barrier_vertices[1]);
   }
@@ -1213,8 +1276,15 @@ void ModelRenderer::drawBlindspotIndicators(QPainter &painter) {
 
 void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point, int size,
                                        float stopping_distance, float v_ego, float fade_alpha) {
-  if (stopping_distance <= 0.0f || size <= 0 || size > 500) {
-    return;
+  // PERFORMANCE: Early exits for performance
+  if (fade_alpha < 0.02f) return; // Skip if barely visible
+  if (stopping_distance <= 0.0f || size <= 0 || size > 500) return;
+
+  // Skip if point is way off-screen and not sliding to corner
+  QRectF screen_bounds = painter.clipBoundingRect();
+  QRectF extended_bounds = screen_bounds.adjusted(-200, -200, 200, 200);
+  if (!extended_bounds.contains(point) && stopping_distance > 15.0f) {
+    return; // Far from screen and not close enough to slide
   }
 
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1300,18 +1370,16 @@ void ModelRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &point,
   // Much more subtle pulse - opacity varies between 0.85 and 1.0 instead of 0.7 to 1.0
   float pulseOpacity = (0.85f + 0.15f * sin(pulsePhase * 2 * M_PI * pulseRate)) * stop_sign_opacity * fade_alpha;
 
-  // FIXED: Safe octagon creation with bounds checking
+  // PERFORMANCE: Use precomputed octagon template
+  initOctagonTemplate();
+
   QPolygonF stopSign;
-  const float angle_increment = 2 * M_PI / 8;
-  const float start_angle = angle_increment / 2;
-  const float max_radius = std::min(static_cast<float>(dynamicSize) / 2.0f, 250.0f); // Cap radius
+  const float max_radius = std::min(static_cast<float>(dynamicSize) / 2.0f, 250.0f);
 
-  for (int i = 0; i < 8; i++) {
-    float angle = start_angle + i * angle_increment;
-    QPointF vertex(drawPoint.x() + max_radius * cos(angle),
-                   drawPoint.y() + max_radius * sin(angle));
+  for (const QPointF &pt : octagon_template) {
+    QPointF vertex(drawPoint.x() + max_radius * pt.x(),
+                   drawPoint.y() + max_radius * pt.y());
 
-    // Validate vertex is reasonable
     if (std::isfinite(vertex.x()) && std::isfinite(vertex.y())) {
       stopSign << vertex;
     }
