@@ -61,24 +61,24 @@ def get_dm_driver_state(d_state):
 
 def get_dm_disable_state(d_state):
   # print(f"d_state: {d_state}")
-  if d_state == ET.USER_DISABLE:
+  if d_state.userDisable:
     return "userDisable"
-  elif d_state == ET.SOFT_DISABLE:
+  elif d_state.softDisable:
     return "softDisable"
-  elif d_state == ET.IMMEDIATE_DISABLE:
+  elif d_state.immediateDisable:
     return "immediateDisable"
-  elif d_state == ET.NO_ENTRY:
+  elif d_state.noEntry:
     return "noEntry"
   else:
     return "none"
 
 
-def compute_dm_msg_values(hud_control, send_hands_free_cluster_msg):
+def compute_dm_msg_values(ss, oe, hud_control send_hands_free_cluster_msg):
     tja_msg = 0
     tja_warn = 0
 
-    disableState = get_dm_disable_state(hud_control.alertType)
-    driverState = get_dm_driver_state(hud_control.eventType)
+    disableState = get_dm_disable_state(oe)
+    driverState = get_dm_driver_state(ss.alertType)
 
     if send_hands_free_cluster_msg:
       if disableState == "noEntry":
