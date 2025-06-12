@@ -185,6 +185,8 @@ class CarController(CarControllerBase):
 
     self.model = None
     self.lp = None
+    self.ss = None
+    self.oe = None
     self.send_driver_monitor_can_msg = False
     self.send_lane_depart_can_msg = False
     self.send_hands_free_cluster_msg = False
