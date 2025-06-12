@@ -59,26 +59,32 @@ def get_dm_driver_state(d_state):
   else:
     return "none"
 
-def get_dm_disable_state(d_state):
+def get_dm_disable_state(d_state, lat_active):
   # print(f"d_state: {d_state}")
-  if any(d.userDisable for d in d_state):
-    return "userDisable"
-  elif any(d.softDisable for d in d_state):
-    return "softDisable"
-  elif any(d.immediateDisable for d in d_state):
-    return "immediateDisable"
-  elif any(d.noEntry for d in d_state):
-    return "noEntry"
+  if lat_active:
+    if any(d.userDisable for d in d_state):
+      return "userDisable"
+    elif any(d.softDisable for d in d_state):
+      return "softDisable"
+    elif any(d.immediateDisable for d in d_state):
+      return "immediateDisable"
+    elif any(d.noEntry for d in d_state):
+      return "noEntry"
+    else:
+      return "none"
   else:
-    return "none"
+    if any(d.noEntry for d in d_state):
+      return "noEntry"
+    else:
+      return "none"
 
 
-def compute_dm_msg_values(ss, oe, hud_control, send_hands_free_cluster_msg):
+def compute_dm_msg_values(ss, oe, hud_control, send_hands_free_cluster_msg, latActive):
     tja_msg = 0
     tja_warn = 0
 
     if oe:
-      disableState = get_dm_disable_state(oe)
+      disableState = get_dm_disable_state(oe, latActive)
     else:
       disableState = "none"
 

@@ -292,7 +292,7 @@ class CarController(CarControllerBase):
       if self.send_hands_free_cluster_msg:
         # print(f'HudControl: {hud_control}')
         # print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn}')
-        tja_msg, tja_warn = compute_dm_msg_values(self.ss, self.oe, hud_control, self.send_hands_free_cluster_msg)
+        tja_msg, tja_warn = compute_dm_msg_values(self.ss, self.oe, hud_control, self.send_hands_free_cluster_msg, CC.latActive)
     else:
       steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
 
