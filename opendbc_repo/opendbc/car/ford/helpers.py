@@ -53,15 +53,15 @@ def get_dm_state(d_state, main_on):
     et = "none"
   return en, et
 
-def compute_dm_msg_values(ss, oe, hud_control, send_hands_free_cluster_msg, main):
+def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
     tja_msg = 0
     tja_warn = 0
     hands = 0
 
     if ss:
-      disableState, driverState = get_dm_state(ss.alertType, main)
+      driverState, disableState = get_dm_state(ss.alertType, main)
     else:
-      disableState, driverState = "none", "none"
+      driverState, disableState = "none", "none"
 
     if send_hands_free_cluster_msg:
       if disableState == "noEntry":
@@ -91,6 +91,10 @@ def compute_dm_msg_values(ss, oe, hud_control, send_hands_free_cluster_msg, main
         tja_warn = 3  # Resume Control
       elif disableState == "userDisable":
         tja_warn = 1  # Cancelled
+      elif driverState in ("preDriverDistracted", "preDriverUnresponsive"):
+        hands = 1  # Keep Hands on Steering Wheel (no chime)
+      elif driverState in ("promptDriverDistracted", "promptDriverUnresponsive"):
+        hands = 2  # Keep Hands on Steering Wheel (chime)
       else:
         tja_warn = 0
 
