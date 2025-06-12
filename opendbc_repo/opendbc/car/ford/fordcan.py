@@ -247,7 +247,7 @@ def create_acc_ui_msg(packer, CAN: CanBus, CP, main_on: bool, enabled: bool, fcw
   return packer.make_can_msg("ACCDATA_3", CAN.main, values)
 
 
-def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, steer_alert: bool, hud_control,
+def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, steer_alert: bool, send_hands_free_msg: bool, hands: int, hud_control,
                        stock_values: dict):
   """
   Creates a CAN message for the Ford IPC IPMA/LKAS status.
@@ -315,7 +315,10 @@ def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, steer_
     #Set this to 0 if hud_control is None
     lines = 0
 
-  hands_on_wheel_dsply = 1 if steer_alert else 0
+  if send_hands_free_msg:
+    hands_on_wheel_dsply = hands
+  else:
+    hands_on_wheel_dsply = 1 if steer_alert else 0
 
   values = {s: stock_values[s] for s in [
     "FeatConfigIpmaActl",
