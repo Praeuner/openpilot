@@ -61,7 +61,7 @@ def compute_dm_msg_values(ss, oe, hud_control, send_hands_free_cluster_msg, main
     if ss:
       disableState, driverState = get_dm_state(ss.alertType, main)
     else:
-      disableState, driverState = "none"
+      disableState, driverState = "none", "none"
 
     if send_hands_free_cluster_msg:
       if disableState == "noEntry":
