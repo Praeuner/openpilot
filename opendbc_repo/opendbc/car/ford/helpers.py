@@ -47,7 +47,7 @@ def get_dm_state(d_state, main_on):
   e = d_state.split("/")
   if main_on:
     en = e[0]
-    et = e[1]
+    et = e[-1]
   else:
     en = "none"
     et = "none"
