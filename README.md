@@ -25,7 +25,7 @@ As of May 2025, we are updating the way branches are named and how links are gen
 
 To install any version of bleupilot, use the following URL formula (URL is case sensitive)
 
-installer.comaa.ai/BluePilotDev/"branch name"  
+installer.coma.ai/BluePilotDev/"branch name"  
 
 For example
 
@@ -77,7 +77,7 @@ The following changes are a **VIOLATION** of this policy and **ARE NOT** include
 * bluepilot not installed
   1. [Factory reset/uninstall](https://github.com/commaai/openpilot/wiki/FAQ#how-can-i-reset-the-device) the previous software if you have another software/fork installed.
   2. After factory reset/uninstall and upon reboot, select `Custom Software` when given the option.
-  3. Input the installation URL based on the desired branch. Example: ```installter.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
+  3. Input the installation URL based on the desired branch. Example: ```installer.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
   4. Complete the rest of the installation following the onscreen instructions.
 
 * bluepilot already installed and you installed a version after 0.8.17?
