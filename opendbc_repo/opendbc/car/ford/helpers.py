@@ -97,9 +97,9 @@ def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
         hands = 2  # Keep Hands on Steering Wheel (chime)
       else:
         tja_warn = 0
-      if driverState != "none" and disableState != "none":
-        #DEBUG: For some reason, when preDriverDistracted and only preDriverDistracted is triggered, it throws both the proper message and Resume Control.
-        print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn} | hands: {hands} | driverState: {driverState} | disableState: {disableState}')
+    if driverState != "none" or disableState != "none":
+      #DEBUG: For some reason, when preDriverDistracted and only preDriverDistracted is triggered, it throws both the proper message and Resume Control.
+      print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn} | hands: {hands} | driverState: {driverState} | disableState: {disableState}')
     return tja_msg, tja_warn, hands
 
 def get_hev_power_flow_text(mode_value):
