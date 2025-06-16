@@ -189,6 +189,9 @@ class CarController(CarControllerBase):
     self.send_driver_monitor_can_msg = False
     self.send_lane_depart_can_msg = False
     self.send_hands_free_cluster_msg = False
+    self.tja_msg = 0
+    self.tja_warn = 0
+    self.hands = 0
     self.predictedSteeringAngleDeg_SP = 0.0
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
@@ -282,9 +285,6 @@ class CarController(CarControllerBase):
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
 
     # Compute the DM message values
-    tja_msg = 0
-    tja_warn = 0
-    hands = 0
     if self.send_driver_monitor_can_msg:
       # print(f'HudControl: {hud_control}')
       # print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn}')
