@@ -287,13 +287,13 @@ class CarController(CarControllerBase):
     # Compute the DM message values
     if self.send_driver_monitor_can_msg:
       # print(f'HudControl: {hud_control}')
-      # print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn}')
+      # print(f'tja_msg: {self.tja_msg} | tja_warn: {self.tja_warn}')
       if (self.frame % CarControllerParams.ACC_UI_STEP) == 0:
-        tja_msg, tja_warn, hands = compute_dm_msg_values(self.ss, hud_control, self.send_hands_free_cluster_msg, main_on)
+        self.tja_msg, self.tja_warn, self.hands = compute_dm_msg_values(self.ss, hud_control, self.send_hands_free_cluster_msg, main_on)
     else:
       steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
       if steer_alert:
-        hands = 1
+        self.hands = 1
 
     ### acc buttons ###
     if CC.cruiseControl.cancel:
@@ -638,7 +638,7 @@ class CarController(CarControllerBase):
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
     # send lkas ui msg at 1Hz or if ui state changes
     if (self.frame % CarControllerParams.LKAS_UI_STEP) == 0 or send_ui:
-      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, hands, hud_control, CS.lkas_status_stock_values))
+      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, self.hands, hud_control, CS.lkas_status_stock_values))
 
     # send acc ui msg at 5Hz or if ui state changes
     send_bars = False
@@ -672,8 +672,8 @@ class CarController(CarControllerBase):
           self.send_hands_free_cluster_msg,
           send_ui,
           send_bars,
-          tja_warn,
-          tja_msg,
+          self.tja_warn,
+          self.tja_msg,
         )
       )
 
