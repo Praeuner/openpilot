@@ -43,54 +43,41 @@ def actuators_calc(cc_self, brake): # cc_self is the CarController object (self)
 
   return precharge_actuate, brake_actuate
 
-def get_dm_driver_state(d_state):
-  if d_state == "preDriverDistracted/permanent":
-    return "preDistracted"
-  elif d_state == "promptDriverDistracted/permanent":
-    return "promptDistracted"
-  elif d_state == "driverDistracted/permanent":
-    return "distracted"
-  elif d_state == "preDriverUnresponsive/permanent":
-    return "preUnresponsive"
-  elif d_state == "promptDriverUnresponsive/permanent":
-    return "promptUnresponsive"
-  elif d_state == "driverUnresponsive/permanent":
-    return "unresponsive"
+def get_dm_state(d_state, main_on):
+  e = d_state.split("/")
+  if main_on:
+    en = e[0]
+    et = e[-1]
   else:
-    return "none"
+    en = "none"
+    et = "none"
+  return en, et
 
-def get_dm_disable_state(d_state):
-  # print(f"d_state: {d_state}")
-  if d_state == ET.USER_DISABLE:
-    return "userDisable"
-  elif d_state == ET.SOFT_DISABLE:
-    return "softDisable"
-  elif d_state == ET.IMMEDIATE_DISABLE:
-    return "immediateDisable"
-  elif d_state == ET.NO_ENTRY:
-    return "noEntry"
-  else:
-    return "none"
-
-
-def compute_dm_msg_values(hud_control, send_hands_free_cluster_msg):
+def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
     tja_msg = 0
     tja_warn = 0
+    hands = 0
 
-    disableState = get_dm_disable_state(hud_control.alertType)
-    driverState = get_dm_driver_state(hud_control.eventType)
+    if ss:
+      driverState, disableState = get_dm_state(ss.alertType, main)
+    else:
+      driverState, disableState = "none", "none"
 
     if send_hands_free_cluster_msg:
       if disableState == "noEntry":
-        tja_msg = 4  # BlueCruise not available
-      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+        tja_msg = 1  # Lane Centering Assist not available
+      elif (driverState in ("driverDistracted", "driverUnresponsive") or disableState in ("softDisable", "immediateDisable")):
         tja_warn = 3  # Resume Control
       elif disableState == "userDisable":
         tja_warn = 1  # Cancelled
-      elif driverState == "preDistracted":
+      elif driverState == "preDriverDistracted":
         tja_warn = 6  # Watch The Road (no chime)
-      elif driverState == "promptDistracted":
+      elif driverState == "promptDriverDistracted":
         tja_warn = 7  # Watch The Road (chime)
+      elif driverState == "preDriverUnresponsive":
+        hands = 1  # Keep Hands on Steering Wheel (no chime)
+      elif driverState == "promptDriverUnresponsive":
+        hands = 2  # Keep Hands on Steering Wheel (chime)
       elif hud_control.leftLaneDepart:
         tja_warn = 5  # Left Lane Departure (chime)
       elif hud_control.rightLaneDepart:
@@ -100,14 +87,17 @@ def compute_dm_msg_values(hud_control, send_hands_free_cluster_msg):
     else:
       if disableState == "noEntry":
         tja_msg = 1  # Lane Centering Assist not available
-      elif (driverState in ("distracted", "unresponsive") or disableState in ("softDisable", "immediateDisable")):
+      elif (driverState in ("driverDistracted", "driverUnresponsive") or disableState in ("softDisable", "immediateDisable")):
         tja_warn = 3  # Resume Control
       elif disableState == "userDisable":
         tja_warn = 1  # Cancelled
+      elif driverState in ("preDriverDistracted", "preDriverUnresponsive"):
+        hands = 1  # Keep Hands on Steering Wheel (no chime)
+      elif driverState in ("promptDriverDistracted", "promptDriverUnresponsive"):
+        hands = 2  # Keep Hands on Steering Wheel (chime)
       else:
         tja_warn = 0
-
-    return tja_msg, tja_warn
+    return tja_msg, tja_warn, hands
 
 def get_hev_power_flow_text(mode_value):
   # PwrFlowTxt_D_Dsply 15 "NotUsed7" 14 "NotUsed6" 13 "NotUsed5" 12 "NotUsed4" 11 "Disply_Rgen_Chrg_Txt" 10 "Disp_Fast_Charge_Txt" 9 "Disp_Fast_Charge_Cmplt_Txt" 8 "Disp_Charge_Cmplt_Txt" 7 "Disp_Remote_Start_Txt" 6 "Disp_Eng_Drv_Txt" 5 "Disp_Elec_Drv_Txt" 4 "Disp_Idle_with_Chrg_Txt" 3 "Disp_Idle_Txt" 2 "Disp_Charg_HV_Batt_Txt" 1 "Disp_Hyb_Drive_Txt" 0 "No_Text";
