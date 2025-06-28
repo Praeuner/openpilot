@@ -6,114 +6,62 @@
  */
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle_panel.h"
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include "common/util.h"
 
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle/brand_settings_factory.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle/brands.h"
 #include "selfdrive/ui/sunnypilot/qt/widgets/scrollview.h"
 
-enum HyundaiLongTuneOption {
-  Off = 0,
-  LongTune = 1,
-  EvenSmootherBraking = 2,
-};
-
 VehiclePanel::VehiclePanel(QWidget *parent) : QFrame(parent) {
-  main_layout = new QStackedLayout(this);
+  QVBoxLayout *main_layout = new QVBoxLayout(this);
+  main_layout->setContentsMargins(50, 20, 50, 20);
+
   ListWidget *list = new ListWidget(this);
 
-  vehicleScreen = new QWidget(this);
-  QVBoxLayout *vlayout = new QVBoxLayout(vehicleScreen);
-  vlayout->setContentsMargins(50, 20, 50, 20);
-
   platformSelector = new PlatformSelector();
+  QObject::connect(platformSelector, &PlatformSelector::refreshPanel, this, &VehiclePanel::updateBrandSettings);
   list->addItem(platformSelector);
 
-  QObject::connect(uiState(), &UIState::offroadTransition, this, [=](bool offroad_transition) {
-    offroad = offroad_transition;
-    updatePanel(offroad);
-    updateCarToggles();
-  });
+  brandSettingsContainer = new QWidget(this);
+  brandSettingsContainerLayout = new QVBoxLayout(brandSettingsContainer);
+  brandSettingsContainerLayout->setContentsMargins(0, 0, 0, 0);
+  brandSettingsContainerLayout->setSpacing(0);
+  list->addItem(brandSettingsContainer);
 
   ScrollViewSP *scroller = new ScrollViewSP(list, this);
-  vlayout->addWidget(scroller);
+  main_layout->addWidget(scroller);
 
-  QObject::connect(platformSelector, &PlatformSelector::clicked, [=]() {
-    QTimer::singleShot(100, this, &VehiclePanel::updateCarToggles);
-  });
+  currentBrandSettings = nullptr;
 
-  std::vector<QString> tuning_buttons { tr("Off"), tr("Long Tune"), tr("Tune + Even Smoother Braking") };
-  hkgtuningToggle = new ButtonParamControlSP(
-    "HyundaiLongTune",
-    tr("HKG Custom Longitudinal Tuning"),
-    tr("Select a tuning mode. 'Off' means no custom tuning is applied. "
-       "'Long Tune' is a dynamic acceleration/brake tune to smoothen out braking. "
-       "'Tune + Smoother Braking' is the tuning, but with even smoother braking thanks to dynamic jerk."),
-       "../assets/offroad/icon_shell.png",
-    tuning_buttons
-  );
-  hkgtuningToggle->showDescription();
-  hkgtuningToggle->setProperty("originalDesc", hkgtuningToggle->getDescription());
-
-  connect(hkgtuningToggle, &ButtonParamControlSP::buttonToggled, this, [=](int index) {
-    hkg_state = index;
-    params.put("HyundaiLongTune", QString::number(index).toStdString());
-    params.putBool("HyundaiSmootherBraking", index == EvenSmootherBraking);
-    updateCarToggles();
-  });
-
-  // Add the tuning toggle to the layout
-  vlayout->addWidget(hkgtuningToggle);
-
-  // Add the vehicle screen to the main layout
-  main_layout->addWidget(vehicleScreen);
+  QObject::connect(uiState(), &UIState::offroadTransition, this, &VehiclePanel::updatePanel);
 }
 
 void VehiclePanel::showEvent(QShowEvent *event) {
   updatePanel(offroad);
-  updateCarToggles();
 }
 
 void VehiclePanel::updatePanel(bool _offroad) {
-  platformSelector->refresh(_offroad);
   offroad = _offroad;
+  platformSelector->refresh(_offroad);
+  updateBrandSettings();
 }
 
-QString VehiclePanel::toggleDisableMsg(bool openpilotLong) const {
-  if (!offroad) {
-    return tr("Enable 'Always Offroad' in device panel, or turn vehicle off to activate this toggle");
+void VehiclePanel::updateBrandSettings() {
+  if (!isVisible()) {
+    return;
   }
-  if (!openpilotLong) {
-    return tr("Enable sunnypilot longitudinal control first.");
+
+  if (currentBrandSettings) {
+    brandSettingsContainerLayout->removeWidget(currentBrandSettings);
+    delete currentBrandSettings;
+    currentBrandSettings = nullptr;
   }
-  return QString();
-}
 
-void VehiclePanel::updateCarToggles() {
-  bool openpilotLong = params.getBool("ExperimentalLongitudinalEnabled");
-  QString brand = platformSelector->getPlatformBundle("brand").toString();
-
-  if (brand == "hyundai") {
-    hkgtuningToggle->setVisible(true);
-    QString msg = toggleDisableMsg(openpilotLong);
-    if (!msg.isEmpty()) {
-      hkgtuningToggle->setEnabled(false);
-      hkgtuningToggle->setDescription(msg);
-      hkgtuningToggle->showDescription();
-      return;
+  if (BrandSettingsFactory::isBrandSupported(platformSelector->brand)) {
+    currentBrandSettings = BrandSettingsFactory::createBrandSettings(platformSelector->brand, this);
+    if (currentBrandSettings) {
+      currentBrandSettings->setContentsMargins(0, 0, 0, 0);
+      brandSettingsContainerLayout->addWidget(currentBrandSettings);
+      currentBrandSettings->updatePanel(offroad);
     }
-    hkgtuningToggle->setEnabled(true);
-    hkgtuningToggle->setDescription(hkgtuningToggle->property("originalDesc").toString());
-
-    int tuningOption = QString::fromStdString(params.get("HyundaiLongTune")).toInt();
-    hkg_state = tuningOption;
-    hkgtuningToggle->setCheckedButton(hkg_state);
-    hkgtuningToggle->showDescription();
-  } else {
-    // Hide toggle if not hyundai.
-    params.put("HyundaiLongTune", "0");
-    params.putBool("HyundaiSmootherBraking", false);
-    hkgtuningToggle->setVisible(false);
   }
 }

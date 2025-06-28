@@ -5,9 +5,20 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
-from opendbc.car import structs
+import numpy as np
+
+from opendbc.car import structs, DT_CTRL, rate_limit
 from opendbc.car.hyundai.values import HyundaiFlags
-from opendbc.sunnypilot.car.hyundai.longitudinal.longitudinal_config import CarTuningConfig, TUNING_CONFIGS, CAR_SPECIFIC_CONFIGS
+from opendbc.sunnypilot.car.hyundai.longitudinal.config import CarTuningConfig, TUNING_CONFIGS, CAR_SPECIFIC_CONFIGS
+
+JERK_THRESHOLD = 0.1
+JERK_STEP = 0.1
+
+
+class LongitudinalTuningType:
+  OFF = 0
+  DYNAMIC = 1
+  PREDICTIVE = 2
 
 
 def get_car_config(CP: structs.CarParams) -> CarTuningConfig:
@@ -34,3 +45,19 @@ def get_longitudinal_tune(CP: structs.CarParams) -> None:
   CP.stoppingDecelRate = config.stopping_decel_rate
   CP.startingState = False
   CP.longitudinalActuatorDelay = config.longitudinal_actuator_delay
+
+
+def jerk_limited_integrator(desired_accel, last_accel, jerk_upper, jerk_lower) -> float:
+  if desired_accel >= last_accel:
+    val = jerk_upper * DT_CTRL * 2
+  else:
+    val = jerk_lower * DT_CTRL * 2
+
+  return rate_limit(desired_accel, last_accel, -val, val)
+
+
+def ramp_update(current, target):
+  error = target - current
+  if abs(error) > JERK_THRESHOLD:
+    return current + float(np.clip(error, -JERK_STEP, JERK_STEP))
+  return target

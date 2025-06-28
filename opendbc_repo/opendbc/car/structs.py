@@ -97,6 +97,12 @@ class ModularAssistiveDrivingSystem:
 @auto_dataclass
 class CarControlSP:
   mads: 'ModularAssistiveDrivingSystem' = field(default_factory=lambda: ModularAssistiveDrivingSystem())
+  params: list['CarControlSP.Param'] = auto_field()
+
+  @auto_dataclass
+  class Param:
+    key: str = auto_field()
+    value: str = auto_field()
 
 
 @auto_dataclass
@@ -119,6 +125,10 @@ class HybridBattery:
     socMaxPerc: float = auto_field()
     socActual: float = auto_field()
 
+
+@auto_dataclass
+class CarStateSP:
+  pass
 
 @auto_dataclass
 class CarStateBP:

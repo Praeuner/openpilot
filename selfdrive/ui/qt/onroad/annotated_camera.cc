@@ -1,20 +1,17 @@
+
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"
 
 #include <QPainter>
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 #include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
 
-#ifdef SENTRY_ENABLED
-#include "third_party/sentry/include/sentry.h"
-#endif
-
 // Window that shows camera view and variety of info drawn on top
-AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
-  pm = std::make_unique<PubMaster>(std::vector<const char *>{"uiDebug"});
+AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent)
+    : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, parent) {
+  pm = std::make_unique<PubMaster>(std::vector<const char*>{"uiDebug"});
 
   main_layout = new QVBoxLayout(this);
   main_layout->setMargin(UI_BORDER_SIZE);
@@ -27,111 +24,15 @@ AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *par
 void AnnotatedCameraWidget::updateState(const UIState &s) {
   // update engageability/experimental mode button
   experimental_btn->updateState(s);
-  const SubMaster &sm = *(s.sm);
-  const auto car_state = sm["carState"].getCarState();
-
-  // Get blinker and blindspot states
-  left_blinker = car_state.getLeftBlinker();
-  right_blinker = car_state.getRightBlinker();
-  left_blindspot = car_state.getLeftBlindspot();
-  right_blindspot = car_state.getRightBlindspot();
-  standStill = car_state.getStandstill();
-
-  // Store vehicle speed for velocity-based standstill validation
-  vehicle_speed = car_state.getVEgo();
-
-  // Debug logging for standstill detection
-  // static int debug_counter = 0;
-  // debug_counter++;
-  // if (debug_counter % 100 == 0) { // Log every 5 seconds at 20Hz
-  //   std::cout << "Standstill Debug - CAN standstill: " << standStill << ", Speed: " << vehicle_speed << " m/s"
-  //             << ", Timer enabled: " << s.scene.stand_still_timer << ", Elapsed: " << standstillElapsedTime << " s" << std::endl;
-  // }
-
-  // Enhanced standstill detection with multiple criteria
-  bool velocity_standstill = vehicle_speed < STANDSTILL_THRESHOLD;
-  bool combined_standstill = standStill && velocity_standstill;
-
-  // Additional check: if speed is very low but CAN doesn't report standstill
-  if (!standStill && vehicle_speed < 0.05f) {
-    combined_standstill = true;
-    // if (debug_counter % 100 == 0) {
-    //   std::cout << "Standstill: Using velocity override (speed < 0.05 m/s)" << std::endl;
-    // }
-  }
-
-  // Stand Still Timer logic with improved state tracking
-  prev_standStill = standStill;
-  double current_time = millis_since_boot() / 1000.0;
-
-  if (s.scene.stand_still_timer) {
-    if (!prev_standStill && combined_standstill) {
-      // Just entered standstill - start the timer
-      standstill_start_time = current_time;
-      standstill_exit_time = 0.0;
-      standstillElapsedTime = 0.0;
-      // std::cout << "Standstill: Timer started" << std::endl;
-    } else if (combined_standstill) {
-      // Update the elapsed time while in standstill
-      standstillElapsedTime = current_time - standstill_start_time;
-      standstill_exit_time = 0.0;
-
-      // Add a sanity check to prevent unreasonable values
-      if (standstillElapsedTime > 86400.0) { // 24 hours max
-        standstill_start_time = current_time - 86400.0;
-        standstillElapsedTime = 86400.0;
-      }
-    } else {
-      // Not in standstill - use debounce mechanism
-      if (standstill_exit_time == 0.0) {
-        standstill_exit_time = current_time;
-      }
-
-      if (current_time - standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
-        // if (standstillElapsedTime > 0) {
-        //   std::cout << "Standstill: Timer reset after " << standstillElapsedTime << " seconds" << std::endl;
-        // }
-        standstillElapsedTime = 0.0;
-        standstill_start_time = current_time;
-      }
-    }
-  } else {
-    standstillElapsedTime = 0.0;
-    standstill_exit_time = 0.0;
-    standstill_start_time = current_time;
-  }
-
-  // Rest of the function remains unchanged
-  if (sm.updated("carStateBP") && sm.valid("carStateBP")) {
-    const auto car_state_bp = sm["carStateBP"].getCarStateBP();
-    experimental_btn->updateState(s);
-
-    // Hybrid Drive Data
-    hevDataAvailable = car_state_bp.getHybridDrive().getDataAvailable();
-    hevThrottleDemandPercent = car_state_bp.getHybridDrive().getThrottleDemandPercent();
-    hevThrottleThresholdPercent = car_state_bp.getHybridDrive().getThrottleThresholdPercent();
-    hevPowerFlowMode = QString::fromStdString(car_state_bp.getHybridDrive().getPowerFlowMode());
-    hevEngineOnReason = QString::fromStdString(car_state_bp.getHybridDrive().getEngineOnReason());
-
-    hevBattDataAvailable = car_state_bp.getHybridBattery().getDataAvailable();
-    hevBattVoltHighLimit = car_state_bp.getHybridBattery().getVoltHighLimit();
-    hevBattVoltLowLimit = car_state_bp.getHybridBattery().getVoltLowLimit();
-    hevBattVoltActual = car_state_bp.getHybridBattery().getVoltActual();
-    hevBattAmpsActual = car_state_bp.getHybridBattery().getAmpsActual();
-    hevBattSocMinPerc = car_state_bp.getHybridBattery().getSocMinPerc();
-    hevBattSocMaxPerc = car_state_bp.getHybridBattery().getSocMaxPerc();
-    hevBattSocActual = car_state_bp.getHybridBattery().getSocActual();
-    dmon.updateState(s);
-  }
   dmon.updateState(s);
 }
 
 void AnnotatedCameraWidget::initializeGL() {
   CameraWidget::initializeGL();
-  qInfo() << "OpenGL version:" << QString((const char *)glGetString(GL_VERSION));
-  qInfo() << "OpenGL vendor:" << QString((const char *)glGetString(GL_VENDOR));
-  qInfo() << "OpenGL renderer:" << QString((const char *)glGetString(GL_RENDERER));
-  qInfo() << "OpenGL language version:" << QString((const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
+  qInfo() << "OpenGL version:" << QString((const char*)glGetString(GL_VERSION));
+  qInfo() << "OpenGL vendor:" << QString((const char*)glGetString(GL_VENDOR));
+  qInfo() << "OpenGL renderer:" << QString((const char*)glGetString(GL_RENDERER));
+  qInfo() << "OpenGL language version:" << QString((const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
 
   prev_draw_t = millis_since_boot();
   setBackgroundColor(bg_colors[STATUS_DISENGAGED]);
@@ -149,7 +50,7 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   const auto &intrinsic_matrix = wide_cam ? ECAM_INTRINSIC_MATRIX : FCAM_INTRINSIC_MATRIX;
   const auto &calibration = wide_cam ? s->scene.view_from_wide_calib : s->scene.view_from_calib;
 
-  // Compute the calibration transformation matrix
+   // Compute the calibration transformation matrix
   const auto calib_transform = intrinsic_matrix * calibration;
 
   float zoom = wide_cam ? 2.0 : 1.1;
@@ -169,49 +70,27 @@ mat4 AnnotatedCameraWidget::calcFrameMatrix() {
   // 1) Put (0, 0) in the middle of the video
   // 2) Apply same scaling as video
   // 3) Put (0, 0) in top left corner of video
-  Eigen::Matrix3f video_transform =
-      (Eigen::Matrix3f() << zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom), 0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom), 0.0f, 0.0f, 1.0f).finished();
+  Eigen::Matrix3f video_transform =(Eigen::Matrix3f() <<
+    zoom, 0.0f, (w / 2 - x_offset) - (center_x * zoom),
+    0.0f, zoom, (h / 2 - y_offset) - (center_y * zoom),
+    0.0f, 0.0f, 1.0f).finished();
 
   model.setTransform(video_transform * calib_transform);
 
   float zx = zoom * 2 * center_x / w;
   float zy = zoom * 2 * center_y / h;
   return mat4{{
-      zx,
-      0.0,
-      0.0,
-      -x_offset / w * 2,
-      0.0,
-      zy,
-      0.0,
-      y_offset / h * 2,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
+    zx, 0.0, 0.0, -x_offset / w * 2,
+    0.0, zy, 0.0, y_offset / h * 2,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0,
   }};
 }
 
 void AnnotatedCameraWidget::paintGL() {
   UIState *s = uiState();
   SubMaster &sm = *(s->sm);
-
-#ifdef SENTRY_ENABLED
-  const double paint_start = millis_since_boot();
-#endif
-
   const double start_draw_t = millis_since_boot();
-
-  // Add frame time tracking and performance optimization
-  double current_time = millis_since_boot();
-  double frame_time = current_time - prev_draw_t;
-
-  // PERFORMANCE: Tighter anti-aliasing threshold - target 40fps instead of 30fps
-  bool use_antialiasing = frame_time < 25.0;
 
   // draw camera frame
   {
@@ -232,7 +111,6 @@ void AnnotatedCameraWidget::paintGL() {
 
     // Wide or narrow cam dependent on speed
     bool has_wide_cam = available_streams.count(VISION_STREAM_WIDE_ROAD);
-    // std::cout << "has_wide_cam: " << has_wide_cam << std::endl;
     if (has_wide_cam) {
       float v_ego = sm["carState"].getCarState().getVEgo();
       if ((v_ego < 10) || available_streams.size() == 1) {
@@ -240,10 +118,7 @@ void AnnotatedCameraWidget::paintGL() {
       } else if (v_ego > 15) {
         wide_cam_requested = false;
       }
-      if (!s->scene.wide_camera_low_speed) {
-        wide_cam_requested = wide_cam_requested && sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
-      }
-      // std::cout << "wide_cam_requested: " << wide_cam_requested << std::endl;
+      wide_cam_requested = wide_cam_requested && sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
     }
     CameraWidget::setStreamType(wide_cam_requested ? VISION_STREAM_WIDE_ROAD : VISION_STREAM_ROAD);
     CameraWidget::setFrameId(sm["modelV2"].getModelV2().getFrameId());
@@ -251,77 +126,13 @@ void AnnotatedCameraWidget::paintGL() {
   }
 
   QPainter painter(this);
-  painter.setRenderHint(QPainter::Antialiasing, use_antialiasing);
+  painter.setRenderHint(QPainter::Antialiasing);
   painter.setPen(Qt::NoPen);
 
   model.draw(painter, rect());
   dmon.draw(painter, rect());
   hud.updateState(*s);
   hud.draw(painter, rect());
-
-  // Hybrid Drive Data
-  if (s->scene.show_hybrid_drive_overlay && hevDataAvailable) {
-    // Get gauge size from params
-    int gauge_scale = s->scene.hybrid_drive_gauge_size;
-    int gauge_width = width() * 0.39;
-    int gauge_height = 130;
-
-    if (gauge_scale == 1) {
-      gauge_width = width() * 0.30;
-      gauge_height = 100;
-    } else if (gauge_scale == 2) {
-      gauge_width = width() * 0.345;
-      gauge_height = 115;
-    } else if (gauge_scale == 3) {
-      gauge_width = width() * 0.39;
-      gauge_height = 130;
-    } else {
-      gauge_width = width() * 0.30;
-      gauge_height = 100;
-    }
-
-    // Calculate position from bottom of screen
-    int bottom_margin = 30;
-    int debug_offset = 0;
-    int y_position = height() - gauge_height - bottom_margin - debug_offset;
-
-    QRect gauge_rect((width() - gauge_width) / 2, y_position, gauge_width, gauge_height);
-
-    HybridDriveGauge::drawGauge(painter, gauge_rect, hevThrottleDemandPercent, hevThrottleThresholdPercent, hevPowerFlowMode, hevEngineOnReason);
-
-    if (s->scene.show_hybrid_battery_overlay && hevBattDataAvailable) {
-      // Position battery gauge immediately to the right of the hybrid gauge
-      int batt_width = gauge_width * 0.25;        // Make battery gauge more compact
-      QRect battery_rect(gauge_rect.right() + 10, // 10px gap between gauges
-                         y_position, batt_width,
-                         gauge_height); // Same height as hybrid gauge
-
-      HybridBatteryGauge::drawGauge(painter, battery_rect, hevBattSocActual, hevBattSocMinPerc, hevBattSocMaxPerc, hevBattVoltActual, hevBattVoltLowLimit, hevBattVoltHighLimit,
-                                    hevBattAmpsActual);
-    }
-  }
-
-  // Draw blinkers if active
-  if (left_blinker || right_blinker) {
-    blinker_frame++;
-    int state = blinkerPulse(blinker_frame);
-    int blinker_x = 180;
-    int blinker_y = 90;
-
-    if (left_blinker) {
-      drawLeftTurnSignal(painter, rect().center().x() - (blinker_x + blinker_size), blinker_y, blinker_size, state);
-    }
-    if (right_blinker) {
-      drawRightTurnSignal(painter, rect().center().x() + blinker_x, blinker_y, blinker_size, state);
-    }
-  } else {
-    blinker_frame = 0;
-  }
-
-  // Draw stand still timer if active - enhanced logic
-  if (s->scene.stand_still_timer && standStill && standstillElapsedTime > 0.1) {
-    drawStandstillTimer(painter, rect().right() - 200, rect().center().y() - 45);
-  }
 
   double cur_draw_t = millis_since_boot();
   double dt = cur_draw_t - prev_draw_t;
@@ -330,186 +141,12 @@ void AnnotatedCameraWidget::paintGL() {
     LOGW("slow frame rate: %.2f fps", fps);
   }
   prev_draw_t = cur_draw_t;
-  last_frame_time = dt; // Store for future performance monitoring
 
   // publish debug msg
   MessageBuilder msg;
   auto m = msg.initEvent().initUiDebug();
   m.setDrawTimeMillis(cur_draw_t - start_draw_t);
   pm->send("uiDebug", msg);
-
-#ifdef SENTRY_ENABLED
-  const double paint_end = millis_since_boot();
-  const double paint_duration = paint_end - paint_start;
-  if (paint_duration > 33.0) { // 30fps threshold
-    sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_by_key(event, "message", sentry_value_new_string("Camera render frame exceeds threshold"));
-    sentry_value_set_by_key(event, "extra.paint_duration", sentry_value_new_double(paint_duration));
-    sentry_value_set_by_key(event, "extra.fps", sentry_value_new_double(fps));
-    sentry_value_set_by_key(event, "extra.frame_id", sentry_value_new_int32(sm.frame));
-    sentry_value_set_by_key(event, "extra.frames_dropped", sentry_value_new_int32(frames.empty() ? -1 : 0));
-    sentry_value_set_by_key(event, "extra.wide_cam", sentry_value_new_bool(wide_cam_requested));
-    sentry_value_set_by_key(event, "extra.antialiasing", sentry_value_new_bool(use_antialiasing));
-    sentry_capture_event(event);
-  }
-#endif
-}
-
-void AnnotatedCameraWidget::drawColoredText(QPainter &p, int x, int y, const QString &text, QColor color) {
-  QRect real_rect = p.fontMetrics().boundingRect(text);
-  real_rect.moveCenter({x, y - real_rect.height() / 2});
-
-  p.setPen(color);
-  p.drawText(real_rect.x(), real_rect.bottom(), text);
-}
-
-int AnnotatedCameraWidget::blinkerPulse(int frame) {
-  if (frame % UI_FREQ < (UI_FREQ / 2)) {
-    blinker_state = 1;
-  } else {
-    blinker_state = 0;
-  }
-  return blinker_state;
-}
-
-void AnnotatedCameraWidget::drawLeftTurnSignal(QPainter &painter, int x, int y, int circle_size, int state) {
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color, circle_color_0, circle_color_1;
-  QColor arrow_color, arrow_color_0, arrow_color_1;
-  if ((left_blindspot || lane_change_edge_block) && !(left_blinker && right_blinker)) {
-    circle_color_0 = QColor(164, 0, 1);
-    circle_color_1 = QColor(204, 0, 1);
-    arrow_color_0 = QColor(72, 1, 1);
-    arrow_color_1 = QColor(255, 255, 255);
-  } else {
-    circle_color_0 = QColor(22, 156, 69);
-    circle_color_1 = QColor(30, 215, 96);
-    arrow_color_0 = QColor(9, 56, 27);
-    arrow_color_1 = QColor(255, 255, 255);
-  }
-
-  if (state == 1) {
-    circle_color = circle_color_1;
-    arrow_color = arrow_color_1;
-  } else if (state == 0) {
-    circle_color = circle_color_0;
-    arrow_color = arrow_color_0;
-  }
-
-  // Draw the circle
-  int circleX = x;
-  int circleY = y;
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(circleX, circleY, circle_size, circle_size);
-
-  // Draw the arrow
-  int arrowSize = 50;
-  int arrowX = circleX + (circle_size - arrowSize) / 4;
-  int arrowY = circleY + (circle_size - arrowSize) / 2;
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(arrow_color);
-
-  // Draw the arrow shape
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + 10, arrowY + arrowSize / 2) << QPoint(arrowX + arrowSize - 3, arrowY) << QPoint(arrowX + arrowSize, arrowY)
-               << QPoint(arrowX + arrowSize, arrowY + arrowSize) << QPoint(arrowX + arrowSize - 3, arrowY + arrowSize) << QPoint(arrowX + 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  // Draw the tail rectangle
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX + arrowSize - 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
-void AnnotatedCameraWidget::drawRightTurnSignal(QPainter &painter, int x, int y, int circle_size, int state) {
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color, circle_color_0, circle_color_1;
-  QColor arrow_color, arrow_color_0, arrow_color_1;
-  if ((right_blindspot || lane_change_edge_block) && !(left_blinker && right_blinker)) {
-    circle_color_0 = QColor(164, 0, 1);
-    circle_color_1 = QColor(204, 0, 1);
-    arrow_color_0 = QColor(72, 1, 1);
-    arrow_color_1 = QColor(255, 255, 255);
-  } else {
-    circle_color_0 = QColor(22, 156, 69);
-    circle_color_1 = QColor(30, 215, 96);
-    arrow_color_0 = QColor(9, 56, 27);
-    arrow_color_1 = QColor(255, 255, 255);
-  }
-
-  if (state == 1) {
-    circle_color = circle_color_1;
-    arrow_color = arrow_color_1;
-  } else if (state == 0) {
-    circle_color = circle_color_0;
-    arrow_color = arrow_color_0;
-  }
-
-  // Draw the circle
-  int circleX = x;
-  int circleY = y;
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(circleX, circleY, circle_size, circle_size);
-
-  // Draw the arrow
-  int arrowSize = 50;
-  int arrowX = circleX + (circle_size - arrowSize) / 2 + (arrowSize / 2.5) - 3;
-  int arrowY = circleY + (circle_size - arrowSize) / 2;
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(arrow_color);
-
-  // Draw the arrow shape
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2) << QPoint(arrowX + 3, arrowY) << QPoint(arrowX, arrowY) << QPoint(arrowX, arrowY + arrowSize)
-               << QPoint(arrowX + 3, arrowY + arrowSize) << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  // Draw the tail rectangle
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX - tailWidth + 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
-void AnnotatedCameraWidget::drawStandstillTimer(QPainter &p, int x, int y) {
-  // Only draw if we have meaningful time and are actually stopped
-  if (standstillElapsedTime < 0.1 || !standStill || vehicle_speed >= STANDSTILL_THRESHOLD) {
-    return;
-  }
-
-  // Calculate time components
-  int minute = (int)(standstillElapsedTime / 60);
-  int second = (int)(standstillElapsedTime) - (minute * 60);
-
-  // Format strings
-  QString labelText = "STOP";
-  QString timeText = QString("%1:%2").arg(minute).arg(second, 2, 10, QChar('0'));
-
-  // Draw background for better visibility
-  QRect backgroundRect(x - 120, y - 70, 240, 180);
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(0, 0, 0, 120)); // Semi-transparent black background
-  p.drawRoundedRect(backgroundRect, 15, 15);
-
-  // Draw label
-  p.setFont(InterFont(80, QFont::DemiBold));
-  drawColoredText(p, x, y, labelText, QColor(255, 175, 3, 240));
-
-  // Draw time
-  p.setFont(InterFont(95, QFont::DemiBold));
-  drawColoredText(p, x, y + 90, timeText, QColor(255, 255, 255, 240));
-
-  // Debug output
-  // static int draw_debug_counter = 0;
-  // draw_debug_counter++;
-  // if (draw_debug_counter % 20 == 0) { // Every second at 20Hz
-  //   std::cout << "Drawing standstill timer: " << timeText.toStdString() << " at position (" << x << ", " << y << ")" << std::endl;
-  // }
 }
 
 void AnnotatedCameraWidget::showEvent(QShowEvent *event) {

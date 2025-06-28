@@ -46,7 +46,7 @@ class CarState(CarStateBase, MadsCarState):
     self.hev_data_available = CP.flags & FordFlags.HEV_CLUSTER_DATA
 
 
-  def update(self, can_parsers) -> structs.CarState:
+  def update(self, can_parsers) -> tuple[structs.CarState, structs.CarStateSP]:
     cp = can_parsers[Bus.pt]
     cp_cam = can_parsers[Bus.cam]
 
@@ -58,6 +58,7 @@ class CarState(CarStateBase, MadsCarState):
     #     print(f"Error publishing Ford CAN data: {e}")
 
     ret = structs.CarState()
+    ret_sp = structs.CarStateSP()
 
     if self.CP.flags & FordFlags.ALT_STEER_ANGLE:
       self.vehicle_sensors_valid = (
@@ -181,7 +182,7 @@ class CarState(CarStateBase, MadsCarState):
     ]
 
     self.car_state_bp_msg = self.update_car_state_bp(cp)
-    return ret
+    return ret, ret_sp
 
   def update_car_state_bp(self, cp):
     """Update the CarStateBP message for HEV/PHEV data"""

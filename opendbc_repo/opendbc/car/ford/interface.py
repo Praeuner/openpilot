@@ -28,7 +28,7 @@ class CarInterface(CarInterfaceBase):
     return CarControllerParams.ACCEL_MIN, np.interp(current_speed, ACCEL_MAX_BP, ACCEL_MAX_VALS)
 
   @staticmethod
-  def _get_params(ret: structs.CarParams, candidate, fingerprint, car_fw, experimental_long, docs) -> structs.CarParams:
+  def _get_params(ret: structs.CarParams, candidate, fingerprint, car_fw, alpha_long, is_release, docs) -> structs.CarParams:
     print("| CarParams Debug")
     debug(f'| Candidate (interface): {candidate}', True)
     ret.brand = "ford"
@@ -47,12 +47,12 @@ class CarInterface(CarInterfaceBase):
     ret.longitudinalTuning.kpV = [0.]
     ret.longitudinalTuning.kiV = [0.5]
 
-    if not ret.radarUnavailable and DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR:
+    # TODO: verify MRR_64 before it's used for longitudinal control
+    if DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR:
       # average of 33.3 Hz radar timestep / 4 scan modes = 60 ms
       # MRR_Header_Timestamps->CAN_DET_TIME_SINCE_MEAS reports 61.3 ms
       ret.radarDelay = 0.06
-
-    if not ret.radarUnavailable and DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR_64:
+    elif DBC[candidate][Bus.radar] == RADAR.DELPHI_MRR_64:
       # average of 20 Hz radar timestep / 4 scan modes = 100 ms
       ret.radarDelay = 0.1
 
@@ -62,11 +62,14 @@ class CarInterface(CarInterfaceBase):
       cfgs.insert(0, get_safety_config(structs.CarParams.SafetyModel.noOutput))
     ret.safetyConfigs = cfgs
 
-    ret.experimentalLongitudinalAvailable = True
-    info(f"| experimentalLongAvailable: {ret.experimentalLongitudinalAvailable}", True)
-    info(f"| experimental_long: {experimental_long}", True)
+	# For now continue to allow the user to still fall back to Ford Long
+    # for  CANFD platforms - in case radar is not fully reliable
+    ret.alphaLongitudinalAvailable = bool(ret.flags & FordFlags.CANFD)
+    info(f"| alphaLongAvailable: {ret.alphaLongitudinalAvailable}", True)
+    info(f"| experimental_long: {alpha_long}", True)
     info(f"| ret.flags & FordFlags.CANFD: {ret.flags & FordFlags.CANFD}", True)
-    if experimental_long: # or not ret.flags & FordFlags.CANFD:
+	
+    if alpha_long or not bool(ret.flags & FordFlags.CANFD):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
 
@@ -81,7 +84,6 @@ class CarInterface(CarInterfaceBase):
       if len(fingerprint[CAN.camera]):
         if fingerprint[CAN.camera].get(0x3d6) != 8 or fingerprint[CAN.camera].get(0x186) != 8:
           carlog.error('dashcamOnly: SecOC is unsupported')
-          error('dashcamOnly: SecOC is unsupported', True)
           ret.dashcamOnly = True
     else:
       # Lock out if the car does not have needed lateral and longitudinal control APIs.
@@ -90,14 +92,12 @@ class CarInterface(CarInterfaceBase):
       if pscm_config:
         if len(pscm_config.fwVersion) != 24:
           carlog.error('dashcamOnly: Invalid EPS FW version')
-          error("dashcamOnly: Invalid EPS FW version", True)
           ret.dashcamOnly = True
         else:
           config_tja = pscm_config.fwVersion[7]  # Traffic Jam Assist
           config_lca = pscm_config.fwVersion[8]  # Lane Centering Assist
           if config_tja != 0xFF or config_lca != 0xFF:
             carlog.error('dashcamOnly: Car lacks required lateral control APIs')
-            error("dashcamOnly: Car lacks required lateral control APIs", True)
             ret.dashcamOnly = True
 
     # Apply custom parameters from params.json

@@ -21,16 +21,6 @@ void SidebarSP::updateState(const UIStateSP &s) {
   if (!isVisible()) return;
   Sidebar::updateState(s);
 
-  auto &sm = *(s.sm);
-  auto deviceState = sm["deviceState"].getDeviceState();
-
-  // Update CPU temperature display for SunnySP - match the refresh rate from parent class
-  if (metrics_refresh_counter == 0) {
-    float max_temp = deviceState.getMaxTempC();
-    sidebar_temp_str = QString("%1°C").arg(QString::number(max_temp, 'f', 1));
-    setProperty("sidebarTemp", sidebar_temp_str);
-  }
-
   ItemStatus sunnylinkStatus;
   auto sl_dongle_id = getSunnylinkDongleId();
   auto last_sunnylink_ping_str = params.get("LastSunnylinkPingTime");
@@ -43,7 +33,7 @@ void SidebarSP::updateState(const UIStateSP &s) {
 
   if (sunnylink_enabled && last_sunnylink_ping == 0) {
     // If sunnylink is enabled, but we don't have a dongle id, and we haven't received a ping yet, we are registering
-    status = sl_dongle_id.has_value() ? tr("OFFLINE") : tr("REGISTERED");
+    status = sl_dongle_id.has_value() ? tr("OFFLINE") : tr("REGIST...");
     color = sl_dongle_id.has_value() ? warning_color : progress_color;
   } else if (sunnylink_enabled) {
     // If sunnylink is enabled, we are considered online if we have received a ping in the last 80 seconds, else error.
@@ -55,8 +45,10 @@ void SidebarSP::updateState(const UIStateSP &s) {
 }
 
 void SidebarSP::drawSidebar(QPainter &p) {
-  // First draw the base sidebar
   Sidebar::drawSidebar(p);
-
-  // SunnyLink card is now handled in the base Sidebar class
+  // metrics
+  drawMetric(p, temp_status.first, temp_status.second, 310);
+  drawMetric(p, panda_status.first, panda_status.second, 440);
+  drawMetric(p, connect_status.first, connect_status.second, 570);
+  drawMetric(p, sunnylink_status.first, sunnylink_status.second, 700);
 }

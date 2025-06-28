@@ -1,6 +1,5 @@
-import os
 import json
-Import('qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
+Import('env', 'qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
 
 base_libs = [common, messaging, visionipc, transformations,
              'm', 'OpenCL', 'ssl', 'crypto', 'pthread'] + qt_env["LIBS"]
@@ -11,25 +10,6 @@ if arch == 'larch64':
 if arch == "Darwin":
   del base_libs[base_libs.index('OpenCL')]
   qt_env['FRAMEWORKS'] += ['OpenCL']
-
-print(f"Current architecture: {arch}")
-if arch in ['larch64', 'Darwin']:
-  if arch == 'larch64':
-    sentry_lib_file = File('#third_party/sentry/ubuntu_larch64/libsentry.so')
-    qt_env.Append(LINKFLAGS=[r'-Wl,-rpath,\$$ORIGIN/../../third_party/sentry/ubuntu_larch64'])
-  elif arch == 'Darwin':
-    sentry_lib_file = File('#third_party/sentry/macos_arm64/libsentry.dylib')
-    qt_env.Append(LINKFLAGS=['-Wl,-rpath,@loader_path/../../third_party/sentry/macos_arm64'])
-  if not sentry_lib_file.exists():
-    print(f"Error: Sentry library not found: {sentry_lib_file}")
-
-  qt_env.Append(CPPDEFINES=['SENTRY_ENABLED'])  # Define macro for supported platforms
-  print(f"Sentry library found: {sentry_lib_file}")
-  sentry_lib_dir = sentry_lib_file.dir
-  qt_env.Append(LIBPATH=[sentry_lib_dir])
-
-  qt_env.Append(CPPPATH=['#third_party/sentry/include'])
-  base_libs.append('sentry')  # Add Sentry to the list of libraries
 
 sp_widgets_src = []
 sp_qt_src = []
@@ -71,6 +51,8 @@ bp_qt_src = [
   "bluepilot/qt/onroad/widgets/debug/SpeedGraphWidget.cc",
   "bluepilot/qt/onroad/widgets/debug/LongControlGraphWidget.cc",
   "bluepilot/qt/offroad/panels/bp_recent_changes.cc",
+  "bluepilot/qt/home.cc",
+  "bluepilot/qt/sidebar.cc",
 ]
 
 # FIXME: remove this once we're on 5.15 (24.04)
@@ -132,10 +114,6 @@ if GetOption('extras'):
 
   qt_env.SharedLibrary("qt/python_helpers", ["qt/qt_window.cc"], LIBS=qt_libs)
 
-  # spinner and text window
-  qt_env.Program("_text", ["qt/text.cc"], LIBS=qt_libs)
-  qt_env.Program("_spinner", ["qt/spinner.cc"], LIBS=qt_libs)
-
   # setup and factory resetter
   qt_env.Program("qt/setup/reset", ["qt/setup/reset.cc"], LIBS=qt_libs)
   qt_env.Program("qt/setup/setup", ["qt/setup/setup.cc", asset_obj],
@@ -146,8 +124,15 @@ if GetOption('extras'):
 
   if arch != "Darwin":
     # build installers
-    senv = qt_env.Clone()
-    senv['LINKFLAGS'].append('-Wl,-strip-debug')
+    raylib_env = env.Clone()
+    raylib_env['LIBPATH'] += [f'#third_party/raylib/{arch}/']
+    raylib_env['LINKFLAGS'].append('-Wl,-strip-debug')
+
+    raylib_libs = common + ["raylib"]
+    if arch == "larch64":
+      raylib_libs += ["GLESv2", "wayland-client", "wayland-egl", "EGL"]
+    else:
+      raylib_libs += ["GL"]
 
     release = "release3"
     installers = [
@@ -157,17 +142,19 @@ if GetOption('extras'):
       ("openpilot_internal", "nightly-dev"),
     ]
 
-    cont = senv.Command(f"installer/continue_openpilot.o", f"installer/continue_openpilot.sh",
-                        "ld -r -b binary -o $TARGET $SOURCE")
+    cont = raylib_env.Command("installer/continue_openpilot.o", "installer/continue_openpilot.sh",
+                              "ld -r -b binary -o $TARGET $SOURCE")
+    inter = raylib_env.Command("installer/inter_ttf.o", "installer/inter-ascii.ttf",
+                               "ld -r -b binary -o $TARGET $SOURCE")
     for name, branch in installers:
       d = {'BRANCH': f"'\"{branch}\"'"}
       if "internal" in name:
         d['INTERNAL'] = "1"
 
-      obj = senv.Object(f"installer/installers/installer_{name}.o", ["installer/installer.cc"], CPPDEFINES=d)
-      f = senv.Program(f"installer/installers/installer_{name}", [obj, cont], LIBS=qt_libs)
+      obj = raylib_env.Object(f"installer/installers/installer_{name}.o", ["installer/installer.cc"], CPPDEFINES=d)
+      f = raylib_env.Program(f"installer/installers/installer_{name}", [obj, cont, inter], LIBS=raylib_libs)
       # keep installers small
-      assert f[0].get_size() < 370*1e3
+      assert f[0].get_size() < 1300*1e3, f[0].get_size()
 
 # build watch3
 if arch in ['x86_64', 'aarch64', 'Darwin'] or GetOption('extras'):

@@ -4,10 +4,19 @@
 
 #include "system/hardware/hw.h"
 
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/home.h"
+#endif
+
 // We have this constructor so that we can provide custom implementations of the windows. By default (stock_ui) would receive them as nullptr, so they'll be instantiated with stock. Otherwise they'd be SP instances
 MainWindow::MainWindow(QWidget *parent, HomeWindow *hw, SettingsWindow *sw) :
     QWidget(parent),
+#ifdef BLUEPILOT
+    homeWindow(hw ? hw : new HomeWindowBP(this)),
+#else
     homeWindow(hw ? hw : new HomeWindow(this)),
+#endif
+
     settingsWindow(sw ? sw : new SettingsWindow(this)) {
 
   main_layout = new QStackedLayout(this);

@@ -23,7 +23,6 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
     {"regulatoryBtn", tr("Regulatory"), ""},
     {"translateBtn", tr("Language"), ""},
     {"resetParams", tr("Reset Settings"), ""},
-    {"restartUI", tr("Restart UI"), ""},
   };
 
   int row = 0, col = 0;
@@ -76,15 +75,23 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
 
   connect(buttons["resetParams"], &PushButtonSP::clicked, this, &DevicePanelSP::resetSettings);
 
-  connect(buttons["restartUI"], &PushButtonSP::clicked, [=]() {
-    qApp->exit(18);
-    watchdog_kick(0);
-  });
-
   // Max Time Offroad
   maxTimeOffroad = new MaxTimeOffroad();
   connect(maxTimeOffroad, &OptionControlSP::updateLabels, maxTimeOffroad, &MaxTimeOffroad::refresh);
   addItem(maxTimeOffroad);
+
+    toggleDeviceBootMode = new ButtonParamControlSP("DeviceBootMode", tr("Wake-Up Behavior"), "", "", {"Default", "Offroad"}, 375, true);
+  addItem(toggleDeviceBootMode);
+
+  connect(toggleDeviceBootMode, &ButtonParamControlSP::buttonClicked, this, [=](int index) {
+    params.put("DeviceBootMode", QString::number(index).toStdString());
+    updateState();
+  });
+  
+  // Brightness
+  brightness = new Brightness();
+  connect(brightness, &OptionControlSP::updateLabels, brightness, &Brightness::refresh);
+  addItem(brightness);
 
   addItem(device_grid_layout);
 
@@ -118,9 +125,18 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
 
   addItem(power_group_layout);
 
+  std::vector always_enabled_btns = {
+    rebootBtn,
+    poweroffBtn,
+    offroadBtn,
+    buttons["quietModeBtn"],
+  };
+
   QObject::connect(uiState(), &UIState::offroadTransition, [=](bool offroad) {
     for (auto btn : findChildren<PushButtonSP*>()) {
-      if (btn != rebootBtn && btn != poweroffBtn && btn != offroadBtn) {
+      bool always_enabled = std::find(always_enabled_btns.begin(), always_enabled_btns.end(), btn) != always_enabled_btns.end();
+
+      if (!always_enabled) {
         btn->setEnabled(offroad);
       }
     }
@@ -176,4 +192,10 @@ void DevicePanelSP::updateState() {
   bool offroad_mode_param = params.getBool("OffroadMode");
   offroadBtn->setText(offroad_mode_param ? tr("Exit Always Offroad") : tr("Always Offroad"));
   offroadBtn->setStyleSheet(offroad_mode_param ? alwaysOffroadStyle : autoOffroadStyle);
+
+  DeviceSleepModeStatus currStatus = DeviceSleepModeStatus::DEFAULT;
+  if (params.get("DeviceBootMode") == "1") {
+    currStatus = DeviceSleepModeStatus::OFFROAD;
+  }
+  toggleDeviceBootMode->setDescription(deviceSleepModeDescription(currStatus));
 }
