@@ -554,7 +554,14 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
 
   // Scale factor for responsive sizing
   float scaleFactor = rect.height() / 100.0f;
-  rect.setWidth(rect.width() * 1.45);
+
+  // Slight width adjustment for larger sizes only
+  float widthMultiplier = 1.45f;
+  if (scaleFactor > 1.2f) {
+    widthMultiplier = 1.5f;  // Modest increase for large gauges
+  }
+  rect.setWidth(rect.width() * widthMultiplier);
+
   int cornerRadius = qRound(6 * scaleFactor); // Reduced for automotive look
 
   // Calculate battery percentage for dynamic theming
@@ -650,26 +657,38 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   QString voltText = QString::number(battVoltActual, 'f', 0) + "V";
   QString ampText = QString("%1%2A").arg(displayAmps < 0 ? "+" : "-").arg(QString::number(qAbs(displayAmps), 'f', 1));
 
-  QRect metricsRect = adjustedTextRect.adjusted(textMargin, 0, -textMargin, 0);
+  // Create separate rectangles for voltage and amps with proper spacing
+  int textPadding = qRound(12 * scaleFactor); // Increased padding between texts
+  int sidePadding = qRound(8 * scaleFactor);   // Padding from edges
+
+  // Calculate available width and split it
+  int availableWidth = adjustedTextRect.width() - (2 * sidePadding) - textPadding;
+  int voltWidth = availableWidth * 0.45; // 45% for voltage
+  int ampWidth = availableWidth * 0.55;  // 55% for amps (typically longer text)
+
+  QRect voltRect(adjustedTextRect.left() + sidePadding, adjustedTextRect.top(),
+                voltWidth, adjustedTextRect.height());
+  QRect ampRect(adjustedTextRect.right() - sidePadding - ampWidth, adjustedTextRect.top(),
+               ampWidth, adjustedTextRect.height());
 
   // Draw voltage text with automotive styling
-  int textFontSize = qRound(24 * scaleFactor);
+  int textFontSize = qRound(22 * scaleFactor); // Slightly smaller to fit better
   QFont textFont("Inter", textFontSize, QFont::Bold);
   p.setFont(textFont);
 
   // Voltage text with shadow
   QColor voltColor = getVoltageColor(battVoltActual, battVoltLow, battVoltHigh);
   p.setPen(QColor(0, 0, 0, 100));
-  p.drawText(metricsRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignLeft, voltText);
+  p.drawText(voltRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignLeft, voltText);
   p.setPen(voltColor);
-  p.drawText(metricsRect, Qt::AlignVCenter | Qt::AlignLeft, voltText);
+  p.drawText(voltRect, Qt::AlignVCenter | Qt::AlignLeft, voltText);
 
   // Amps text with shadow
   QColor ampColor = displayAmps < 0 ? QColor(46, 204, 113) : QColor(236, 240, 241);
   p.setPen(QColor(0, 0, 0, 100));
-  p.drawText(metricsRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignRight, ampText);
+  p.drawText(ampRect.adjusted(1, 1, 1, 1), Qt::AlignVCenter | Qt::AlignRight, ampText);
   p.setPen(ampColor);
-  p.drawText(metricsRect, Qt::AlignVCenter | Qt::AlignRight, ampText);
+  p.drawText(ampRect, Qt::AlignVCenter | Qt::AlignRight, ampText);
 
   p.restore();
 }
