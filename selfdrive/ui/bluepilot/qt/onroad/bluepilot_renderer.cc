@@ -101,15 +101,17 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   // PERFORMANCE: Single state update per frame - batch all data gathering
   updateFrameState(s, model);
 
-  // 1. IMMEDIATE OVERLAYS (no transform needed)
+  // 1. BOTTOM LAYER: Blinkers and standstill timer
   renderBlinkers(painter, rect);
   renderStandstillTimer(painter, rect);
-  renderHybridGauges(painter, rect, s);
 
-  // 2. MODEL-DEPENDENT OVERLAYS (transform needed) - only if needed
+  // 2. MIDDLE LAYER: Model-dependent overlays (radar, stop signs)
   if (frame_state.show_radar || frame_state.show_stop) {
     renderModelEnhancements(painter, rect, s);
   }
+
+  // 3. TOP LAYER: Hybrid gauges (always on top)
+  renderHybridGauges(painter, rect, s);
 }
 
 template<typename ModelType>
@@ -609,6 +611,22 @@ void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, 
     initializeStaticData();
   }
 
+  // Get radar overlay size scale
+  int radar_scale = s.scene.radar_overlay_size;
+  float scale_factor = 1.0f;
+
+  if (radar_scale == 1) {
+    scale_factor = 0.7f;  // Small
+  } else if (radar_scale == 2) {
+    scale_factor = 0.85f; // Medium
+  } else if (radar_scale == 3) {
+    scale_factor = 1.0f;  // Normal
+  } else if (radar_scale == 4) {
+    scale_factor = 1.15f; // Large
+  } else {
+    scale_factor = 1.0f;  // Default to normal
+  }
+
   for (int i = 0; i < 2; ++i) {
     if (!frame_state.lead_state.virtual_active[i]) continue;
 
@@ -629,7 +647,7 @@ void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, 
     }
 
     drawEnhancedLead(painter, lead_data, frame_state.lead_state.vertices[i], rect,
-                    frame_state.lead_state.radar_assisted[i], confidence_alpha);
+                    frame_state.lead_state.radar_assisted[i], confidence_alpha, scale_factor);
   }
 }
 
@@ -936,18 +954,20 @@ void BluepilotRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &po
 }
 
 void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data,
-                                        const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha) {
+                                        const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha, float scale_factor) {
   const float d_rel = lead_data.getDRel();
   const float v_lead = lead_data.getVLead();
 
-  // Calculate sizes based on distance for responsive design
-  float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
+  // Calculate sizes based on distance for responsive design with scale factor
+  float base_sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
+  float sz = base_sz * scale_factor;
+
   float x = std::clamp<float>(vd.x(), 0.f, rect.width() - sz / 2);
   float y = std::min<float>(vd.y(), rect.height() - sz * 0.6);
 
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  // Create the chevron polygon
+  // Create the chevron polygon with scaled size
   QPolygonF chevronPolygon;
   chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
 
@@ -972,16 +992,16 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   painter.setBrush(chevronGradient);
   painter.drawPolygon(chevronPolygon);
 
-  // Add automotive border with inset effect
+  // Add automotive border with inset effect (scaled border width)
   QColor borderColor = baseChevronColor.lighter(120);
   borderColor.setAlpha(int(220 * alpha));
-  painter.setPen(QPen(borderColor, 2.5));
+  painter.setPen(QPen(borderColor, 2.5 * scale_factor));
   painter.setBrush(Qt::NoBrush);
   painter.drawPolygon(chevronPolygon);
 
   // Add subtle inner highlight for 3D effect
   QPolygonF innerChevron;
-  float insetAmount = 3.0f;
+  float insetAmount = 3.0f * scale_factor;
   innerChevron << QPointF(x + (sz * 1.25) - insetAmount, y + sz - insetAmount)
                << QPointF(x, y + insetAmount)
                << QPointF(x - (sz * 1.25) + insetAmount, y + sz - insetAmount);
@@ -994,7 +1014,7 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   painter.setPen(Qt::NoPen);
   painter.drawPolygon(innerChevron);
 
-  // Draw icon in the center of the chevron
+  // Draw icon in the center of the chevron with scaled size
   float icon_size = sz * 0.8;
   float icon_center_y = y + sz * 0.6;
   QRectF iconRect(x - icon_size / 2, icon_center_y - icon_size / 2, icon_size, icon_size);
@@ -1022,19 +1042,19 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
     }
   }
 
-  // ========== AUTOMOTIVE STYLING FOR INFO PANEL ==========
+  // ========== AUTOMOTIVE STYLING FOR INFO PANEL WITH SCALING ==========
 
-  // Position info panel centered below the lead vehicle
-  float panel_width = 300;
-  float panel_height = 60;
-  float panel_top = y + sz + 15;
+  // Position info panel centered below the lead vehicle with scaled dimensions
+  float panel_width = 300 * scale_factor;
+  float panel_height = 60 * scale_factor;
+  float panel_top = y + sz + (15 * scale_factor);
 
   QRectF infoPanel(x - panel_width / 2, panel_top, panel_width, panel_height);
 
   // Make sure the panel stays within the surface bounds
   if (panel_top + panel_height > rect.height()) {
     float available_height = rect.height() - panel_top - 5;
-    if (available_height < 45) {
+    if (available_height < 45 * scale_factor) {
       return;
     }
     infoPanel.setHeight(available_height);
@@ -1061,15 +1081,15 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   panelBg.setStops(bgStops);
 
   painter.setBrush(panelBg);
-  painter.drawRoundedRect(infoPanel, CORNER_RADIUS, CORNER_RADIUS);
+  painter.drawRoundedRect(infoPanel, CORNER_RADIUS * scale_factor, CORNER_RADIUS * scale_factor);
 
-  // Add automotive border
-  drawInsetBorder(painter, infoPanel.toRect(), baseChevronColor);
+  // Add automotive border with scaled corner radius
+  drawInsetBorder(painter, infoPanel.toRect(), baseChevronColor, CORNER_RADIUS * scale_factor);
 
   // Add metallic highlight to panel
-  addMetallicHighlight(painter, infoPanel.toRect());
+  addMetallicHighlight(painter, infoPanel.toRect(), CORNER_RADIUS * scale_factor);
 
-  // ========== AUTOMOTIVE TEXT STYLING ==========
+  // ========== AUTOMOTIVE TEXT STYLING WITH SCALING ==========
 
   // Convert measurements for display
   float distance_m = d_rel;
@@ -1078,19 +1098,19 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
   QString combinedText = distText + "  |  " + speedText;
 
-  // Set up text formatting with responsive font sizing
-  QFont infoFont("Inter", 33, QFont::DemiBold);
+  // Set up text formatting with responsive font sizing and scale factor
+  QFont infoFont("Inter", int(33 * scale_factor), QFont::DemiBold);
   painter.setFont(infoFont);
 
   // Scale font to fit container
-  QRectF textRect = infoPanel.adjusted(7, 7, -7, -7);
+  QRectF textRect = infoPanel.adjusted(7 * scale_factor, 7 * scale_factor, -7 * scale_factor, -7 * scale_factor);
   QFontMetrics fm(infoFont);
   int textWidth = fm.horizontalAdvance(combinedText);
   int textHeight = fm.height();
   int maxWidth = textRect.width();
   int maxHeight = textRect.height();
 
-  int fontSize = 33;
+  int fontSize = int(33 * scale_factor);
   int iteration_limit = 8;
   while ((textWidth > maxWidth || textHeight > maxHeight) && fontSize > 8 && iteration_limit-- > 0) {
       fontSize--;
@@ -1102,9 +1122,9 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
 
   painter.setFont(infoFont);
 
-  // Text shadow
+  // Text shadow with scaled offset
   painter.setPen(QColor(0, 0, 0, int(150 * alpha)));
-  painter.drawText(textRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, combinedText);
+  painter.drawText(textRect.adjusted(scale_factor, scale_factor, scale_factor, scale_factor), Qt::AlignCenter, combinedText);
 
   // Main text with automotive color
   painter.setPen(QColor(236, 240, 241, int(255 * alpha)));
