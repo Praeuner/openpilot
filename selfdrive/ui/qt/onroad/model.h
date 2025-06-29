@@ -28,6 +28,11 @@ public:
 
   ModelRenderer() {}
   void setTransform(const Eigen::Matrix3f &transform) { car_space_transform = transform; }
+
+  // ADDED: Getter methods for BluepilotRenderer
+  const Eigen::Matrix3f& getTransform() const { return car_space_transform; }
+  const QRectF& getClipRegion() const { return clip_region; }
+
   void draw(QPainter &painter, const QRect &surface_rect);
 
 protected:

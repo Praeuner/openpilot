@@ -68,6 +68,7 @@ typedef struct UIScene {
   // Hybrid Drive Data Overlay
   bool show_hybrid_drive_overlay;
   int hybrid_drive_gauge_size;
+  int radar_overlay_size;
   bool show_hybrid_battery_overlay;
   bool show_animated_wheel_angle;
   bool show_new_radar_overlay;

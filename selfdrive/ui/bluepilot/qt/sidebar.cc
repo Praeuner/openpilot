@@ -204,26 +204,48 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 void SidebarBP::updateState(const UIState &s) {
   if (!isVisible()) return;
 
-  // Call parent first for base functionality (networking, etc.)
-  Sidebar::updateState(s);
-
   auto &sm = *(s.sm);
   auto deviceState = sm["deviceState"].getDeviceState();
 
-  // Update performance metrics at specified intervals
+  // Network status (from your original code)
+  local_networking = local_networking ? local_networking : window()->findChild<Networking *>("");
+  bool tethering_on = local_networking && local_networking->wifi->tethering_on;
+  net_type = tethering_on ? "Hotspot" : network_type[deviceState.getNetworkType()];
+  net_strength = tethering_on ? 4 : (int)deviceState.getNetworkStrength();
+  net_strength = net_strength > 0 ? net_strength + 1 : 0;
+
+  // Connection status
+  auto last_ping = deviceState.getLastAthenaPingTime();
+  if (last_ping == 0) {
+    connect_status = {{tr("CONNECT"), tr("OFFLINE")}, warning_color};
+  } else {
+    bool is_online = nanos_since_boot() - last_ping < 80e9;
+    QString status = is_online ? tr("ONLINE") : tr("ERROR");
+    QColor color = is_online ? good_color : danger_color;
+    connect_status = {{tr("CONNECT"), status}, color};
+  }
+
+  // Vehicle status
+  QString vehicle_status = tr("ONLINE");
+  QColor vehicle_color = good_color;
+  if (s.scene.pandaType == cereal::PandaState::PandaType::UNKNOWN) {
+    vehicle_status = tr("OFFLINE");
+    vehicle_color = danger_color;
+  }
+  panda_status = {{tr("VEHICLE"), vehicle_status}, vehicle_color};
+
+  // Performance metrics
   metrics_refresh_counter++;
   if (metrics_refresh_counter >= METRICS_REFRESH_INTERVAL) {
-    // Get CPU metrics
+    // CPU
     float max_temp = deviceState.getMaxTempC();
     cpu_temp = QString("%1°C").arg(QString::number(max_temp, 'f', 1));
 
-    // Get CPU usage from deviceState
     QStringList cpuUsageValues;
     for (auto usage : deviceState.getCpuUsagePercent()) {
       cpuUsageValues.append(QString::number(usage));
     }
 
-    // Calculate average CPU usage if values are available
     if (!cpuUsageValues.isEmpty()) {
       float totalUsage = 0;
       for (const QString &val : cpuUsageValues) {
@@ -235,7 +257,7 @@ void SidebarBP::updateState(const UIState &s) {
       cpu_usage = "0%";
     }
 
-    // Get GPU metrics
+    // GPU
     if (deviceState.getGpuTempC().size() > 0) {
       float gpu_temp_val = deviceState.getGpuTempC()[0];
       gpu_temp = QString("%1°C").arg(QString::number(gpu_temp_val, 'f', 1));
@@ -246,15 +268,14 @@ void SidebarBP::updateState(const UIState &s) {
     float gpu_usage_val = deviceState.getGpuUsagePercent();
     gpu_usage = QString("%1%").arg(QString::number(gpu_usage_val, 'f', 0));
 
-    // Get memory usage from deviceState
+    // Memory
     float memory_usage_val = deviceState.getMemoryUsagePercent();
     memory_usage = QString("%1%").arg(QString::number(memory_usage_val, 'f', 0));
 
-    // Get fan data
+    // Fan
     float fan_demand_val = deviceState.getFanSpeedPercentDesired();
     fan_demand = QString("%1%").arg(QString::number(fan_demand_val, 'f', 0));
 
-    // Reset counter
     metrics_refresh_counter = 0;
   }
 }

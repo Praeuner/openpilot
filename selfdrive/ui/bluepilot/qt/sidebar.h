@@ -9,6 +9,12 @@
 class SidebarBP : public Sidebar {
   Q_OBJECT
   Q_PROPERTY(qreal hover_opacity MEMBER hover_opacity NOTIFY valueChanged);
+  Q_PROPERTY(QString cpuTemp MEMBER cpu_temp NOTIFY valueChanged);
+  Q_PROPERTY(QString cpuUsage MEMBER cpu_usage NOTIFY valueChanged);
+  Q_PROPERTY(QString gpuTemp MEMBER gpu_temp NOTIFY valueChanged);
+  Q_PROPERTY(QString gpuUsage MEMBER gpu_usage NOTIFY valueChanged);
+  Q_PROPERTY(QString memoryUsage MEMBER memory_usage NOTIFY valueChanged);
+  Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
 
 public:
   explicit SidebarBP(QWidget *parent = 0);
@@ -64,10 +70,22 @@ private:
   int metrics_refresh_counter = 0;
   const int METRICS_REFRESH_INTERVAL = 20;
 
-  ItemStatus connect_status, panda_status, temp_status, gpu_status, memory_status, network_status;
+  // Network data
+  QString net_type;
+  int net_strength = 0;
+  Networking *local_networking = nullptr;
 
-  // BluePilot PubMaster for userFlag
-  std::unique_ptr<PubMaster> bp_pm;
+  const QMap<cereal::DeviceState::NetworkType, QString> network_type = {
+    {cereal::DeviceState::NetworkType::NONE, tr("--")},
+    {cereal::DeviceState::NetworkType::WIFI, tr("Wi-Fi")},
+    {cereal::DeviceState::NetworkType::ETHERNET, tr("ETH")},
+    {cereal::DeviceState::NetworkType::CELL2_G, tr("2G")},
+    {cereal::DeviceState::NetworkType::CELL3_G, tr("3G")},
+    {cereal::DeviceState::NetworkType::CELL4_G, tr("LTE")},
+    {cereal::DeviceState::NetworkType::CELL5_G, tr("5G")}
+  };
+
+  ItemStatus connect_status, panda_status, temp_status, gpu_status, memory_status, network_status;
 
   // Local button rectangles (since base class ones are const)
   QRect bp_settings_btn;

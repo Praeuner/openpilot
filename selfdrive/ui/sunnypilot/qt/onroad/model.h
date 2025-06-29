@@ -17,6 +17,10 @@ private:
   void update_model(const cereal::ModelDataV2::Reader &model, const cereal::RadarState::LeadData::Reader &lead) override;
   void drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, const QRect &rect) override;
 
+  // Helper method for blindspot rendering
+  void drawBlindspotOverlays(QPainter &painter);
+
+  // Bluepilot enhanced blindspot polygons
   QPolygonF left_blindspot_vertices;
   QPolygonF right_blindspot_vertices;
 };

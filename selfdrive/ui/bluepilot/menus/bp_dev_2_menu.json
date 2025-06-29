@@ -129,6 +129,30 @@
               }
             },
             {
+              "type": "segmented_control",
+              "param": "FordPrefRadarOverlaySize",
+              "title": "Radar Lead Vehicle Overlay Size",
+              "desc": "Adjusts the size of the radar lead vehicle overlay",
+              "hidden": false,
+              "options": [
+                { "name": "Small", "value": "1", "default": true },
+                { "name": "Medium", "value": "2" },
+                { "name": "Large", "value": "3" },
+                { "name": "Ex-Large", "value": "4" }
+              ],
+              "conditions": {
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefShowRadarLeadOverlay": "1"
+                    }
+                  }
+                ]
+              }
+            },
+            {
               "type": "toggle",
               "param": "FordPrefHybridDriveOverlay",
               "title": "Show Hybrid Electric Data Overlays",
