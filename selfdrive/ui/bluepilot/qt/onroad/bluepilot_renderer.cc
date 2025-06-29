@@ -345,18 +345,11 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
 
       float path_y = line_y[idx];
 
-      // IMPROVED CURVE DETECTION
+      // Calculate curvature for gradual path influence
       float path_curvature = 0.0f;
-      float path_rate_of_change = 0.0f;
-
-      // Calculate curvature over a longer distance for better curve detection
       if (idx >= 3) {
         float y_diff_near = line_y[idx] - line_y[idx - 1];
         float y_diff_mid = line_y[idx - 1] - line_y[idx - 2];
-        float y_diff_far = line_y[idx - 2] - line_y[idx - 3];
-
-        // Rate of change in curvature
-        path_rate_of_change = fabs(y_diff_near - y_diff_mid) + fabs(y_diff_mid - y_diff_far);
         path_curvature = fabs(y_diff_near) + fabs(y_diff_mid);
       }
 
@@ -372,7 +365,7 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         if (frame_state.lead_state.prev_status[i] && fabs(raw_yRel - frame_state.lead_state.smoothed_yRel[i]) > 0.5) {
           should_track = false;
         }
-        // RELAXED: Allow more deviation from path during curves
+        // Allow more deviation from path during curves
         float curve_tolerance = 2.0f + (path_curvature * 2.0f);
         if (fabs(raw_yRel - path_y) > curve_tolerance) should_track = false;
       }
@@ -394,36 +387,32 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         if (!frame_state.lead_state.prev_status[i]) {
           frame_state.lead_state.smoothed_yRel[i] = raw_yRel;
         } else {
-          // ULTRA-AGGRESSIVE CURVE RESPONSE - near-zero smoothing during turns
+          // Use stable approach from old code instead of aggressive curve response
 
-          // Much more sensitive curve detection
-          bool in_active_curve = (path_curvature > 0.15f) || (path_rate_of_change > 0.02f);
+          // More gradual path influence for curves
+          float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
 
-          if (in_active_curve) {
-            // CURVE MODE: Follow raw radar data with minimal smoothing
-            if (is_radar_assisted) {
-              // Radar-assisted: Use raw data with tiny smoothing for stability
-              frame_state.lead_state.smoothed_yRel[i] = 0.9f * raw_yRel + 0.1f * frame_state.lead_state.smoothed_yRel[i];
-            } else {
-              // Vision-only: Slightly more smoothing but still very responsive
-              frame_state.lead_state.smoothed_yRel[i] = 0.7f * raw_yRel + 0.3f * frame_state.lead_state.smoothed_yRel[i];
-            }
-          } else {
-            // STRAIGHT MODE: Normal smoothing for stability
-            float alpha = is_radar_assisted ? 0.2f : 0.1f;
-            float path_weight = 0.6f;
+          // Adaptive alpha based on distance - smoother for close objects, less for distant ones
+          float alpha = is_radar_assisted ?
+                        0.05f + 0.15f * (d_rel / 25.0f) :    // Radar: 0.05 to 0.2
+                        0.025f + 0.125f * (d_rel / 25.0f);   // Vision: 0.025 to 0.15
 
-            // Normal jitter suppression
-            float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
-            float lateral_diff = raw_yRel - frame_state.lead_state.smoothed_yRel[i];
-            if (fabs(lateral_diff) > max_lateral_change) {
-              raw_yRel = frame_state.lead_state.smoothed_yRel[i] +
-                        ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
-            }
+          // Clamp alpha to reasonable range
+          alpha = std::clamp(alpha, 0.025f, 0.25f);
 
-            float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * frame_state.lead_state.smoothed_yRel[i];
-            frame_state.lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
+          // Distance-based jitter suppression
+          float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
+          float lateral_diff = raw_yRel - frame_state.lead_state.smoothed_yRel[i];
+          if (fabs(lateral_diff) > max_lateral_change) {
+            raw_yRel = frame_state.lead_state.smoothed_yRel[i] +
+                      ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
           }
+
+          // Two-step smoothing: first smooth the raw radar reading
+          float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * frame_state.lead_state.smoothed_yRel[i];
+
+          // Then blend with the path position using dynamic path weight
+          frame_state.lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
         }
 
         float z_offset = 1.22f + (d_rel * 0.02f);
@@ -441,7 +430,7 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
               reasonable_position = false;
             }
 
-            // RELAXED: Allow wider lateral positions during curves
+            // Allow wider lateral positions during curves
             float curve_lateral_limit = 5.0f + (path_curvature * 2.0f);
             if (fabs(frame_state.lead_state.smoothed_yRel[i]) > curve_lateral_limit) {
               frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 1, 0);
