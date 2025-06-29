@@ -24,17 +24,17 @@ signals:
   void debugPanelRequested();
 
 protected:
-  void paintEvent(QPaintEvent *event);
-  void mousePressEvent(QMouseEvent *event);
-  void mouseReleaseEvent(QMouseEvent *event);
-  void enterEvent(QEvent *event);
-  void leaveEvent(QEvent *event);
-  void drawSidebar(QPainter &p);
-  void drawMetric(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
+  void paintEvent(QPaintEvent *event) override;
+  void mousePressEvent(QMouseEvent *event) override;
+  void mouseReleaseEvent(QMouseEvent *event) override;
+  void enterEvent(QEvent *event) override;
+  void leaveEvent(QEvent *event) override;
+  void drawSidebar(QPainter &p) override;
+  void drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
   void drawProgressBar(QPainter &p, int x, int y, int width, int height, float percentage, QColor color);
 
 public slots:
-  void updateState(const UIState &s);
+  void updateStateBP(const UIState &s);
 
 private:
   // Button images

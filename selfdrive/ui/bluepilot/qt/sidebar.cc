@@ -31,6 +31,12 @@ QString runProcess(const QString &program, const QStringList &arguments) {
 }
 
 SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
+  // Disconnect base class signal connection to avoid conflicts
+  QObject::disconnect(uiState(), &UIState::uiUpdate, this, &Sidebar::updateState);
+
+  // Connect our own updateState method
+  QObject::connect(uiState(), &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
+
   // Load button images with correct paths
   home_img = loadPixmap("../assets/images/button_home.png", QSize(120, 120));
   flag_img = loadPixmap("../assets/offroad/icon_flag.png", QSize(120, 120));
@@ -64,7 +70,7 @@ void SidebarBP::leaveEvent(QEvent *event) {
   QFrame::leaveEvent(event);
 }
 
-void SidebarBP::drawMetric(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode) {
+void SidebarBP::drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode) {
   // Use a more compact layout for CPU/GPU/Memory cards
   const QRect rect = {30, y, 240, compactMode ? 100 : 120};
 
@@ -201,7 +207,7 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
   Sidebar::mouseReleaseEvent(event);
 }
 
-void SidebarBP::updateState(const UIState &s) {
+void SidebarBP::updateStateBP(const UIState &s) {
   if (!isVisible()) return;
 
   auto &sm = *(s.sm);
@@ -278,6 +284,17 @@ void SidebarBP::updateState(const UIState &s) {
 
     metrics_refresh_counter = 0;
   }
+
+  // Update properties so QML/Qt can access them
+  setProperty("cpuTemp", cpu_temp);
+  setProperty("cpuUsage", cpu_usage);
+  setProperty("gpuTemp", gpu_temp);
+  setProperty("gpuUsage", gpu_usage);
+  setProperty("memoryUsage", memory_usage);
+  setProperty("fanDemand", fan_demand);
+
+  // Trigger UI update
+  emit valueChanged();
 }
 
 void SidebarBP::paintEvent(QPaintEvent *event) {
@@ -382,7 +399,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
   } else if (cpuTempValue > 70.0) {
     cpuColor = warning_color;
   }
-  drawMetric(p, tr("CPU"), tr(""), cpu_usage, cpu_temp, cpuColor, metricsY, true);
+  drawMetricBP(p, tr("CPU"), tr(""), cpu_usage, cpu_temp, cpuColor, metricsY, true);
 
   // GPU card
   QColor gpuColor = good_color;
@@ -394,7 +411,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
       gpuColor = warning_color;
     }
   }
-  drawMetric(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuColor, metricsY + 110, true);
+  drawMetricBP(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuColor, metricsY + 110, true);
 
   // Memory/Fan card with toggle functionality
   QColor memoryFanColor = good_color;
@@ -406,7 +423,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
     } else if (fanDemandValue > 60.0) {
       memoryFanColor = warning_color;
     }
-    drawMetric(p, tr("FAN"), tr(""), fan_demand, tr(""), memoryFanColor, metricsY + 220, true);
+    drawMetricBP(p, tr("FAN"), tr(""), fan_demand, tr(""), memoryFanColor, metricsY + 220, true);
   } else {
     // Show memory as before
     float memoryValue = memory_usage.mid(0, memory_usage.length() - 1).toFloat();
@@ -415,20 +432,20 @@ void SidebarBP::drawSidebar(QPainter &p) {
     } else if (memoryValue > 70) {
       memoryFanColor = warning_color;
     }
-    drawMetric(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, metricsY + 220, true);
+    drawMetricBP(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, metricsY + 220, true);
   }
 
   // Vehicle card - standard 3-row layout
-  drawMetric(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, metricsY + 330, false);
+  drawMetricBP(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, metricsY + 330, false);
 
   // Connect card - standard 3-row layout
-  drawMetric(p, tr("CONNECT"), connect_status.first.second, tr(""), tr(""), connect_status.second, metricsY + 460, false);
+  drawMetricBP(p, tr("CONNECT"), connect_status.first.second, tr(""), tr(""), connect_status.second, metricsY + 460, false);
 
   // SunnyLink card - standard 3-row layout
   if (property("sunnylinkStatus").isValid()) {
     ItemStatus sunnylink_status = property("sunnylinkStatus").value<ItemStatus>();
     // Position it closer to avoid truncation
-    drawMetric(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, metricsY + 590, false);
+    drawMetricBP(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, metricsY + 590, false);
   }
 
   // Buttons at bottom side by side
