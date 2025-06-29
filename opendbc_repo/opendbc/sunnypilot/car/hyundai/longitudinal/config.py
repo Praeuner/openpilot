@@ -20,9 +20,6 @@ class CarTuningConfig:
   lookahead_jerk_lower_v: list[float] = field(default_factory=lambda: [0.15, 0.3])
   longitudinal_actuator_delay: float = 0.45
   jerk_limits: float = 4.0
-  upper_jerk_v: list[float] = field(default_factory=lambda: [2.0, 3.0, 1.6])
-  lower_jerk_v: list[float] = field(default_factory=lambda: [5.0, 4.0, 2.5])
-  min_jerk: float = 0.5
 
 
 # Default configurations for different car types
@@ -60,30 +57,12 @@ CAR_SPECIFIC_CONFIGS = {
     jerk_limits=2.5,
   ),
   CAR.KIA_NIRO_PHEV_2022: CarTuningConfig(
-    v_ego_stopping=0.3,
-    lookahead_jerk_upper_v=[0.3, 1.0],
-    upper_jerk_v=[2.0, 3.0, 1.6],
-    lower_jerk_v=[3.25, 3.5, 3.0],
-    jerk_limits=3.5,
-    min_jerk=1.0,
-  ),
-  CAR.HYUNDAI_IONIQ: CarTuningConfig(
-    jerk_limits=3.8,
-    min_jerk=1.0,
-  ),
-  CAR.HYUNDAI_IONIQ_PHEV: CarTuningConfig(
-    lookahead_jerk_upper_v=[0.3, 1.0],
-    upper_jerk_v=[3.0, 3.0, 2.5],
-    lower_jerk_v=[3.25, 4.0, 3.0],
-    jerk_limits=3.5,
-    min_jerk=2.0,
-  ),
-  CAR.HYUNDAI_KONA_2022: CarTuningConfig(
     stopping_decel_rate=0.3,
     lookahead_jerk_upper_v=[0.3, 1.0],
-    lookahead_jerk_lower_v=[0.2, 0.4],
-    upper_jerk_v=[2.0, 3.0, 1.6],
-    lower_jerk_v=[3.0, 3.25, 2.5],
-    jerk_limits=3.0,
+    lookahead_jerk_lower_v=[0.15, 0.3],
+    jerk_limits=4.0,
+  ),
+  CAR.HYUNDAI_IONIQ: CarTuningConfig(
+    jerk_limits=4.5,
   )
 }

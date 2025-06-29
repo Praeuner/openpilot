@@ -180,7 +180,7 @@ class CarController(CarControllerBase):
     self.max_curvature_rate_change = 0.0001
 
     self.sm = messaging.SubMaster(['modelV2', 'liveParameters', 'selfdriveState'])
-    self.VM = VehicleModel(self.CP, disable_roll_and_yaw_compensation=True)
+    self.VM = VehicleModel(self.CP)
     self.curvature_lookup_time = 0.2
 
     self.model = None
