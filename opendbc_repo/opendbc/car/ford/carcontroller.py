@@ -294,6 +294,8 @@ class CarController(CarControllerBase):
       steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
       if steer_alert:
         self.hands = 1
+      else:
+        self.hands = 0
 
     ### acc buttons ###
     if CC.cruiseControl.cancel:
