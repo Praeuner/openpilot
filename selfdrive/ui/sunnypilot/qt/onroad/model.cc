@@ -9,6 +9,9 @@
 #include "common/params.h"
 #include <chrono>
 
+// Fixed: Use same blindspot constants from model_old.cc
+static constexpr float BLINDSPOT_WIDTH = 1.0f; // Width of blind spot indicator in meters
+
 // Bluepilot blindspot enhancement state
 struct BlindspotState {
   bool left_blindspot = false;
@@ -29,13 +32,69 @@ void ModelRendererSP::update_model(const cereal::ModelDataV2::Reader &model, con
   float max_distance = std::clamp(*(model_position.getX().end() - 1), MIN_DRAW_DISTANCE, MAX_DRAW_DISTANCE);
   int max_idx = get_path_length_idx(lane_lines[0], max_distance);
 
-  // update blindspot vertices with enhanced styling
-  float max_distance_barrier = 100;
-  int max_idx_barrier = std::min(max_idx, get_path_length_idx(lane_lines[0], max_distance_barrier));
+  // FIXED: Create blindspot polygons like in model_old.cc
+  if (lane_lines.size() >= 4) {
+    const auto &left_lane = lane_lines[1];
+    const auto &right_lane = lane_lines[2];
 
-  // Create enhanced blindspot polygons with wider coverage
-  mapLineToPolygon(model.getLaneLines()[1], 0.3, -0.05, &left_blindspot_vertices, max_idx_barrier);
-  mapLineToPolygon(model.getLaneLines()[2], 0.3, -0.05, &right_blindspot_vertices, max_idx_barrier);
+    // Validate lane data before processing
+    if (left_lane.getX().size() == 0 || right_lane.getX().size() == 0) {
+      left_blindspot_vertices.clear();
+      right_blindspot_vertices.clear();
+    } else {
+      // Limit blindspot polygon complexity
+      int safe_max_idx = std::min(max_idx, 50); // Limit to 50 points max
+      const int MAX_BLINDSPOT_VERTICES = 40; // Vertex limit for performance
+
+      // Left blind spot - same as model_old.cc
+      left_blindspot_vertices.clear();
+      int left_vertex_count = 0;
+
+      // Forward pass along left lane with offset
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
+        QPointF lane_pt, offset_pt;
+        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
+            mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
+          left_blindspot_vertices.append(offset_pt);
+          left_vertex_count++;
+        }
+      }
+
+      // Return pass along left lane without offset
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
+        QPointF lane_pt;
+        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
+          left_blindspot_vertices.append(lane_pt);
+          left_vertex_count++;
+        }
+      }
+
+      // Right blind spot - same as model_old.cc
+      right_blindspot_vertices.clear();
+      int right_vertex_count = 0;
+
+      // Forward pass along right lane without offset
+      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
+        QPointF lane_pt;
+        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
+          right_blindspot_vertices.append(lane_pt);
+          right_vertex_count++;
+        }
+      }
+
+      // Return pass along right lane with offset
+      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
+        QPointF offset_pt;
+        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
+          right_blindspot_vertices.append(offset_pt);
+          right_vertex_count++;
+        }
+      }
+    }
+  }
+
+  // Mark gradients dirty after polygon updates
+  blindspot_state.gradients_dirty = true;
 }
 
 void ModelRendererSP::drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, const QRect &surface_rect) {
@@ -47,7 +106,7 @@ void ModelRendererSP::drawPath(QPainter &painter, const cereal::ModelDataV2::Rea
   blindspot_state.left_blindspot = car_state.getLeftBlindspot();
   blindspot_state.right_blindspot = car_state.getRightBlindspot();
 
-  // Update blink animation
+  // Update blink animation - using UI_FREQ from model_old.cc which is 20
   blindspot_state.blink_counter = (blindspot_state.blink_counter + 1) % (20 * 2);
   float pulse = 0.1 * sin(blindspot_state.blink_counter * M_PI / 20) + 0.25;
   blindspot_state.opacity = pulse;
@@ -127,12 +186,17 @@ void ModelRendererSP::drawBlindspotOverlays(QPainter &painter) {
   if (blindspot) {
     painter.setRenderHint(QPainter::Antialiasing, true);
 
+    // FIXED: Use same gradient stops as model_old.cc
     if (blindspot_state.left_blindspot && !left_blindspot_vertices.isEmpty()) {
       QRectF leftBounds = left_blindspot_vertices.boundingRect();
       if (leftBounds != blindspot_state.last_left_bounds || blindspot_state.gradients_dirty) {
-        blindspot_state.cached_gradient_left = QLinearGradient(leftBounds.center().x(), leftBounds.top(), leftBounds.center().x(), leftBounds.bottom());
+        blindspot_state.cached_gradient_left = QLinearGradient(leftBounds.center().x(), leftBounds.top(),
+                                                               leftBounds.center().x(), leftBounds.bottom());
+        // Use exact gradient stops from model_old.cc
         blindspot_state.cached_gradient_left.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+        blindspot_state.cached_gradient_left.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
         blindspot_state.cached_gradient_left.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
+        blindspot_state.cached_gradient_left.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
         blindspot_state.cached_gradient_left.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
         blindspot_state.last_left_bounds = leftBounds;
       }
@@ -144,9 +208,13 @@ void ModelRendererSP::drawBlindspotOverlays(QPainter &painter) {
     if (blindspot_state.right_blindspot && !right_blindspot_vertices.isEmpty()) {
       QRectF rightBounds = right_blindspot_vertices.boundingRect();
       if (rightBounds != blindspot_state.last_right_bounds || blindspot_state.gradients_dirty) {
-        blindspot_state.cached_gradient_right = QLinearGradient(rightBounds.center().x(), rightBounds.top(), rightBounds.center().x(), rightBounds.bottom());
+        blindspot_state.cached_gradient_right = QLinearGradient(rightBounds.center().x(), rightBounds.top(),
+                                                                rightBounds.center().x(), rightBounds.bottom());
+        // Use exact gradient stops from model_old.cc
         blindspot_state.cached_gradient_right.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+        blindspot_state.cached_gradient_right.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
         blindspot_state.cached_gradient_right.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
+        blindspot_state.cached_gradient_right.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
         blindspot_state.cached_gradient_right.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
         blindspot_state.last_right_bounds = rightBounds;
       }

@@ -197,38 +197,45 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
 
   double current_time = millis_since_boot() / 1000.0;
 
+  // Enhanced standstill detection with multiple criteria
   bool velocity_standstill = frame_state.vehicle_speed < STANDSTILL_THRESHOLD;
   bool combined_standstill = frame_state.standstill && velocity_standstill;
 
+  // Additional check: if speed is very low but CAN doesn't report standstill
   if (!frame_state.standstill && frame_state.vehicle_speed < 0.05f) {
     combined_standstill = true;
   }
 
+  // FIXED: Update prev_standStill at the end of the function, not at the beginning
   if (!frame_state.prev_standstill && combined_standstill) {
+    // Just entered standstill - start the timer
     frame_state.standstill_start_time = current_time;
     frame_state.standstill_exit_time = 0.0;
     frame_state.standstill_elapsed = 0.0;
   } else if (combined_standstill) {
+    // Update the elapsed time while in standstill
     frame_state.standstill_elapsed = current_time - frame_state.standstill_start_time;
     frame_state.standstill_exit_time = 0.0;
 
-    if (frame_state.standstill_elapsed > 86400.0) {
+    // Add a sanity check to prevent unreasonable values
+    if (frame_state.standstill_elapsed > 86400.0) { // 24 hours max
       frame_state.standstill_start_time = current_time - 86400.0;
       frame_state.standstill_elapsed = 86400.0;
     }
   } else {
+    // Not in standstill - use debounce mechanism
     if (frame_state.standstill_exit_time == 0.0) {
       frame_state.standstill_exit_time = current_time;
     }
 
     if (current_time - frame_state.standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
+      // Reset timer after debounce period
       frame_state.standstill_elapsed = 0.0;
       frame_state.standstill_start_time = current_time;
     }
   }
 
-  frame_state.prev_standstill = frame_state.standstill;
-
+  // Draw stand still timer if active
   if (frame_state.standstill && frame_state.standstill_elapsed > 0.1 &&
       frame_state.vehicle_speed < STANDSTILL_THRESHOLD) {
 
@@ -252,6 +259,9 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
     painter.setFont(InterFont(95, QFont::DemiBold));
     drawColoredText(painter, x, y + 90, timeText, QColor(255, 255, 255, 240));
   }
+
+  // FIXED: Update prev_standstill at the end
+  frame_state.prev_standstill = frame_state.standstill;
 }
 
 void BluepilotRenderer::renderHybridGauges(QPainter &painter, const QRect &rect, const UIState &s) {
@@ -344,6 +354,7 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
       }
 
       float path_y = line_y[idx];
+      float path_z = line_z[idx];
 
       // Calculate curvature for gradual path influence
       float path_curvature = 0.0f;
@@ -387,8 +398,7 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         if (!frame_state.lead_state.prev_status[i]) {
           frame_state.lead_state.smoothed_yRel[i] = raw_yRel;
         } else {
-          // Use stable approach from old code instead of aggressive curve response
-
+          // FIXED: Use stable approach from old code for better curve handling
           // More gradual path influence for curves
           float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
 
@@ -415,9 +425,10 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
           frame_state.lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
         }
 
+        // FIXED: Use proper z offset calculation from model_old.cc
         float z_offset = 1.22f + (d_rel * 0.02f);
         QPointF current_pos;
-        if (mapToScreen(d_rel, -frame_state.lead_state.smoothed_yRel[i], z_offset, &current_pos)) {
+        if (mapToScreen(d_rel, -frame_state.lead_state.smoothed_yRel[i], path_z + z_offset, &current_pos)) {
           bool reasonable_position = true;
 
           if (is_radar_assisted) {
