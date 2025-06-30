@@ -58,6 +58,9 @@ private:
     Eigen::Matrix3f transform;
     QRectF clip_region;
 
+    // Lane line vertices for stop sign positioning
+    QPolygonF lane_line_vertices[4];
+
     // Lead tracking state
     struct LeadState {
       int active_counter[2] = {0, 0};
@@ -109,6 +112,7 @@ private:
   static void updateStopDetection(const UIState &s);
   static void drawEnhancedLeads(QPainter &painter, const QRect &rect, const UIState &s);
   static void drawStopSignDetection(QPainter &painter, const QRect &rect, const UIState &s);
+  static void drawAllRadarPoints(QPainter &painter, const QRect &rect, const UIState &s); // DEBUG
 
   // Geometry helpers
   static bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);

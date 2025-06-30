@@ -90,6 +90,15 @@ void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UI
 
 template<typename ModelType>
 void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, const UIState &s, const ModelType &model) {
+  // Debug early to see what's enabled
+  static int global_debug_counter = 0;
+  if (global_debug_counter++ % 100 == 0) {
+    qDebug() << "BluePilot renderAll - hybrid:" << s.scene.show_hybrid_drive_overlay
+             << "radar:" << s.scene.show_new_radar_overlay
+             << "stop:" << s.scene.show_stop_indicator_overlay
+             << "timer:" << s.scene.stand_still_timer;
+  }
+
   // PERFORMANCE: Early exit if no BluePilot features enabled
   if (!s.scene.show_hybrid_drive_overlay &&
       !s.scene.show_new_radar_overlay &&
@@ -157,15 +166,53 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   frame_state.show_radar = s.scene.show_new_radar_overlay;
   frame_state.show_stop = s.scene.show_stop_indicator_overlay;
 
+  // Debug logging
+  static int debug_counter = 0;
+  if (debug_counter++ % 100 == 0) {
+    qDebug() << "BluePilot Debug - show_radar:" << frame_state.show_radar
+             << "show_stop:" << frame_state.show_stop
+             << "scene.show_new_radar_overlay:" << s.scene.show_new_radar_overlay
+             << "scene.show_stop_indicator_overlay:" << s.scene.show_stop_indicator_overlay;
+  }
+
   // FIXED: Properly get transform and clip region from model
   if (frame_state.show_radar || frame_state.show_stop) {
     frame_state.transform = model.getTransform();
     frame_state.clip_region = model.getClipRegion();
 
-    // DEBUG: Add logging to verify transform is valid
-    static int debug_counter = 0;
-    if (frame_state.transform.isZero() && debug_counter++ % 100 == 0) {
-      qDebug() << "WARNING: BluePilot transform is zero - overlays may not work";
+    // Check if transform is valid but don't return early
+    if (frame_state.transform.isZero()) {
+      if (debug_counter % 20 == 0) {
+        qDebug() << "WARNING: BluePilot transform is zero - overlays may not work properly";
+      }
+    }
+
+    // Update lane line vertices even if transform might be zero
+    // The transform might be set later in the frame
+    const auto &modelV2 = sm["modelV2"].getModelV2();
+    const auto &lane_lines = modelV2.getLaneLines();
+    float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
+
+    // Only map lane lines if transform is valid
+    if (!frame_state.transform.isZero()) {
+      for (int i = 0; i < 4 && i < lane_lines.size(); ++i) {
+        frame_state.lane_line_vertices[i].clear();
+        const auto &line = lane_lines[i];
+        const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
+
+        // Map line points to screen, limiting to reasonable distance
+        for (int j = 0; j < line_x.size() && line_x[j] < 100.0f; ++j) {
+          if (line_x[j] < 0) continue;
+
+          QPointF left, right;
+          float y_offset = 0.025f; // Lane line width
+          if (mapToScreen(line_x[j], line_y[j] - y_offset, line_z[j] + path_offset_z, &left) &&
+              mapToScreen(line_x[j], line_y[j] + y_offset, line_z[j] + path_offset_z, &right)) {
+            frame_state.lane_line_vertices[i].push_back(left);
+            frame_state.lane_line_vertices[i].push_front(right);
+          }
+        }
+      }
     }
   }
 }
@@ -193,8 +240,6 @@ void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
 }
 
 void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &rect) {
-  if (!frame_state.standstill) return;
-
   double current_time = millis_since_boot() / 1000.0;
 
   // Enhanced standstill detection with multiple criteria
@@ -223,22 +268,14 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
       frame_state.standstill_elapsed = 86400.0;
     }
   } else {
-    // Not in standstill - use debounce mechanism
-    if (frame_state.standstill_exit_time == 0.0) {
-      frame_state.standstill_exit_time = current_time;
-    }
-
-    if (current_time - frame_state.standstill_exit_time > STANDSTILL_DEBOUNCE_TIME) {
-      // Reset timer after debounce period
-      frame_state.standstill_elapsed = 0.0;
-      frame_state.standstill_start_time = current_time;
-    }
+    // Not in standstill - reset immediately
+    frame_state.standstill_elapsed = 0.0;
+    frame_state.standstill_start_time = current_time;
+    frame_state.standstill_exit_time = 0.0;
   }
 
   // Draw stand still timer if active
-  if (frame_state.standstill && frame_state.standstill_elapsed > 0.1 &&
-      frame_state.vehicle_speed < STANDSTILL_THRESHOLD) {
-
+  if (combined_standstill && frame_state.standstill_elapsed > 0.1) {
     int minute = (int)(frame_state.standstill_elapsed / 60);
     int second = (int)(frame_state.standstill_elapsed) - (minute * 60);
 
@@ -320,6 +357,53 @@ void BluepilotRenderer::renderModelEnhancements(QPainter &painter, const QRect &
   if (frame_state.show_stop) {
     drawStopSignDetection(painter, rect, s);
   }
+
+  // DEBUG: Uncomment to show all radar detections as dots
+  // drawAllRadarPoints(painter, rect, s);
+}
+
+// DEBUG: Simple function to draw all radar detections
+void BluepilotRenderer::drawAllRadarPoints(QPainter &painter, const QRect &rect, const UIState &s) {
+  const SubMaster &sm = *(s.sm);
+  if (!sm.alive("radarState")) return;
+
+  const auto &radar_state = sm["radarState"].getRadarState();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Get path offset for z calculations
+  float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
+
+  // Draw lead one
+  const auto &lead_one = radar_state.getLeadOne();
+  if (lead_one.getStatus() && lead_one.getDRel() > 0) {
+    QPointF pt;
+    if (mapToScreen(lead_one.getDRel(), lead_one.getYRel(), path_offset_z, &pt)) {
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(QColor(255, 0, 0, 200)); // Red dot
+      painter.drawEllipse(pt, 10, 10);
+
+      // Add distance text
+      painter.setPen(Qt::white);
+      painter.setFont(QFont("Inter", 10));
+      painter.drawText(pt.x() + 15, pt.y(), QString("%1m").arg(lead_one.getDRel(), 0, 'f', 1));
+    }
+  }
+
+  // Draw lead two
+  const auto &lead_two = radar_state.getLeadTwo();
+  if (lead_two.getStatus() && lead_two.getDRel() > 0) {
+    QPointF pt;
+    if (mapToScreen(lead_two.getDRel(), lead_two.getYRel(), path_offset_z, &pt)) {
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(QColor(255, 255, 0, 200)); // Yellow dot
+      painter.drawEllipse(pt, 8, 8);
+
+      // Add distance text
+      painter.setPen(Qt::white);
+      painter.setFont(QFont("Inter", 10));
+      painter.drawText(pt.x() + 15, pt.y(), QString("%1m").arg(lead_two.getDRel(), 0, 'f', 1));
+    }
+  }
 }
 
 void BluepilotRenderer::updateLeadTracking(const UIState &s) {
@@ -356,13 +440,8 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
       float path_y = line_y[idx];
       float path_z = line_z[idx];
 
-      // Calculate curvature for gradual path influence
-      float path_curvature = 0.0f;
-      if (idx >= 3) {
-        float y_diff_near = line_y[idx] - line_y[idx - 1];
-        float y_diff_mid = line_y[idx - 1] - line_y[idx - 2];
-        path_curvature = fabs(y_diff_near) + fabs(y_diff_mid);
-      }
+      // FIXED: Use the same curvature calculation as model_old.cc
+      float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
 
       // Stricter stability requirements for visual-only detections
       int required_stability = is_radar_assisted ? 2 : 8;
@@ -376,9 +455,7 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         if (frame_state.lead_state.prev_status[i] && fabs(raw_yRel - frame_state.lead_state.smoothed_yRel[i]) > 0.5) {
           should_track = false;
         }
-        // Allow more deviation from path during curves
-        float curve_tolerance = 2.0f + (path_curvature * 2.0f);
-        if (fabs(raw_yRel - path_y) > curve_tolerance) should_track = false;
+        if (fabs(raw_yRel - path_y) > 2.0f) should_track = false;
       }
 
       // Update stability counter based on tracking decision
@@ -398,37 +475,37 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         if (!frame_state.lead_state.prev_status[i]) {
           frame_state.lead_state.smoothed_yRel[i] = raw_yRel;
         } else {
-          // FIXED: Use stable approach from old code for better curve handling
-          // More gradual path influence for curves
+          // FIXED: Use exact approach from model_old.cc for better curve handling
+          // More path influence for curves
           float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
 
           // Adaptive alpha based on distance - smoother for close objects, less for distant ones
           float alpha = is_radar_assisted ?
-                        0.05f + 0.15f * (d_rel / 25.0f) :    // Radar: 0.05 to 0.2
-                        0.025f + 0.125f * (d_rel / 25.0f);   // Vision: 0.025 to 0.15
+                        0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
+                        0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
 
           // Clamp alpha to reasonable range
           alpha = std::clamp(alpha, 0.025f, 0.25f);
 
-          // Distance-based jitter suppression
+          // Add distance-based jitter suppression
           float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
           float lateral_diff = raw_yRel - frame_state.lead_state.smoothed_yRel[i];
           if (fabs(lateral_diff) > max_lateral_change) {
-            raw_yRel = frame_state.lead_state.smoothed_yRel[i] +
-                      ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
+            // Limit lateral movement rate for stability
+            raw_yRel = frame_state.lead_state.smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
           }
 
-          // Two-step smoothing: first smooth the raw radar reading
+          // First smooth the raw radar reading
           float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * frame_state.lead_state.smoothed_yRel[i];
 
           // Then blend with the path position using dynamic path weight
           frame_state.lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
         }
 
-        // FIXED: Use proper z offset calculation from model_old.cc
-        float z_offset = 1.22f + (d_rel * 0.02f);
+        // FIXED: Use exact same approach as model_old.cc - no Y sign flip, use path_offset_z
+        float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
         QPointF current_pos;
-        if (mapToScreen(d_rel, -frame_state.lead_state.smoothed_yRel[i], path_z + z_offset, &current_pos)) {
+        if (mapToScreen(d_rel, frame_state.lead_state.smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
           bool reasonable_position = true;
 
           if (is_radar_assisted) {
@@ -441,11 +518,9 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
               reasonable_position = false;
             }
 
-            // Allow wider lateral positions during curves
-            float curve_lateral_limit = 5.0f + (path_curvature * 2.0f);
-            if (fabs(frame_state.lead_state.smoothed_yRel[i]) > curve_lateral_limit) {
+            if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 5.0f) {
               frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 1, 0);
-              if (fabs(frame_state.lead_state.smoothed_yRel[i]) > curve_lateral_limit + 1.5f) {
+              if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 6.5f) {
                 reasonable_position = false;
               }
             }
@@ -508,6 +583,9 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
   const auto car_state = sm["carState"].getCarState();
   bool brake_pressed = car_state.getBrakePressed();
   float brake_value = car_state.getBrake();
+
+  // Get path offset for z calculations
+  float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
 
   const auto &velocity = model.getVelocity().getX();
   const auto &position_x = model.getPosition().getX();
@@ -582,9 +660,9 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
         float y = position_y[stop_idx];
         float z = position_z[stop_idx];
 
-        float z_offset = z + 2.5f;
+        // FIXED: Use path_offset_z like in model_old.cc
         QPointF screen_point;
-        if (mapToScreen(x, y, z_offset, &screen_point)) {
+        if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
           frame_state.stop_state.last_valid_position = screen_point;
         }
 
@@ -621,18 +699,19 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
 void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, const UIState &s) {
   const SubMaster &sm = *(s.sm);
   const auto &radar_state = sm["radarState"].getRadarState();
-  bool showRadarOverlay = !sm["selfdriveState"].getSelfdriveState().getExperimentalMode() && frame_state.show_radar;
+  bool experimental_mode = sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
   bool longitudinal_control = sm["carParams"].getCarParams().getOpenpilotLongitudinalControl();
 
   static int debug_counter = 0;
   if (debug_counter++ % 100 == 0) {
-    qDebug() << "BluePilot radar - showRadarOverlay:" << showRadarOverlay
+    qDebug() << "BluePilot radar - experimental_mode:" << experimental_mode
              << "longitudinal_control:" << longitudinal_control
              << "radarState alive:" << sm.alive("radarState")
              << "show_radar flag:" << frame_state.show_radar;
   }
 
-  if (!(longitudinal_control || showRadarOverlay) || !sm.alive("radarState")) {
+  // Show radar overlay if enabled, regardless of experimental mode
+  if (!frame_state.show_radar || !sm.alive("radarState")) {
     return;
   }
 
@@ -697,9 +776,50 @@ void BluepilotRenderer::drawStopSignDetection(QPainter &painter, const QRect &re
   }
 
   if (frame_state.stop_state.active || frame_state.stop_state.fade_alpha > 0.0f) {
-    drawStopSignOverlay(painter, frame_state.stop_state.last_valid_position,
-                       static_cast<int>(frame_state.stop_state.smoothed_size),
-                       frame_state.stop_state.display_distance, v_ego, frame_state.stop_state.fade_alpha);
+    // Get position for stop sign (use last valid if current is invalid)
+    QPointF screen_point = frame_state.stop_state.last_valid_position;
+    const int stop_sign_size = static_cast<int>(frame_state.stop_state.smoothed_size);
+
+    // FIXED: Position relative to lane lines as in original code
+    if (!frame_state.lane_line_vertices[2].isEmpty() && !screen_point.isNull()) {
+      // Find the closest point on the right lane line to the stopping point
+      int closest_idx = 0;
+      float min_dist = std::numeric_limits<float>::max();
+      for (int i = 0; i < frame_state.lane_line_vertices[2].size(); ++i) {
+        float dist = std::hypot(screen_point.x() - frame_state.lane_line_vertices[2][i].x(),
+                               screen_point.y() - frame_state.lane_line_vertices[2][i].y());
+        if (dist < min_dist) {
+          min_dist = dist;
+          closest_idx = i;
+        }
+      }
+
+      // Position the stop sign to the right of the closest lane line point
+      QPointF lane_point = frame_state.lane_line_vertices[2][closest_idx];
+      QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
+
+      // Ensure the stop sign stays within the clip region
+      if (frame_state.clip_region.contains(stop_point)) {
+        drawStopSignOverlay(painter, stop_point, stop_sign_size,
+                          frame_state.stop_state.display_distance, v_ego, frame_state.stop_state.fade_alpha);
+      } else {
+        // Adjust if partially out of bounds
+        float adjusted_x = std::clamp(stop_point.x(),
+                                     frame_state.clip_region.left() + stop_sign_size / 2,
+                                     frame_state.clip_region.right() - stop_sign_size / 2);
+        stop_point.setX(adjusted_x);
+        if (frame_state.clip_region.contains(stop_point)) {
+          drawStopSignOverlay(painter, stop_point, stop_sign_size,
+                            frame_state.stop_state.display_distance, v_ego, frame_state.stop_state.fade_alpha);
+        }
+      }
+    } else {
+      // Fallback: Use the original stopping point if no lane line data
+      if (frame_state.clip_region.contains(screen_point)) {
+        drawStopSignOverlay(painter, screen_point, stop_sign_size,
+                          frame_state.stop_state.display_distance, v_ego, frame_state.stop_state.fade_alpha);
+      }
+    }
   }
 }
 
