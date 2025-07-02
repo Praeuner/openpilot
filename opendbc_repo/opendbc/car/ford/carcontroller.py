@@ -115,6 +115,10 @@ class CarController(CarControllerBase):
     self.pc_blend_ratio_low_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_high_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_bp = [0.0, 0.001] # curvature breakpoints in 1/m
+    self.large_curve_factor_low = 1.0 # factor to reduce curvature for small curves
+    self.large_curve_factor_high = 0.97 # Updated from UI: factor to reduce curvature for large curves
+    self.large_curve_factor_bp = [0.001, 0.02] # curvature breakpoints in 1/m
+    self.large_curve_factor_v = [self.large_curve_factor_low, self.large_curve_factor_high] #  determine factor to reduce cu
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -424,6 +428,16 @@ class CarController(CarControllerBase):
         else:
           desired_curvature_rate = 0.0
 
+        # determine large curve factor
+        large_curve_factor = interp(abs(requested_curvature), self.large_curve_factor_bp, self.large_curve_factor_v)
+
+        # apply large curve factor to desired_curvature_rate
+        desired_curvature_rate = desired_curvature_rate * large_curve_factor
+
+        #no large curve factor in lane changes
+        if self.lane_change:
+          large_curve_factor = 1.0
+
         # Determine if a human is making a turn and trap the value
         if steeringPressed and abs(steeringAngleDeg_PV) > 45:
           self.human_turn = True
@@ -505,8 +519,6 @@ class CarController(CarControllerBase):
         if HC_PID_adjust_factor < 0.1:
           self.HC_PID_controller.reset()
 
-        # curvature rate seems to be causing hugging the inside edge of curves.  Let's only use it in bigger curves.  We can borrow the path_angle curvature factor for this.
-        desired_curvature_rate = desired_curvature_rate * HC_PID_curvature_factor
 
         # rate limit path_angle
         # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
