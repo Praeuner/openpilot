@@ -111,16 +111,8 @@
       "enabled": true
     },
     {
-      "name": "FordPrefRadarOverlaySize",
-      "default": 1,
-      "type": "int",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true
-    },
-    {
       "name": "FordLatTuningLaneChgFactorHigh",
-      "default": 0.75,
+      "default": 0.70,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
@@ -131,7 +123,7 @@
     },
     {
       "name": "FordLatTuningPCBlendRatio_high_C",
-      "default": 0.4,
+      "default": 0.40,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
@@ -142,7 +134,7 @@
     },
     {
       "name": "FordLatTuningPCBlendRatio_low_C",
-      "default": 0.06,
+      "default": 0.40,
       "min": 0.0,
       "max": 1.0,
       "type": "float",
@@ -152,23 +144,12 @@
       "enabled": true
     },
     {
-      "name": "FordLatTuningLargeCurveFactor_high",
-      "default": 0.97,
-      "min": 0.8,
-      "max": 1.0,
-      "type": "float",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "large_curve_factor_high",
-      "create_default": true,
-      "enabled": true
-    },
-    {
       "name": "FordLatTuningEnableAdvLatCtrl",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
       "ccProp": "enable_AdvLatCtrl",
-      "create_default": true,
+      "create_default": false,
       "enabled": true
     },
     {
@@ -179,6 +160,28 @@
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
       "ccProp": "custom_path_offset",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningWheelAngleLookupTime",
+      "default": 0.0,
+      "min": 0.0,
+      "max": 0.8,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "wheel_angle_lookup_time",
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningPathOffsetLookupTime",
+      "default": 0.0,
+      "min": 0.0,
+      "max": 0.8,
+      "type": "float",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "path_offset_lookup_time",
       "create_default": true,
       "enabled": true
     },
@@ -203,24 +206,24 @@
       "enabled": true
     },
     {
-      "name": "FordLatTuningPathAngleHighSpeedFactorUI",
-      "default": 1.0,
+      "name": "FordLatTuningLCPIDGainUI",
+      "default": 0.5,
       "min": 0.0,
-      "max": 10.0,
+      "max": 5.0,
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "path_angle_high_speed_factor_UI",
+      "ccProp": "LC_PID_gain_UI",
       "create_default": true,
       "enabled": true
     },
     {
-      "name": "FordLatTuningPathAngleHighCurvatureFactorUI",
-      "default": 0.2,
+      "name": "FordLatTuningHCPIDGainUI",
+      "default": 1.0,
       "min": 0.0,
-      "max": 1.0,
+      "max": 5.0,
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "path_angle_high_curvature_factor_UI",
+      "ccProp": "HC_PID_gain_UI",
       "create_default": true,
       "enabled": true
     },
@@ -276,22 +279,6 @@
       "name": "EnableBluepilotRlogUploader",
       "default": false,
       "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": false,
-      "enabled": false
-    },
-    {
-      "name": "ShowWideCameraAtLowSpeed",
-      "default": false,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": false,
-      "enabled": true
-    },
-    {
-      "name": "BPLastSeenVersion",
-      "default": "",
-      "type": "string",
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": false,
       "enabled": true

@@ -39,7 +39,7 @@ class CarInterface(CarInterfaceBase):
     info(f'| Blue Cruise Cluster Present: {FordConfig.BLUECRUISE_CLUSTER_PRESENT}', True)
 
     ret.steerControlType = structs.CarParams.SteerControlType.angle
-    ret.steerActuatorDelay = 0.05
+    ret.steerActuatorDelay = 0.22
     ret.steerLimitTimer = 1.0
     ret.steerAtStandstill = True
 
@@ -68,7 +68,7 @@ class CarInterface(CarInterfaceBase):
     info(f"| alphaLongAvailable: {ret.alphaLongitudinalAvailable}", True)
     info(f"| experimental_long: {alpha_long}", True)
     info(f"| ret.flags & FordFlags.CANFD: {ret.flags & FordFlags.CANFD}", True)
-	
+
     if alpha_long or not bool(ret.flags & FordFlags.CANFD):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True

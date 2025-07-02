@@ -92,21 +92,19 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = None
     self.distance_bar_frame = 0
     self.accel_pitch_compensated = 0.0
+    self.steering_wheel_delta_adjusted = 0.0
 
     ################################## lateral control parameters ##############################################
 
     # Variables to initialize (these get updated every scan as part of the control code)
-    self.path_lookup_time = CP.steerActuatorDelay  # how far into the future to we need to look for our path_angle signals.
     self.precision_type = 1  # precise or comfort
     self.human_turn = False  # have we detected a human override in a turn
     self.enable_AdvLatCtrl = False # Updated from UI: enable Advanced Lateral Control
     self.custom_profile = 0 # updated from UI
     self.pc_blend_ratio = 0.5
-    self.path_angle_high_speed_factor = 5.0
-    self.path_angle_high_curvature_factor = 0.17
 
     # Curvature variables
-    self.curvature_lookup_time = 0.05 #from bp-2.1
+    self.curvature_lookup_time = 0.42 #from lagd
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
     self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
@@ -117,10 +115,6 @@ class CarController(CarControllerBase):
     self.pc_blend_ratio_low_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_high_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_bp = [0.0, 0.001] # curvature breakpoints in 1/m
-    self.large_curve_factor_low = 1.0 # factor to reduce curvature for small curves
-    self.large_curve_factor_high = 0.97 # Updated from UI: factor to reduce curvature for large curves
-    self.large_curve_factor_bp = [0.001, 0.02] # curvature breakpoints in 1/m
-    self.large_curve_factor_v = [self.large_curve_factor_low, self.large_curve_factor_high] #  determine factor to reduce curvature for large curves
 
     # Curvature rate variables
     self.curvature_rate_delta_t = 0.3  # [s] used in denominator for curvature rate calculation
@@ -133,24 +127,38 @@ class CarController(CarControllerBase):
     self.min_laneline_confidence_bp = [0.6, 0.8]
     self.enable_lanefull_mode = True
 
-    # path angle variables
-    self.path_angle_filter_samples = 10 # number of samples to use for the moving average filter
+    #path angle shared variables
+    self.path_angle_filter_samples = 3 # number of samples to use for the moving average filter
     self.path_angle_deque = deque(maxlen=self.path_angle_filter_samples) # deque to hold the samples
-    self.path_angle_wheel_angle_conversion = 0.0017 # degrees to milliradians
-    self.path_angle_speed_bp = [4.4, 40.23]  # what speeds to adjust path_angle_speed_factor over.
-    self.path_angle_low_speed_factor = 0.05 # path_angle_speed_factor at 4.45 m/s
-    self.path_angle_high_speed_factor_CANFD = 1.4 # path_angle_speed_factor at 40.23 m/s
-    self.path_angle_high_speed_factor_CAN = 7.5 # path_angle_speed_factor at 40.23 m/s
-    self.path_angle_high_speed_factor_UI = 5.0 # path_angle_speed_factor at 40.23 m/s
-    self.path_angle_curvature_factor_bp = [0.00025, 0.001] # what curvature to adjust path_angle.
-    self.path_angle_low_curvature_factor = 1.0 # path_angle_curvature_factor at 0.001
-    self.path_angle_high_curvature_factor_CANFD = 0.00 # path_angle_curvature_factor at 0.002
-    self.path_angle_high_curvature_factor_CAN = 0.20 # path_angle_curvature_factor at 0.002
-    self.path_angle_high_curvature_factor_UI = 0.10 # path_angle_curvature_factor at 0.002
+    self.path_angle_wheel_angle_conversion = (np.pi/180) # degrees to radians
+
+    # path angle low curvature variables
+    self.LC_PID_gain_UI = 0.5 # gain for UI tuning
+    self.LC_PID_k_p = 0.25
+    self.LC_PID_k_i = 0.05
+    self.LC_PID_controller = PIDController(k_p=self.LC_PID_k_p, k_i=self.LC_PID_k_i, rate=20)
+    self.LC_PID_speed_bp = [0.0, 9.0, 15.0]  # speed breakpoints in m/s
+    self.LC_PID_speed_v = [0.0, 0.0, 1.0]  # corresponding k_p values
+    self.LC_path_angle_ROC_low = 1.25
+    self.LC_path_angle_ROC_high = 0.75
+    self.LC_path_angle_ROC_bp = [4.4, 40.23]  # speed breakpoints in m/s
+    self.LC_path_angle_ROC_v = [self.LC_path_angle_ROC_low/1000, self.LC_path_angle_ROC_high/1000]  # use 1/1000 so the UI varibles are easier to set
+
+    # path angle high curvature variables
+    self.HC_PID_gain_UI = 0.5 # gain for UI tuning
+    self.HC_PID_k_p = 1.0
+    self.HC_PID_k_i = 0.05
+    self.HC_PID_controller = PIDController(k_p=self.HC_PID_k_p, k_i=self.HC_PID_k_i, rate=20)
+    self.wheel_angle_lookup_time = 0.05
+    self.HC_PID_curvature_bp = [0.0, 0.008, 0.01, 0.02]  # curvature breakpoints in 1/m
+    self.HC_PID_curvature_v = [0.0, 0.0, 1.0, 1.0]  # corresponding k_p values
+    self.HC_PID_speed_bp = [0.0, 20.00, 22.00, 25.00]  # what speeds to adjust path_angle_speed_factor over.
+    self.HC_PID_speed_v = [1.0, 1.0, 0.0, 0.0]
+    self.pswa_blend_ratio = 1.0
 
     # max absolute values for all four signals
-    self.path_angle_max = 0.1  # too much path angle is dangerious
-    self.path_offset_max = 1.0  # too much path offset causes issues
+    self.path_angle_max = 0.5  # from dbc files
+    self.path_offset_max = 2.0  # too much path offset causes issues
     self.curvature_max = 0.02  # from dbc files
     self.curvature_rate_max = 0.001023  # from dbc files
 
@@ -179,19 +187,15 @@ class CarController(CarControllerBase):
     self.max_path_offset_change = 0.00125
     self.max_curvature_rate_change = 0.0001
 
-    self.sm = messaging.SubMaster(['modelV2', 'liveParameters', 'selfdriveState'])
+    self.sm = messaging.SubMaster(['modelV2', 'liveParameters'])
     self.VM = VehicleModel(self.CP)
     self.curvature_lookup_time = 0.2
 
     self.model = None
     self.lp = None
-    self.ss = None
     self.send_driver_monitor_can_msg = False
     self.send_lane_depart_can_msg = False
     self.send_hands_free_cluster_msg = False
-    self.tja_msg = 0
-    self.tja_warn = 0
-    self.hands = 0
     self.predictedSteeringAngleDeg_SP = 0.0
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
@@ -261,9 +265,6 @@ class CarController(CarControllerBase):
     if self.sm.updated['liveParameters']:
       self.lp = self.sm["liveParameters"]
 
-    if self.sm.updated['selfdriveState']:
-      self.ss = self.sm['selfdriveState']
-
     if self.lp is not None:
       x = max(self.lp.stiffnessFactor, 0.1)
       sr = max(self.lp.steerRatio, 0.1)
@@ -285,17 +286,15 @@ class CarController(CarControllerBase):
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
 
     # Compute the DM message values
+    tja_msg = 0
+    tja_warn = 0
     if self.send_driver_monitor_can_msg:
-      # print(f'HudControl: {hud_control}')
-      # print(f'tja_msg: {self.tja_msg} | tja_warn: {self.tja_warn}')
-      if (self.frame % CarControllerParams.ACC_UI_STEP) == 0:
-        self.tja_msg, self.tja_warn, self.hands = compute_dm_msg_values(self.ss, hud_control, self.send_hands_free_cluster_msg, main_on)
+      if self.send_hands_free_cluster_msg:
+        # print(f'HudControl: {hud_control}')
+        # print(f'tja_msg: {tja_msg} | tja_warn: {tja_warn}')
+        tja_msg, tja_warn = compute_dm_msg_values(hud_control, self.send_hands_free_cluster_msg)
     else:
       steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
-      if steer_alert:
-        self.hands = 1
-      else:
-        self.hands = 0
 
     ### acc buttons ###
     if CC.cruiseControl.cancel:
@@ -330,22 +329,17 @@ class CarController(CarControllerBase):
         if self.custom_profile == 1: # custom tuning profile
           self.pc_blend_ratio_low_C =  self.pc_blend_ratio_low_C_UI
           self.pc_blend_ratio_high_C =  self.pc_blend_ratio_high_C_UI
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_UI
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_UI
+
         elif self.CP.flags & FordFlags.CANFD:
           self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CANFD
           self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CANFD
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CANFD
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CANFD
+
         else:
           self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CAN
           self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CAN
-          self.path_angle_high_speed_factor = self.path_angle_high_speed_factor_CAN
-          self.path_angle_high_curvature_factor = self.path_angle_high_curvature_factor_CAN
 
 
         self.pc_blend_ratio_v = [self.pc_blend_ratio_low_C, self.pc_blend_ratio_high_C] # %-Predicted Curvature
-
 
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
@@ -355,9 +349,15 @@ class CarController(CarControllerBase):
         if self.model is not None and len(self.model.orientation.x) >= 17:
           # compute curvature from model predicted orientationRate, and blend with desired curvature based on max predicted curvature magnitude
           curvatures = np.array(self.model.orientationRate.z) / max(0.01, CS.out.vEgoRaw)
-          predicted_curvature = interp(self.path_lookup_time, ModelConstants.T_IDXS, curvatures)
+          predicted_steering_angle_curvature = interp(self.wheel_angle_lookup_time, ModelConstants.T_IDXS, curvatures)
+          predicted_curvature = interp(self.curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
+          max_abs_predicted_curvature = max(np.abs(curvatures[:17]))  # max curvature magnitude over next 2.5s
         else:
           predicted_curvature = 0.0
+
+        # calculate predicted steering angle
+        self.predictedSteeringAngleDeg_SP = math.degrees(self.VM.get_steer_from_curvature(-predicted_steering_angle_curvature, CS.out.vEgoRaw, 0))
+        self.predictedSteeringAngleDeg_SP += self.lp.angleOffsetDeg
 
         # calculate blend ratio
         self.pc_blend_ratio = interp(abs(desired_curvature), self.pc_blend_ratio_bp, self.pc_blend_ratio_v)
@@ -391,16 +391,6 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-        # determine large curve factor
-        large_curve_factor = interp(abs(requested_curvature), self.large_curve_factor_bp, self.large_curve_factor_v)
-
-        #no large curve factor in lane changes
-        if self.lane_change:
-          large_curve_factor = 1.0
-
-        # apply large curve factor
-        requested_curvature = requested_curvature * large_curve_factor
-
         # Apply curvature limits
         apply_curvature = apply_ford_curvature_limits(
           requested_curvature,
@@ -412,8 +402,11 @@ class CarController(CarControllerBase):
           self.CP
         )
 
+        # for testing no limits
+        apply_curvature = requested_curvature
+
         # compute curvature rate
-        self.curvature_rate_deque.append(apply_curvature)
+        self.curvature_rate_deque.append(predicted_curvature)
         if len(self.curvature_rate_deque) > 1:
           delta_t = (
             self.curvature_rate_delta_t if len(self.curvature_rate_deque) == self.curvature_rate_deque.maxlen else (len(self.curvature_rate_deque) - 1) * 0.05
@@ -438,7 +431,6 @@ class CarController(CarControllerBase):
         laneline_width = self.model.laneLines[2].y[0] + (-self.model.laneLines[1].y[0]) # laneLines[1] is a negative value because it is left of the vehicle.
         laneline_width_tolerance = interp(laneline_width, [3.75,4.25], [0.81, 0.59]) # 3.7 is the width of standard US lane in meters
 
-
         # determine laneline confidence
         laneline_confidence = min(self.model.laneLineProbs[1], self.model.laneLineProbs[2], laneline_width_tolerance)
         if not self.enable_lanefull_mode:
@@ -454,62 +446,59 @@ class CarController(CarControllerBase):
         if self.lane_change:
           path_offset = 0
 
-        # Use path_angle to help with centering vehicle in lane, derive path_angle from the models desired steering wheel position
+        # Use the UI variable for Gain and set the PID gain to 1.0, UI variable divided by 10 to make UI variable easier to set
+        path_offset_error = (path_offset * (self.LC_PID_gain_UI/10))
+
+        # determine speed factor
+        LC_PID_speed_factor = interp(CS.out.vEgoRaw, self.LC_PID_speed_bp, self.LC_PID_speed_v)
+
+        # apply speed factor to path_offset_error
+        path_offset_error_adj = path_offset_error * LC_PID_speed_factor
+
+        # Use path_angle to help with centering vehicle in lane, Use PID controller to calculate path_angle
+        path_angle_low_c = self.LC_PID_controller.update(path_offset_error_adj)
+
+        # rate limit path_angle_low_c for comfort
+        path_angle_roc = interp(abs(CS.out.vEgoRaw), self.LC_path_angle_ROC_bp, self.LC_path_angle_ROC_v)
+        path_angle_low_c = clip(path_angle_low_c, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+
         # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
+        # calculate how far the steering wheel is from the desired steering wheel angle
+        steering_wheel_delta = (steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
 
-        # first define the desired steering wheel angle
-        desired_steeringAngleDeg_SP = actuators.steeringAngleDeg
+        # calculate path angle for high curvature situations:
+        # interpolate path_angle_factor based on curvature
+        HC_PID_curvature_factor = interp(max_abs_predicted_curvature, self.HC_PID_curvature_bp, self.HC_PID_curvature_v)
 
-         # calcualte the path_angle_speed_factor
-        path_angle_speed_v = [self.path_angle_low_speed_factor, self.path_angle_high_speed_factor]  # what should the range on path_angle_speed_factor be at low and high speed
-        path_angle_speed_factor = interp(abs(CS.out.vEgoRaw), self.path_angle_speed_bp, path_angle_speed_v)
+        # interpolate path_angle_speed_factor based on speed
+        HC_PID_speed_factor = interp(CS.out.vEgoRaw, self.HC_PID_speed_bp, self.HC_PID_speed_v)
 
-        # calculate the path_angle_curvature_factor
-        path_angle_curvature_factor = interp(abs(apply_curvature), self.path_angle_curvature_factor_bp, [self.path_angle_low_curvature_factor, self.path_angle_high_curvature_factor])
+        # choose which path_angle factor to use (curvature or speed)
+        HC_PID_adjust_factor = min(HC_PID_curvature_factor, HC_PID_speed_factor)
 
-        # calculate steering angle associated with the base path (predicted_curvature)
-        steering_wheel_delta = steeringAngleDeg_PV - steeringAngleDeg_SP
+        # apply the adjustment factor to the steering_wheel_delta before executing the PID
+        self.steering_wheel_delta_adjusted = steering_wheel_delta * HC_PID_adjust_factor * self.HC_PID_gain_UI
 
-        # if a human turn is active, zero out the steering_wheel_delta
-        if self.human_turn:
-          steering_wheel_delta = 0.0
+        # use PID to calcualte path_angle, gain is interpolated based on curvature (default is speed)
+        path_angle_high_c = self.HC_PID_controller.update((self.steering_wheel_delta_adjusted))
 
-        # if a lane change is active, zero out the steering_wheel_delta
-        if self.lane_change:
-          steering_wheel_delta = 0.0
+        #temp disable path_angle_high_c
+        path_angle_high_c = 0.0
 
-        # if we are not using Advanced Lateral Control, zero out the steering_wheel_delta
-        if not self.enable_AdvLatCtrl:
-          steering_wheel_delta = 0.0
-
-        # if we are really low speeds, no steering wheel delta because the model does stupid things
-        if CS.out.vEgoRaw < 2:
-          steering_wheel_delta = 0.0
-
-        # calculate wheel angle from path_offset
-        path_angle_raw = steering_wheel_delta * self.path_angle_wheel_angle_conversion * path_angle_speed_factor * path_angle_curvature_factor
-
-        # on striaight aways, only allow path_angle to adjust the steering wheel if it is in the same direction as the path_offset
-        # if abs(apply_curvature) < 0.001:
-        #  if path_offset > 0 and path_angle_raw < 0:
-        #    path_angle_raw = 0.0
-        #  elif path_offset < 0 and path_angle_raw > 0:
-        #    path_angle_raw = 0.0
-
-        # filter path_angle for smoothing
-        self.path_angle_deque.append(path_angle_raw)
-        path_angle_model = sum(self.path_angle_deque) / len(self.path_angle_deque) if len(self.path_angle_deque) > 0 else 0.0
+        # sum path_angle_low_c and path_angle_high_c
+        path_angle = path_angle_low_c + path_angle_high_c
 
         # zero path_angle during lane changes
         if self.lane_change:
-          path_angle_model = 0.0
+          path_angle = 0.0
 
-        # final path_angle variable
-        path_angle = path_angle_model
+        # if the path_angle signal is zerod out by the factors, reset the PID controller
+        if HC_PID_adjust_factor < 0.1:
+          self.HC_PID_controller.reset()
 
         # rate limit path_angle
-        path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
-        path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+        # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
+        # path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
 
         # Apply post lane change transition logic
         path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
@@ -527,6 +516,10 @@ class CarController(CarControllerBase):
           path_angle = 0.0
           path_offset = 0.0
           desired_curvature_rate = 0.0
+
+        # if path_offset and path_angle disagree, it can result in a very uncomortable ride, since path_angle is so strong, zero out path_offset
+        path_offset = 0.0
+
 
         # Determine if a human is making a turn and trap the value
         # if a human turn is active, reset steering to prevent windup
@@ -549,6 +542,8 @@ class CarController(CarControllerBase):
           desired_curvature_rate = 0
           ramp_type = 3
           self.path_angle_deque.clear()
+          self.HC_PID_controller.reset()
+          self.LC_PID_controller.reset()
         else:
           ramp_type = 2
       else:
@@ -557,6 +552,8 @@ class CarController(CarControllerBase):
         path_offset = 0.0
         path_angle = 0.0
         self.path_angle_deque.clear()
+        self.HC_PID_controller.reset()
+        self.LC_PID_controller.reset()
         ramp_type = 0
 
       self.apply_curvature_last = apply_curvature
@@ -640,7 +637,7 @@ class CarController(CarControllerBase):
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
     # send lkas ui msg at 1Hz or if ui state changes
     if (self.frame % CarControllerParams.LKAS_UI_STEP) == 0 or send_ui:
-      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, self.hands, hud_control, CS.lkas_status_stock_values))
+      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, steer_alert, hud_control, CS.lkas_status_stock_values))
 
     # send acc ui msg at 5Hz or if ui state changes
     send_bars = False
@@ -674,8 +671,8 @@ class CarController(CarControllerBase):
           self.send_hands_free_cluster_msg,
           send_ui,
           send_bars,
-          self.tja_warn,
-          self.tja_msg,
+          tja_warn,
+          tja_msg,
         )
       )
 
@@ -691,6 +688,6 @@ class CarController(CarControllerBase):
     new_actuators.curvature = float(apply_curvature)
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
-    new_actuators.steeringAngleDeg = float(self.predictedSteeringAngleDeg_SP)
+    new_actuators.steeringAngleDeg = float(self.steering_wheel_delta_adjusted)
     self.frame += 1
     return new_actuators, can_sends
