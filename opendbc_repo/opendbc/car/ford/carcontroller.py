@@ -505,6 +505,9 @@ class CarController(CarControllerBase):
         if HC_PID_adjust_factor < 0.1:
           self.HC_PID_controller.reset()
 
+        # curvature rate seems to be causing hugging the inside edge of curves.  Let's only use it in bigger curves.  We can borrow the path_angle curvature factor for this.
+        desired_curvature_rate = desired_curvature_rate * HC_PID_curvature_factor
+
         # rate limit path_angle
         # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
         # path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
