@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <chrono>
 #include <algorithm>
+#include <iostream>
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
@@ -91,13 +92,13 @@ void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UI
 template<typename ModelType>
 void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, const UIState &s, const ModelType &model) {
   // Debug early to see what's enabled
-  static int global_debug_counter = 0;
-  if (global_debug_counter++ % 100 == 0) {
-    qDebug() << "BluePilot renderAll - hybrid:" << s.scene.show_hybrid_drive_overlay
-             << "radar:" << s.scene.show_new_radar_overlay
-             << "stop:" << s.scene.show_stop_indicator_overlay
-             << "timer:" << s.scene.stand_still_timer;
-  }
+  // static int global_debug_counter = 0;
+  // if (global_debug_counter++ % 100 == 0) {
+  //   std::cout << "BluePilot renderAll - hybrid: " << s.scene.show_hybrid_drive_overlay
+  //             << " radar: " << s.scene.show_new_radar_overlay
+  //             << " stop: " << s.scene.show_stop_indicator_overlay
+  //             << " timer: " << s.scene.stand_still_timer << std::endl;
+  // }
 
   // PERFORMANCE: Early exit if no BluePilot features enabled
   if (!s.scene.show_hybrid_drive_overlay &&
@@ -126,6 +127,16 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
 template<typename ModelType>
 void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &model) {
   const SubMaster &sm = *(s.sm);
+
+  // FIXED: Validate carState message before accessing
+  if (!sm.valid("carState")) {
+    static int error_counter = 0;
+    if (error_counter++ % 50 == 0) {
+      std::cerr << "ERROR: BluePilot carState message not valid, skipping frame state update" << std::endl;
+    }
+    return;
+  }
+
   const auto car_state = sm["carState"].getCarState();
 
   // Update blinker state
@@ -168,12 +179,12 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
 
   // Debug logging
   static int debug_counter = 0;
-  if (debug_counter++ % 100 == 0) {
-    qDebug() << "BluePilot Debug - show_radar:" << frame_state.show_radar
-             << "show_stop:" << frame_state.show_stop
-             << "scene.show_new_radar_overlay:" << s.scene.show_new_radar_overlay
-             << "scene.show_stop_indicator_overlay:" << s.scene.show_stop_indicator_overlay;
-  }
+  // if (debug_counter++ % 100 == 0) {
+  //   std::cout << "BluePilot Debug - show_radar: " << frame_state.show_radar
+  //             << " show_stop: " << frame_state.show_stop
+  //             << " scene.show_new_radar_overlay: " << s.scene.show_new_radar_overlay
+  //             << " scene.show_stop_indicator_overlay: " << s.scene.show_stop_indicator_overlay << std::endl;
+  // }
 
   // FIXED: Properly get transform and clip region from model
   if (frame_state.show_radar || frame_state.show_stop) {
@@ -183,25 +194,59 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
     // Check if transform is valid but don't return early
     if (frame_state.transform.isZero()) {
       if (debug_counter % 20 == 0) {
-        qDebug() << "WARNING: BluePilot transform is zero - overlays may not work properly";
+        std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
       }
     }
 
     // Update lane line vertices even if transform might be zero
     // The transform might be set later in the frame
+
+    // FIXED: Validate modelV2 message before accessing
+    if (!sm.valid("modelV2")) {
+      if (debug_counter % 50 == 0) {
+        std::cerr << "WARNING: BluePilot modelV2 not valid, skipping lane line processing" << std::endl;
+      }
+      return;
+    }
+
     const auto &modelV2 = sm["modelV2"].getModelV2();
     const auto &lane_lines = modelV2.getLaneLines();
-    float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
 
-    // Only map lane lines if transform is valid
-    if (!frame_state.transform.isZero()) {
-      for (int i = 0; i < 4 && i < lane_lines.size(); ++i) {
+    // FIXED: Add proper validation for liveCalibration height access
+    float path_offset_z = 0.0f; // Default value
+    if (sm.valid("liveCalibration")) {
+      const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+      const auto &height_list = live_calib.getHeight();
+      if (height_list.size() > 0) {
+        path_offset_z = height_list[0];
+      } else {
+        if (debug_counter % 50 == 0) {
+          std::cerr << "WARNING: BluePilot liveCalibration height list is empty, using default value" << std::endl;
+        }
+      }
+    } else {
+      if (debug_counter % 50 == 0) {
+        std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
+      }
+    }
+
+    // Only map lane lines if transform is valid and we have lane line data
+    if (!frame_state.transform.isZero() && lane_lines.size() > 0) {
+      for (int i = 0; i < 4 && i < static_cast<int>(lane_lines.size()); ++i) {
         frame_state.lane_line_vertices[i].clear();
         const auto &line = lane_lines[i];
         const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
 
+        // Additional safety check for line data consistency
+        if (line_x.size() == 0 || line_y.size() != line_x.size() || line_z.size() != line_x.size()) {
+          if (debug_counter % 100 == 0) {
+            std::cerr << "WARNING: BluePilot lane line " << i << " has inconsistent data sizes" << std::endl;
+          }
+          continue;
+        }
+
         // Map line points to screen, limiting to reasonable distance
-        for (int j = 0; j < line_x.size() && line_x[j] < 100.0f; ++j) {
+        for (int j = 0; j < static_cast<int>(line_x.size()) && line_x[j] < 100.0f; ++j) {
           if (line_x[j] < 0) continue;
 
           QPointF left, right;
@@ -212,6 +257,11 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
             frame_state.lane_line_vertices[i].push_front(right);
           }
         }
+      }
+    } else {
+      if (debug_counter % 100 == 0) {
+        std::cerr << "WARNING: BluePilot skipping lane line mapping - transform zero: "
+                  << frame_state.transform.isZero() << " lane_lines size: " << lane_lines.size() << std::endl;
       }
     }
   }
@@ -371,7 +421,14 @@ void BluepilotRenderer::drawAllRadarPoints(QPainter &painter, const QRect &rect,
   painter.setRenderHint(QPainter::Antialiasing, true);
 
   // Get path offset for z calculations
-  float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
+  float path_offset_z = 0.0f;
+  if (sm.valid("liveCalibration")) {
+    const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+    const auto &height_list = live_calib.getHeight();
+    if (height_list.size() > 0) {
+      path_offset_z = height_list[0];
+    }
+  }
 
   // Draw lead one
   const auto &lead_one = radar_state.getLeadOne();
@@ -408,6 +465,21 @@ void BluepilotRenderer::drawAllRadarPoints(QPainter &painter, const QRect &rect,
 
 void BluepilotRenderer::updateLeadTracking(const UIState &s) {
   const SubMaster &sm = *(s.sm);
+
+  // FIXED: Validate required messages before accessing
+  if (!sm.valid("radarState") || !sm.valid("modelV2")) {
+    static int error_counter = 0;
+    if (error_counter++ % 50 == 0) {
+      std::cerr << "WARNING: BluePilot radarState or modelV2 not valid in updateLeadTracking" << std::endl;
+    }
+    // Set all leads to inactive
+    for (int i = 0; i < 2; ++i) {
+      frame_state.lead_state.virtual_active[i] = false;
+      frame_state.lead_state.stable[i] = false;
+    }
+    return;
+  }
+
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &model = sm["modelV2"].getModelV2();
 
@@ -503,7 +575,15 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         }
 
         // FIXED: Use exact same approach as model_old.cc - no Y sign flip, use path_offset_z
-        float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
+        float path_offset_z = 0.0f;
+        if (sm.valid("liveCalibration")) {
+          const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+          const auto &height_list = live_calib.getHeight();
+          if (height_list.size() > 0) {
+            path_offset_z = height_list[0];
+          }
+        }
+
         QPointF current_pos;
         if (mapToScreen(d_rel, frame_state.lead_state.smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
           bool reasonable_position = true;
@@ -577,6 +657,18 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
     return;
   }
 
+  // FIXED: Validate required messages before accessing
+  if (!sm.valid("modelV2") || !sm.valid("radarState") || !sm.valid("carState")) {
+    static int error_counter = 0;
+    if (error_counter++ % 50 == 0) {
+      std::cerr << "WARNING: BluePilot required messages not valid in updateStopDetection" << std::endl;
+    }
+    frame_state.stop_state.active = false;
+    frame_state.stop_state.stability_counter = 0;
+    frame_state.stop_state.fade_alpha = std::max(0.0f, frame_state.stop_state.fade_alpha - 0.1f);
+    return;
+  }
+
   const auto &model = sm["modelV2"].getModelV2();
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
@@ -585,7 +677,14 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
   float brake_value = car_state.getBrake();
 
   // Get path offset for z calculations
-  float path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
+  float path_offset_z = 0.0f;
+  if (sm.valid("liveCalibration")) {
+    const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+    const auto &height_list = live_calib.getHeight();
+    if (height_list.size() > 0) {
+      path_offset_z = height_list[0];
+    }
+  }
 
   const auto &velocity = model.getVelocity().getX();
   const auto &position_x = model.getPosition().getX();
@@ -698,26 +797,23 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
 
 void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, const UIState &s) {
   const SubMaster &sm = *(s.sm);
-  const auto &radar_state = sm["radarState"].getRadarState();
-  bool experimental_mode = sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
-  bool longitudinal_control = sm["carParams"].getCarParams().getOpenpilotLongitudinalControl();
 
-  static int debug_counter = 0;
-  if (debug_counter++ % 100 == 0) {
-    qDebug() << "BluePilot radar - experimental_mode:" << experimental_mode
-             << "longitudinal_control:" << longitudinal_control
-             << "radarState alive:" << sm.alive("radarState")
-             << "show_radar flag:" << frame_state.show_radar;
-  }
+  // static int debug_counter = 0;
+  // if (debug_counter++ % 100 == 0) {
+  //   std::cout << "BluePilot radar - radarState alive: " << sm.alive("radarState")
+  //             << " show_radar flag: " << frame_state.show_radar << std::endl;
+  // }
 
   // Show radar overlay if enabled, regardless of experimental mode
-  if (!frame_state.show_radar || !sm.alive("radarState")) {
+  if (!frame_state.show_radar || !sm.alive("radarState") || !sm.valid("radarState")) {
     return;
   }
 
   if (!icons_initialized) {
     initializeStaticData();
   }
+
+  const auto &radar_state = sm["radarState"].getRadarState();
 
   // Get radar overlay size scale
   int radar_scale = s.scene.radar_overlay_size;
@@ -767,13 +863,13 @@ void BluepilotRenderer::drawStopSignDetection(QPainter &painter, const QRect &re
   float v_ego = frame_state.vehicle_speed;
   if (v_ego < 0.5f) return;
 
-  static int stop_debug_counter = 0;
-  if (frame_state.stop_state.active && stop_debug_counter++ % 50 == 0) {
-    qDebug() << "BluePilot stop sign - active:" << frame_state.stop_state.active
-             << "fade_alpha:" << frame_state.stop_state.fade_alpha
-             << "distance:" << frame_state.stop_state.display_distance
-             << "show_stop flag:" << frame_state.show_stop;
-  }
+  // static int stop_debug_counter = 0;
+  // if (frame_state.stop_state.active && stop_debug_counter++ % 50 == 0) {
+  //   std::cout << "BluePilot stop sign - active: " << frame_state.stop_state.active
+  //             << " fade_alpha: " << frame_state.stop_state.fade_alpha
+  //             << " distance: " << frame_state.stop_state.display_distance
+  //             << " show_stop flag: " << frame_state.show_stop << std::endl;
+  // }
 
   if (frame_state.stop_state.active || frame_state.stop_state.fade_alpha > 0.0f) {
     // Get position for stop sign (use last valid if current is invalid)
@@ -827,7 +923,7 @@ bool BluepilotRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF 
   if (frame_state.transform.isZero()) {
     static int error_counter = 0;
     if (error_counter++ % 200 == 0) {
-      qDebug() << "BluePilot: Transform is zero, cannot map to screen";
+      std::cerr << "BluePilot: Transform is zero, cannot map to screen" << std::endl;
     }
     return false;
   }
@@ -856,7 +952,7 @@ bool BluepilotRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF 
 int BluepilotRenderer::get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height) {
   const auto &line_x = line.getX();
   int max_idx = 0;
-  for (int i = 1; i < line_x.size() && line_x[i] <= path_height; ++i) {
+  for (int i = 1; i < static_cast<int>(line_x.size()) && line_x[i] <= path_height; ++i) {
     max_idx = i;
   }
   return max_idx;
