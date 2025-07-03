@@ -438,6 +438,12 @@ class CarController(CarControllerBase):
         if self.lane_change:
           large_curve_factor = 1.0
 
+        # if we are in a lane change, set the desired_curvature_rate to 0
+        if self.lane_change:
+          desired_curvature_rate = 0.0
+
+        desired_curvature_rate = 0.0
+
         # Determine if a human is making a turn and trap the value
         if steeringPressed and abs(steeringAngleDeg_PV) > 45:
           self.human_turn = True
