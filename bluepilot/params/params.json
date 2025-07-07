@@ -144,11 +144,20 @@
       "enabled": true
     },
     {
-      "name": "FordLatTuningEnableAdvLatCtrl",
+      "name": "FordLatTuningEnableLanePositioning",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "enable_AdvLatCtrl",
+      "ccProp": "enable_lane_positioning",
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "FordLatTuningEnableHighCurvatureMode",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "enable_high_curvature_mode",
       "create_default": false,
       "enabled": true
     },
