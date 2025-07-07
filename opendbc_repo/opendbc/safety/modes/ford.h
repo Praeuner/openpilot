@@ -87,7 +87,7 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
   return valid;
 }
 
-// #define FORD_INACTIVE_CURVATURE 1000U
+#define FORD_INACTIVE_CURVATURE 1000U
 //#define FORD_INACTIVE_CURVATURE_RATE 4096U
 //#define FORD_INACTIVE_PATH_OFFSET 512U
 //#define FORD_INACTIVE_PATH_ANGLE 1000U
