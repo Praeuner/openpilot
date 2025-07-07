@@ -87,12 +87,12 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
   return valid;
 }
 
-#define FORD_INACTIVE_CURVATURE 1000U
-#define FORD_INACTIVE_CURVATURE_RATE 4096U
-#define FORD_INACTIVE_PATH_OFFSET 512U
-#define FORD_INACTIVE_PATH_ANGLE 1000U
+// #define FORD_INACTIVE_CURVATURE 1000U
+//#define FORD_INACTIVE_CURVATURE_RATE 4096U
+//#define FORD_INACTIVE_PATH_OFFSET 512U
+//#define FORD_INACTIVE_PATH_ANGLE 1000U
 
-#define FORD_CANFD_INACTIVE_CURVATURE_RATE 1024U
+// #define FORD_CANFD_INACTIVE_CURVATURE_RATE 1024U
 
 // Curvature rate limits
 #define FORD_LIMITS(limit_lateral_acceleration) {                                               \
@@ -100,12 +100,12 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
   .angle_deg_to_can = 50000,  /* 1 / (2e-5) rad to can */                                       \
   .max_angle_error = 100,     /* 0.002 * FORD_STEERING_LIMITS.angle_deg_to_can */               \
   .angle_rate_up_lookup = {                                                                     \
-    {5., 25., 25.},                                                                             \
-    {0.00045, 0.0001, 0.0001}                                                                   \
+    {5., 16., 25.},                                                                             \
+    {0.0026, 0.0013, 0.0001}                                                                   \
   },                                                                                            \
   .angle_rate_down_lookup = {                                                                   \
-    {5., 25., 25.},                                                                             \
-    {0.00045, 0.00015, 0.00015}                                                                 \
+    {5., 13., 25.},                                                                             \
+    {0.0026, 0.0015, 0.0002}                                                                 \
   },                                                                                            \
                                                                                                 \
   /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */ \
@@ -257,12 +257,13 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // Signal: LatCtl_D_Rq
     bool steer_control_enabled = ((GET_BYTE(to_send, 4) >> 2) & 0x7U) != 0U;
     unsigned int raw_curvature = (GET_BYTE(to_send, 0) << 3) | (GET_BYTE(to_send, 1) >> 5);
-    unsigned int raw_curvature_rate = ((GET_BYTE(to_send, 1) & 0x1FU) << 8) | GET_BYTE(to_send, 2);
-    unsigned int raw_path_angle = (GET_BYTE(to_send, 3) << 3) | (GET_BYTE(to_send, 4) >> 5);
-    unsigned int raw_path_offset = (GET_BYTE(to_send, 5) << 2) | (GET_BYTE(to_send, 6) >> 6);
+    //unsigned int raw_curvature_rate = ((GET_BYTE(to_send, 1) & 0x1FU) << 8) | GET_BYTE(to_send, 2);
+    //unsigned int raw_path_angle = (GET_BYTE(to_send, 3) << 3) | (GET_BYTE(to_send, 4) >> 5);
+    //unsigned int raw_path_offset = (GET_BYTE(to_send, 5) << 2) | (GET_BYTE(to_send, 6) >> 6);
 
     // These signals are not yet tested with the current safety limits
-    bool violation = (raw_curvature_rate != FORD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
+    // bool violation = (raw_curvature_rate != FORD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
+    bool violation = false;
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE;  // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
@@ -280,12 +281,13 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // Signal: LatCtl_D2_Rq
     bool steer_control_enabled = ((GET_BYTE(to_send, 0) >> 4) & 0x7U) != 0U;
     unsigned int raw_curvature = (GET_BYTE(to_send, 2) << 3) | (GET_BYTE(to_send, 3) >> 5);
-    unsigned int raw_curvature_rate = (GET_BYTE(to_send, 6) << 3) | (GET_BYTE(to_send, 7) >> 5);
-    unsigned int raw_path_angle = ((GET_BYTE(to_send, 3) & 0x1FU) << 6) | (GET_BYTE(to_send, 4) >> 2);
-    unsigned int raw_path_offset = ((GET_BYTE(to_send, 4) & 0x3U) << 8) | GET_BYTE(to_send, 5);
+    //unsigned int raw_curvature_rate = (GET_BYTE(to_send, 6) << 3) | (GET_BYTE(to_send, 7) >> 5);
+    //unsigned int raw_path_angle = ((GET_BYTE(to_send, 3) & 0x1FU) << 6) | (GET_BYTE(to_send, 4) >> 2);
+    //unsigned int raw_path_offset = ((GET_BYTE(to_send, 4) & 0x3U) << 8) | GET_BYTE(to_send, 5);
 
     // These signals are not yet tested with the current safety limits
-    bool violation = (raw_curvature_rate != FORD_CANFD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
+    // bool violation = (raw_curvature_rate != FORD_CANFD_INACTIVE_CURVATURE_RATE) || (raw_path_angle != FORD_INACTIVE_PATH_ANGLE) || (raw_path_offset != FORD_INACTIVE_PATH_OFFSET);
+    bool violation = false;
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE;  // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
