@@ -53,7 +53,7 @@ def get_dm_state(d_state, main_on):
     et = "none"
   return en, et
 
-def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
+def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main, standstill=False):
     tja_msg = 0
     tja_warn = 0
     hands = 0
@@ -73,11 +73,19 @@ def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
       elif driverState == "preDriverDistracted":
         tja_warn = 6  # Watch The Road (no chime)
       elif driverState == "promptDriverDistracted":
-        tja_warn = 7  # Watch The Road (chime)
+        # Only send audible alert if not at standstill to prevent beeping at red lights
+        if not standstill:
+          tja_warn = 7  # Watch The Road (chime)
+        else:
+          tja_warn = 6  # Watch The Road (no chime) - same as preDriverDistracted
       elif driverState == "preDriverUnresponsive":
         hands = 1  # Keep Hands on Steering Wheel (no chime)
       elif driverState == "promptDriverUnresponsive":
-        hands = 2  # Keep Hands on Steering Wheel (chime)
+        # Only send audible alert if not at standstill to prevent beeping at red lights
+        if not standstill:
+          hands = 2  # Keep Hands on Steering Wheel (chime)
+        else:
+          hands = 1  # Keep Hands on Steering Wheel (no chime) - same as preDriverUnresponsive
       elif hud_control.leftLaneDepart:
         tja_warn = 5  # Left Lane Departure (chime)
       elif hud_control.rightLaneDepart:
@@ -94,7 +102,11 @@ def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main):
       elif driverState in ("preDriverDistracted", "preDriverUnresponsive"):
         hands = 1  # Keep Hands on Steering Wheel (no chime)
       elif driverState in ("promptDriverDistracted", "promptDriverUnresponsive"):
-        hands = 2  # Keep Hands on Steering Wheel (chime)
+        # Only send audible alert if not at standstill to prevent beeping at red lights
+        if not standstill:
+          hands = 2  # Keep Hands on Steering Wheel (chime)
+        else:
+          hands = 1  # Keep Hands on Steering Wheel (no chime) - same as preDriverDistracted/Unresponsive
       else:
         tja_warn = 0
     return tja_msg, tja_warn, hands

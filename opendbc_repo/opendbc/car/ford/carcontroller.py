@@ -306,7 +306,7 @@ class CarController(CarControllerBase):
       # print(f'HudControl: {hud_control}')
       # print(f'tja_msg: {self.tja_msg} | tja_warn: {self.tja_warn}')
       if (self.frame % CarControllerParams.ACC_UI_STEP) == 0:
-        self.tja_msg, self.tja_warn, self.hands = compute_dm_msg_values(self.ss, hud_control, self.send_hands_free_cluster_msg, main_on)
+        self.tja_msg, self.tja_warn, self.hands = compute_dm_msg_values(self.ss, hud_control, self.send_hands_free_cluster_msg, main_on, CS.out.cruiseState.standstill)
     else:
       steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
       if steer_alert:

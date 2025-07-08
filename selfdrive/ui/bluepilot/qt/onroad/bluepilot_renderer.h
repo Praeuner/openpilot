@@ -70,6 +70,11 @@ private:
       bool prev_status[2] = {false, false};
       bool radar_assisted[2] = {false, false};
       QPointF vertices[2] = {};
+
+      // New fields for time-to-lead calculation
+      float d_rel[2] = {0.0f, 0.0f};
+      float v_lead[2] = {0.0f, 0.0f};
+      float v_rel[2] = {0.0f, 0.0f};
     } lead_state;
 
     // Stop detection state

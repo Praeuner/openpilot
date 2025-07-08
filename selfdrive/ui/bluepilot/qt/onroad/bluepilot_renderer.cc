@@ -6,6 +6,7 @@
 #include "common/timing.h"
 #include "common/params.h"
 #include <QApplication>
+#include <QPainterPath>
 #include <chrono>
 #include <algorithm>
 #include <iostream>
@@ -14,9 +15,7 @@
 #include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
 #endif
 
-// Automotive styling constants
-constexpr int CORNER_RADIUS = 6;
-constexpr int BORDER_WIDTH = 3;
+
 
 // Static member initialization
 BluepilotRenderer::FrameState BluepilotRenderer::frame_state;
@@ -43,41 +42,7 @@ static QLinearGradient createAutomotiveGradient(QRect rect, QColor baseColor, bo
   return gradient;
 }
 
-// Helper function to create automotive background gradient
-static QRadialGradient createAutomotiveBackground(QRect rect) {
-  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
-  gradient.setColorAt(0, QColor(44, 62, 80)); // Neutral center
-  gradient.setColorAt(1, QColor(26, 37, 47)); // Dark edge
-  return gradient;
-}
 
-// Helper function to draw inset border
-static void drawInsetBorder(QPainter &painter, QRect rect, QColor borderColor, int radius = CORNER_RADIUS) {
-  // Outer border (highlight)
-  painter.setPen(QPen(borderColor, BORDER_WIDTH));
-  painter.setBrush(Qt::NoBrush);
-  painter.drawRoundedRect(rect, radius, radius);
-
-  // Inner shadow effect
-  QRect innerRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH);
-  QColor shadowColor = borderColor.darker(200);
-  shadowColor.setAlpha(100);
-  painter.setPen(QPen(shadowColor, 1));
-  painter.drawRoundedRect(innerRect, radius - 2, radius - 2);
-}
-
-// Helper function to add metallic highlight
-static void addMetallicHighlight(QPainter &painter, QRect rect, int radius = CORNER_RADIUS) {
-  QRect highlightRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -rect.height()/2);
-  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
-  highlight.setColorAt(0, QColor(255, 255, 255, 20));
-  highlight.setColorAt(0.3, QColor(255, 255, 255, 5));
-  highlight.setColorAt(1, QColor(255, 255, 255, 0));
-
-  painter.setBrush(highlight);
-  painter.setPen(Qt::NoPen);
-  painter.drawRoundedRect(highlightRect, radius - 2, radius - 2);
-}
 
 #ifdef SUNNYPILOT
 void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRendererSP &model) {
@@ -637,6 +602,11 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
       }
     }
 
+    // Store lead data for time-to-lead calculation
+    frame_state.lead_state.d_rel[i] = lead_data.getDRel();
+    frame_state.lead_state.v_lead[i] = lead_data.getVLead();
+    frame_state.lead_state.v_rel[i] = lead_data.getVRel();
+
     frame_state.lead_state.prev_status[i] = current_status;
   }
 }
@@ -820,15 +790,15 @@ void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, 
   float scale_factor = 1.0f;
 
   if (radar_scale == 1) {
-    scale_factor = 0.7f;  // Small
+    scale_factor = 0.95f;  // Small (was 0.7f)
   } else if (radar_scale == 2) {
-    scale_factor = 0.85f; // Medium
+    scale_factor = 1.15f; // Medium (was 0.85f)
   } else if (radar_scale == 3) {
-    scale_factor = 1.0f;  // Normal
+    scale_factor = 1.35f;  // Normal (was 1.0f)
   } else if (radar_scale == 4) {
-    scale_factor = 1.15f; // Large
+    scale_factor = 1.55f; // Large (was 1.15f)
   } else {
-    scale_factor = 1.0f;  // Default to normal
+    scale_factor = 1.35f;  // Default to normal (was 1.0f)
   }
 
   for (int i = 0; i < 2; ++i) {
@@ -1202,9 +1172,11 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
                                         const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha, float scale_factor) {
   const float d_rel = lead_data.getDRel();
   const float v_lead = lead_data.getVLead();
+  const float v_rel = lead_data.getVRel();
+  const float v_ego = frame_state.vehicle_speed;
 
   // Calculate sizes based on distance for responsive design with scale factor
-  float base_sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.525;
+  float base_sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 3.0;  // Reduced from 5.0
   float sz = base_sz * scale_factor;
 
   float x = std::clamp<float>(vd.x(), 0.f, rect.width() - sz / 2);
@@ -1287,93 +1259,109 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
     }
   }
 
-  // ========== AUTOMOTIVE STYLING FOR INFO PANEL WITH SCALING ==========
-
-  // Position info panel centered below the lead vehicle with scaled dimensions
-  float panel_width = 300 * scale_factor;
-  float panel_height = 60 * scale_factor;
-  float panel_top = y + sz + (15 * scale_factor);
-
-  QRectF infoPanel(x - panel_width / 2, panel_top, panel_width, panel_height);
-
-  // Make sure the panel stays within the surface bounds
-  if (panel_top + panel_height > rect.height()) {
-    float available_height = rect.height() - panel_top - 5;
-    if (available_height < 45 * scale_factor) {
-      return;
-    }
-    infoPanel.setHeight(available_height);
-  }
-
-  // Horizontal bounds checking
-  if (infoPanel.left() < 0) {
-    infoPanel.moveLeft(0);
-  } else if (infoPanel.right() > rect.width()) {
-    infoPanel.moveRight(rect.width());
-  }
-
-  // Draw automotive-style metallic background
-  painter.setPen(Qt::NoPen);
-  QRadialGradient panelBg = createAutomotiveBackground(infoPanel.toRect());
-
-  // Apply confidence alpha to background
-  QGradientStops bgStops = panelBg.stops();
-  for (auto &stop : bgStops) {
-    QColor color = stop.second;
-    color.setAlpha(int(color.alpha() * alpha));
-    stop.second = color;
-  }
-  panelBg.setStops(bgStops);
-
-  painter.setBrush(panelBg);
-  painter.drawRoundedRect(infoPanel, CORNER_RADIUS * scale_factor, CORNER_RADIUS * scale_factor);
-
-  // Add automotive border with scaled corner radius
-  drawInsetBorder(painter, infoPanel.toRect(), baseChevronColor, CORNER_RADIUS * scale_factor);
-
-  // Add metallic highlight to panel
-  addMetallicHighlight(painter, infoPanel.toRect(), CORNER_RADIUS * scale_factor);
-
-  // ========== AUTOMOTIVE TEXT STYLING WITH SCALING ==========
+  // ========== THREE SEPARATE INFO BOXES ==========
 
   // Convert measurements for display
   float distance_m = d_rel;
   float lead_speed_mph = v_lead * 2.237;
-  QString distText = QString("%1 m").arg(qRound(distance_m));
-  QString speedText = QString("%1 mph").arg(qRound(lead_speed_mph));
-  QString combinedText = distText + "  |  " + speedText;
 
-  // Set up text formatting with responsive font sizing and scale factor
-  QFont infoFont("Inter", int(33 * scale_factor), QFont::DemiBold);
-  painter.setFont(infoFont);
+  // Calculate time-to-lead (following time)
+  float time_to_lead = 0.0f;
+  if (v_ego > 1.0f) { // If ego vehicle is moving
+    time_to_lead = d_rel / v_ego;
 
-  // Scale font to fit container
-  QRectF textRect = infoPanel.adjusted(7 * scale_factor, 7 * scale_factor, -7 * scale_factor, -7 * scale_factor);
-  QFontMetrics fm(infoFont);
-  int textWidth = fm.horizontalAdvance(combinedText);
-  int textHeight = fm.height();
-  int maxWidth = textRect.width();
-  int maxHeight = textRect.height();
-
-  int fontSize = int(33 * scale_factor);
-  int iteration_limit = 8;
-  while ((textWidth > maxWidth || textHeight > maxHeight) && fontSize > 8 && iteration_limit-- > 0) {
-      fontSize--;
-      infoFont.setPixelSize(fontSize);
-      fm = QFontMetrics(infoFont);
-      textWidth = fm.horizontalAdvance(combinedText);
-      textHeight = fm.height();
+    // If approaching (closing distance), show time to collision instead
+    if (v_rel < -0.5f) { // Negative v_rel means approaching
+      float time_to_collision = d_rel / std::abs(v_rel);
+      time_to_lead = std::min(time_to_lead, time_to_collision);
+    }
   }
 
-  painter.setFont(infoFont);
+  QString distText = QString("%1m").arg(qRound(distance_m));
+  QString speedText = QString("%1mph").arg(qRound(lead_speed_mph));
+  QString timeText;
 
-  // Text shadow with scaled offset
-  painter.setPen(QColor(0, 0, 0, int(150 * alpha)));
-  painter.drawText(textRect.adjusted(scale_factor, scale_factor, scale_factor, scale_factor), Qt::AlignCenter, combinedText);
+  if (v_ego < 1.0f) {
+    timeText = "--s";
+  } else if (time_to_lead > 10.0f) {
+    timeText = ">10s";
+  } else {
+    timeText = QString("%1s").arg(time_to_lead, 0, 'f', 1);
+  }
 
-  // Main text with automotive color
-  painter.setPen(QColor(236, 240, 241, int(255 * alpha)));
-  painter.drawText(textRect, Qt::AlignCenter, combinedText);
+  // Position info boxes centered below the lead vehicle with scaled dimensions
+  float box_width = 100 * scale_factor;  // Increased from 80
+  float box_height = 55 * scale_factor;   // Increased from 45
+  float box_gap = 12 * scale_factor;      // Increased from 10
+  float total_width = (box_width * 3) + (box_gap * 2);
+  float box_top = y + sz + (20 * scale_factor);  // Increased from 15
+
+  // Starting x position for the leftmost box
+  float start_x = x - total_width / 2;
+
+  // Make sure boxes stay within bounds
+  if (start_x < 5) {
+    start_x = 5;
+  } else if (start_x + total_width > rect.width() - 5) {
+    start_x = rect.width() - total_width - 5;
+  }
+
+  // Check if boxes would go off bottom
+  if (box_top + box_height > rect.height() - 5) {
+    return; // Don't draw boxes if they would be cut off
+  }
+
+  // Common box styling
+  auto drawInfoBox = [&](float box_x, const QString& value, bool isWarning = false) {
+    QRectF boxRect(box_x, box_top, box_width, box_height);
+
+    // Background gradient
+    QRadialGradient boxGradient(boxRect.center(), box_width * 0.7);
+    boxGradient.setColorAt(0, QColor(44, 62, 80, int(200 * alpha)));
+    boxGradient.setColorAt(1, QColor(26, 37, 47, int(220 * alpha)));
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(boxGradient);
+    painter.drawRoundedRect(boxRect, 6 * scale_factor, 6 * scale_factor);
+
+    // Border
+    QColor boxBorderColor = baseChevronColor;
+    boxBorderColor.setAlpha(int(180 * alpha));
+    painter.setPen(QPen(boxBorderColor, 2 * scale_factor));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(boxRect, 6 * scale_factor, 6 * scale_factor);
+
+    // Metallic highlight
+    QRect highlightRect = boxRect.toRect().adjusted(2, 2, -2, -boxRect.height()/2);
+    QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+    highlight.setColorAt(0, QColor(255, 255, 255, int(15 * alpha)));
+    highlight.setColorAt(0.3, QColor(255, 255, 255, int(5 * alpha)));
+    highlight.setColorAt(1, QColor(255, 255, 255, 0));
+
+    painter.setBrush(highlight);
+    painter.setPen(Qt::NoPen);
+    painter.drawRoundedRect(highlightRect, 4 * scale_factor, 4 * scale_factor);
+
+    // Value text - centered vertically in the box
+    QFont valueFont("Inter", int(26 * scale_factor), QFont::DemiBold);  // Increased from 22
+    painter.setFont(valueFont);
+
+    // Shadow
+    painter.setPen(QColor(0, 0, 0, int(150 * alpha)));
+    painter.drawText(boxRect.adjusted(scale_factor, scale_factor, scale_factor, scale_factor),
+                    Qt::AlignCenter, value);
+
+    // Main text
+    QColor textColor = isWarning ? QColor(255, 100, 100, int(255 * alpha)) :
+                                  QColor(236, 240, 241, int(255 * alpha));
+    painter.setPen(textColor);
+    painter.drawText(boxRect, Qt::AlignCenter, value);
+  };
+
+  // Draw the three boxes
+  drawInfoBox(start_x, distText);
+  drawInfoBox(start_x + box_width + box_gap, speedText);
+  drawInfoBox(start_x + (box_width + box_gap) * 2, timeText, time_to_lead < 2.0f && v_ego > 1.0f);
 }
 
 void BluepilotRenderer::initializeStaticData() {
