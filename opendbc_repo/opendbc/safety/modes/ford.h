@@ -90,7 +90,7 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
 #define FORD_INACTIVE_CURVATURE 1000U
 //#define FORD_INACTIVE_CURVATURE_RATE 4096U
 //#define FORD_INACTIVE_PATH_OFFSET 512U
-//#define FORD_INACTIVE_PATH_ANGLE 1000U  // Not used - replaced with rate limiting logic
+#define FORD_INACTIVE_PATH_ANGLE 1000U  // Not used - replaced with rate limiting logic
 
 // #define FORD_CANFD_INACTIVE_CURVATURE_RATE 1024U
 
@@ -312,7 +312,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS);
 
     // Check path angle add ROC code here
-    int path_angle = raw_path_angle;  // Use raw path angle directly for rate limiting
+    int path_angle = raw_path_angle - FORD_INACTIVE_PATH_ANGLE;  // Use raw path angle directly for rate limiting
     violation |= path_angle_cmd_checks(path_angle, steer_control_enabled, FORD_PATH_ANGLE_LIMITS);
 
     if (violation) {
@@ -339,7 +339,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_CANFD_STEERING_LIMITS);
 
     // Check path angle add ROC code here
-    int path_angle = raw_path_angle;  // Use raw path angle directly for rate limiting
+    int path_angle = raw_path_angle - FORD_INACTIVE_PATH_ANGLE;  // Use raw path angle directly for rate limiting
     violation |= path_angle_cmd_checks(path_angle, steer_control_enabled, FORD_PATH_ANGLE_LIMITS);
 
     if(violation) {
