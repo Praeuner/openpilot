@@ -306,10 +306,6 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     unsigned int raw_path_angle = (GET_BYTE(to_send, 3) << 3) | (GET_BYTE(to_send, 4) >> 5);
     // unsigned int raw_path_offset = (GET_BYTE(to_send, 5) << 2) | (GET_BYTE(to_send, 6) >> 6);
 
-    // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
-    unsigned int raw_ramp_type = (GET_BYTE(to_send, 6) >> 4) & 0x3U;
-    float dynamic_angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
-
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE;  // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
     bool violation = false;
@@ -334,10 +330,6 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     // unsigned int raw_curvature_rate = (GET_BYTE(to_send, 6) << 3) | (GET_BYTE(to_send, 7) >> 5);
     unsigned int raw_path_angle = ((GET_BYTE(to_send, 3) & 0x1FU) << 6) | (GET_BYTE(to_send, 4) >> 2);
     // unsigned int raw_path_offset = ((GET_BYTE(to_send, 4) & 0x3U) << 8) | GET_BYTE(to_send, 5);
-
-    // no blending at low speed due to lack of torque wind-up and inaccurate current curvature.  No blending if ramp_type = 3, meaning driver is in control
-    unsigned int raw_ramp_type = (GET_BYTE(to_send, 0) >> 1) & 0x3U;  // Extract bits 1-2 from byte 0
-    float dynamic_angle_error_min_speed = (raw_ramp_type == 3) ? 999.0 : 9.9;   // m/s
 
     // Check angle error and steer_control_enabled
     int desired_curvature = raw_curvature - FORD_INACTIVE_CURVATURE;  // /FORD_STEERING_LIMITS.angle_deg_to_can to get real curvature
