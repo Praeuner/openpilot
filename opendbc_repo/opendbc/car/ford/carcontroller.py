@@ -418,7 +418,7 @@ class CarController(CarControllerBase):
           self.precision_type = 0 # use comfort mode
 
         # apply curvature limits
-        self.apply_curvature_last = apply_ford_curvature_limits(requested_curvature,
+        apply_curvature = apply_ford_curvature_limits(requested_curvature,
                                                                 self.apply_curvature_last,
                                                                 current_curvature,
                                                                 CS.out.vEgoRaw,
