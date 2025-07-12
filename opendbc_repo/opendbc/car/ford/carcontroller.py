@@ -38,11 +38,11 @@ IDX_N = 33
 T_IDXS = [index_function(idx, max_val=10.0) for idx in range(IDX_N)]
 
 
-def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle=0., lat_active=True, CP=None):
+def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
   if v_ego_raw > 9:
     apply_curvature = np.clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
-                             current_curvature + CarControllerParams.CURVATURE_ERROR)
+                              current_curvature + CarControllerParams.CURVATURE_ERROR)
 
   # Curvature rate limit after driver torque limit
   apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, steering_angle, lat_active, CarControllerParams.ANGLE_LIMITS)
@@ -417,16 +417,14 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-        # Apply curvature limits
-        apply_curvature = apply_ford_curvature_limits(
-          requested_curvature,
-          self.apply_curvature_last,
-          current_curvature,
-          CS.out.vEgoRaw,
-          CS.out.steeringAngleDeg,
-          CC.latActive,
-          self.CP
-        )
+        # apply curvature limits
+        self.apply_curvature_last = apply_ford_curvature_limits(requested_curvature,
+                                                                self.apply_curvature_last,
+                                                                current_curvature,
+                                                                CS.out.vEgoRaw,
+                                                                0,
+                                                                CC.latActive,
+                                                                self.CP)
 
         # compute curvature rate
         self.curvature_rate_deque.append(predicted_curvature)
