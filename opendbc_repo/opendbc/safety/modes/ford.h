@@ -122,11 +122,11 @@ static const AngleSteeringLimits FORD_PATH_ANGLE_LIMITS = {
   .max_angle_error = 100,     /* 0.002 * FORD_STEERING_LIMITS.angle_deg_to_can */               \
   .angle_rate_up_lookup = {                                                                     \
     {5., 16., 25.},                                                                             \
-    {0.0026, 0.0013, 0.0001}                                                                   \
+    {0.00045, 0.00025, 0.0001}                                                                   \
   },                                                                                            \
   .angle_rate_down_lookup = {                                                                   \
-    {5., 13., 25.},                                                                             \
-    {0.0026, 0.0015, 0.0002}                                                                 \
+    {5., 16., 25.},                                                                             \
+    {0.00045, 0.00025,0.00015}                                                                 \
   },                                                                                            \
                                                                                                 \
   /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */ \
