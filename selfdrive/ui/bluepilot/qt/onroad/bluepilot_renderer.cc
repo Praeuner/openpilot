@@ -69,7 +69,8 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   if (!s.scene.show_hybrid_drive_overlay &&
       !s.scene.show_new_radar_overlay &&
       !s.scene.show_stop_indicator_overlay &&
-      !s.scene.stand_still_timer) {
+      !s.scene.stand_still_timer &&
+      !s.scene.show_gforce_meter) {
     return;
   }
 
@@ -87,6 +88,9 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
 
   // 3. TOP LAYER: Hybrid gauges (always on top)
   renderHybridGauges(painter, rect, s);
+
+  // 4. G-FORCE METER: Bottom right corner
+  renderGForceMeter(painter, rect, s);
 }
 
 template<typename ModelType>
@@ -141,6 +145,10 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   // Update model enhancement flags and transforms
   frame_state.show_radar = s.scene.show_new_radar_overlay;
   frame_state.show_stop = s.scene.show_stop_indicator_overlay;
+  frame_state.gforce_state.show_gforce = s.scene.show_gforce_meter;
+
+  // Update G-force data
+  updateGForceData(s);
 
   // Debug logging
   static int debug_counter = 0;
@@ -230,6 +238,335 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
       }
     }
   }
+}
+
+void BluepilotRenderer::updateGForceData(const UIState &s) {
+  if (!frame_state.gforce_state.show_gforce) {
+    return;
+  }
+
+  const SubMaster &sm = *(s.sm);
+  bool using_real_data = false;
+
+  // Debug: Check what services are available
+  static int debug_counter = 0;
+
+  // Try to access sensor data
+  bool accel_available = false;
+  bool gyro_available = false;
+
+  try {
+    accel_available = sm.alive("accelerometer") && sm.valid("accelerometer");
+    gyro_available = sm.alive("gyroscope") && sm.valid("gyroscope");
+  } catch (...) {
+    // Services don't exist
+  }
+
+  if (accel_available && gyro_available) {
+
+    try {
+      // Get the Event messages
+      const auto &accel_event = sm["accelerometer"];
+      const auto &gyro_event = sm["gyroscope"];
+
+      // Print what type of event we got
+      // if (debug_counter % 200 == 0) {
+      //   std::cout << "Got accelerometer event, trying to access as accelerometer..." << std::endl;
+      //   std::cout << "Got gyroscope event, trying to access as gyroscope..." << std::endl;
+      // }
+
+      // Access as SensorEventData directly
+      const auto &accel_sensor = accel_event.getAccelerometer();
+      const auto &gyro_sensor = gyro_event.getGyroscope();
+
+      // if (debug_counter % 200 == 0) {
+      //   std::cout << "Accel sensor which(): " << (int)accel_sensor.which() << std::endl;
+      //   std::cout << "Gyro sensor which(): " << (int)gyro_sensor.which() << std::endl;
+      // }
+
+      // Check if the union contains the data we expect
+      if (accel_sensor.which() == cereal::SensorEventData::Which::ACCELERATION &&
+          gyro_sensor.which() == cereal::SensorEventData::Which::GYRO_UNCALIBRATED) {
+
+        const auto &accel = accel_sensor.getAcceleration();
+        // const auto &gyro = gyro_sensor.getGyroUncalibrated();
+
+        auto accel_v = accel.getV();
+        // auto gyro_v = gyro.getV();
+
+        float ax = accel_v[0];
+        float ay = accel_v[1];
+        float az = accel_v[2];
+        // float yaw_rate = gyro_v[2];
+
+        // Remove gravity component - when stationary, accelerometer reads gravity
+        // Calculate total acceleration magnitude
+        float total_accel = std::sqrt(ax*ax + ay*ay + az*az);
+
+        // If close to gravity magnitude, we're mostly measuring gravity
+        if (total_accel > 8.0f && total_accel < 12.0f) {
+          // Apply high-pass filter to remove gravity DC component
+          static float ax_baseline = ax;
+          static float ay_baseline = ay;
+          static bool initialized = false;
+
+          if (!initialized) {
+            ax_baseline = ax;
+            ay_baseline = ay;
+            initialized = true;
+          } else {
+            // Slowly track baseline (gravity orientation)
+            ax_baseline = ax_baseline * 0.999f + ax * 0.001f;
+            ay_baseline = ay_baseline * 0.999f + ay * 0.001f;
+          }
+
+          // Subtract baseline to get actual vehicle acceleration
+          ax = ax - ax_baseline;
+          ay = ay - ay_baseline;
+        }
+
+        frame_state.gforce_state.longitudinal_g = ax / GRAVITY_MS2;
+        frame_state.gforce_state.lateral_g = ay / GRAVITY_MS2;
+
+        using_real_data = true;
+
+        // if (debug_counter % 20 == 0) {
+        //   std::cout << "SUCCESS: Using REAL sensor data - accel: [" << ax << ", " << ay << ", " << az
+        //             << "] gyro Z: " << yaw_rate << std::endl;
+        // }
+      } else {
+        if (debug_counter % 20 == 0) {
+          std::cout << "Sensor data union mismatch - accel which: " << (int)accel_sensor.which()
+                    << " gyro which: " << (int)gyro_sensor.which() << std::endl;
+        }
+      }
+    } catch (const std::exception &e) {
+      if (debug_counter % 20 == 0) {
+        std::cout << "Sensor access error: " << e.what() << std::endl;
+      }
+    }
+  } else {
+    if (debug_counter % 20 == 0) {
+      std::cout << "Sensors not available" << std::endl;
+    }
+  }
+
+  // Fall back to simulated data
+  if (!using_real_data && sm.valid("carState")) {
+    const auto &car_state = sm["carState"].getCarState();
+    float v_ego = car_state.getVEgo();
+    float a_ego = car_state.getAEgo();
+    float yaw_rate = car_state.getYawRate();
+
+    frame_state.gforce_state.longitudinal_g = -a_ego / GRAVITY_MS2;
+    frame_state.gforce_state.lateral_g = (v_ego * yaw_rate) / GRAVITY_MS2;
+
+    if (debug_counter % 200 == 0) {
+      std::cout << "Using SIMULATED data - v_ego: " << v_ego
+                << " a_ego: " << a_ego << " yaw_rate: " << yaw_rate << std::endl;
+    }
+  }
+
+  // Apply smoothing
+  const float smoothing_factor = 0.15f;
+  frame_state.gforce_state.smoothed_longitudinal =
+    frame_state.gforce_state.smoothed_longitudinal * (1.0f - smoothing_factor) +
+    frame_state.gforce_state.longitudinal_g * smoothing_factor;
+  frame_state.gforce_state.smoothed_lateral =
+    frame_state.gforce_state.smoothed_lateral * (1.0f - smoothing_factor) +
+    frame_state.gforce_state.lateral_g * smoothing_factor;
+
+  frame_state.gforce_state.longitudinal_g = frame_state.gforce_state.smoothed_longitudinal;
+  frame_state.gforce_state.lateral_g = frame_state.gforce_state.smoothed_lateral;
+
+  // Update peak values
+  float abs_lateral = std::abs(frame_state.gforce_state.lateral_g);
+  if (abs_lateral > frame_state.gforce_state.max_lateral) {
+    frame_state.gforce_state.max_lateral = abs_lateral;
+  }
+
+  if (frame_state.gforce_state.longitudinal_g > frame_state.gforce_state.max_longitudinal) {
+    frame_state.gforce_state.max_longitudinal = frame_state.gforce_state.longitudinal_g;
+  }
+
+  if (frame_state.gforce_state.longitudinal_g < -frame_state.gforce_state.max_braking) {
+    frame_state.gforce_state.max_braking = -frame_state.gforce_state.longitudinal_g;
+  }
+
+  // Update history for trail effect
+  frame_state.gforce_state.history_lateral[frame_state.gforce_state.history_index] =
+    QPointF(frame_state.gforce_state.lateral_g, frame_state.gforce_state.longitudinal_g);
+  frame_state.gforce_state.history_index = (frame_state.gforce_state.history_index + 1) % 50;
+}
+
+void BluepilotRenderer::renderGForceMeter(QPainter &painter, const QRect &rect, const UIState &s) {
+  if (!frame_state.gforce_state.show_gforce) {
+    return;
+  }
+
+  drawGForceMeter(painter, rect, s);
+}
+
+void BluepilotRenderer::drawGForceMeter(QPainter &painter, const QRect &rect, const UIState &s) {
+  const int meter_width = 350;  // Reduced width
+  int meter_height = 100;       // Will be set to match hybrid gauge height
+  const int margin = 10;
+
+  int x, y;
+
+  // Check if hybrid gauge is shown and available
+  if (s.scene.show_hybrid_drive_overlay && frame_state.hybrid_available) {
+
+    // Get hybrid gauge dimensions - match height exactly
+    int gauge_scale = s.scene.hybrid_drive_gauge_size;
+    int gauge_width = rect.width() * 0.39;
+
+    if (gauge_scale == 1) {
+      gauge_width = rect.width() * 0.30;
+      meter_height = 100;  // Match hybrid gauge height
+    } else if (gauge_scale == 2) {
+      gauge_width = rect.width() * 0.345;
+      meter_height = 115;  // Match hybrid gauge height
+    } else if (gauge_scale == 3) {
+      gauge_width = rect.width() * 0.39;
+      meter_height = 130;  // Match hybrid gauge height
+    } else {
+      meter_height = 100;  // Default height
+    }
+
+    int bottom_margin = 30;
+    int gauge_y = rect.height() - meter_height - bottom_margin;
+    int gauge_center_x = rect.width() / 2;
+    int gauge_left = gauge_center_x - gauge_width / 2;
+
+    // Position G-force meter to the left of hybrid gauge
+    x = gauge_left - meter_width - margin;
+    y = gauge_y; // Exact same Y position as hybrid gauge
+
+  } else {
+    // When no hybrid gauge, position to the right of driver monitor widget (bottom left)
+    meter_height = 130;  // Larger default size
+    x = 250;  // Right of driver monitor with margin
+    y = rect.height() - meter_height - 60;
+  }
+
+  // Ensure meter stays within bounds
+  x = std::max(10, std::min(x, rect.width() - meter_width - 10));
+  y = std::max(10, std::min(y, rect.height() - meter_height - 10));
+
+  QRect meter_rect(x, y, meter_width, meter_height);
+
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.save();
+
+  // Draw meter background with automotive styling (match hybrid gauge exact color)
+  painter.setPen(QPen(QColor(100, 149, 237, 200), 3));
+  painter.setBrush(QColor(44, 62, 80, 240));
+  painter.drawRoundedRect(meter_rect, 12, 12);
+
+  // Draw grid background - narrower grid to match height
+  painter.setClipRect(meter_rect.adjusted(110, 15, -110, -15)); // Adjusted for new width
+  painter.setPen(QPen(QColor(100, 149, 237, 50), 1));
+
+  // Draw grid lines - fewer vertical lines for narrower area
+  for (int i = 1; i < 5; ++i) {  // 4 vertical sections instead of 8
+    int grid_x = meter_rect.left() + 110 + (i * (meter_width - 220) / 5);
+    painter.drawLine(grid_x, meter_rect.top() + 15, grid_x, meter_rect.bottom() - 15);
+  }
+  // Horizontal grid lines based on height
+  int h_sections = (meter_height > 120) ? 5 : 4;
+  for (int i = 1; i < h_sections; ++i) {
+    int grid_y = meter_rect.top() + 15 + (i * (meter_height - 30) / h_sections);
+    painter.drawLine(meter_rect.left() + 15, grid_y, meter_rect.right() - 15, grid_y);
+  }
+
+  painter.setClipping(false);
+
+  // Draw crosshairs - match narrower grid area
+  QPointF center = meter_rect.center();
+  painter.setPen(QPen(QColor(100, 149, 237, 100), 2));
+  painter.drawLine(meter_rect.left() + 110, center.y(), meter_rect.right() - 110, center.y());
+  painter.drawLine(center.x(), meter_rect.top() + 15, center.x(), meter_rect.bottom() - 15);
+
+  // Get current G-forces
+  float lateral_g = frame_state.gforce_state.lateral_g;
+  float longitudinal_g = frame_state.gforce_state.longitudinal_g;
+  float total_g = std::sqrt(lateral_g * lateral_g + longitudinal_g * longitudinal_g);
+
+  // Clamp values
+  lateral_g = std::clamp(lateral_g, -1.5f, 1.5f);
+  longitudinal_g = std::clamp(longitudinal_g, -1.5f, 1.5f);
+
+  // Calculate dot position - match narrower grid area
+  const float max_g = 1.5f;
+  const float usable_width = meter_width - 220;  // 110px margins on each side
+  const float usable_height = meter_height - 30;
+
+  float dot_x = center.x() + (lateral_g / max_g) * (usable_width / 2);
+  float dot_y = center.y() - (longitudinal_g / max_g) * (usable_height / 2);
+
+  // Draw G-force dot
+  QColor dot_color;
+  if (total_g > 1.2f) dot_color = QColor(255, 34, 34);
+  else if (total_g > 0.8f) dot_color = QColor(255, 136, 68);
+  else if (total_g > 0.3f) dot_color = QColor(68, 255, 68);
+  else dot_color = QColor(68, 136, 255);
+
+  painter.setBrush(dot_color);
+  painter.setPen(QPen(Qt::white, 2));
+  painter.drawEllipse(QPointF(dot_x, dot_y), 6, 6);
+
+  // Draw center "G" label
+  painter.setBrush(QColor(100, 149, 237, 40));
+  painter.setPen(QPen(QColor(100, 149, 237), 2));
+  painter.drawEllipse(center, 12, 12);
+
+  painter.setPen(Qt::white);
+  QFont centerFont("Inter", 10, QFont::Bold);
+  painter.setFont(centerFont);
+  painter.drawText(QRectF(center.x() - 12, center.y() - 12, 24, 24), Qt::AlignCenter, "G");
+
+  // Draw internal value displays with larger text and repositioned
+  QFont valueFont("Inter", 32, QFont::Bold);  // Increased from 24
+  QFont labelFont("Inter", 20);               // Increased from 16
+
+  // LAT (bottom-left) - positioned further left for symmetry
+  QRect latRect(meter_rect.left() + 15, meter_rect.bottom() - 75, 95, 67);  // Further from edge
+  painter.setBrush(QColor(44, 62, 80, 240));
+  painter.setPen(QPen(QColor(0, 255, 127, 120), 1));
+  painter.drawRoundedRect(latRect, 4, 4);
+
+  painter.setFont(labelFont);
+  painter.setPen(QColor(170, 170, 170));
+  painter.drawText(latRect.adjusted(0, 5, 0, -35), Qt::AlignTop | Qt::AlignHCenter, "LAT");
+
+  painter.setFont(valueFont);
+  painter.setPen(std::abs(lateral_g) > 0.5f ? QColor(255, 136, 68) : Qt::white);
+  // Prevent -0.0g/0.0g flipping
+  float display_lateral = (std::abs(lateral_g) < 0.05f) ? 0.0f : lateral_g;
+  painter.drawText(latRect.adjusted(0, 30, 0, -5), Qt::AlignBottom | Qt::AlignHCenter,
+                  QString::number(display_lateral, 'f', 1) + "g");
+
+  // LONG (top-right) - positioned further right for symmetry
+  QRect longRect(meter_rect.right() - 110, meter_rect.top() + 8, 95, 67);  // Further from edge
+  painter.setBrush(QColor(44, 62, 80, 240));
+  painter.setPen(QPen(QColor(100, 149, 237, 120), 1));
+  painter.drawRoundedRect(longRect, 4, 4);
+
+  painter.setFont(labelFont);
+  painter.setPen(QColor(170, 170, 170));
+  painter.drawText(longRect.adjusted(0, 5, 0, -35), Qt::AlignTop | Qt::AlignHCenter, "LONG");
+
+  painter.setFont(valueFont);
+  painter.setPen(std::abs(longitudinal_g) > 0.5f ? QColor(255, 136, 68) : Qt::white);
+  // Prevent -0.0g/0.0g flipping
+  float display_longitudinal = (std::abs(longitudinal_g) < 0.05f) ? 0.0f : longitudinal_g;
+  painter.drawText(longRect.adjusted(0, 30, 0, -5), Qt::AlignBottom | Qt::AlignHCenter,
+                  QString::number(display_longitudinal, 'f', 1) + "g");
+
+  // TOTAL block removed completely
+
+  painter.restore();
 }
 
 void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
@@ -1186,7 +1523,9 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
 
   // Create the chevron polygon with scaled size
   QPolygonF chevronPolygon;
-  chevronPolygon << QPointF(x + (sz * 1.25), y + sz) << QPointF(x, y) << QPointF(x - (sz * 1.25), y + sz);
+  chevronPolygon << QPointF(x + (sz * 1.25), y + sz)
+                 << QPointF(x, y)
+                 << QPointF(x - (sz * 1.25), y + sz);
 
   // Get automotive colors based on radar assistance
   QColor baseChevronColor = radar_assisted ? QColor(60, 170, 255) : QColor(241, 196, 15);
@@ -1289,11 +1628,17 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
     timeText = QString("%1s").arg(time_to_lead, 0, 'f', 1);
   }
 
-  // Position info boxes centered below the lead vehicle with scaled dimensions
-  float box_width = 100 * scale_factor;  // Increased from 80
+  // Calculate dynamic width for speed box
+  QFont valueFont("Inter", int(26 * scale_factor), QFont::DemiBold);
+  QFontMetrics fm(valueFont);
+
+  float dist_box_width = 100 * scale_factor;  // Fixed width for distance
+  float speed_box_width = fm.horizontalAdvance(speedText) + (20 * scale_factor); // Dynamic width + padding
+  float time_box_width = 100 * scale_factor;  // Fixed width for time
+
   float box_height = 55 * scale_factor;   // Increased from 45
   float box_gap = 12 * scale_factor;      // Increased from 10
-  float total_width = (box_width * 3) + (box_gap * 2);
+  float total_width = dist_box_width + speed_box_width + time_box_width + (box_gap * 2);
   float box_top = y + sz + (20 * scale_factor);  // Increased from 15
 
   // Starting x position for the leftmost box
@@ -1312,11 +1657,11 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   }
 
   // Common box styling
-  auto drawInfoBox = [&](float box_x, const QString& value, bool isWarning = false) {
-    QRectF boxRect(box_x, box_top, box_width, box_height);
+  auto drawInfoBox = [&](float box_x, float box_w, const QString& value, bool isWarning = false) {
+    QRectF boxRect(box_x, box_top, box_w, box_height);
 
     // Background gradient
-    QRadialGradient boxGradient(boxRect.center(), box_width * 0.7);
+    QRadialGradient boxGradient(boxRect.center(), box_w * 0.7);
     boxGradient.setColorAt(0, QColor(44, 62, 80, int(200 * alpha)));
     boxGradient.setColorAt(1, QColor(26, 37, 47, int(220 * alpha)));
 
@@ -1332,7 +1677,7 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
     painter.drawRoundedRect(boxRect, 6 * scale_factor, 6 * scale_factor);
 
     // Metallic highlight
-    QRect highlightRect = boxRect.toRect().adjusted(2, 2, -2, -boxRect.height()/2);
+    QRect highlightRect = boxRect.toRect().adjusted(2, 2, -2, -boxRect.height() / 2);
     QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
     highlight.setColorAt(0, QColor(255, 255, 255, int(15 * alpha)));
     highlight.setColorAt(0.3, QColor(255, 255, 255, int(5 * alpha)));
@@ -1349,19 +1694,20 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
     // Shadow
     painter.setPen(QColor(0, 0, 0, int(150 * alpha)));
     painter.drawText(boxRect.adjusted(scale_factor, scale_factor, scale_factor, scale_factor),
-                    Qt::AlignCenter, value);
+                     Qt::AlignCenter, value);
 
     // Main text
-    QColor textColor = isWarning ? QColor(255, 100, 100, int(255 * alpha)) :
-                                  QColor(236, 240, 241, int(255 * alpha));
+    QColor textColor = isWarning ? QColor(255, 100, 100, int(255 * alpha))
+                                : QColor(236, 240, 241, int(255 * alpha));
     painter.setPen(textColor);
     painter.drawText(boxRect, Qt::AlignCenter, value);
   };
 
-  // Draw the three boxes
-  drawInfoBox(start_x, distText);
-  drawInfoBox(start_x + box_width + box_gap, speedText);
-  drawInfoBox(start_x + (box_width + box_gap) * 2, timeText, time_to_lead < 2.0f && v_ego > 1.0f);
+  // Draw the three boxes with dynamic positioning
+  drawInfoBox(start_x, dist_box_width, distText);
+  drawInfoBox(start_x + dist_box_width + box_gap, speed_box_width, speedText);
+  drawInfoBox(start_x + dist_box_width + speed_box_width + (box_gap * 2), time_box_width, timeText,
+              time_to_lead < 2.0f && v_ego > 1.0f);
 }
 
 void BluepilotRenderer::initializeStaticData() {

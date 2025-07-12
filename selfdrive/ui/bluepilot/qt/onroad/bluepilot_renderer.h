@@ -97,6 +97,21 @@ private:
       int stop_frame_count = 0;
       bool prev_stop_sign_visible = false;
     } stop_state;
+
+    // G-force state
+    struct GForceState {
+      bool show_gforce = false;
+      float lateral_g = 0.0f;         // Left/right G-force
+      float longitudinal_g = 0.0f;    // Forward/backward G-force
+      float smoothed_lateral = 0.0f;
+      float smoothed_longitudinal = 0.0f;
+      float max_lateral = 0.0f;       // Peak values for current session
+      float max_longitudinal = 0.0f;
+      float max_braking = 0.0f;
+      QPointF history_lateral[50];    // Trail effect points
+      QPointF history_longitudinal[50];
+      int history_index = 0;
+    } gforce_state;
   };
   static FrameState frame_state;
 
@@ -111,13 +126,16 @@ private:
   static void renderStandstillTimer(QPainter &painter, const QRect &rect);
   static void renderHybridGauges(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s);
+  static void renderGForceMeter(QPainter &painter, const QRect &rect, const UIState &s);
 
   // Model enhancement helpers
   static void updateLeadTracking(const UIState &s);
   static void updateStopDetection(const UIState &s);
+  static void updateGForceData(const UIState &s);
   static void drawEnhancedLeads(QPainter &painter, const QRect &rect, const UIState &s);
   static void drawStopSignDetection(QPainter &painter, const QRect &rect, const UIState &s);
   static void drawAllRadarPoints(QPainter &painter, const QRect &rect, const UIState &s); // DEBUG
+  static void drawGForceMeter(QPainter &painter, const QRect &rect, const UIState &s);
 
   // Geometry helpers
   static bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
@@ -152,4 +170,5 @@ private:
   static constexpr float STANDSTILL_DEBOUNCE_TIME = 0.5f;
   static constexpr float MIN_DRAW_DISTANCE = 10.0f;
   static constexpr float MAX_DRAW_DISTANCE = 100.0f;
+  static constexpr float GRAVITY_MS2 = 9.81f;  // Standard gravity in m/s²
 };

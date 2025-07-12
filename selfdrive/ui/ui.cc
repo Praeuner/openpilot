@@ -77,6 +77,7 @@ void ui_update_params(UIState *s) {
   s->scene.radar_overlay_size = params.getInt("FordPrefRadarOverlaySize");
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
+  s->scene.show_gforce_meter = params.getBool("ShowGForceMeter");  // New parameter for G-force meter
 
   s->scene.wide_camera_low_speed = params.getBool("ShowWideCameraAtLowSpeed");
 
@@ -195,8 +196,9 @@ void Device::setAwake(bool on) {
 }
 
 void Device::resetInteractiveTimeout(int timeout) {
+  int customTimeout = QString::fromStdString(Params().get("InteractivityTimeout")).toInt();
   if (timeout == -1) {
-    timeout = (ignition_on ? 10 : 30);
+    timeout = customTimeout == 0 ? (ignition_on ? 10 : 30) : customTimeout;
   }
   interactive_timeout = timeout * UI_FREQ;
 }

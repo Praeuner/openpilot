@@ -217,6 +217,17 @@
             },
             {
               "type": "toggle",
+              "param": "ShowGForceMeter",
+              "title": "Show G-Force Meter",
+              "desc": "Displays a g-force meter when onroad.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
               "param": "StandstillTimer",
               "title": "Show Standstill Timer",
               "desc": "Displays a timer when the vehicle is in standstill.",

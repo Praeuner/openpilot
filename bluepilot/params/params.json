@@ -301,6 +301,14 @@
       "enabled": false
     },
     {
+      "name": "ShowGForceMeter",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
       "name": "ShowWideCameraAtLowSpeed",
       "default": false,
       "type": "bool",
