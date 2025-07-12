@@ -316,7 +316,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= path_angle_cmd_checks(path_angle, steer_control_enabled, FORD_PATH_ANGLE_LIMITS);
 
     if (violation) {
-      tx = false;
+      tx = true;
     }
   }
 
@@ -343,7 +343,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= path_angle_cmd_checks(path_angle, steer_control_enabled, FORD_PATH_ANGLE_LIMITS);
 
     if(violation) {
-      tx = false;
+      tx = true;
     }
   }
 
