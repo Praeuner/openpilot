@@ -426,6 +426,9 @@ class CarController(CarControllerBase):
                                                                 CC.latActive,
                                                                 self.CP)
 
+        # for testing
+        apply_curvature = requested_curvature
+
         # compute curvature rate
         self.curvature_rate_deque.append(predicted_curvature)
         if len(self.curvature_rate_deque) > 1:

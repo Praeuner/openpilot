@@ -270,7 +270,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS);
 
     if (violation) {
-      tx = false;
+      tx = true;
     }
   }
 
@@ -294,7 +294,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_CANFD_STEERING_LIMITS);
 
     if (violation) {
-      tx = false;
+      tx = true;
     }
   }
 
