@@ -36,6 +36,14 @@
                   "value": "FORD_EXPLORER_MK6"
                 },
                 {
+                  "name": "Ford Escape (2021-2024)",
+                  "value": "FORD_ESCAPE_MK4"
+                },
+                {
+                  "name": "Ford Escape (2024-2025)",
+                  "value": "FORD_ESCAPE_MK5"
+                },
+                {
                   "name": "Ford F-150 (2021-2023)",
                   "value": "FORD_F_150_MK14"
                 },
@@ -458,54 +466,6 @@
                   { "git_branch": [] },
                   { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
                   { "paramValueEquals": { "FordLatTuningEnableLanePositioning": "1" } }
-                ]
-              }
-            },
-            {
-              "type": "toggle",
-              "param": "FordLatTuningEnableHighCurvatureMode",
-              "title": "Enable High Curvature Mode",
-              "desc": "Allows high curvature mode for advanced lateral control.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningWheelAngleLookupTime",
-              "title": "Wheel Angle Lookup Time",
-              "desc": "Adjusts the time it takes to lookup the wheel angle.",
-              "hidden": false,
-              "min": 0.0,
-              "max": 0.8,
-              "increment": 0.01,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningEnableHighCurvatureMode": "1" } }
-                ]
-              }
-            },
-            {
-              "type": "float",
-              "param": "FordLatTuningHCPIDGainUI",
-              "title": "High Curvature PID Gain",
-              "desc": "Adjust the gain of the PID controller for high curvature",
-              "hidden": false,
-              "min": 0.0,
-              "max": 5.0,
-              "increment": 0.1,
-              "division": 100.0,
-              "conditions": {
-                "allConditionsTrue": [
-                  { "git_remote": ["any"] },
-                  { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
-                  { "paramValueEquals": { "FordLatTuningEnableHighCurvatureMode": "1" } }
                 ]
               }
             }
