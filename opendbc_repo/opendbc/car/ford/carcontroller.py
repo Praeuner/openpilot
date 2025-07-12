@@ -8,7 +8,7 @@ from opendbc.can.packer import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_std_steer_angle_limits, structs
 from opendbc.car.vehicle_model import VehicleModel
 from opendbc.car.ford import fordcan
-from opendbc.car.ford.values import CarControllerParams, FordFlags
+from opendbc.car.ford.values import CarControllerParams, FordFlags, CAR
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 from common.params import Params
 from selfdrive.modeld.constants import ModelConstants  # for calculations
@@ -142,7 +142,11 @@ class CarController(CarControllerBase):
     self.path_angle_wheel_angle_conversion = (np.pi/180) # degrees to radians
 
     # path angle low curvature variables
-    self.LC_PID_gain_UI = 0.5 # gain for UI tuning
+    self.LC_PID_GAIN_CAN = 5.0
+    self.LC_PID_GAIN_CANFD_SMALL_VEHICLE = 3.0
+    self.LC_PID_GAIN_CANFD_LARGE_VEHICLE = 1.5
+    self.LC_PID_GAIN_UI = 0.0 # gain for UI tuning
+    self.LC_PID_GAIN = 0.0
     self.LC_PID_k_p = 0.25
     self.LC_PID_k_i = 0.05
     self.LC_PID_controller = PIDController(k_p=self.LC_PID_k_p, k_i=self.LC_PID_k_i, rate=20)
@@ -347,15 +351,19 @@ class CarController(CarControllerBase):
         if self.custom_profile == 1: # custom tuning profile
           self.pc_blend_ratio_low_C =  self.pc_blend_ratio_low_C_UI
           self.pc_blend_ratio_high_C =  self.pc_blend_ratio_high_C_UI
+          self.LC_PID_GAIN = self.LC_PID_GAIN_UI
 
         elif self.CP.flags & FordFlags.CANFD:
           self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CANFD
           self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CANFD
-
+          if (self.CP.carFingerprint == CAR.FORD_ESCAPE_MK5 or self.CP.carFingerprint == CAR.FORD_MUSTANG_MACH_E_MK1):
+            self.LC_PID_gain = self.LC_PID_GAIN_CANFD_SMALL_VEHICLE
+          else:
+            self.LC_PID_gain = self.LC_PID_GAIN_CANFD_LARGE_VEHICLE
         else:
           self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CAN
           self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CAN
-
+          self.LC_PID_gain = self.LC_PID_GAIN_CAN
 
         self.pc_blend_ratio_v = [self.pc_blend_ratio_low_C, self.pc_blend_ratio_high_C] # %-Predicted Curvature
 
@@ -486,8 +494,8 @@ class CarController(CarControllerBase):
         if self.lane_change:
           path_offset = 0
 
-        # Use the UI variable for Gain and set the PID gain to 1.0, UI variable divided by 10 to make UI variable easier to set
-        path_offset_error = (path_offset * (self.LC_PID_gain_UI/10))
+        # Use the UI variable for adjustable Gain and set the PID gain to a fixed number, UI variable divided by 100 to make UI variable more closely match the 2.1 logic tuning.
+        path_offset_error = (path_offset * (self.LC_PID_gain_UI/100))
 
         # determine speed factor
         LC_PID_speed_factor = interp(CS.out.vEgoRaw, self.LC_PID_speed_bp, self.LC_PID_speed_v)
