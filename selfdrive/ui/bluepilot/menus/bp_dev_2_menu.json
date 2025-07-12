@@ -457,8 +457,8 @@
               "desc": "Adjust the gain of the PID controller for low curvature",
               "hidden": false,
               "min": 0.0,
-              "max": 5.0,
-              "increment": 0.01,
+              "max": 10.0,
+              "increment": 0.1,
               "division": 100.0,
               "conditions": {
                 "allConditionsTrue": [
