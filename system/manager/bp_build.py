@@ -9,8 +9,8 @@ from openpilot.system.hardware import HARDWARE, AGNOS
 from openpilot.common.swaglog import cloudlog, add_file_handler
 from openpilot.system.version import get_build_metadata
 
-# Import our custom BPSpinner instead of the original Spinner
-from openpilot.system.ui.bp_spinner import BPSpinner
+# Import our custom BPSpinner from the correct location
+from openpilot.common.bp_spinner import BPSpinner
 
 MAX_CACHE_SIZE = 4e9 if "CI" in os.environ else 2e9
 CACHE_DIR = Path("/data/scons_cache" if AGNOS else "/tmp/scons_cache")
@@ -26,30 +26,41 @@ def build(spinner: BPSpinner, dirty: bool = False, minimal: bool = False) -> Non
   if nproc is None:
     nproc = 2
 
-  print(f"nproc: {nproc}")
-
   extra_args = ["--minimal"] if minimal else []
 
   if AGNOS:
     HARDWARE.set_power_save(False)
     os.sched_setaffinity(0, range(8))  # ensure we can use the isolcpus cores
 
-  # Track last status and progress
-  last_status_text = ""
+  # Track last status and progress for better display
+  last_status_text = "Initializing build..."
   last_progress = 0
+
+  # Initial status
+  spinner.update_progress_with_text(0, TOTAL_SCONS_NODES, last_status_text)
 
   # building with all cores can result in using too
   # much memory, so retry with less parallelism
   compile_output: list[bytes] = []
-  for n in (nproc, nproc / 2, 1):
+
+  for retry_attempt, n in enumerate((nproc, nproc / 2, 1)):
     compile_output.clear()
 
-    # Catch the retry and send a message to the spinner to reset the output modal text "BUILD_RETRY"
-    if n > 1:
-      print(f"BUILD_RETRY:{n}")
+    # Signal retry if this isn't the first attempt
+    if retry_attempt > 0:
       spinner.build_retry()
+      last_status_text = f"Retrying build with {int(n)} cores..."
+      spinner.update_progress_with_text(0, TOTAL_SCONS_NODES, last_status_text)
 
-    scons: subprocess.Popen = subprocess.Popen(["scons", f"-j{int(n)}", "--cache-populate", *extra_args], cwd=BASEDIR, env=env, stderr=subprocess.PIPE)
+    # Start scons process
+    scons_cmd = ["scons", f"-j{int(n)}", "--cache-populate", *extra_args]
+
+    scons: subprocess.Popen = subprocess.Popen(
+      scons_cmd,
+      cwd=BASEDIR,
+      env=env,
+      stderr=subprocess.PIPE
+    )
     assert scons.stderr is not None
 
     # Read progress from stderr and update spinner
@@ -59,51 +70,49 @@ def build(spinner: BPSpinner, dirty: bool = False, minimal: bool = False) -> Non
         if line is None:
           continue
         line = line.rstrip()
+
         progressPrefix = b'progress: '
-        show_detailed = True
-        # Look for spinner detailed info
-        if os.environ.get('SPINNER_DETAILED') or show_detailed:
-          if line.startswith(progressPrefix):
-            i = int(line[len(progressPrefix) :])
-            last_progress = i
 
-          elif len(line):
-            line_str = line.decode('utf8', 'replace')
-            last_status_text = line_str
-            compile_output.append(line)
-            print(line_str)
-
+        if line.startswith(progressPrefix):
+          # Parse progress
+          i = int(line[len(progressPrefix):])
+          last_progress = i
           # Update progress while preserving text
           spinner.update_progress_with_text(last_progress, TOTAL_SCONS_NODES, last_status_text)
-        else:
-          # Basic progress (original behavior)
-          if line.startswith(progressPrefix):
-            i = int(line[len(progressPrefix) :])
-            spinner.update_progress(i, TOTAL_SCONS_NODES)
-          elif len(line):
-            compile_output.append(line)
-            print(line.decode('utf8', 'replace'))
+
+        elif len(line):
+          # This is a status/compilation line
+          line_str = line.decode('utf8', 'replace')
+          last_status_text = line_str
+          compile_output.append(line)
+          print(line_str)
+          # Update with new status text and current progress
+          spinner.update_progress_with_text(last_progress, TOTAL_SCONS_NODES, last_status_text)
+
       except Exception as e:
         print(f"Error processing build output: {e}")
 
+    # Check if build succeeded
     if scons.returncode == 0:
+      spinner.update_progress_with_text(TOTAL_SCONS_NODES, TOTAL_SCONS_NODES, "Build completed successfully!")
       break
 
+  # Handle final build failure
   if scons.returncode != 0:
-    # Read remaining output
+    # Read any remaining output
     if scons.stderr is not None:
-      compile_output += scons.stderr.read().split(b'\n')
+      remaining_output = scons.stderr.read().split(b'\n')
+      compile_output.extend(remaining_output)
 
-    # Build failed log errors
+    # Build failed - prepare error output
     error_s = b"\n".join(compile_output).decode('utf8', 'replace')
     add_file_handler(cloudlog)
     cloudlog.error("scons build failed\n" + error_s)
 
     # Signal build failed to spinner to display error modal
-    print("sending BUILD_FAILED")
     spinner.build_failed()
     # Wait for the user to dismiss the modal
-    spinner.wait_for_exit()  # This will block until interrupted
+    spinner.wait_for_exit()
     exit(1)
 
   # enforce max cache size
@@ -118,8 +127,16 @@ def build(spinner: BPSpinner, dirty: bool = False, minimal: bool = False) -> Non
 
 
 if __name__ == "__main__":
-  # Use our custom BPSpinner instead of the original Spinner
-  spinner = BPSpinner()
+  print("BP Build: Starting build process...")
+
+  # Create BP spinner instance
+  print("BP Build: Creating BPSpinner...")
+  try:
+    spinner = BPSpinner()
+    print("BP Build: BPSpinner created successfully")
+  except Exception as e:
+    print(f"BP Build: Failed to create BPSpinner: {e}")
+    exit(1)
 
   # Set environment variable to get detailed output
   os.environ['SPINNER_DETAILED'] = '1'
