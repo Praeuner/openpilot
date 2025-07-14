@@ -100,12 +100,12 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *to_push) {
   .angle_deg_to_can = 50000,  /* 1 / (2e-5) rad to can */                                       \
   .max_angle_error = 100,     /* 0.002 * FORD_STEERING_LIMITS.angle_deg_to_can */               \
   .angle_rate_up_lookup = {                                                                     \
-    {5., 16., 25.},                                                                             \
-    {0.0026, 0.0013, 0.0001}                                                                   \
+    {5., 25., 25.},                                                                             \
+    {0.00045, 0.0001, 0.0001}                                                                   \
   },                                                                                            \
   .angle_rate_down_lookup = {                                                                   \
-    {5., 13., 25.},                                                                             \
-    {0.0026, 0.0015, 0.0002}                                                                 \
+    {5., 25., 25.},                                                                             \
+    {0.00045, 0.00015, 0.00015}                                                                 \
   },                                                                                            \
                                                                                                 \
   /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */ \
@@ -270,7 +270,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_STEERING_LIMITS);
 
     if (violation) {
-      tx = true;
+      tx = false;
     }
   }
 
@@ -294,7 +294,7 @@ static bool ford_tx_hook(const CANPacket_t *to_send) {
     violation |= steer_angle_cmd_checks(desired_curvature, steer_control_enabled, FORD_CANFD_STEERING_LIMITS);
 
     if (violation) {
-      tx = true;
+      tx = false;
     }
   }
 
