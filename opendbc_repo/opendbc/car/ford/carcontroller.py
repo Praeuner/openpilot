@@ -103,6 +103,9 @@ class CarController(CarControllerBase):
     self.enable_high_curvature_mode = False # Updated from UI: enable High Curvature Mode
     self.custom_profile = 0 # updated from UI
     self.pc_blend_ratio = 0.5
+    self.steer_warning = False # warning for steering limits exceeded
+    self.steer_warning_count = 0 # count how many cycles the warning has existed
+    self.steering_limited = 0 # count how many cycles the steering was limited
 
     # Curvature variables
     self.curvature_lookup_time = 0.42 #from lagd
@@ -152,10 +155,8 @@ class CarController(CarControllerBase):
     self.LC_PID_controller = PIDController(k_p=self.LC_PID_k_p, k_i=self.LC_PID_k_i, rate=20)
     self.LC_PID_speed_bp = [0.0, 9.0, 15.0]  # speed breakpoints in m/s
     self.LC_PID_speed_v = [0.0, 0.0, 1.0]  # corresponding k_p values
-    self.LC_path_angle_ROC_low = 1.25
-    self.LC_path_angle_ROC_high = 0.75
-    self.LC_path_angle_ROC_bp = [4.4, 40.23]  # speed breakpoints in m/s
-    self.LC_path_angle_ROC_v = [self.LC_path_angle_ROC_low/1000, self.LC_path_angle_ROC_high/1000]  # use 1/1000 so the UI varibles are easier to set
+    self.LC_path_angle_ROC_bp = [5, 15, 25]  # speed breakpoints in m/s
+    self.LC_path_angle_ROC_v = [0.003, 0.0015, 0.002]  # match panda limits
 
     # path angle high curvature variables
     self.HC_PID_gain_UI = 0.5 # gain for UI tuning
@@ -426,8 +427,25 @@ class CarController(CarControllerBase):
                                                                 CC.latActive,
                                                                 self.CP)
 
-        # for testing
-        apply_curvature = requested_curvature
+
+        # detect if steering was limited (lanes changes always trigger, but complete just fine)
+        if (requested_curvature != apply_curvature) and (not steeringPressed) and (not self.lane_change):
+          self.steering_limited = self.steering_limited + 1
+        else:
+          self.steering_limited = 0
+
+        # if steering was limited for 10 scans turn on steer_warning if above 15mph
+        if self.steering_limited > 10 and CS.out.vEgoRaw > 7:
+            self.steer_warning = True
+
+        # latch steer_warning and count cycles before clearing
+        if self.steer_warning and not self.steering_limited:
+            self.steer_warning_count = self.steer_warning_count + 1
+
+        # clear steer_warning after 10 counts of no steering limited
+        if self.steer_warning_count > 10:
+          self.steer_warning = False
+          self.steer_warning_count = 0
 
         # compute curvature rate
         self.curvature_rate_deque.append(predicted_curvature)
@@ -739,6 +757,7 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
     new_actuators = actuators.as_builder()
+    new_actuators.torqueOutputCan = float(self.steer_warning)
     new_actuators.curvature = float(apply_curvature)
     new_actuators.accel = float(self.accel)
     new_actuators.gas = float(self.gas)
