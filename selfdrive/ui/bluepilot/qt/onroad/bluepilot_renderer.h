@@ -123,10 +123,11 @@ private:
   template<typename ModelType>
   static void updateFrameState(const UIState &s, const ModelType &model);
   static void renderBlinkers(QPainter &painter, const QRect &rect);
-  static void renderStandstillTimer(QPainter &painter, const QRect &rect);
+  static void renderStandstillTimer(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderHybridGauges(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderGForceMeter(QPainter &painter, const QRect &rect, const UIState &s);
+  static QColor getGForceColor(float g_value);
 
   // Model enhancement helpers
   static void updateLeadTracking(const UIState &s);

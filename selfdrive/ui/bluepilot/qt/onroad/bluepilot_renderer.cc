@@ -79,7 +79,7 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
 
   // 1. BOTTOM LAYER: Blinkers and standstill timer
   renderBlinkers(painter, rect);
-  renderStandstillTimer(painter, rect);
+  renderStandstillTimer(painter, rect, s);
 
   // 2. MIDDLE LAYER: Model-dependent overlays (radar, stop signs)
   if (frame_state.show_radar || frame_state.show_stop) {
@@ -407,31 +407,72 @@ void BluepilotRenderer::renderGForceMeter(QPainter &painter, const QRect &rect, 
   drawGForceMeter(painter, rect, s);
 }
 
+// Color scaling function for G-force values
+QColor BluepilotRenderer::getGForceColor(float g_value) {
+  float abs_g = std::abs(g_value);
+
+  if (abs_g < 0.3f) {
+    // White for normal driving (0.0 - 0.3g)
+    return QColor(255, 255, 255);
+  } else if (abs_g < 0.6f) {
+    // White to Yellow transition (0.3 - 0.6g)
+    float ratio = (abs_g - 0.3f) / 0.3f;
+    int red = 255;
+    int green = 255;
+    int blue = static_cast<int>(255 * (1.0f - ratio));
+    return QColor(red, green, blue);
+  } else if (abs_g < 1.0f) {
+    // Yellow to Orange transition (0.6 - 1.0g)
+    float ratio = (abs_g - 0.6f) / 0.4f;
+    int red = 255;
+    int green = static_cast<int>(255 * (1.0f - ratio * 0.5f)); // 255 to 128
+    int blue = 0;
+    return QColor(red, green, blue);
+  } else {
+    // Orange to Red transition (1.0g+)
+    float ratio = std::min((abs_g - 1.0f) / 0.5f, 1.0f); // Cap at 1.5g
+    int red = 255;
+    int green = static_cast<int>(128 * (1.0f - ratio)); // 128 to 0
+    int blue = 0;
+    return QColor(red, green, blue);
+  }
+}
+
+// G-Force meter with LAT/LONG sections and TOTAL at bottom
 void BluepilotRenderer::drawGForceMeter(QPainter &painter, const QRect &rect, const UIState &s) {
-  const int meter_width = 350;  // Reduced width
-  int meter_height = 100;       // Will be set to match hybrid gauge height
-  const int margin = 10;
+  // Responsive width scaling to match hybrid gauge pattern
+  int gauge_scale = s.scene.hybrid_drive_gauge_size;
+  int meter_width_percent;
+  int meter_height = 140; // Default height
+
+  if (gauge_scale == 1) {
+    meter_width_percent = 14;
+    meter_height = 100;
+  } else if (gauge_scale == 2) {
+    meter_width_percent = 16;
+    meter_height = 115;
+  } else if (gauge_scale == 3) {
+    meter_width_percent = 18;
+    meter_height = 130;
+  } else {
+    meter_width_percent = 16;
+    meter_height = 140;
+  }
+
+  int meter_width = rect.width() * (meter_width_percent / 100.0f);
 
   int x, y;
 
-  // Check if hybrid gauge is shown and available
+  // Position to match hybrid gauge exactly
   if (s.scene.show_hybrid_drive_overlay && frame_state.hybrid_available) {
-
-    // Get hybrid gauge dimensions - match height exactly
-    int gauge_scale = s.scene.hybrid_drive_gauge_size;
     int gauge_width = rect.width() * 0.39;
 
     if (gauge_scale == 1) {
       gauge_width = rect.width() * 0.30;
-      meter_height = 100;  // Match hybrid gauge height
     } else if (gauge_scale == 2) {
       gauge_width = rect.width() * 0.345;
-      meter_height = 115;  // Match hybrid gauge height
     } else if (gauge_scale == 3) {
       gauge_width = rect.width() * 0.39;
-      meter_height = 130;  // Match hybrid gauge height
-    } else {
-      meter_height = 100;  // Default height
     }
 
     int bottom_margin = 30;
@@ -440,13 +481,11 @@ void BluepilotRenderer::drawGForceMeter(QPainter &painter, const QRect &rect, co
     int gauge_left = gauge_center_x - gauge_width / 2;
 
     // Position G-force meter to the left of hybrid gauge
-    x = gauge_left - meter_width - margin;
+    x = gauge_left - meter_width - 10;
     y = gauge_y; // Exact same Y position as hybrid gauge
-
   } else {
-    // When no hybrid gauge, position to the right of driver monitor widget (bottom left)
-    meter_height = 130;  // Larger default size
-    x = 250;  // Right of driver monitor with margin
+    // When no hybrid gauge, position to the right of driver monitor
+    x = 250;
     y = rect.height() - meter_height - 60;
   }
 
@@ -459,112 +498,107 @@ void BluepilotRenderer::drawGForceMeter(QPainter &painter, const QRect &rect, co
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.save();
 
-  // Draw meter background with automotive styling (match hybrid gauge exact color)
+  // Draw meter background with automotive styling
   painter.setPen(QPen(QColor(100, 149, 237, 200), 3));
   painter.setBrush(QColor(44, 62, 80, 240));
   painter.drawRoundedRect(meter_rect, 12, 12);
 
-  // Draw grid background - narrower grid to match height
-  painter.setClipRect(meter_rect.adjusted(110, 15, -110, -15)); // Adjusted for new width
-  painter.setPen(QPen(QColor(100, 149, 237, 50), 1));
+  // Calculate sections - 3 equal columns
+  int column_width = meter_width / 3;
+  QRect lat_section(meter_rect.left(), meter_rect.top(), column_width, meter_height);
+  QRect long_section(meter_rect.left() + column_width, meter_rect.top(), column_width, meter_height);
+  QRect total_section(meter_rect.left() + (column_width * 2), meter_rect.top(), column_width, meter_height);
 
-  // Draw grid lines - fewer vertical lines for narrower area
-  for (int i = 1; i < 5; ++i) {  // 4 vertical sections instead of 8
-    int grid_x = meter_rect.left() + 110 + (i * (meter_width - 220) / 5);
-    painter.drawLine(grid_x, meter_rect.top() + 15, grid_x, meter_rect.bottom() - 15);
-  }
-  // Horizontal grid lines based on height
-  int h_sections = (meter_height > 120) ? 5 : 4;
-  for (int i = 1; i < h_sections; ++i) {
-    int grid_y = meter_rect.top() + 15 + (i * (meter_height - 30) / h_sections);
-    painter.drawLine(meter_rect.left() + 15, grid_y, meter_rect.right() - 15, grid_y);
-  }
-
-  painter.setClipping(false);
-
-  // Draw crosshairs - match narrower grid area
-  QPointF center = meter_rect.center();
+  // Draw vertical divider lines
   painter.setPen(QPen(QColor(100, 149, 237, 100), 2));
-  painter.drawLine(meter_rect.left() + 110, center.y(), meter_rect.right() - 110, center.y());
-  painter.drawLine(center.x(), meter_rect.top() + 15, center.x(), meter_rect.bottom() - 15);
+  painter.drawLine(lat_section.topRight().x(), lat_section.top(),
+                   lat_section.topRight().x(), lat_section.bottom());
+  painter.drawLine(long_section.topRight().x(), long_section.top(),
+                   long_section.topRight().x(), long_section.bottom());
 
   // Get current G-forces
   float lateral_g = frame_state.gforce_state.lateral_g;
   float longitudinal_g = frame_state.gforce_state.longitudinal_g;
   float total_g = std::sqrt(lateral_g * lateral_g + longitudinal_g * longitudinal_g);
 
-  // Clamp values
-  lateral_g = std::clamp(lateral_g, -1.5f, 1.5f);
-  longitudinal_g = std::clamp(longitudinal_g, -1.5f, 1.5f);
+  // Prevent -0.0g/0.0g flipping
+  if (std::abs(lateral_g) < 0.05f) lateral_g = 0.0f;
+  if (std::abs(longitudinal_g) < 0.05f) longitudinal_g = 0.0f;
 
-  // Calculate dot position - match narrower grid area
-  const float max_g = 1.5f;
-  const float usable_width = meter_width - 220;  // 110px margins on each side
-  const float usable_height = meter_height - 30;
+  // Dynamic font sizes based on display size
+  float font_scale = rect.height() / 1080.0f; // Scale for high-DPI displays
+  QFont labelFont("Inter", std::max(16, (int)(22 * font_scale)), QFont::Bold);
+  QFont valueFont("Inter", std::max(28, (int)(38 * font_scale)), QFont::Bold);
 
-  float dot_x = center.x() + (lateral_g / max_g) * (usable_width / 2);
-  float dot_y = center.y() - (longitudinal_g / max_g) * (usable_height / 2);
+  // === LATERAL SECTION ===
+  painter.setFont(labelFont);
+  painter.setPen(QColor(0, 255, 127, 200)); // Green label
+  painter.drawText(lat_section.adjusted(0, 8, 0, -meter_height * 0.6), Qt::AlignCenter, "LAT");
 
-  // Draw G-force dot
-  QColor dot_color;
-  if (total_g > 1.2f) dot_color = QColor(255, 34, 34);
-  else if (total_g > 0.8f) dot_color = QColor(255, 136, 68);
-  else if (total_g > 0.3f) dot_color = QColor(68, 255, 68);
-  else dot_color = QColor(68, 136, 255);
+  // Draw lateral value with color scaling
+  painter.setFont(valueFont);
+  QColor lat_color = getGForceColor(lateral_g);
+  painter.setPen(lat_color);
 
-  painter.setBrush(dot_color);
-  painter.setPen(QPen(Qt::white, 2));
-  painter.drawEllipse(QPointF(dot_x, dot_y), 6, 6);
+  // Add glow effect for high values
+  if (std::abs(lateral_g) > 0.6f) {
+    painter.setPen(QColor(lat_color.red(), lat_color.green(), lat_color.blue(), 100));
+    for (int i = 1; i <= 2; ++i) {
+      painter.drawText(lat_section.adjusted(-i, meter_height * 0.25 - i, i, -8 + i),
+                      Qt::AlignCenter, QString("%1g").arg(lateral_g, 0, 'f', 1));
+    }
+    painter.setPen(lat_color);
+  }
 
-  // Draw center "G" label
-  painter.setBrush(QColor(100, 149, 237, 40));
-  painter.setPen(QPen(QColor(100, 149, 237), 2));
-  painter.drawEllipse(center, 12, 12);
+  painter.drawText(lat_section.adjusted(0, meter_height * 0.25, 0, -8), Qt::AlignCenter,
+                  QString("%1g").arg(lateral_g, 0, 'f', 1));
 
-  painter.setPen(Qt::white);
-  QFont centerFont("Inter", 10, QFont::Bold);
-  painter.setFont(centerFont);
-  painter.drawText(QRectF(center.x() - 12, center.y() - 12, 24, 24), Qt::AlignCenter, "G");
+  // === LONGITUDINAL SECTION ===
+  painter.setFont(labelFont);
+  painter.setPen(QColor(100, 149, 237, 200)); // Blue label
+  painter.drawText(long_section.adjusted(0, 8, 0, -meter_height * 0.6), Qt::AlignCenter, "LONG");
 
-  // Draw internal value displays with larger text and repositioned
-  QFont valueFont("Inter", 32, QFont::Bold);  // Increased from 24
-  QFont labelFont("Inter", 20);               // Increased from 16
+  // Draw longitudinal value with color scaling
+  painter.setFont(valueFont);
+  QColor long_color = getGForceColor(longitudinal_g);
+  painter.setPen(long_color);
 
-  // LAT (bottom-left) - positioned further left for symmetry
-  QRect latRect(meter_rect.left() + 15, meter_rect.bottom() - 75, 95, 67);  // Further from edge
-  painter.setBrush(QColor(44, 62, 80, 240));
-  painter.setPen(QPen(QColor(0, 255, 127, 120), 1));
-  painter.drawRoundedRect(latRect, 4, 4);
+  // Add glow effect for high values
+  if (std::abs(longitudinal_g) > 0.6f) {
+    painter.setPen(QColor(long_color.red(), long_color.green(), long_color.blue(), 100));
+    for (int i = 1; i <= 2; ++i) {
+      painter.drawText(long_section.adjusted(-i, meter_height * 0.25 - i, i, -8 + i),
+                      Qt::AlignCenter, QString("%1g").arg(longitudinal_g, 0, 'f', 1));
+    }
+    painter.setPen(long_color);
+  }
+
+  painter.drawText(long_section.adjusted(0, meter_height * 0.25, 0, -8), Qt::AlignCenter,
+                  QString("%1g").arg(longitudinal_g, 0, 'f', 1));
+
+  // === TOTAL G-FORCE SECTION ===
+  QColor total_color = getGForceColor(total_g);
 
   painter.setFont(labelFont);
-  painter.setPen(QColor(170, 170, 170));
-  painter.drawText(latRect.adjusted(0, 5, 0, -35), Qt::AlignTop | Qt::AlignHCenter, "LAT");
+  painter.setPen(QColor(255, 255, 255, 200)); // White label
+  painter.drawText(total_section.adjusted(0, 8, 0, -meter_height * 0.6), Qt::AlignCenter, "TOTAL");
 
+  // Draw total value with color scaling
   painter.setFont(valueFont);
-  painter.setPen(std::abs(lateral_g) > 0.5f ? QColor(255, 136, 68) : Qt::white);
-  // Prevent -0.0g/0.0g flipping
-  float display_lateral = (std::abs(lateral_g) < 0.05f) ? 0.0f : lateral_g;
-  painter.drawText(latRect.adjusted(0, 30, 0, -5), Qt::AlignBottom | Qt::AlignHCenter,
-                  QString::number(display_lateral, 'f', 1) + "g");
+  painter.setPen(total_color);
 
-  // LONG (top-right) - positioned further right for symmetry
-  QRect longRect(meter_rect.right() - 110, meter_rect.top() + 8, 95, 67);  // Further from edge
-  painter.setBrush(QColor(44, 62, 80, 240));
-  painter.setPen(QPen(QColor(100, 149, 237, 120), 1));
-  painter.drawRoundedRect(longRect, 4, 4);
+  // Add glow effect for high total values
+  if (total_g > 0.6f) {
+    painter.setPen(QColor(total_color.red(), total_color.green(), total_color.blue(), 100));
+    for (int i = 1; i <= 2; ++i) {
+      painter.drawText(total_section.adjusted(-i, meter_height * 0.25 - i, i, -8 + i),
+                      Qt::AlignCenter, QString("%1g").arg(total_g, 0, 'f', 1));
+    }
+    painter.setPen(total_color);
+  }
 
-  painter.setFont(labelFont);
-  painter.setPen(QColor(170, 170, 170));
-  painter.drawText(longRect.adjusted(0, 5, 0, -35), Qt::AlignTop | Qt::AlignHCenter, "LONG");
-
-  painter.setFont(valueFont);
-  painter.setPen(std::abs(longitudinal_g) > 0.5f ? QColor(255, 136, 68) : Qt::white);
-  // Prevent -0.0g/0.0g flipping
-  float display_longitudinal = (std::abs(longitudinal_g) < 0.05f) ? 0.0f : longitudinal_g;
-  painter.drawText(longRect.adjusted(0, 30, 0, -5), Qt::AlignBottom | Qt::AlignHCenter,
-                  QString::number(display_longitudinal, 'f', 1) + "g");
-
-  // TOTAL block removed completely
+  painter.drawText(total_section.adjusted(0, meter_height * 0.25, 0, -8), Qt::AlignCenter,
+                  QString("%1g").arg(total_g, 0, 'f', 1));
 
   painter.restore();
 }
@@ -591,7 +625,17 @@ void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
   }
 }
 
-void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &rect) {
+void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &rect, const UIState &s) {
+  // Check if standstill timer is enabled via parameter
+  if (!s.scene.stand_still_timer) {
+    // Reset timer state when parameter is disabled
+    frame_state.standstill_elapsed = 0.0;
+    frame_state.standstill_start_time = 0.0;
+    frame_state.standstill_exit_time = 0.0;
+    frame_state.prev_standstill = false;
+    return;
+  }
+
   double current_time = millis_since_boot() / 1000.0;
 
   // Enhanced standstill detection with multiple criteria
@@ -603,7 +647,16 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
     combined_standstill = true;
   }
 
-  // FIXED: Update prev_standStill at the end of the function, not at the beginning
+  // Reset timer when transitioning from offroad to onroad (new session)
+  static bool session_initialized = false;
+  if (!session_initialized) {
+    frame_state.standstill_elapsed = 0.0;
+    frame_state.standstill_start_time = current_time;
+    frame_state.standstill_exit_time = 0.0;
+    frame_state.prev_standstill = false;
+    session_initialized = true;
+  }
+
   if (!frame_state.prev_standstill && combined_standstill) {
     // Just entered standstill - start the timer
     frame_state.standstill_start_time = current_time;
@@ -649,7 +702,6 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
     drawColoredText(painter, x, y + 90, timeText, QColor(255, 255, 255, 240));
   }
 
-  // FIXED: Update prev_standstill at the end
   frame_state.prev_standstill = frame_state.standstill;
 }
 
