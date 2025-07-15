@@ -37,10 +37,10 @@ class CarControllerParams:
     # Limit to ~2 m/s^3 up, ~3.3 m/s^3 down at 75 mph and match EPS limit at low speed
     # ([5, 16.0, 25], [0.00045, 0.00025, 0.00010]),
     # ([5, 16.0, 25], [0.00045, 0.00025, 0.00015])
-    ([5, 25], [0.00045, 0.0001]),
-    ([5, 25], [0.00045, 0.00015])
+    ([5, 16, 25], [0.0026, 0.0013, 0.0001]),
+    ([5, 16, 25], [0.0026, 0.0015, 0.0002])
   )
-  CURVATURE_ERROR = 0.004  # ~6 degrees at 10 m/s, ~10 degrees at 35 m/s
+  CURVATURE_ERROR = 0.002  # ~6 degrees at 10 m/s, ~10 degrees at 35 m/s
 
   ACCEL_MAX = 2.0               # m/s^2 max acceleration
   ACCEL_MIN = -3.5              # m/s^2 max deceleration
