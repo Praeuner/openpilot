@@ -1,13 +1,18 @@
 {
   "versions": {
-    "2025.6.4.1": {
+    "2025.7.15.1": {
       "changes": [
         "Added recent changes dialog functionality to offroad transition in UI",
         "Added the fan demand percentage to the sidebar.  Just tap on the memory card to toggle it",
         "Enhanced stop sign detection and rendering with improved vehicle state checks and visual effects",
         "Refactored HybridDriveGauge and HybridBatteryGauge with enhanced automotive styling",
         "Enhanced stop sign rendering with improved position and size smoothing",
-        "Refactored lead tracking logic with enhanced stability requirements"
+        "Refactored lead tracking logic with enhanced stability requirements",
+        "Complete rewrite of advanced lateral control.  In-lane position is now handle stand-alone and is smoother",
+        "Updates to lateral control logic to incorporate dynamic lag calculation",
+        "Reset low speed torque limits to match bp-2.1",
+        "Updated 'steering limited exceeded' warning logic to reduce false alerts"
+
       ],
       "fixes": [
         "Fixed typo in parameter name for standstill timer which was causing the timer to not display",
