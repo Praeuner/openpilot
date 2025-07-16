@@ -56,6 +56,10 @@
                   "value": "FORD_F_150_LIGHTNING_MK1"
                 },
                 {
+                  "name": "Ford Expedition (2022-2024)",
+                  "value": "FORD_EXPEDITION_MK4"
+                },
+                {
                   "name": "Ford Mustang Mach-E (2021-2023)",
                   "value": "FORD_MUSTANG_MACH_E_MK1"
                 },
