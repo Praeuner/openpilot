@@ -1,5 +1,4 @@
 import numpy as np
-from openpilot.common.params import Params
 from openpilot.sunnypilot.models.split_model_constants import SplitModelConstants
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
@@ -26,7 +25,6 @@ def softmax(x, axis=-1):
 class Parser:
   def __init__(self, ignore_missing=False):
     self.ignore_missing = ignore_missing
-    self._params = Params()
     model_bundle = get_active_bundle()
     self.generation = model_bundle.generation if model_bundle is not None else None
 
@@ -94,7 +92,7 @@ class Parser:
     outs[name + '_stds'] = pred_std_final.reshape(final_shape)
 
   def parse_dynamic_outputs(self, outs: dict[str, np.ndarray]) -> None:
-    if self._params.get_bool("DynamicModeldOutputs") or (self.generation >= 12):
+    if self.generation >= 12:
       if 'lead' in outs:
         if outs['lead'].shape[1] == 2 * SplitModelConstants.LEAD_MHP_SELECTION *SplitModelConstants.LEAD_TRAJ_LEN * SplitModelConstants.LEAD_WIDTH:
           self.parse_mdn('lead', outs, in_N=0, out_N=0,
@@ -118,18 +116,28 @@ class Parser:
                        out_shape=(SplitModelConstants.IDX_N,SplitModelConstants.PLAN_WIDTH))
 
   def split_outputs(self, outs: dict[str, np.ndarray]) -> None:
+    if 'desired_curvature' in outs:
+      self.parse_mdn('desired_curvature', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.DESIRED_CURV_WIDTH,))
+    if 'desire_pred' in outs:
+      self.parse_categorical_crossentropy('desire_pred', outs, out_shape=(SplitModelConstants.DESIRE_PRED_LEN,SplitModelConstants.DESIRE_PRED_WIDTH))
+    if 'desire_state' in outs:
+      self.parse_categorical_crossentropy('desire_state', outs, out_shape=(SplitModelConstants.DESIRE_PRED_WIDTH,))
     if 'lane_lines' in outs:
       self.parse_mdn('lane_lines', outs, in_N=0, out_N=0,
                     out_shape=(SplitModelConstants.NUM_LANE_LINES,SplitModelConstants.IDX_N,SplitModelConstants.LANE_LINES_WIDTH))
+    if 'lane_lines_prob' in outs:
+      self.parse_binary_crossentropy('lane_lines_prob', outs)
+    if 'lead_prob' in outs:
+      self.parse_binary_crossentropy('lead_prob', outs)
+    if 'lat_planner_solution' in outs:
+      self.parse_mdn('lat_planner_solution', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.IDX_N,SplitModelConstants.LAT_PLANNER_SOLUTION_WIDTH))
+    if 'meta' in outs:
+      self.parse_binary_crossentropy('meta', outs)
     if 'road_edges' in outs:
       self.parse_mdn('road_edges', outs, in_N=0, out_N=0,
                     out_shape=(SplitModelConstants.NUM_ROAD_EDGES,SplitModelConstants.IDX_N,SplitModelConstants.LANE_LINES_WIDTH))
     if 'sim_pose' in outs:
       self.parse_mdn('sim_pose', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.POSE_WIDTH,))
-    if 'lane_lines_prob' in outs:
-      self.parse_binary_crossentropy('lane_lines_prob', outs)
-    if 'lead_prob' in outs:
-      self.parse_binary_crossentropy('lead_prob', outs)
 
   def parse_vision_outputs(self, outs: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     self.parse_mdn('pose', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.POSE_WIDTH,))
@@ -137,18 +145,11 @@ class Parser:
     self.parse_mdn('road_transform', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.POSE_WIDTH,))
     self.parse_dynamic_outputs(outs)
     self.split_outputs(outs)
-    self.parse_categorical_crossentropy('desire_pred', outs, out_shape=(SplitModelConstants.DESIRE_PRED_LEN,SplitModelConstants.DESIRE_PRED_WIDTH))
-    self.parse_binary_crossentropy('meta', outs)
     return outs
 
   def parse_policy_outputs(self, outs: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     self.parse_dynamic_outputs(outs)
     self.split_outputs(outs)
-    if 'lat_planner_solution' in outs:
-      self.parse_mdn('lat_planner_solution', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.IDX_N,SplitModelConstants.LAT_PLANNER_SOLUTION_WIDTH))
-    if 'desired_curvature' in outs:
-      self.parse_mdn('desired_curvature', outs, in_N=0, out_N=0, out_shape=(SplitModelConstants.DESIRED_CURV_WIDTH,))
-    self.parse_categorical_crossentropy('desire_state', outs, out_shape=(SplitModelConstants.DESIRE_PRED_WIDTH,))
     return outs
 
   def parse_outputs(self, outs: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
