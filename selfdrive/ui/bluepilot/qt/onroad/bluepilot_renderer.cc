@@ -304,7 +304,7 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
         float total_accel = std::sqrt(ax*ax + ay*ay + az*az);
 
         // If close to gravity magnitude, we're mostly measuring gravity
-        if (total_accel > 8.0f && total_accel < 12.0f) {
+        if (total_accel > 6.0f && total_accel < 15.0f) {
           // Apply high-pass filter to remove gravity DC component
           static float ax_baseline = ax;
           static float ay_baseline = ay;
@@ -326,7 +326,7 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
         }
 
         frame_state.gforce_state.longitudinal_g = ax / GRAVITY_MS2;
-        frame_state.gforce_state.lateral_g = ay / GRAVITY_MS2;
+        frame_state.gforce_state.lateral_g = -ay / GRAVITY_MS2;
 
         using_real_data = true;
 
@@ -368,7 +368,7 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
   }
 
   // Apply smoothing
-  const float smoothing_factor = 0.15f;
+  const float smoothing_factor = 0.30f;  // Increased for more real-time responsiveness
   frame_state.gforce_state.smoothed_longitudinal =
     frame_state.gforce_state.smoothed_longitudinal * (1.0f - smoothing_factor) +
     frame_state.gforce_state.longitudinal_g * smoothing_factor;
