@@ -190,10 +190,6 @@ class CAR(Platforms):
     [FordCarDocs("Ford F-150 Lightning 2022-23", "Co-Pilot360 Assist 2.0")],
     CarSpecs(mass=2948, wheelbase=3.70, steerRatio=16.9),
   )
-  FORD_EXPEDITION_MK4 = FordCANFDPlatformConfig(
-     [FordCarDocs("Ford Expedition 2022-24", "Co-Pilot360 Assist 2.0", hybrid=False)],
-     CarSpecs(mass=2000, wheelbase=3.69, steerRatio=17.0),
-   )
   FORD_FOCUS_MK4 = FordPlatformConfig(
     [FordCarDocs("Ford Focus 2018", "Adaptive Cruise Control with Lane Centering", footnotes=[Footnote.FOCUS], hybrid=True)],  # mHEV only
     CarSpecs(mass=1350, wheelbase=2.7, steerRatio=15.0),
