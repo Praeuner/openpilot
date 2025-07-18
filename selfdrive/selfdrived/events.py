@@ -7,7 +7,7 @@ import cereal.messaging as messaging
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.git import get_short_branch
 from openpilot.common.realtime import DT_CTRL
-from openpilot.selfdrive.locationd.calibrationd import MIN_SPEED_FILTER
+from openpilot.selfdrive.locationd.calibrationd import MIN_SPEED_FILTER, MIN_LANE_LINE_PROB, MIN_LANE_LINES_REQUIRED
 
 from openpilot.sunnypilot.selfdrive.selfdrived.events_base import EventsBase, Priority, ET, Alert, \
   NoEntryAlert, SoftDisableAlert, UserSoftDisableAlert, ImmediateDisableAlert, EngagementAlert, NormalPermanentAlert, \
@@ -85,9 +85,32 @@ def below_steer_speed_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.S
 
 def calibration_incomplete_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
   first_word = 'Recalibration' if sm['liveCalibration'].calStatus == log.LiveCalibrationData.Status.recalibrating else 'Calibration'
+
+  # Check current conditions to provide specific feedback
+  v_ego = CS.vEgo
+  speed_ok = v_ego > MIN_SPEED_FILTER
+
+  # Check lane line detection if modelV2 is available
+  lane_lines_ok = True
+  lane_line_reason = ""
+  if sm.valid['modelV2'] and len(sm['modelV2'].laneLineProbs) >= 4:
+    lane_line_probs = sm['modelV2'].laneLineProbs
+    detected_lanes = sum(1 for prob in lane_line_probs if prob > MIN_LANE_LINE_PROB)
+    lane_lines_ok = detected_lanes >= MIN_LANE_LINES_REQUIRED
+    if not lane_lines_ok:
+      lane_line_reason = f"Need {MIN_LANE_LINES_REQUIRED}+ lane lines (detected: {detected_lanes})"
+
+  # Determine the specific reason calibration isn't proceeding
+  if not speed_ok:
+    reason = f"Drive Above {get_display_speed(MIN_SPEED_FILTER, metric)}"
+  elif not lane_lines_ok:
+    reason = lane_line_reason
+  else:
+    reason = "Drive on straight road with clear lane markings"
+
   return Alert(
     f"{first_word} in Progress: {sm['liveCalibration'].calPerc:.0f}%",
-    f"Drive Above {get_display_speed(MIN_SPEED_FILTER, metric)}",
+    reason,
     AlertStatus.normal, AlertSize.mid,
     Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .2)
 
