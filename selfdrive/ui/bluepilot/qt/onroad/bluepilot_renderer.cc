@@ -263,76 +263,68 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
   }
 
   if (accel_available && gyro_available) {
-
     try {
       // Get the Event messages
       const auto &accel_event = sm["accelerometer"];
       const auto &gyro_event = sm["gyroscope"];
 
-      // Print what type of event we got
-      // if (debug_counter % 200 == 0) {
-      //   std::cout << "Got accelerometer event, trying to access as accelerometer..." << std::endl;
-      //   std::cout << "Got gyroscope event, trying to access as gyroscope..." << std::endl;
-      // }
-
       // Access as SensorEventData directly
       const auto &accel_sensor = accel_event.getAccelerometer();
       const auto &gyro_sensor = gyro_event.getGyroscope();
-
-      // if (debug_counter % 200 == 0) {
-      //   std::cout << "Accel sensor which(): " << (int)accel_sensor.which() << std::endl;
-      //   std::cout << "Gyro sensor which(): " << (int)gyro_sensor.which() << std::endl;
-      // }
 
       // Check if the union contains the data we expect
       if (accel_sensor.which() == cereal::SensorEventData::Which::ACCELERATION &&
           gyro_sensor.which() == cereal::SensorEventData::Which::GYRO_UNCALIBRATED) {
 
         const auto &accel = accel_sensor.getAcceleration();
-        // const auto &gyro = gyro_sensor.getGyroUncalibrated();
+        const auto &gyro = gyro_sensor.getGyroUncalibrated();
 
         auto accel_v = accel.getV();
-        // auto gyro_v = gyro.getV();
+        auto gyro_v = gyro.getV();
 
         float ax = accel_v[0];
-        float ay = accel_v[1];
-        float az = accel_v[2];
-        // float yaw_rate = gyro_v[2];
+        // float ay = accel_v[1];
+        // float az = accel_v[2];
+        float yaw_rate = gyro_v[2];
 
-        // Remove gravity component - when stationary, accelerometer reads gravity
-        // Calculate total acceleration magnitude
-        float total_accel = std::sqrt(ax*ax + ay*ay + az*az);
-
-        // If close to gravity magnitude, we're mostly measuring gravity
-        if (total_accel > 6.0f && total_accel < 15.0f) {
-          // Apply high-pass filter to remove gravity DC component
-          static float ax_baseline = ax;
-          static float ay_baseline = ay;
-          static bool initialized = false;
-
-          if (!initialized) {
-            ax_baseline = ax;
-            ay_baseline = ay;
-            initialized = true;
-          } else {
-            // Slowly track baseline (gravity orientation)
-            ax_baseline = ax_baseline * 0.999f + ax * 0.001f;
-            ay_baseline = ay_baseline * 0.999f + ay * 0.001f;
-          }
-
-          // Subtract baseline to get actual vehicle acceleration
-          ax = ax - ax_baseline;
-          ay = ay - ay_baseline;
+        // Get vehicle speed for calculations
+        float v_ego = 0.0f;
+        if (sm.valid("carState")) {
+          const auto &car_state = sm["carState"].getCarState();
+          v_ego = car_state.getVEgo();
         }
 
-        frame_state.gforce_state.longitudinal_g = ax / GRAVITY_MS2;
-        frame_state.gforce_state.lateral_g = -ay / GRAVITY_MS2;
+        // SIMPLIFIED: Skip raw accelerometer for now, use vehicle dynamics
+        // The accelerometer gravity removal is complex and coordinate-system dependent
 
-        using_real_data = true;
+        // Use gyroscope + velocity for both axes (more reliable)
+        if (v_ego > 0.5f) {
+          // Moving: use centripetal acceleration for lateral (fixed sign)
+          frame_state.gforce_state.lateral_g = -(v_ego * yaw_rate) / GRAVITY_MS2;
+
+          // For longitudinal, we need actual acceleration data
+          // Try to use the raw accelerometer but with minimal processing
+          frame_state.gforce_state.longitudinal_g = ax / GRAVITY_MS2;
+
+          // If longitudinal is still around 1g, try different axis or remove offset
+          if (std::abs(frame_state.gforce_state.longitudinal_g) > 0.8f) {
+            // Gravity is contaminating - try removing constant offset
+            static float ax_offset = ax; // Capture initial offset
+            frame_state.gforce_state.longitudinal_g = (ax - ax_offset) / GRAVITY_MS2;
+          }
+        } else {
+          // Stationary: zero out values
+          frame_state.gforce_state.lateral_g = 0.0f;
+          frame_state.gforce_state.longitudinal_g = 0.0f;
+        }
+
+        using_real_data = false;  // TEMPORARY: Force simulated data until coordinate system is fixed
 
         // if (debug_counter % 20 == 0) {
-        //   std::cout << "SUCCESS: Using REAL sensor data - accel: [" << ax << ", " << ay << ", " << az
-        //             << "] gyro Z: " << yaw_rate << std::endl;
+        //   std::cout << "RAW SENSOR - ax: " << ax << " ay: " << ay << " az: " << az
+        //             << " yaw: " << yaw_rate << " v_ego: " << v_ego
+        //             << " | calc long_g: " << frame_state.gforce_state.longitudinal_g
+        //             << " lat_g: " << frame_state.gforce_state.lateral_g << std::endl;
         // }
       } else {
         if (debug_counter % 20 == 0) {
@@ -346,24 +338,28 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
       }
     }
   } else {
-    if (debug_counter % 20 == 0) {
-      std::cout << "Sensors not available" << std::endl;
+    if (debug_counter % 50 == 0) {
+      std::cout << "Sensors not available - accel: " << accel_available
+                << " gyro: " << gyro_available << std::endl;
     }
   }
 
-  // Fall back to simulated data
+  // Fall back to simulated data (this should work well)
   if (!using_real_data && sm.valid("carState")) {
     const auto &car_state = sm["carState"].getCarState();
     float v_ego = car_state.getVEgo();
     float a_ego = car_state.getAEgo();
     float yaw_rate = car_state.getYawRate();
 
-    frame_state.gforce_state.longitudinal_g = -a_ego / GRAVITY_MS2;
-    frame_state.gforce_state.lateral_g = (v_ego * yaw_rate) / GRAVITY_MS2;
+    // These values should already have gravity removed
+    frame_state.gforce_state.longitudinal_g = a_ego / GRAVITY_MS2;  // Fixed sign
+    frame_state.gforce_state.lateral_g = -(v_ego * yaw_rate) / GRAVITY_MS2;  // Fixed sign
 
     if (debug_counter % 200 == 0) {
       std::cout << "Using SIMULATED data - v_ego: " << v_ego
-                << " a_ego: " << a_ego << " yaw_rate: " << yaw_rate << std::endl;
+                << " a_ego: " << a_ego << " yaw_rate: " << yaw_rate
+                << " long_g: " << frame_state.gforce_state.longitudinal_g
+                << " lat_g: " << frame_state.gforce_state.lateral_g << std::endl;
     }
   }
 
@@ -397,6 +393,8 @@ void BluepilotRenderer::updateGForceData(const UIState &s) {
   frame_state.gforce_state.history_lateral[frame_state.gforce_state.history_index] =
     QPointF(frame_state.gforce_state.lateral_g, frame_state.gforce_state.longitudinal_g);
   frame_state.gforce_state.history_index = (frame_state.gforce_state.history_index + 1) % 50;
+
+  debug_counter++;
 }
 
 void BluepilotRenderer::renderGForceMeter(QPainter &painter, const QRect &rect, const UIState &s) {
