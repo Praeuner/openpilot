@@ -157,6 +157,8 @@ class CarController(CarControllerBase):
     self.LC_PID_speed_v = [0.0, 0.0, 1.0]  # corresponding k_p values
     self.LC_path_angle_ROC_bp = [5, 15, 25]  # speed breakpoints in m/s
     self.LC_path_angle_ROC_v = [0.003, 0.0015, 0.002]  # match panda limits
+    self.LC_path_angle_reset_counter = 0
+    self.LC_path_angle_reset_duration = 1.5 # in seconds
 
     # path angle high curvature variables
     self.HC_PID_gain_UI = 0.5 # gain for UI tuning
@@ -533,6 +535,14 @@ class CarController(CarControllerBase):
         # rate limit path_angle_low_c for comfort
         path_angle_roc = interp(abs(CS.out.vEgoRaw), self.LC_path_angle_ROC_bp, self.LC_path_angle_ROC_v)
         path_angle_low_c = clip(path_angle_low_c, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+
+        # if the driver is applying consistent pressure to the steering wheel, reset the path_angle_low_c PID controller
+        if steeringPressed:
+          self.LC_path_angle_reset_counter = self.LC_path_angle_reset_counter + 1
+        else:
+          self.LC_path_angle_reset_counter = 0
+        if self.LC_path_angle_reset_counter > self.LC_path_angle_reset_duration * 20: #20 scans per second
+          self.LC_PID_controller.reset()
 
         # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
         # calculate how far the steering wheel is from the desired steering wheel angle
