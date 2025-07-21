@@ -146,10 +146,7 @@ clean_backups() {
 }
 update_boot_and_logo() {
     print_info "Updating boot and logo images..."
-
-    if ! mount_partition_rw "/"; then
-        return 1
-    fi
+    mount_partition_rw "/"
 
     # Ensure the original files exist before proceeding
     if [ ! -f "$BOOT_IMG" ]; then
@@ -165,25 +162,15 @@ update_boot_and_logo() {
 
     # Create backups if they do not already exist
     if [ ! -f "$BOOT_IMG_BKP" ]; then
-        if sudo cp "$BOOT_IMG" "$BOOT_IMG_BKP"; then
-            print_success "Backup created for boot image at $BOOT_IMG_BKP"
-        else
-            print_error "Failed to create backup for boot image"
-            mount_partition_ro "/"
-            return 1
-        fi
+        sudo cp "$BOOT_IMG" "$BOOT_IMG_BKP"
+        print_success "Backup created for boot image at $BOOT_IMG_BKP"
     else
         print_info "Backup for boot image already exists at $BOOT_IMG_BKP"
     fi
 
     if [ ! -f "$LOGO_IMG_BKP" ]; then
-        if sudo cp "$LOGO_IMG" "$LOGO_IMG_BKP"; then
-            print_success "Backup created for logo image at $LOGO_IMG_BKP"
-        else
-            print_error "Failed to create backup for logo image"
-            mount_partition_ro "/"
-            return 1
-        fi
+        sudo cp "$LOGO_IMG" "$LOGO_IMG_BKP"
+        print_success "Backup created for logo image at $LOGO_IMG_BKP"
     else
         print_info "Backup for logo image already exists at $LOGO_IMG_BKP"
     fi
@@ -192,28 +179,20 @@ update_boot_and_logo() {
     if [ ! -f "$BLUEPILOT_BOOT_IMG" ]; then
         print_error "BluePilot boot image ($BLUEPILOT_BOOT_IMG) not found."
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        mount_partition_ro "/"
         return 1
     fi
     if [ ! -f "$BLUEPILOT_LOGO_IMG" ]; then
         print_error "BluePilot logo image ($BLUEPILOT_LOGO_IMG) not found."
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        mount_partition_ro "/"
         return 1
     fi
 
     # Overwrite the original files with the BluePilot images
-    if sudo cp "$BLUEPILOT_BOOT_IMG" "$BOOT_IMG" && sudo cp "$BLUEPILOT_LOGO_IMG" "$LOGO_IMG"; then
-        print_success "Boot and logo images updated with BluePilot files."
-    else
-        print_error "Failed to update images"
-        mount_partition_ro "/"
-        return 1
-    fi
-
+    sudo cp "$BLUEPILOT_BOOT_IMG" "$BOOT_IMG"
+    sudo cp "$BLUEPILOT_LOGO_IMG" "$LOGO_IMG"
+    print_success "Boot and logo images updated with BluePilot files."
     mount_partition_ro "/"
     [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-    return 0
 }
 
 restore_boot_and_logo() {
