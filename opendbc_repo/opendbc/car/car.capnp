@@ -366,7 +366,6 @@ struct CarControl {
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
 
-
   struct Actuators {
     # lateral commands, mutually exclusive
     torque @2: Float32;  # [0.0, 1.0]

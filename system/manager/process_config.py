@@ -64,11 +64,6 @@ def only_offroad(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_github_runner(started, params, CP: car.CarParams) -> bool:
   return not PC and params.get_bool("EnableGithubRunner") and not params.get_bool("NetworkMetered")
 
-
-# def use_bluepilot_uploader(started, params, CP: car.CarParams) -> bool:
-#   return not PC
-
-
 def sunnylink_ready_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for sunnylink_ready to match the process manager signature."""
   return sunnylink_ready(params)
@@ -81,12 +76,6 @@ def use_sunnylink_uploader_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for use_sunnylink_uploader to match the process manager signature."""
   return use_sunnylink_uploader(params)
 
-
-# def use_bluepilot_uploader_shim(started, params, CP: car.CarParams) -> bool:
-#   """Shim for use_bluepilot_uploader to match the process manager signature."""
-#   return use_bluepilot_uploader(started, params, CP)
-
-
 def is_snpe_model(started, params, CP: car.CarParams) -> bool:
   """Check if the active model runner is SNPE."""
   return bool(get_active_model_runner(params, not started) == custom.ModelManagerSP.Runner.snpe)
@@ -98,6 +87,9 @@ def is_tinygrad_model(started, params, CP: car.CarParams) -> bool:
 def is_stock_model(started, params, CP: car.CarParams) -> bool:
   """Check if the active model runner is stock."""
   return bool(get_active_model_runner(params, not started) == custom.ModelManagerSP.Runner.stock)
+
+def mapd_ready(started: bool, params: Params, CP: car.CarParams) -> bool:
+  return bool(os.path.exists(Paths.mapd_root()))
 
 def or_(*fns):
   return lambda *args: operator.or_(*(fn(*args) for fn in fns))
@@ -162,9 +154,6 @@ procs = [
   PythonProcess("sunnylink_registration_manager", "sunnypilot.sunnylink.registration_manager", sunnylink_need_register_shim),
 ]
 
-# bluepilot
-# procs += [PythonProcess("bluepilot_uploader", "bluepilot.data_collection.bp_uploader", always_run, enabled=not PC)]
-
 # sunnypilot
 procs += [
   # Models
@@ -176,7 +165,7 @@ procs += [
   PythonProcess("backup_manager", "sunnypilot.sunnylink.backups.manager", and_(only_offroad, sunnylink_ready_shim)),
 
   # mapd
-  NativeProcess("mapd", Paths.mapd_root(), [MAPD_PATH], always_run),
+  NativeProcess("mapd", Paths.mapd_root(), [MAPD_PATH], mapd_ready),
   PythonProcess("mapd_manager", "sunnypilot.mapd.mapd_manager", always_run),
 ]
 

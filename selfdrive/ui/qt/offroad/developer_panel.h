@@ -5,7 +5,7 @@
 #else
 #include "selfdrive/ui/qt/offroad/settings.h"
 #endif
-#include <QFileInfo>
+
 class DeveloperPanel : public ListWidget {
   Q_OBJECT
 public:
@@ -16,10 +16,8 @@ private:
   Params params;
   ParamControl* adbToggle;
   ParamControl* joystickToggle;
-  ButtonControl* errorLogBtn;
   ParamControl* longManeuverToggle;
   ParamControl* experimentalLongitudinalToggle;
-  ParamControl* enableGithubRunner;
   bool is_release;
   bool offroad = false;
 

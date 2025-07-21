@@ -41,6 +41,7 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   home_img = loadPixmap("../assets/images/button_home.png", QSize(120, 120));
   flag_img = loadPixmap("../assets/offroad/icon_flag.png", QSize(120, 120));
   settings_img = loadPixmap("../assets/offroad/icon_settings.png", QSize(120, 120), Qt::IgnoreAspectRatio);
+  mic_img = loadPixmap("../assets/icons/microphone.png", QSize(30, 30));
 
   // Setup hover animation
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
@@ -166,17 +167,35 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   // Update button positions for current frame
   const int bottomY = height() - 140;
   const int buttonSize = 120;
-  const int totalWidth = buttonSize * 2 + 30;
+
+  // Calculate main buttons layout
+  const int totalWidth = buttonSize * 2 + 30; // 30px spacing between buttons
   const int startX = (width() - totalWidth) / 2;
 
   bp_settings_btn = QRect(startX, bottomY, buttonSize, buttonSize);
-  bp_home_btn = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
+  if (onroad) {
+    bp_home_btn = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
+  }
+
+  // Position mic button above the flag button when recording (onroad) or above settings when offroad
+  if (recording_audio) {
+    if (onroad) {
+      // Above flag button
+      mic_indicator_btn = QRect(bp_home_btn.x() + (bp_home_btn.width() - 80) / 2, bottomY - 60, 80, 40);
+    } else {
+      // Above settings button when offroad
+      mic_indicator_btn = QRect(bp_settings_btn.x() + (bp_settings_btn.width() - 80) / 2, bottomY - 60, 80, 40);
+    }
+  }
 
   if (onroad && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
     update();
   } else if (bp_settings_btn.contains(event->pos())) {
     settings_pressed = true;
+    update();
+  } else if (recording_audio && mic_indicator_btn.contains(event->pos())) {
+    mic_indicator_pressed = true;
     update();
   } else if (memory_fan_btn.contains(event->pos())) {
     // Toggle between memory and fan display
@@ -186,8 +205,8 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
 }
 
 void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
-  if (flag_pressed || settings_pressed) {
-    flag_pressed = settings_pressed = false;
+  if (flag_pressed || settings_pressed || mic_indicator_pressed) {
+    flag_pressed = settings_pressed = mic_indicator_pressed = false;
     update();
   }
 
@@ -195,6 +214,30 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
   if (cpu_card_area.contains(event->pos()) && onroad) {
     emit debugPanelRequested();
     return;
+  }
+
+  // Handle mic indicator button (when recording)
+  if (recording_audio) {
+    // Calculate mic button position to match mousePressEvent
+    const int bottomY = height() - 140;
+    const int buttonSize = 120;
+    const int totalWidth = buttonSize * 2 + 30;
+    const int startX = (width() - totalWidth) / 2;
+
+    if (onroad) {
+      // Above flag button
+      const QRect flag_btn_rect = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
+      mic_indicator_btn = QRect(flag_btn_rect.x() + (flag_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
+    } else {
+      // Above settings button when offroad
+      const QRect settings_btn_rect = QRect(startX, bottomY, buttonSize, buttonSize);
+      mic_indicator_btn = QRect(settings_btn_rect.x() + (settings_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
+    }
+
+    if (mic_indicator_btn.contains(event->pos())) {
+      emit openSettings(2, "RecordAudio");
+      return;
+    }
   }
 
   // Handle settings button click directly
@@ -239,6 +282,10 @@ void SidebarBP::updateStateBP(const UIState &s) {
     vehicle_color = danger_color;
   }
   panda_status = {{tr("VEHICLE"), vehicle_status}, vehicle_color};
+
+  // Recording audio status
+  recording_audio = s.scene.recording_audio;
+  setProperty("recordingAudio", recording_audio);
 
   // Performance metrics
   metrics_refresh_counter++;
@@ -385,6 +432,52 @@ void SidebarBP::drawSidebar(QPainter &p) {
     }
 
     p.drawRoundedRect(barX + i * (barWidth + spacing), barY - barHeight, barWidth, barHeight, 2, 2);
+  }
+
+  // Draw microphone recording indicator if recording
+  if (recording_audio) {
+    // Calculate button positions to match mousePressEvent
+    const int bottomY = height() - 140;
+    const int buttonSize = 120;
+    const int totalWidth = buttonSize * 2 + 30;
+    const int startX = (width() - totalWidth) / 2;
+
+    // Position mic button above the appropriate bottom button
+    if (onroad) {
+      // Above flag button
+      const QRect flag_btn_rect = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
+      mic_indicator_btn = QRect(flag_btn_rect.x() + (flag_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
+    } else {
+      // Above settings button when offroad
+      const QRect settings_btn_rect = QRect(startX, bottomY, buttonSize, buttonSize);
+      mic_indicator_btn = QRect(settings_btn_rect.x() + (settings_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
+    }
+
+    // Draw mic button background with modern styling
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 0, 0, 40)); // Shadow
+    p.drawRoundedRect(mic_indicator_btn.adjusted(2, 2, 2, 2), 20, 20);
+
+    // Draw button background with danger color
+    p.setBrush(mic_indicator_pressed ? danger_color.darker(120) : danger_color);
+    p.drawRoundedRect(mic_indicator_btn, 20, 20);
+
+    // Add subtle border
+    p.setPen(QPen(QColor(255, 255, 255, 40), 1));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(mic_indicator_btn, 20, 20);
+
+    // Draw mic icon centered
+    p.setOpacity(mic_indicator_pressed ? 0.65 : 1.0);
+    int icon_x = mic_indicator_btn.x() + (mic_indicator_btn.width() - mic_img.width()) / 2;
+    int icon_y = mic_indicator_btn.y() + (mic_indicator_btn.height() - mic_img.height()) / 2;
+    p.drawPixmap(icon_x, icon_y, mic_img);
+    p.setOpacity(1.0);
+
+    // Add recording text below the button
+    p.setPen(QColor(0xff, 0xff, 0xff));
+    p.setFont(InterFont(12, QFont::Bold));
+    p.drawText(mic_indicator_btn.adjusted(0, 45, 0, 0), Qt::AlignCenter, tr("REC"));
   }
 
   // Draw metrics with modern styling - new order

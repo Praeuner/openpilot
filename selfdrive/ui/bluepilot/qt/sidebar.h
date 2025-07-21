@@ -15,6 +15,7 @@ class SidebarBP : public Sidebar {
   Q_PROPERTY(QString gpuUsage MEMBER gpu_usage NOTIFY valueChanged);
   Q_PROPERTY(QString memoryUsage MEMBER memory_usage NOTIFY valueChanged);
   Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
+  Q_PROPERTY(bool recordingAudio MEMBER recording_audio NOTIFY valueChanged);
 
 public:
   explicit SidebarBP(QWidget *parent = 0);
@@ -38,7 +39,7 @@ public slots:
 
 private:
   // Button images
-  QPixmap home_img, flag_img, settings_img;
+  QPixmap home_img, flag_img, settings_img, mic_img;
 
   // Modern sidebar styling
   const QColor good_color = QColor(42, 199, 122);
@@ -51,6 +52,11 @@ private:
   // CPU card area for debug panel trigger
   const QRect cpu_card_area = QRect(30, 140, 240, 110);
   QRect memory_fan_btn = QRect(30, 360, 240, 100);
+
+  // Recording audio button
+  QRect mic_indicator_btn;
+  bool recording_audio = false;
+  bool mic_indicator_pressed = false;
 
   // Modern metrics
   QString cpu_temp = "0°C";
