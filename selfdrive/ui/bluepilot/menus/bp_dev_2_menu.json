@@ -247,7 +247,7 @@
             },
             {
               "type": "toggle",
-              "param": "ShowBlindspotIndicators",
+              "param": "BlindSpot",
               "title": "Show Blindspot Indicators",
               "desc": "Displays blindspot indicators on the road model.",
               "hidden": false,
@@ -386,7 +386,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -404,7 +408,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -433,7 +441,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningEnableLanePositioning": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -451,7 +463,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningEnableLanePositioning": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -465,7 +481,11 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": {"FordLatTuningEnableLanePositioning": "1"} }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  }
                 ]
               }
             },
@@ -483,8 +503,16 @@
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
                   { "git_branch": [] },
-                  { "paramValueEquals": { "FordLatTuningTuningCustomProfile": "1" } },
-                  { "paramValueEquals": { "FordLatTuningEnableLanePositioning": "1" } }
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  }
                 ]
               }
             }
