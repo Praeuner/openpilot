@@ -1,0 +1,415 @@
+#!/bin/bash
+###############################################################################
+# boot-logo-manager.sh - Standalone Boot Logo Management Script
+#
+# Version: 1.0.0
+# Last Modified: $(date +%Y-%m-%d)
+#
+# This standalone script manages boot image and logo updates/restoration
+# for CommaAI devices, specifically for BluePilot customizations.
+###############################################################################
+
+readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_NAME="Boot Logo Manager"
+
+###############################################################################
+# Color Constants and Helper Functions
+###############################################################################
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
+
+# Helper functions for colored output
+print_success() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}$1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}$1${NC}"
+}
+
+# Convenient prompt-pause function
+pause_for_user() {
+    read -p "Press enter to continue..."
+}
+
+###############################################################################
+# Path Constants
+###############################################################################
+readonly BOOT_IMG="/usr/comma/bg.jpg"
+readonly LOGO_IMG="/data/openpilot/selfdrive/assets/img_spinner_comma.png"
+
+readonly BLUEPILOT_BOOT_IMG="/data/openpilot/selfdrive/assets/img_bluepilot_boot.jpg"
+readonly BLUEPILOT_LOGO_IMG="/data/openpilot/selfdrive/assets/img_bluepilot_logo.png"
+
+readonly BOOT_IMG_BKP="${BOOT_IMG}.backup"
+readonly LOGO_IMG_BKP="${LOGO_IMG}.backup"
+
+###############################################################################
+# Partition Management Functions
+###############################################################################
+mount_partition_rw() {
+    local partition="$1"
+    print_info "Mounting $partition as read-write..."
+    sudo mount -o remount,rw "$partition"
+    if [ $? -eq 0 ]; then
+        print_success "Successfully mounted $partition as read-write"
+    else
+        print_error "Failed to mount $partition as read-write"
+        return 1
+    fi
+}
+
+mount_partition_ro() {
+    local partition="$1"
+    print_info "Mounting $partition as read-only..."
+    sudo mount -o remount,ro "$partition"
+    if [ $? -eq 0 ]; then
+        print_success "Successfully mounted $partition as read-only"
+    else
+        print_warning "Failed to mount $partition as read-only"
+    fi
+}
+
+###############################################################################
+# Boot & Logo Update Functions
+###############################################################################
+update_boot_and_logo() {
+    print_info "Updating boot and logo images..."
+    mount_partition_rw "/"
+
+    # Ensure the original files exist before proceeding
+    if [ ! -f "$BOOT_IMG" ]; then
+        print_error "Boot image ($BOOT_IMG) does not exist. Aborting update."
+        pause_for_user
+        return 1
+    fi
+    if [ ! -f "$LOGO_IMG" ]; then
+        print_error "Logo image ($LOGO_IMG) does not exist. Aborting update."
+        pause_for_user
+        return 1
+    fi
+
+    # Create backups if they do not already exist
+    if [ ! -f "$BOOT_IMG_BKP" ]; then
+        sudo cp "$BOOT_IMG" "$BOOT_IMG_BKP"
+        print_success "Backup created for boot image at $BOOT_IMG_BKP"
+    else
+        print_info "Backup for boot image already exists at $BOOT_IMG_BKP"
+    fi
+
+    if [ ! -f "$LOGO_IMG_BKP" ]; then
+        sudo cp "$LOGO_IMG" "$LOGO_IMG_BKP"
+        print_success "Backup created for logo image at $LOGO_IMG_BKP"
+    else
+        print_info "Backup for logo image already exists at $LOGO_IMG_BKP"
+    fi
+
+    # Ensure the BluePilot images exist
+    if [ ! -f "$BLUEPILOT_BOOT_IMG" ]; then
+        print_error "BluePilot boot image ($BLUEPILOT_BOOT_IMG) not found."
+        pause_for_user
+        return 1
+    fi
+    if [ ! -f "$BLUEPILOT_LOGO_IMG" ]; then
+        print_error "BluePilot logo image ($BLUEPILOT_LOGO_IMG) not found."
+        pause_for_user
+        return 1
+    fi
+
+    # Overwrite the original files with the BluePilot images
+    sudo cp "$BLUEPILOT_BOOT_IMG" "$BOOT_IMG"
+    sudo cp "$BLUEPILOT_LOGO_IMG" "$LOGO_IMG"
+    print_success "Boot and logo images updated with BluePilot files."
+    mount_partition_ro "/"
+    pause_for_user
+}
+
+restore_boot_and_logo() {
+    print_info "Restoring boot and logo images from backup..."
+    mount_partition_rw "/"
+
+    # Check if backups exist before attempting restoration
+    if [ ! -f "$BOOT_IMG_BKP" ]; then
+        print_error "Backup for boot image not found at $BOOT_IMG_BKP"
+        pause_for_user
+        return 1
+    fi
+    if [ ! -f "$LOGO_IMG_BKP" ]; then
+        print_error "Backup for logo image not found at $LOGO_IMG_BKP"
+        pause_for_user
+        return 1
+    fi
+
+    # Restore backups to the original file locations
+    sudo cp "$BOOT_IMG_BKP" "$BOOT_IMG"
+    sudo cp "$LOGO_IMG_BKP" "$LOGO_IMG"
+
+    # Remove the backups
+    sudo rm -f "$BOOT_IMG_BKP"
+    sudo rm -f "$LOGO_IMG_BKP"
+
+    print_success "Boot and logo images restored from backup."
+    mount_partition_ro "/"
+    pause_for_user
+}
+
+check_custom_status() {
+    if [ -f "$BOOT_IMG_BKP" ] && [ -f "$LOGO_IMG_BKP" ]; then
+        echo -e "${GREEN}Custom boot/logo images are currently active${NC}"
+        return 0
+    else
+        echo "Default boot/logo images are currently active"
+        return 1
+    fi
+}
+
+###############################################################################
+# Menu System
+###############################################################################
+show_help() {
+    cat <<EOL
+$SCRIPT_NAME (v$SCRIPT_VERSION)
+====================================================
+
+Usage: ./boot-logo-manager.sh [OPTION]
+
+Options:
+  --update          Update boot and logo with BluePilot images
+  --restore         Restore original boot and logo images
+  --status          Check current status (custom vs default)
+  --help            Show this help message
+
+Without options, the script runs in interactive mode.
+
+File Locations:
+  Boot Image:     $BOOT_IMG
+  Logo Image:     $LOGO_IMG
+  BluePilot Boot: $BLUEPILOT_BOOT_IMG
+  BluePilot Logo: $BLUEPILOT_LOGO_IMG
+
+Note: This script requires sudo permissions to modify system files.
+EOL
+}
+
+display_main_menu() {
+    clear
+    echo "┌───────────────────────────────────────────────────┐"
+    echo "│              $SCRIPT_NAME (v$SCRIPT_VERSION)              │"
+    echo "├───────────────────────────────────────────────────┘"
+    echo "│"
+    echo "│ Current Status:"
+    echo "│ $(check_custom_status && echo "├─ Custom BluePilot images active" || echo "├─ Default images active")"
+    echo "│"
+    
+    # Check if files exist
+    echo "│ File Status:"
+    [ -f "$BOOT_IMG" ] && echo -e "│ ├─ Boot image: ${GREEN}Found${NC}" || echo -e "│ ├─ Boot image: ${RED}Missing${NC}"
+    [ -f "$LOGO_IMG" ] && echo -e "│ ├─ Logo image: ${GREEN}Found${NC}" || echo -e "│ ├─ Logo image: ${RED}Missing${NC}"
+    [ -f "$BLUEPILOT_BOOT_IMG" ] && echo -e "│ ├─ BluePilot boot: ${GREEN}Found${NC}" || echo -e "│ ├─ BluePilot boot: ${RED}Missing${NC}"
+    [ -f "$BLUEPILOT_LOGO_IMG" ] && echo -e "│ ├─ BluePilot logo: ${GREEN}Found${NC}" || echo -e "│ ├─ BluePilot logo: ${RED}Missing${NC}"
+    [ -f "$BOOT_IMG_BKP" ] && echo -e "│ ├─ Boot backup: ${GREEN}Found${NC}" || echo "│ ├─ Boot backup: Not found"
+    [ -f "$LOGO_IMG_BKP" ] && echo -e "│ └─ Logo backup: ${GREEN}Found${NC}" || echo "│ └─ Logo backup: Not found"
+    echo "│"
+    echo "├───────────────────────────────────────────────────"
+    echo "│"
+    echo "│ Available Actions:"
+    if check_custom_status >/dev/null 2>&1; then
+        echo "│ 1. Restore Original Images"
+    else
+        echo "│ 1. Apply BluePilot Images"
+    fi
+    echo "│ 2. Force Update to BluePilot Images"
+    echo "│ 3. Force Restore to Original Images"
+    echo "│ 4. Show File Status Details"
+    echo "│ H. Show Help"
+    echo "│ Q. Exit"
+    echo "│"
+    echo "└───────────────────────────────────────────────────"
+}
+
+handle_menu_input() {
+    read -p "Enter your choice: " choice
+    case $choice in
+        1)
+            if check_custom_status >/dev/null 2>&1; then
+                echo
+                print_warning "This will restore the original boot and logo images."
+                read -p "Are you sure? (y/N): " confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    restore_boot_and_logo
+                else
+                    print_info "Operation cancelled."
+                    pause_for_user
+                fi
+            else
+                echo
+                print_info "This will apply BluePilot custom boot and logo images."
+                read -p "Continue? (Y/n): " confirm
+                if [[ "$confirm" =~ ^[Nn]$ ]]; then
+                    print_info "Operation cancelled."
+                    pause_for_user
+                else
+                    update_boot_and_logo
+                fi
+            fi
+            ;;
+        2)
+            echo
+            print_warning "This will force update to BluePilot images (creates backups if needed)."
+            read -p "Continue? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                update_boot_and_logo
+            else
+                print_info "Operation cancelled."
+                pause_for_user
+            fi
+            ;;
+        3)
+            echo
+            print_warning "This will force restore to original images (removes backups)."
+            read -p "Continue? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                restore_boot_and_logo
+            else
+                print_info "Operation cancelled."
+                pause_for_user
+            fi
+            ;;
+        4)
+            show_file_details
+            ;;
+        [hH])
+            show_help
+            pause_for_user
+            ;;
+        [qQ])
+            print_info "Exiting..."
+            exit 0
+            ;;
+        *)
+            print_error "Invalid choice."
+            pause_for_user
+            ;;
+    esac
+}
+
+show_file_details() {
+    clear
+    echo "┌───────────────────────────────────────────────────┐"
+    echo "│                 File Status Details               │"
+    echo "├───────────────────────────────────────────────────┘"
+    echo "│"
+    
+    # Show detailed file information
+    for file in "$BOOT_IMG" "$LOGO_IMG" "$BLUEPILOT_BOOT_IMG" "$BLUEPILOT_LOGO_IMG" "$BOOT_IMG_BKP" "$LOGO_IMG_BKP"; do
+        local basename=$(basename "$file")
+        if [ -f "$file" ]; then
+            local size=$(ls -lh "$file" | awk '{print $5}')
+            local date=$(ls -l "$file" | awk '{print $6, $7, $8}')
+            echo -e "│ ${GREEN}✓${NC} $basename"
+            echo "│   Size: $size, Modified: $date"
+            echo "│   Path: $file"
+        else
+            echo -e "│ ${RED}✗${NC} $basename"
+            echo "│   File not found: $file"
+        fi
+        echo "│"
+    done
+    
+    echo "└───────────────────────────────────────────────────"
+    pause_for_user
+}
+
+###############################################################################
+# Command Line Argument Parsing
+###############################################################################
+parse_arguments() {
+    case "$1" in
+        --update)
+            update_boot_and_logo
+            exit 0
+            ;;
+        --restore)
+            restore_boot_and_logo
+            exit 0
+            ;;
+        --status)
+            check_custom_status
+            exit 0
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        "")
+            # No arguments, run interactive mode
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            echo
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+###############################################################################
+# Prerequisites Check
+###############################################################################
+check_prerequisites() {
+    local errors=0
+    
+    # Check if running on expected system
+    if [ ! -d "/data/openpilot" ]; then
+        print_error "This script is designed for CommaAI devices with OpenPilot."
+        errors=$((errors + 1))
+    fi
+    
+    # Check sudo access
+    if ! sudo -n true 2>/dev/null; then
+        print_warning "This script requires sudo access to modify system files."
+        print_info "You may be prompted for password during execution."
+    fi
+    
+    # Check if we can write to temp location
+    if [ ! -w "/tmp" ]; then
+        print_error "Cannot write to /tmp directory."
+        errors=$((errors + 1))
+    fi
+    
+    return $errors
+}
+
+###############################################################################
+# Main Execution
+###############################################################################
+main() {
+    # Parse command line arguments
+    parse_arguments "$@"
+    
+    # Check prerequisites
+    if ! check_prerequisites; then
+        print_error "Prerequisites check failed. Exiting."
+        exit 1
+    fi
+    
+    # Run interactive menu
+    while true; do
+        display_main_menu
+        handle_menu_input
+    done
+}
+
+# Run the script
+main "$@"
