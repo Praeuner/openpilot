@@ -120,8 +120,8 @@
     },
     {
       "name": "FordLatTuningLaneChgFactorHigh",
-      "default": 0.7,
-      "min": 0.0,
+      "default": 0.85,
+      "min": 0.5,
       "max": 1.0,
       "type": "float",
       "flags": ["PERSISTENT", "BACKUP"],
@@ -224,7 +224,7 @@
     },
     {
       "name": "FordLatTuningLCPIDGainUI",
-      "default": 0.5,
+      "default": 3.0,
       "min": 0.0,
       "max": 5.0,
       "type": "float",
