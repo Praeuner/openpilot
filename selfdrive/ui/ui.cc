@@ -76,7 +76,7 @@ void ui_update_params(UIState *s) {
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
   s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
   s->scene.stand_still_timer = params.getBool("StandstillTimer");
-  s->scene.show_new_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
+  s->scene.show_bp_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
   s->scene.radar_overlay_size = params.getInt("FordPrefRadarOverlaySize");
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");

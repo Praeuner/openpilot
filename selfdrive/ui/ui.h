@@ -71,7 +71,7 @@ typedef struct UIScene {
   int radar_overlay_size;
   bool show_hybrid_battery_overlay;
   bool show_animated_wheel_angle;
-  bool show_new_radar_overlay;
+  bool show_bp_radar_overlay;
   bool stand_still_timer;
   bool show_blindspot_indicators;
   bool show_stop_indicator_overlay;

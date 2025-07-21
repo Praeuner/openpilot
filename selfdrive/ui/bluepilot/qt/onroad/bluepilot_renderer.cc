@@ -60,14 +60,14 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   // static int global_debug_counter = 0;
   // if (global_debug_counter++ % 100 == 0) {
   //   std::cout << "BluePilot renderAll - hybrid: " << s.scene.show_hybrid_drive_overlay
-  //             << " radar: " << s.scene.show_new_radar_overlay
+  //             << " radar: " << s.scene.show_bp_radar_overlay
   //             << " stop: " << s.scene.show_stop_indicator_overlay
   //             << " timer: " << s.scene.stand_still_timer << std::endl;
   // }
 
   // PERFORMANCE: Early exit if no BluePilot features enabled
   if (!s.scene.show_hybrid_drive_overlay &&
-      !s.scene.show_new_radar_overlay &&
+      !s.scene.show_bp_radar_overlay &&
       !s.scene.show_stop_indicator_overlay &&
       !s.scene.stand_still_timer &&
       !s.scene.show_gforce_meter) {
@@ -143,7 +143,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   }
 
   // Update model enhancement flags and transforms
-  frame_state.show_radar = s.scene.show_new_radar_overlay;
+  frame_state.show_radar = s.scene.show_bp_radar_overlay;
   frame_state.show_stop = s.scene.show_stop_indicator_overlay;
   frame_state.gforce_state.show_gforce = s.scene.show_gforce_meter;
 
@@ -155,7 +155,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   // if (debug_counter++ % 100 == 0) {
   //   std::cout << "BluePilot Debug - show_radar: " << frame_state.show_radar
   //             << " show_stop: " << frame_state.show_stop
-  //             << " scene.show_new_radar_overlay: " << s.scene.show_new_radar_overlay
+  //             << " scene.show_bp_radar_overlay: " << s.scene.show_bp_radar_overlay
   //             << " scene.show_stop_indicator_overlay: " << s.scene.show_stop_indicator_overlay << std::endl;
   // }
 

@@ -179,6 +179,9 @@ void ModelRenderer::drawLeadStatus(QPainter &painter, int height, int width) {
     auto *s = uiState();
     auto &sm = *(s->sm);
 
+    // Early exit if Bluepilot radar overlay is active
+    if (s->scene.show_bp_radar_overlay) return;
+
     if (!sm.alive("radarState")) return;
 
     const auto &radar_state = sm["radarState"].getRadarState();
