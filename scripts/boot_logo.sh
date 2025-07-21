@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# boot-logo-manager.sh - Standalone Boot Logo Management Script
+# boot-logo.sh - Standalone Boot Logo Management Script
 #
 # Version: 1.0.0
 # Last Modified: $(date +%Y-%m-%d)
@@ -109,8 +109,41 @@ mount_partition_ro() {
 }
 
 ###############################################################################
-# Boot & Logo Update Functions
+# Backup Management Functions
 ###############################################################################
+clean_backups() {
+    print_info "Cleaning up backup files..."
+
+    local files_removed=0
+    if [ -f "$BOOT_IMG_BKP" ]; then
+        if sudo rm -f "$BOOT_IMG_BKP"; then
+            print_success "Removed boot image backup: $BOOT_IMG_BKP"
+            files_removed=$((files_removed + 1))
+        else
+            print_error "Failed to remove boot image backup"
+            return 1
+        fi
+    fi
+
+    if [ -f "$LOGO_IMG_BKP" ]; then
+        if sudo rm -f "$LOGO_IMG_BKP"; then
+            print_success "Removed logo image backup: $LOGO_IMG_BKP"
+            files_removed=$((files_removed + 1))
+        else
+            print_error "Failed to remove logo image backup"
+            return 1
+        fi
+    fi
+
+    if [ $files_removed -eq 0 ]; then
+        print_info "No backup files found to remove."
+    else
+        print_success "Cleaned up $files_removed backup file(s)."
+    fi
+
+    [ "$HEADLESS_MODE" != "true" ] && pause_for_user
+    return 0
+}
 update_boot_and_logo() {
     print_info "Updating boot and logo images..."
 
@@ -185,48 +218,39 @@ update_boot_and_logo() {
 
 restore_boot_and_logo() {
     print_info "Restoring boot and logo images from backup..."
-
-    if ! mount_partition_rw "/"; then
-        return 1
-    fi
+    mount_partition_rw "/"
 
     # Check if backups exist before attempting restoration
     if [ ! -f "$BOOT_IMG_BKP" ]; then
         print_error "Backup for boot image not found at $BOOT_IMG_BKP"
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        mount_partition_ro "/"
         return 1
     fi
     if [ ! -f "$LOGO_IMG_BKP" ]; then
         print_error "Backup for logo image not found at $LOGO_IMG_BKP"
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        mount_partition_ro "/"
         return 1
     fi
 
     # Restore backups to the original file locations
-    if sudo cp "$BOOT_IMG_BKP" "$BOOT_IMG" && sudo cp "$LOGO_IMG_BKP" "$LOGO_IMG"; then
-        print_success "Images restored from backup."
-        # Remove the backups
-        sudo rm -f "$BOOT_IMG_BKP" "$LOGO_IMG_BKP"
-        print_success "Backup files removed."
-    else
-        print_error "Failed to restore images"
-        mount_partition_ro "/"
-        return 1
-    fi
+    sudo cp "$BOOT_IMG_BKP" "$BOOT_IMG"
+    sudo cp "$LOGO_IMG_BKP" "$LOGO_IMG"
 
+    # Remove the backups
+    sudo rm -f "$BOOT_IMG_BKP"
+    sudo rm -f "$LOGO_IMG_BKP"
+
+    print_success "Boot and logo images restored from backup."
     mount_partition_ro "/"
     [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-    return 0
 }
 
 check_custom_status() {
     if [ -f "$BOOT_IMG_BKP" ] && [ -f "$LOGO_IMG_BKP" ]; then
-        echo -e "${GREEN}Custom boot/logo images are currently active${NC}"
+        echo -e "${GREEN}Custom BluePilot images are currently active${NC}"
         return 0
     else
-        echo "Default boot/logo images are currently active"
+        echo "Default images are currently active"
         return 1
     fi
 }
@@ -239,7 +263,7 @@ show_help() {
 $SCRIPT_NAME (v$SCRIPT_VERSION)
 ====================================================
 
-Usage: ./boot-logo-manager.sh [OPTIONS]
+Usage: ./boot-logo.sh [OPTIONS]
 
 Main Options:
   --update          Update boot and logo with BluePilot images
@@ -262,18 +286,23 @@ Exit Codes:
 
 Examples:
   # Interactive mode
-  ./boot-logo-manager.sh
+  ./boot-logo.sh
 
   # Headless startup script usage
-  ./boot-logo-manager.sh --update --headless --quiet --log /var/log/boot-logo.log
+  ./boot-logo.sh --update --headless --quiet --log /var/log/boot-logo.log
 
   # Force update without prompts
-  ./boot-logo-manager.sh --update --force
+  ./boot-logo.sh --update --force
 
   # Check status for scripts
-  if ./boot-logo-manager.sh --status --quiet; then
+  if ./boot-logo.sh --status --quiet; then
     echo "Custom images active"
   fi
+
+Status Detection:
+  The script uses backup file existence to determine status:
+  - Backup files exist = Custom images active
+  - No backup files = Default images active
 
 File Locations:
   Boot Image:     $BOOT_IMG
@@ -372,7 +401,7 @@ handle_menu_input() {
             ;;
         3)
             echo
-            print_warning "This will force restore to original images (removes backups)."
+            print_warning "This will force restore to original images."
             if [ "$FORCE_MODE" = "true" ]; then
                 restore_boot_and_logo
             else
