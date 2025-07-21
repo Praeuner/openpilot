@@ -36,15 +36,31 @@
                   "value": "FORD_EDGE_MK2"
                 },
                 {
+                  "name": "Lincoln Nautilus (2019-2024)",
+                  "value": "FORD_EDGE_MK2"
+                },
+                {
                   "name": "Ford Explorer (2020-2024)",
                   "value": "FORD_EXPLORER_MK6"
                 },
                 {
-                  "name": "Ford Escape (2022-2022)",
+                  "name": "Lincoln Aviator (2020-2024)",
+                  "value": "FORD_EXPLORER_MK6"
+                },
+                {
+                  "name": "Ford Escape (2022-2024)",
+                  "value": "FORD_ESCAPE_MK4"
+                },
+                {
+                  "name": "Lincoln Corsair (2022-2024)",
                   "value": "FORD_ESCAPE_MK4"
                 },
                 {
                   "name": "Ford Escape (2023-2025)",
+                  "value": "FORD_ESCAPE_MK5"
+                },
+                {
+                  "name": "Lincoln Corsair (2023-2025)",
                   "value": "FORD_ESCAPE_MK5"
                 },
                 {
@@ -57,6 +73,10 @@
                 },
                 {
                   "name": "Ford Expedition (2022-2024)",
+                  "value": "FORD_EXPEDITION_MK4"
+                },
+                {
+                  "name": "Lincoln Navigator (2022-2024)",
                   "value": "FORD_EXPEDITION_MK4"
                 },
                 {

@@ -111,16 +111,16 @@ class CarController(CarControllerBase):
     self.curvature_lookup_time = 0.42 #from lagd
     self.lane_change_factor_bp = [4.4, 40.23] # what speed to adjust lane_change_factor
     self.lane_change_factor_low = 0.95 # lane_change_factor at 4.4 m/s
-    self.lane_change_factor_high = 0.75 # updated from UI: lane_change_factor at 40.23 m/s
+    self.lane_change_factor_high = 0.85 # updated from UI: lane_change_factor at 40.23 m/s
     self.pc_blend_ratio_low_C_CAN = 0.40 # %-Predicted Curvature
-    self.pc_blend_ratio_high_C_CAN = 0.20 # %-Predicted Curvature
-    self.pc_blend_ratio_low_C_CANFD = 0.65 # %-Predicted Curvature
+    self.pc_blend_ratio_high_C_CAN = 0.40 # %-Predicted Curvature
+    self.pc_blend_ratio_low_C_CANFD = 0.40 # %-Predicted Curvature
     self.pc_blend_ratio_high_C_CANFD = 0.40 # %-Predicted Curvature
-    self.pc_blend_ratio_low_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
-    self.pc_blend_ratio_high_C_UI = 0.50 # Updated from UI: %-Predicted Curvature
+    self.pc_blend_ratio_low_C_UI = 0.40 # Updated from UI: %-Predicted Curvature
+    self.pc_blend_ratio_high_C_UI = 0.40 # Updated from UI: %-Predicted Curvature
     self.pc_blend_ratio_bp = [0.0, 0.001] # curvature breakpoints in 1/m
     self.large_curve_factor_low = 1.0 # factor to reduce curvature for small curves
-    self.large_curve_factor_high = 0.80 # Updated from UI: factor to reduce curvature for large curves
+    self.large_curve_factor_high = 0.80 # factor to reduce curvature for large curves
     self.large_curve_factor_bp = [0.001, 0.02] # curvature breakpoints in 1/m
     self.large_curve_factor_v = [self.large_curve_factor_low, self.large_curve_factor_high] #  determine factor to reduce cu
 
@@ -147,9 +147,9 @@ class CarController(CarControllerBase):
     # path angle low curvature variables
     self.LC_PID_GAIN_CAN = 5.0
     self.LC_PID_GAIN_CANFD_SMALL_VEHICLE = 3.0
-    self.LC_PID_GAIN_CANFD_LARGE_VEHICLE = 1.5
+    self.LC_PID_GAIN_CANFD_LARGE_VEHICLE = 3.0
     self.LC_PID_GAIN_UI = 0.0 # gain for UI tuning
-    self.LC_PID_GAIN = 0.0
+    self.LC_PID_GAIN = 3.0
     self.LC_PID_k_p = 0.25
     self.LC_PID_k_i = 0.05
     self.LC_PID_controller = PIDController(k_p=self.LC_PID_k_p, k_i=self.LC_PID_k_i, rate=20)
