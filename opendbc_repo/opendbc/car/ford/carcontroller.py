@@ -147,7 +147,7 @@ class CarController(CarControllerBase):
     # path angle low curvature variables
     self.LC_PID_GAIN_CAN = 5.0
     self.LC_PID_GAIN_CANFD_SMALL_VEHICLE = 3.0
-    self.LC_PID_GAIN_CANFD_LARGE_VEHICLE = 1.5
+    self.LC_PID_GAIN_CANFD_LARGE_VEHICLE = 3.0
     self.LC_PID_GAIN_UI = 0.0 # gain for UI tuning
     self.LC_PID_GAIN = 0.0
     self.LC_PID_k_p = 0.25
