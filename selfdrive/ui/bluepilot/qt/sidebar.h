@@ -39,7 +39,7 @@ public slots:
 
 private:
   // Button images
-  QPixmap home_img, flag_img, settings_img, mic_img;
+  QPixmap home_img, flag_img, settings_img, mic_img, debug_img; // Added debug_img
 
   // Modern sidebar styling
   const QColor good_color = QColor(42, 199, 122);
@@ -96,4 +96,6 @@ private:
   // Local button rectangles (since base class ones are const)
   QRect bp_settings_btn;
   QRect bp_home_btn;
+  QRect bp_debug_btn; // Added debug button rect
+  bool debug_pressed = false; // Added debug button pressed state
 };
