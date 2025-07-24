@@ -71,13 +71,20 @@ def compute_dm_msg_values(ss, hud_control, send_hands_free_cluster_msg, main, st
       elif disableState == "userDisable":
         tja_warn = 1  # Cancelled
       elif driverState == "preDriverDistracted":
-        tja_warn = 6  # Watch The Road (no chime)
+        #BUG: When sending 6 or 7 on tja_warn, it briefly shows as Resume Control rather than the proper message.
+        # After a few seconds, it will go to the proper message.
+        # For now, this will use the hands signal.
+
+        #tja_warn = 6  # Watch The Road (no chime)
+        hands = 1  # Keep Hands on Steering Wheel (no chime) - same as preDriverUnresponsive
       elif driverState == "promptDriverDistracted":
         # Only send audible alert if not at standstill to prevent beeping at red lights
         if not standstill:
-          tja_warn = 7  # Watch The Road (chime)
+          #tja_warn = 7  # Watch The Road (chime)
+          hands = 2  # Keep Hands on Steering Wheel (chime)
         else:
-          tja_warn = 6  # Watch The Road (no chime) - same as preDriverDistracted
+          #tja_warn = 6  # Watch The Road (no chime) - same as preDriverDistracted
+          hands = 1  # Keep Hands on Steering Wheel (no chime) - same as preDriverUnresponsive
       elif driverState == "preDriverUnresponsive":
         hands = 1  # Keep Hands on Steering Wheel (no chime)
       elif driverState == "promptDriverUnresponsive":
