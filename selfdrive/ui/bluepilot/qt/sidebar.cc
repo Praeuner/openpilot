@@ -42,6 +42,7 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   flag_img = loadPixmap("../assets/offroad/icon_flag.png", QSize(120, 120));
   settings_img = loadPixmap("../assets/offroad/icon_settings.png", QSize(120, 120), Qt::IgnoreAspectRatio);
   mic_img = loadPixmap("../assets/icons/microphone.png", QSize(30, 30));
+  debug_img = loadPixmap("../assets/offroad/icon_debug.png", QSize(120, 120)); // Load debug icon
 
   // Setup hover animation
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
@@ -164,30 +165,7 @@ void SidebarBP::drawProgressBar(QPainter &p, int x, int y, int width, int height
 }
 
 void SidebarBP::mousePressEvent(QMouseEvent *event) {
-  // Update button positions for current frame
-  const int bottomY = height() - 140;
-  const int buttonSize = 120;
-
-  // Calculate main buttons layout
-  const int totalWidth = buttonSize * 2 + 30; // 30px spacing between buttons
-  const int startX = (width() - totalWidth) / 2;
-
-  bp_settings_btn = QRect(startX, bottomY, buttonSize, buttonSize);
-  if (onroad) {
-    bp_home_btn = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
-  }
-
-  // Position mic button above the flag button when recording (onroad) or above settings when offroad
-  if (recording_audio) {
-    if (onroad) {
-      // Above flag button
-      mic_indicator_btn = QRect(bp_home_btn.x() + (bp_home_btn.width() - 80) / 2, bottomY - 60, 80, 40);
-    } else {
-      // Above settings button when offroad
-      mic_indicator_btn = QRect(bp_settings_btn.x() + (bp_settings_btn.width() - 80) / 2, bottomY - 60, 80, 40);
-    }
-  }
-
+  // Remove button rect calculation from here, just use the rects set in drawSidebar
   if (onroad && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
     update();
@@ -197,6 +175,9 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   } else if (recording_audio && mic_indicator_btn.contains(event->pos())) {
     mic_indicator_pressed = true;
     update();
+  } else if (bp_debug_btn.contains(event->pos()) && onroad) {
+    debug_pressed = true;
+    update();
   } else if (memory_fan_btn.contains(event->pos())) {
     // Toggle between memory and fan display
     show_fan_instead_memory = !show_fan_instead_memory;
@@ -205,13 +186,13 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
 }
 
 void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
-  if (flag_pressed || settings_pressed || mic_indicator_pressed) {
-    flag_pressed = settings_pressed = mic_indicator_pressed = false;
+  if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed) {
+    flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = false;
     update();
   }
 
-  // Handle debug panel first
-  if (cpu_card_area.contains(event->pos()) && onroad) {
+  // Handle debug button (new location)
+  if (bp_debug_btn.contains(event->pos()) && onroad) {
     emit debugPanelRequested();
     return;
   }
@@ -553,6 +534,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // Position buttons centered horizontally
   bp_settings_btn = QRect(startX, bottomY, buttonSize, buttonSize);
   bp_home_btn = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
+  bp_debug_btn = QRect(bp_settings_btn.x(), bp_settings_btn.y() - buttonSize - 30, buttonSize, buttonSize); // 30px spacing above settings
 
   // Draw settings button background and border
   p.setPen(QPen(QColor(255, 255, 255, 80), 2));
@@ -564,6 +546,19 @@ void SidebarBP::drawSidebar(QPainter &p) {
   p.drawPixmap(bp_settings_btn.x() + (bp_settings_btn.width() - settings_img.width() * scale) / 2, bp_settings_btn.y() + (bp_settings_btn.height() - settings_img.height() * scale) / 2,
                settings_img.scaled(settings_img.width() * scale, settings_img.height() * scale, Qt::KeepAspectRatio));
   p.setOpacity(1.0);
+
+  // Draw debug button (only onroad)
+  if (onroad) {
+    p.setPen(QPen(QColor(255, 255, 255, 80), 2));
+    p.setBrush(debug_pressed ? QColor(60, 60, 60, 120) : QColor(60, 60, 60, 80));
+    p.drawEllipse(bp_debug_btn);
+    // Draw debug icon (scaled and centered)
+    float icon_scale = 0.5;
+    p.setOpacity(debug_pressed ? 0.65 : 1.0);
+    p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * icon_scale) / 2, bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * icon_scale) / 2,
+                debug_img.scaled(debug_img.width() * icon_scale, debug_img.height() * icon_scale, Qt::KeepAspectRatio));
+    p.setOpacity(1.0);
+  }
 
   // Only show flag button when onroad
   if (onroad) {
