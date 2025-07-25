@@ -415,7 +415,7 @@ static safety_config ford_init(uint16_t param) {
 #endif
 
   // Longitudinal is the default for CAN, and optional for CAN FD w/ ALLOW_DEBUG
-  ford_longitudinal = !ford_canfd || ford_longitudinal;
+  // ford_longitudinal = !ford_canfd || ford_longitudinal;
 
   safety_config ret;
   if (ford_canfd) {

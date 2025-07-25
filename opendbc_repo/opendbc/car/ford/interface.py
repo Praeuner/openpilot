@@ -69,7 +69,7 @@ class CarInterface(CarInterfaceBase):
     info(f"| experimental_long: {alpha_long}", True)
     info(f"| ret.flags & FordFlags.CANFD: {ret.flags & FordFlags.CANFD}", True)
 
-    if alpha_long or not bool(ret.flags & FordFlags.CANFD):
+    if alpha_long: # Allow CAN vehicles to use Ford ACC # or not bool(ret.flags & FordFlags.CANFD):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
 
