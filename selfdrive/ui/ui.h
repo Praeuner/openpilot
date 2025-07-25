@@ -76,6 +76,7 @@ typedef struct UIScene {
   bool show_blindspot_indicators;
   bool show_stop_indicator_overlay;
   bool show_gforce_meter;
+  bool show_brake_status;
 
   bool wide_camera_low_speed;
 } UIScene;

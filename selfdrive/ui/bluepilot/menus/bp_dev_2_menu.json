@@ -155,6 +155,17 @@
             },
             {
               "type": "toggle",
+              "param": "ShowBrakeStatus",
+              "title": "Show Brake Status",
+              "desc": "Changes the speed color to red when the brake is pressed.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
               "param": "FordPrefShowRadarLeadOverlay",
               "title": "Show Radar Lead Vehicle Overlay",
               "desc": "Displays radar data lead vehicle overlay.",

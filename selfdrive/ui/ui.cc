@@ -81,6 +81,7 @@ void ui_update_params(UIState *s) {
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
   s->scene.show_gforce_meter = params.getBool("ShowGForceMeter");  // New parameter for G-force meter
+  s->scene.show_brake_status = params.getBool("ShowBrakeStatus");
 
   s->scene.wide_camera_low_speed = params.getBool("ShowWideCameraAtLowSpeed");
 

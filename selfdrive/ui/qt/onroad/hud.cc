@@ -1,6 +1,7 @@
 #include "selfdrive/ui/qt/onroad/hud.h"
 
 #include <cmath>
+#include <algorithm>
 
 #include "selfdrive/ui/qt/util.h"
 
@@ -11,12 +12,14 @@ HudRenderer::HudRenderer() {}
 void HudRenderer::updateState(const UIState &s) {
   is_metric = s.scene.is_metric;
   status = s.status;
+  show_brake_status = s.scene.show_brake_status;
 
   const SubMaster &sm = *(s.sm);
   if (sm.rcv_frame("carState") < s.scene.started_frame) {
     is_cruise_set = false;
     set_speed = SET_SPEED_NA;
     speed = 0.0;
+    brake_pressed = false;
     return;
   }
 
@@ -36,6 +39,9 @@ void HudRenderer::updateState(const UIState &s) {
   v_ego_cluster_seen = v_ego_cluster_seen || car_state.getVEgoCluster() != 0.0;
   float v_ego = v_ego_cluster_seen ? car_state.getVEgoCluster() : car_state.getVEgo();
   speed = std::max<float>(0.0f, v_ego * (is_metric ? MS_TO_KPH : MS_TO_MPH));
+
+  // Update brake status
+  brake_pressed = car_state.getBrakePressed();
 }
 
 void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
@@ -97,10 +103,28 @@ void HudRenderer::drawCurrentSpeed(QPainter &p, const QRect &surface_rect) {
   QString speedStr = QString::number(std::nearbyint(speed));
 
   p.setFont(InterFont(176, QFont::Bold));
-  drawText(p, surface_rect.center().x(), 210, speedStr);
+  QColor speedColor = getSpeedColor(255);
+  drawText(p, surface_rect.center().x(), 210, speedStr, speedColor);
 
   p.setFont(InterFont(66));
   drawText(p, surface_rect.center().x(), 290, is_metric ? tr("km/h") : tr("mph"), 200);
+}
+
+QColor HudRenderer::getSpeedColor(int alpha) {
+  // If brake status feature is disabled, return white
+  if (!show_brake_status) {
+    return QColor(0xff, 0xff, 0xff, alpha);
+  }
+
+  // If brake is pressed, fade to red
+  if (brake_pressed) {
+    // Clamp alpha to valid range (0-255)
+    alpha = std::clamp(alpha, 0, 255);
+    return QColor(0xff, 0x80, 0x80, alpha); // Lighter red color
+  }
+
+  // Otherwise return white
+  return QColor(0xff, 0xff, 0xff, alpha);
 }
 
 void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, int alpha) {
@@ -108,5 +132,13 @@ void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, int a
   real_rect.moveCenter({x, y - real_rect.height() / 2});
 
   p.setPen(QColor(0xff, 0xff, 0xff, alpha));
+  p.drawText(real_rect.x(), real_rect.bottom(), text);
+}
+
+void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, const QColor &color) {
+  QRect real_rect = p.fontMetrics().boundingRect(text);
+  real_rect.moveCenter({x, y - real_rect.height() / 2});
+
+  p.setPen(color);
   p.drawText(real_rect.x(), real_rect.bottom(), text);
 }
