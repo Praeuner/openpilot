@@ -154,6 +154,7 @@ protected:
   virtual QWidget *createParamViewerControl(const QJsonObject &control);
   virtual QWidget *createParamListViewerControl(const QJsonObject &control);
   virtual QWidget *createFileViewerControl(const QJsonObject &control);
+  virtual QWidget *createRecentChangesControl(const QJsonObject &control);
   virtual QWidget *createCommandButtonControl(const QJsonObject &control);
   virtual QWidget *createNestedControlsButton(const QJsonObject &control);
 

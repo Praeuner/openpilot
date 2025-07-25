@@ -746,6 +746,15 @@
                 "git_remote": ["ford-op/sp-dev-c3"],
                 "git_branch": []
               }
+            },
+            {
+              "type": "recent_changes",
+              "title": "Recent Changes",
+              "desc": "View recent changes and updates for the current version",
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
             }
           ]
         }

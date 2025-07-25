@@ -31,6 +31,7 @@
 
 class BPParamViewerDialog;
 class BPParamListDialog;
+class BPRecentChangesDialog;
 
 class BPScrollView : public QScrollArea {
   Q_OBJECT
@@ -963,6 +964,69 @@ private:
 
   QString filePath;
   QString fileHeader;
+  QString ctrlTitle;
+  QString ctrlDesc;
+};
+
+class BPRecentChangesControl : public QFrame {
+  Q_OBJECT
+
+public:
+  explicit BPRecentChangesControl(const QString &title, const QString &desc, QWidget *parent = nullptr)
+      : QFrame(parent), ctrlTitle(title), ctrlDesc(desc) {
+
+    setStyleSheet(R"(
+      BPRecentChangesControl {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: "VIEW" button – ensure it is vertically centered.
+    QVBoxLayout *buttonLayout = new QVBoxLayout();
+    viewButton = new BPButton(tr("VIEW"), this);
+    viewButton->setMinimumWidth(250);
+    viewButton->setMinimumHeight(100);
+    buttonLayout->addWidget(viewButton);
+    // Set the alignment on the layout so the button is centered vertically.
+    layout->addLayout(buttonLayout, 0);
+    layout->setAlignment(buttonLayout, Qt::AlignVCenter);
+
+    // Right side: Title & Description
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+    // Do not add an extra stretch here.
+    layout->addLayout(textLayout, 1);
+
+    // Connect button: opens the "BPRecentChangesDialog"
+    connect(viewButton, &BPButton::clicked, this, [=]() { emit recentChangesRequested(); });
+  }
+
+signals:
+  // Emitted when user clicks "VIEW"
+  void recentChangesRequested();
+
+private:
+  QLabel *titleLabel{nullptr};
+  QLabel *descLabel{nullptr};
+  BPButton *viewButton;
+
   QString ctrlTitle;
   QString ctrlDesc;
 };

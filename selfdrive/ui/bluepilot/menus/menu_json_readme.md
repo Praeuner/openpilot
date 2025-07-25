@@ -33,8 +33,10 @@ This document provides a comprehensive overview of the JSON configuration format
         - [Properties:](#properties-7)
       - [File Viewer Control](#file-viewer-control)
         - [Properties:](#properties-8)
-      - [Command Button Control](#command-button-control)
+      - [Recent Changes Control](#recent-changes-control)
         - [Properties:](#properties-9)
+      - [Command Button Control](#command-button-control)
+        - [Properties:](#properties-10)
     - [Custom Controls](#custom-controls)
   - [Conditions](#conditions)
     - [Condition Types](#condition-types)
@@ -410,6 +412,32 @@ Allows users to view the contents of a specified file within the application.
   "title": "BluePilot Changelog",
   "desc": "View the BluePilot changelog",
   "header": "BluePilot Changelog",
+  "disable": false,
+  "hidden": false
+}
+```
+
+#### Recent Changes Control
+
+Allows users to view recent changes and updates for the current version using the BPRecentChangesDialog.
+
+##### Properties:
+
+| Property | Type | Description | Required | Default |
+| --- | --- | --- | --- | --- |
+| `type` | String | Must be `"recent_changes"`. | Yes | \-  |
+| `title` | String | The display title of the recent changes viewer. | Yes | \-  |
+| `desc` | String | Description of what the recent changes viewer does. | Yes | \-  |
+| `disable` | Boolean | Disables the control if set to `true`. | No  | `false` |
+| `hidden` | Boolean | Hides the control if set to `true`. | No  | `false` |
+
+**Example:**
+
+```
+{
+  "type": "recent_changes",
+  "title": "Recent Changes",
+  "desc": "View recent changes and updates for the current version",
   "disable": false,
   "hidden": false
 }

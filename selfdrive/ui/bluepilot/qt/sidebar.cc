@@ -165,7 +165,16 @@ void SidebarBP::drawProgressBar(QPainter &p, int x, int y, int width, int height
 }
 
 void SidebarBP::mousePressEvent(QMouseEvent *event) {
-  // Remove button rect calculation from here, just use the rects set in drawSidebar
+  // Set mic button position for recording check (same logic as drawSidebar)
+  if (recording_audio) {
+    const int buttonSize = 120;
+    const int buttonSpacing = 30;
+    const int totalWidth = buttonSize * 2 + buttonSpacing;
+    const int startX = (width() - totalWidth) / 2;
+    const int bottomY = height() - 140;
+    mic_indicator_btn = QRect(startX + buttonSize + buttonSpacing, bottomY - buttonSize - buttonSpacing, buttonSize, buttonSize);
+  }
+
   if (onroad && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
     update();
@@ -199,24 +208,16 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 
   // Handle mic indicator button (when recording)
   if (recording_audio) {
-    // Calculate mic button position to match mousePressEvent
-    const int bottomY = height() - 140;
+    // Use the same positioning logic as drawSidebar
     const int buttonSize = 120;
-    const int totalWidth = buttonSize * 2 + 30;
+    const int buttonSpacing = 30;
+    const int totalWidth = buttonSize * 2 + buttonSpacing;
     const int startX = (width() - totalWidth) / 2;
-
-    if (onroad) {
-      // Above flag button
-      const QRect flag_btn_rect = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
-      mic_indicator_btn = QRect(flag_btn_rect.x() + (flag_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
-    } else {
-      // Above settings button when offroad
-      const QRect settings_btn_rect = QRect(startX, bottomY, buttonSize, buttonSize);
-      mic_indicator_btn = QRect(settings_btn_rect.x() + (settings_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
-    }
+    const int bottomY = height() - 140;
+    mic_indicator_btn = QRect(startX + buttonSize + buttonSpacing, bottomY - buttonSize - buttonSpacing, buttonSize, buttonSize);
 
     if (mic_indicator_btn.contains(event->pos())) {
-      emit openSettings(2, "RecordAudio");
+      emit openSettings(3, "RecordAudio");
       return;
     }
   }
@@ -417,48 +418,28 @@ void SidebarBP::drawSidebar(QPainter &p) {
 
   // Draw microphone recording indicator if recording
   if (recording_audio) {
-    // Calculate button positions to match mousePressEvent
-    const int bottomY = height() - 140;
+    // Position mic button above the flag button with same circular styling
     const int buttonSize = 120;
-    const int totalWidth = buttonSize * 2 + 30;
+    const int buttonSpacing = 30;
+    const int totalWidth = buttonSize * 2 + buttonSpacing;
     const int startX = (width() - totalWidth) / 2;
+    const int bottomY = height() - 140;
 
-    // Position mic button above the appropriate bottom button
-    if (onroad) {
-      // Above flag button
-      const QRect flag_btn_rect = QRect(startX + buttonSize + 30, bottomY, buttonSize, buttonSize);
-      mic_indicator_btn = QRect(flag_btn_rect.x() + (flag_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
-    } else {
-      // Above settings button when offroad
-      const QRect settings_btn_rect = QRect(startX, bottomY, buttonSize, buttonSize);
-      mic_indicator_btn = QRect(settings_btn_rect.x() + (settings_btn_rect.width() - 80) / 2, bottomY - 60, 80, 40);
-    }
+    // Position above flag button (which is at startX + buttonSize + buttonSpacing)
+    mic_indicator_btn = QRect(startX + buttonSize + buttonSpacing, bottomY - buttonSize - buttonSpacing, buttonSize, buttonSize);
 
-    // Draw mic button background with modern styling
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 40)); // Shadow
-    p.drawRoundedRect(mic_indicator_btn.adjusted(2, 2, 2, 2), 20, 20);
-
-    // Draw button background with danger color
+    // Draw mic button with red background to indicate recording is active
+    p.setPen(QPen(QColor(255, 255, 255, 80), 2));
     p.setBrush(mic_indicator_pressed ? danger_color.darker(120) : danger_color);
-    p.drawRoundedRect(mic_indicator_btn, 20, 20);
+    p.drawEllipse(mic_indicator_btn);
 
-    // Add subtle border
-    p.setPen(QPen(QColor(255, 255, 255, 40), 1));
-    p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(mic_indicator_btn, 20, 20);
-
-    // Draw mic icon centered
+    // Draw mic icon with reduced padding to fill more of the circle
+    const float scale = 1.3; // Much larger scale to fill the circle
     p.setOpacity(mic_indicator_pressed ? 0.65 : 1.0);
-    int icon_x = mic_indicator_btn.x() + (mic_indicator_btn.width() - mic_img.width()) / 2;
-    int icon_y = mic_indicator_btn.y() + (mic_indicator_btn.height() - mic_img.height()) / 2;
-    p.drawPixmap(icon_x, icon_y, mic_img);
+    p.drawPixmap(mic_indicator_btn.x() + (mic_indicator_btn.width() - mic_img.width() * scale) / 2,
+                 mic_indicator_btn.y() + (mic_indicator_btn.height() - mic_img.height() * scale) / 2,
+                 mic_img.scaled(mic_img.width() * scale, mic_img.height() * scale, Qt::KeepAspectRatio));
     p.setOpacity(1.0);
-
-    // Add recording text below the button
-    p.setPen(QColor(0xff, 0xff, 0xff));
-    p.setFont(InterFont(12, QFont::Bold));
-    p.drawText(mic_indicator_btn.adjusted(0, 45, 0, 0), Qt::AlignCenter, tr("REC"));
   }
 
   // Draw metrics with modern styling - new order

@@ -67,7 +67,7 @@ VisualsPanel::VisualsPanel(QWidget *parent) : QWidget(parent) {
 
   sunnypilotScroller = new ScrollViewSP(list, this);
   vlayout->addWidget(sunnypilotScroller);
-  
+
   main_layout->addWidget(sunnypilotScreen);
 }
 

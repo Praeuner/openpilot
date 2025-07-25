@@ -20,7 +20,18 @@ private:
   // Helper method for blindspot rendering
   void drawBlindspotOverlays(QPainter &painter);
 
+  // Lead status display methods (moved from base ModelRenderer)
+  void drawLeadStatus(QPainter &painter, int height, int width);
+  void drawLeadStatusAtPosition(QPainter &painter,
+                              const cereal::RadarState::LeadData::Reader &lead_data,
+                              const QPointF &chevron_pos,
+                              int height, int width,
+                              const QString &label);
+
   // Bluepilot enhanced blindspot polygons
   QPolygonF left_blindspot_vertices;
   QPolygonF right_blindspot_vertices;
+
+  // Lead status animation
+  float lead_status_alpha = 0.0f;
 };

@@ -162,18 +162,30 @@ bool BPRecentChangesDialog::loadAndDisplayChanges(const QString &version) {
 }
 
 void BPRecentChangesDialog::createVersionSection(const QString &version, const QJsonObject &versionData) {
-  // Version header
+  // Version header with pill/badge styling
+  QWidget *versionContainer = new QWidget();
+  versionContainer->setStyleSheet("background-color: transparent;");
+
+  QHBoxLayout *versionLayout = new QHBoxLayout(versionContainer);
+  versionLayout->setContentsMargins(0, 15, 0, 25);
+  versionLayout->setAlignment(Qt::AlignLeft);
+
   QLabel *versionLabel = new QLabel(QString("Version %1").arg(version));
   versionLabel->setStyleSheet(R"(
     QLabel {
-      font-size: 40px;
+      font-size: 38px;
       font-weight: 600;
-      color: #2196F3;
-      padding: 10px 0px;
+      color: #FFFFFF;
+      background-color: #2196F3;
+      border-radius: 25px;
+      padding: 12px 24px;
+      margin: 0px;
     }
   )");
   versionLabel->setAlignment(Qt::AlignCenter);
-  content_layout->addWidget(versionLabel);
+
+  versionLayout->addWidget(versionLabel);
+  content_layout->addWidget(versionContainer);
 
   // Changes section
   if (versionData.contains("changes") && versionData["changes"].toArray().size() > 0) {
@@ -202,18 +214,6 @@ void BPRecentChangesDialog::createVersionSection(const QString &version, const Q
 
 void BPRecentChangesDialog::createCategorySection(QVBoxLayout *layout, const QString &title,
                                                  const QJsonArray &items, const QString &color) {
-  // Category header
-  QLabel *categoryLabel = new QLabel(title);
-  categoryLabel->setStyleSheet(QString(R"(
-    QLabel {
-      font-size: 36px;
-      font-weight: 500;
-      color: %1;
-      padding: 8px 0px 5px 0px;
-    }
-  )").arg(color));
-  layout->addWidget(categoryLabel);
-
   // Category container
   QFrame *categoryFrame = new QFrame();
   categoryFrame->setStyleSheet(R"(
@@ -221,13 +221,26 @@ void BPRecentChangesDialog::createCategorySection(QVBoxLayout *layout, const QSt
       background-color: #242424;
       border-radius: 15px;
       padding: 5px;
-      margin: 5px 0px;
+      margin: 2px 0px 15px 0px;
     }
   )");
 
   QVBoxLayout *frameLayout = new QVBoxLayout(categoryFrame);
-  frameLayout->setContentsMargins(15, 10, 15, 10);
-  frameLayout->setSpacing(8);
+  frameLayout->setContentsMargins(15, 15, 15, 10);
+  frameLayout->setSpacing(0);
+
+  // Category header inside container
+  QLabel *categoryLabel = new QLabel(title);
+  categoryLabel->setStyleSheet(QString(R"(
+    QLabel {
+      font-size: 34px;
+      font-weight: 600;
+      color: %1;
+      padding: 0px 0px 8px 0px;
+      margin: 0px;
+    }
+  )").arg(color));
+  frameLayout->addWidget(categoryLabel);
 
   // Add items
   for (const auto &item : items) {
@@ -246,7 +259,7 @@ QWidget *BPRecentChangesDialog::createChangeItem(const QString &text, const QStr
   itemWidget->setStyleSheet("background-color: transparent;");
 
   QHBoxLayout *itemLayout = new QHBoxLayout(itemWidget);
-  itemLayout->setContentsMargins(0, 4, 0, 4);
+  itemLayout->setContentsMargins(0, 0, 0, 0); // Zero margins
   itemLayout->setSpacing(10);
 
   // Bullet point

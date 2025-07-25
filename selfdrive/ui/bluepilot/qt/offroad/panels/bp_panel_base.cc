@@ -1,6 +1,7 @@
 // bp_panel_base.cc
 
 #include "bp_panel_base.h"
+#include "bp_recent_changes.h"
 #include <iostream>
 
 BPPanelBase::BPPanelBase(QWidget *parent) : BPPanelListWidget(parent) {
@@ -433,6 +434,8 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
     widget = createParamListViewerControl(control);
   } else if (type == "file_viewer") {
     widget = createFileViewerControl(control);
+  } else if (type == "recent_changes") {
+    widget = createRecentChangesControl(control);
   } else if (type == "command_button") {
     widget = createCommandButtonControl(control);
   } else if (type == "nested_controls_button") {
@@ -598,6 +601,21 @@ QWidget *BPPanelBase::createFileViewerControl(const QJsonObject &control) {
   });
 
   return fileCtrl;
+}
+
+QWidget *BPPanelBase::createRecentChangesControl(const QJsonObject &control) {
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+
+  auto recentChangesCtrl = new BPRecentChangesControl(title, desc);
+
+  connect(recentChangesCtrl, &BPRecentChangesControl::recentChangesRequested, this, [=]() {
+    auto dlg = new BPRecentChangesDialog(this);
+    dlg->loadAndDisplayChanges(BPRecentChangesDialog::getCurrentVersion());
+    dlg->setupFullscreen();
+  });
+
+  return recentChangesCtrl;
 }
 
 QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
@@ -805,7 +823,7 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
 
   // Set of supported control types
   static const QSet<QString> supportedTypes{"toggle",      "float",          "integer",           "selection",         "param_viewer",
-                                            "file_viewer", "command_button", "param_list_viewer", "segmented_control", "nested_controls_button"};
+                                            "file_viewer", "recent_changes", "command_button", "param_list_viewer", "segmented_control", "nested_controls_button"};
 
   // Ensure the type is supported
   if (!supportedTypes.contains(type)) {
@@ -814,7 +832,7 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   }
 
   static const QSet<QString> typesNotRequiringParam{
-      "param_viewer", "param_list_viewer", "nested_controls_button", "command_button", "file_viewer",
+      "param_viewer", "param_list_viewer", "nested_controls_button", "command_button", "file_viewer", "recent_changes",
   };
 
   // Ensure param is present for necessary types
