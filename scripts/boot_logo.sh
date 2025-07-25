@@ -5,7 +5,7 @@
 # Version: 1.0.0
 # Last Modified: $(date +%Y-%m-%d)
 #
-# This standalone script manages boot image and logo updates/restoration
+# This standalone script manages boot image updates/restoration
 # for CommaAI devices, specifically for BluePilot customizations.
 ###############################################################################
 
@@ -74,13 +74,8 @@ pause_for_user() {
 # Path Constants
 ###############################################################################
 readonly BOOT_IMG="/usr/comma/bg.jpg"
-readonly LOGO_IMG="/data/openpilot/selfdrive/assets/img_spinner_comma.png"
-
 readonly BLUEPILOT_BOOT_IMG="/data/openpilot/selfdrive/assets/img_bluepilot_boot.jpg"
-readonly BLUEPILOT_LOGO_IMG="/data/openpilot/selfdrive/assets/img_bluepilot_logo.png"
-
 readonly BOOT_IMG_BKP="${BOOT_IMG}.backup"
-readonly LOGO_IMG_BKP="${LOGO_IMG}.backup"
 
 ###############################################################################
 # Partition Management Functions
@@ -125,16 +120,6 @@ clean_backups() {
         fi
     fi
 
-    if [ -f "$LOGO_IMG_BKP" ]; then
-        if sudo rm -f "$LOGO_IMG_BKP"; then
-            print_success "Removed logo image backup: $LOGO_IMG_BKP"
-            files_removed=$((files_removed + 1))
-        else
-            print_error "Failed to remove logo image backup"
-            return 1
-        fi
-    fi
-
     if [ $files_removed -eq 0 ]; then
         print_info "No backup files found to remove."
     else
@@ -144,23 +129,19 @@ clean_backups() {
     [ "$HEADLESS_MODE" != "true" ] && pause_for_user
     return 0
 }
-update_boot_and_logo() {
-    print_info "Updating boot and logo images..."
+
+update_boot_image() {
+    print_info "Updating boot image..."
     mount_partition_rw "/"
 
-    # Ensure the original files exist before proceeding
+    # Ensure the original file exists before proceeding
     if [ ! -f "$BOOT_IMG" ]; then
         print_error "Boot image ($BOOT_IMG) does not exist. Aborting update."
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
         return 1
     fi
-    if [ ! -f "$LOGO_IMG" ]; then
-        print_error "Logo image ($LOGO_IMG) does not exist. Aborting update."
-        [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        return 1
-    fi
 
-    # Create backups if they do not already exist
+    # Create backup if it does not already exist
     if [ ! -f "$BOOT_IMG_BKP" ]; then
         sudo cp "$BOOT_IMG" "$BOOT_IMG_BKP"
         print_success "Backup created for boot image at $BOOT_IMG_BKP"
@@ -168,68 +149,48 @@ update_boot_and_logo() {
         print_info "Backup for boot image already exists at $BOOT_IMG_BKP"
     fi
 
-    if [ ! -f "$LOGO_IMG_BKP" ]; then
-        sudo cp "$LOGO_IMG" "$LOGO_IMG_BKP"
-        print_success "Backup created for logo image at $LOGO_IMG_BKP"
-    else
-        print_info "Backup for logo image already exists at $LOGO_IMG_BKP"
-    fi
-
-    # Ensure the BluePilot images exist
+    # Ensure the BluePilot image exists
     if [ ! -f "$BLUEPILOT_BOOT_IMG" ]; then
         print_error "BluePilot boot image ($BLUEPILOT_BOOT_IMG) not found."
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
         return 1
     fi
-    if [ ! -f "$BLUEPILOT_LOGO_IMG" ]; then
-        print_error "BluePilot logo image ($BLUEPILOT_LOGO_IMG) not found."
-        [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        return 1
-    fi
 
-    # Overwrite the original files with the BluePilot images
+    # Overwrite the original file with the BluePilot image
     sudo cp "$BLUEPILOT_BOOT_IMG" "$BOOT_IMG"
-    sudo cp "$BLUEPILOT_LOGO_IMG" "$LOGO_IMG"
-    print_success "Boot and logo images updated with BluePilot files."
+    print_success "Boot image updated with BluePilot file."
     mount_partition_ro "/"
     [ "$HEADLESS_MODE" != "true" ] && pause_for_user
 }
 
-restore_boot_and_logo() {
-    print_info "Restoring boot and logo images from backup..."
+restore_boot_image() {
+    print_info "Restoring boot image from backup..."
     mount_partition_rw "/"
 
-    # Check if backups exist before attempting restoration
+    # Check if backup exists before attempting restoration
     if [ ! -f "$BOOT_IMG_BKP" ]; then
         print_error "Backup for boot image not found at $BOOT_IMG_BKP"
         [ "$HEADLESS_MODE" != "true" ] && pause_for_user
         return 1
     fi
-    if [ ! -f "$LOGO_IMG_BKP" ]; then
-        print_error "Backup for logo image not found at $LOGO_IMG_BKP"
-        [ "$HEADLESS_MODE" != "true" ] && pause_for_user
-        return 1
-    fi
 
-    # Restore backups to the original file locations
+    # Restore backup to the original file location
     sudo cp "$BOOT_IMG_BKP" "$BOOT_IMG"
-    sudo cp "$LOGO_IMG_BKP" "$LOGO_IMG"
 
-    # Remove the backups
+    # Remove the backup
     sudo rm -f "$BOOT_IMG_BKP"
-    sudo rm -f "$LOGO_IMG_BKP"
 
-    print_success "Boot and logo images restored from backup."
+    print_success "Boot image restored from backup."
     mount_partition_ro "/"
     [ "$HEADLESS_MODE" != "true" ] && pause_for_user
 }
 
 check_custom_status() {
-    if [ -f "$BOOT_IMG_BKP" ] && [ -f "$LOGO_IMG_BKP" ]; then
-        echo -e "${GREEN}Custom BluePilot images are currently active${NC}"
+    if [ -f "$BOOT_IMG_BKP" ]; then
+        echo -e "${GREEN}Custom BluePilot image is currently active${NC}"
         return 0
     else
-        echo "Default images are currently active"
+        echo "Default image is currently active"
         return 1
     fi
 }
@@ -245,8 +206,8 @@ $SCRIPT_NAME (v$SCRIPT_VERSION)
 Usage: ./boot-logo.sh [OPTIONS]
 
 Main Options:
-  --update          Update boot and logo with BluePilot images
-  --restore         Restore original boot and logo images
+  --update          Update boot image with BluePilot image
+  --restore         Restore original boot image
   --status          Check current status (custom vs default)
   --help            Show this help message
 
@@ -275,19 +236,17 @@ Examples:
 
   # Check status for scripts
   if ./boot-logo.sh --status --quiet; then
-    echo "Custom images active"
+    echo "Custom image active"
   fi
 
 Status Detection:
   The script uses backup file existence to determine status:
-  - Backup files exist = Custom images active
-  - No backup files = Default images active
+  - Backup file exists = Custom image active
+  - No backup file = Default image active
 
 File Locations:
   Boot Image:     $BOOT_IMG
-  Logo Image:     $LOGO_IMG
   BluePilot Boot: $BLUEPILOT_BOOT_IMG
-  BluePilot Logo: $BLUEPILOT_LOGO_IMG
 
 Note: This script requires sudo permissions to modify system files.
 EOL
@@ -300,28 +259,25 @@ display_main_menu() {
     echo "├───────────────────────────────────────────────────┘"
     echo "│"
     echo "│ Current Status:"
-    echo "│ $(check_custom_status && echo "├─ Custom BluePilot images active" || echo "├─ Default images active")"
+    echo "│ $(check_custom_status && echo "├─ Custom BluePilot image active" || echo "├─ Default image active")"
     echo "│"
 
     # Check if files exist
     echo "│ File Status:"
     [ -f "$BOOT_IMG" ] && echo -e "│ ├─ Boot image: ${GREEN}Found${NC}" || echo -e "│ ├─ Boot image: ${RED}Missing${NC}"
-    [ -f "$LOGO_IMG" ] && echo -e "│ ├─ Logo image: ${GREEN}Found${NC}" || echo -e "│ ├─ Logo image: ${RED}Missing${NC}"
     [ -f "$BLUEPILOT_BOOT_IMG" ] && echo -e "│ ├─ BluePilot boot: ${GREEN}Found${NC}" || echo -e "│ ├─ BluePilot boot: ${RED}Missing${NC}"
-    [ -f "$BLUEPILOT_LOGO_IMG" ] && echo -e "│ ├─ BluePilot logo: ${GREEN}Found${NC}" || echo -e "│ ├─ BluePilot logo: ${RED}Missing${NC}"
-    [ -f "$BOOT_IMG_BKP" ] && echo -e "│ ├─ Boot backup: ${GREEN}Found${NC}" || echo "│ ├─ Boot backup: Not found"
-    [ -f "$LOGO_IMG_BKP" ] && echo -e "│ └─ Logo backup: ${GREEN}Found${NC}" || echo "│ └─ Logo backup: Not found"
+    [ -f "$BOOT_IMG_BKP" ] && echo -e "│ └─ Boot backup: ${GREEN}Found${NC}" || echo "│ └─ Boot backup: Not found"
     echo "│"
     echo "├───────────────────────────────────────────────────"
     echo "│"
     echo "│ Available Actions:"
     if check_custom_status >/dev/null 2>&1; then
-        echo "│ 1. Restore Original Images"
+        echo "│ 1. Restore Original Image"
     else
-        echo "│ 1. Apply BluePilot Images"
+        echo "│ 1. Apply BluePilot Image"
     fi
-    echo "│ 2. Force Update to BluePilot Images"
-    echo "│ 3. Force Restore to Original Images"
+    echo "│ 2. Force Update to BluePilot Image"
+    echo "│ 3. Force Restore to Original Image"
     echo "│ 4. Show File Status Details"
     echo "│ H. Show Help"
     echo "│ Q. Exit"
@@ -335,13 +291,13 @@ handle_menu_input() {
         1)
             if check_custom_status >/dev/null 2>&1; then
                 echo
-                print_warning "This will restore the original boot and logo images."
+                print_warning "This will restore the original boot image."
                 if [ "$FORCE_MODE" = "true" ]; then
-                    restore_boot_and_logo
+                    restore_boot_image
                 else
                     read -p "Are you sure? (y/N): " confirm
                     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                        restore_boot_and_logo
+                        restore_boot_image
                     else
                         print_info "Operation cancelled."
                         pause_for_user
@@ -349,29 +305,29 @@ handle_menu_input() {
                 fi
             else
                 echo
-                print_info "This will apply BluePilot custom boot and logo images."
+                print_info "This will apply BluePilot custom boot image."
                 if [ "$FORCE_MODE" = "true" ]; then
-                    update_boot_and_logo
+                    update_boot_image
                 else
                     read -p "Continue? (Y/n): " confirm
                     if [[ "$confirm" =~ ^[Nn]$ ]]; then
                         print_info "Operation cancelled."
                         pause_for_user
                     else
-                        update_boot_and_logo
+                        update_boot_image
                     fi
                 fi
             fi
             ;;
         2)
             echo
-            print_warning "This will force update to BluePilot images (creates backups if needed)."
+            print_warning "This will force update to BluePilot image (creates backup if needed)."
             if [ "$FORCE_MODE" = "true" ]; then
-                update_boot_and_logo
+                update_boot_image
             else
                 read -p "Continue? (y/N): " confirm
                 if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                    update_boot_and_logo
+                    update_boot_image
                 else
                     print_info "Operation cancelled."
                     pause_for_user
@@ -380,13 +336,13 @@ handle_menu_input() {
             ;;
         3)
             echo
-            print_warning "This will force restore to original images."
+            print_warning "This will force restore to original image."
             if [ "$FORCE_MODE" = "true" ]; then
-                restore_boot_and_logo
+                restore_boot_image
             else
                 read -p "Continue? (y/N): " confirm
                 if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                    restore_boot_and_logo
+                    restore_boot_image
                 else
                     print_info "Operation cancelled."
                     pause_for_user
@@ -419,7 +375,7 @@ show_file_details() {
     echo "│"
 
     # Show detailed file information
-    for file in "$BOOT_IMG" "$LOGO_IMG" "$BLUEPILOT_BOOT_IMG" "$BLUEPILOT_LOGO_IMG" "$BOOT_IMG_BKP" "$LOGO_IMG_BKP"; do
+    for file in "$BOOT_IMG" "$BLUEPILOT_BOOT_IMG" "$BOOT_IMG_BKP"; do
         local basename=$(basename "$file")
         if [ -f "$file" ]; then
             local size=$(ls -lh "$file" | awk '{print $5}')
@@ -500,14 +456,14 @@ parse_arguments() {
     if [ -n "$action" ]; then
         case "$action" in
             update)
-                if update_boot_and_logo; then
+                if update_boot_image; then
                     exit 0
                 else
                     exit 1
                 fi
                 ;;
             restore)
-                if restore_boot_and_logo; then
+                if restore_boot_image; then
                     exit 0
                 else
                     exit 1
@@ -515,10 +471,10 @@ parse_arguments() {
                 ;;
             status)
                 if check_custom_status >/dev/null 2>&1; then
-                    [ "$QUIET_MODE" != "true" ] && echo "Custom BluePilot images are active"
+                    [ "$QUIET_MODE" != "true" ] && echo "Custom BluePilot image is active"
                     exit 0
                 else
-                    [ "$QUIET_MODE" != "true" ] && echo "Default images are active"
+                    [ "$QUIET_MODE" != "true" ] && echo "Default image is active"
                     exit 1
                 fi
                 ;;
