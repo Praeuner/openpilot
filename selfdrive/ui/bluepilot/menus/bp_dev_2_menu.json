@@ -337,17 +337,6 @@
                 "git_remote": ["any"],
                 "git_branch": []
               }
-            },
-            {
-              "type": "toggle",
-              "param": "FordPrefDriverMonitorCanMsg",
-              "title": "Send Driver Monitor Signals",
-              "desc": "Send driver monitor notice signals to the vehicle for native cluster alerts.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
             }
           ]
         }
