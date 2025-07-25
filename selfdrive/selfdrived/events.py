@@ -8,6 +8,10 @@ from openpilot.common.conversions import Conversions as CV
 from openpilot.common.git import get_short_branch
 from openpilot.common.realtime import DT_CTRL
 from openpilot.selfdrive.locationd.calibrationd import MIN_SPEED_FILTER, MIN_LANE_LINE_PROB, MIN_LANE_LINES_REQUIRED
+from openpilot.common.params import Params
+
+# Global params instance for calibration alerts
+params = Params()
 
 from openpilot.sunnypilot.selfdrive.selfdrived.events_base import EventsBase, Priority, ET, Alert, \
   NoEntryAlert, SoftDisableAlert, UserSoftDisableAlert, ImmediateDisableAlert, EngagementAlert, NormalPermanentAlert, \
@@ -90,6 +94,9 @@ def calibration_incomplete_alert(CP: car.CarParams, CS: car.CarState, sm: messag
   v_ego = CS.vEgo
   speed_ok = v_ego > MIN_SPEED_FILTER
 
+  # Read lane line calibration requirement parameter
+  lane_line_required = params.get_bool("LaneLineCalibrationRequired", True)
+
   # Check lane line detection if modelV2 is available
   lane_lines_ok = True
   lane_line_reason = ""
@@ -100,9 +107,46 @@ def calibration_incomplete_alert(CP: car.CarParams, CS: car.CarState, sm: messag
     if not lane_lines_ok:
       lane_line_reason = f"Need {MIN_LANE_LINES_REQUIRED}+ lane lines (detected: {detected_lanes})"
 
+  # Enhanced checks when lane line detection is enabled
+  yaw_rate_ok = True
+  yaw_rate_reason = ""
+  pose_ok = True
+  pose_reason = ""
+
+  if lane_line_required:
+    # Check yaw rate if cameraOdometry is available
+    if sm.valid['cameraOdometry']:
+      yaw_rate = abs(sm['cameraOdometry'].rot[2])
+      yaw_rate_ok = yaw_rate < 0.0349  # 2 degrees/second in radians
+      if not yaw_rate_ok:
+        yaw_rate_reason = f"Drive straighter (turn rate: {yaw_rate * 180 / 3.14159:.1f}°/s)"
+
+    # Check camera pose uncertainty if cameraOdometry is available
+    if sm.valid['cameraOdometry']:
+      trans_std = sm['cameraOdometry'].transStd
+      road_transform_trans_std = sm['cameraOdometry'].roadTransformTransStd
+
+      # Check angle uncertainty
+      if len(trans_std) >= 2 and trans_std[0] > 0:
+        angle_std = abs(trans_std[1] / trans_std[0])
+        pose_ok = angle_std < 0.00436  # 0.25 degrees in radians
+        if not pose_ok:
+          pose_reason = "Poor camera visibility"
+
+      # Check height uncertainty
+      if pose_ok and len(road_transform_trans_std) >= 3:
+        height_std = road_transform_trans_std[2]
+        pose_ok = height_std < 0.0302  # exp(-3.5)
+        if not pose_ok:
+          pose_reason = "Poor camera visibility"
+
   # Determine the specific reason calibration isn't proceeding
   if not speed_ok:
     reason = f"Drive Above {get_display_speed(MIN_SPEED_FILTER, metric)}"
+  elif lane_line_required and not yaw_rate_ok:
+    reason = yaw_rate_reason
+  elif lane_line_required and not pose_ok:
+    reason = pose_reason
   elif not lane_lines_ok:
     reason = lane_line_reason
   else:
