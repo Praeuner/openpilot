@@ -1,1 +1,1 @@
-#define DEFAULT_MODEL "FoF - Liquid Crystal (Default)"
+#define DEFAULT_MODEL "Tomb Raider 14 (Default)"
