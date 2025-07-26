@@ -100,17 +100,6 @@
             },
             {
               "type": "toggle",
-              "param": "LaneLineCalibrationRequired",
-              "title": "Require Lane Lines for Calibration",
-              "desc": "Require lane lines for calibration. If disabled, calibration will proceed without lane lines.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            },
-            {
-              "type": "toggle",
               "param": "QuietMode",
               "title": "Quiet Mode - Warnings/Alerts Only",
               "desc": "BluePilot displays alerts but only plays important warning sounds.",
