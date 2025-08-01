@@ -1,1 +1,1 @@
-#define DEFAULT_MODEL "Filet-O-Fish - Liquid Glass (Default)"
+#define DEFAULT_MODEL "Tomb Raider 14 (Default)"
