@@ -70,21 +70,16 @@ def sanity_clip(rpy: np.ndarray) -> np.ndarray:
 def moving_avg_with_linear_decay(prev_mean: np.ndarray, new_val: np.ndarray, idx: int, block_size: float) -> np.ndarray:
   return (idx*prev_mean + (block_size - idx) * new_val) / block_size
 
-def check_lane_lines_detected(lane_line_probs: list[float], lane_line_required: bool = True) -> bool:
+def check_lane_lines_detected(lane_line_probs: list[float]) -> bool:
   """
   Check if at least MIN_LANE_LINES_REQUIRED lane lines are detected with sufficient probability.
 
   Args:
     lane_line_probs: List of lane line probabilities from modelV2
-    lane_line_required: Whether lane line detection is required for calibration
 
   Returns:
-    bool: True if enough lane lines are detected or if lane line detection is not required, False otherwise
+    bool: True if enough lane lines are detected, False otherwise
   """
-  # If lane line detection is not required, always return True
-  if not lane_line_required:
-    return True
-
   if not lane_line_probs or len(lane_line_probs) < 4:
     return False
 
@@ -102,12 +97,8 @@ class Calibrator:
 
     # Read saved calibration
     self.params = Params()
+    self.lane_line_calibration_required = self.params.get_bool("LaneLineCalibrationRequired")
     calibration_params = self.params.get("CalibrationParams")
-
-    # Read lane line calibration requirement parameter (default to True for backward compatibility)
-    # Set to False by creating /data/params/d/LaneLineCalibrationRequired with value "0"
-    self.lane_line_required = self.params.get_bool("LaneLineCalibrationRequired", True)
-
     rpy_init = RPY_INIT
     wide_from_device_euler = WIDE_FROM_DEVICE_EULER_INIT
     height = HEIGHT_INIT
@@ -235,10 +226,14 @@ class Calibrator:
     else:
       height_certain = True
 
-    # Check lane line detection if lane_line_probs is provided
+    # Check lane line detection if required and lane_line_probs is provided
     lane_lines_ok = True
-    if lane_line_probs is not None:
-      lane_lines_ok = check_lane_lines_detected(lane_line_probs, self.lane_line_required)
+    if self.lane_line_calibration_required and lane_line_probs is not None:
+      try:
+        lane_lines_ok = check_lane_lines_detected(lane_line_probs)
+      except Exception:
+        # Fall back to stock behavior on error
+        lane_lines_ok = True
 
     certain_if_calib = (rpy_certain and height_certain) or (self.valid_blocks < INPUTS_NEEDED)
     if not (straight_and_fast and certain_if_calib and lane_lines_ok):

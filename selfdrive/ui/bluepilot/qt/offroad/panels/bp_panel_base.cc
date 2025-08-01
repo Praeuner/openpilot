@@ -515,11 +515,18 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
   selectionControl->setObjectName(control["param"].toString());
 
   QVector<BPSelectionDialog::Option> options;
+  QVector<QPair<QString, QString>> optionPairs; // For the selection control mapping
   QJsonArray optArray = control["options"].toArray();
   for (const auto &opt : optArray) {
     QJsonObject optObj = opt.toObject();
-    options.append({optObj["name"].toString(), optObj["value"].toString()});
+    QString displayName = optObj["name"].toString();
+    QString value = optObj["value"].toString();
+    options.append({displayName, value});
+    optionPairs.append({displayName, value}); // display name -> value
   }
+
+  // Set the options for value-to-display mapping
+  selectionControl->setOptions(optionPairs);
 
   QString currentValue = QString::fromStdString(params.get(control["param"].toString().toStdString()));
   selectionControl->setSelectedValue(currentValue);

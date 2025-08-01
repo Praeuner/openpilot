@@ -306,7 +306,7 @@ class BPSelectionControl : public QFrame {
   Q_OBJECT
 
 public:
-  BPSelectionControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr) : QFrame(parent), paramName(param.toStdString()) {
+  BPSelectionControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr) : QFrame(parent), paramName(param.toStdString()), defaultDesc(desc) {
 
     // Overall horizontal layout
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
@@ -344,7 +344,7 @@ public:
     titleLabel->setWordWrap(true);
     rightLayout->addWidget(titleLabel);
 
-    // Info label: shows selected value (blue) if present; otherwise, default description (gray)
+    // Info label: shows selected value description (blue) if present; otherwise, default description (gray)
     infoLabel = new QLabel(this);
     infoLabel->setWordWrap(true);
     infoLabel->setText(defaultDesc);
@@ -373,14 +373,27 @@ public:
     QObject::connect(selectButton, &BPButton::clicked, this, &BPSelectionControl::clicked);
   }
 
-  // When a value is selected, call this to update the info label.
-  // If value is non-empty, display it in blue; otherwise revert to the default description.
+  // Set the available options for value-to-display mapping
+  void setOptions(const QVector<QPair<QString, QString>> &optionPairs) {
+    options.clear();
+    for (const auto &pair : optionPairs) {
+      options[pair.second] = pair.first; // Map value -> display name
+    }
+  }
+
+  // When a value is selected, call this to update the info label with the display name.
+  // If value is non-empty and found in options, display the corresponding name in blue;
+  // otherwise revert to the default description.
   void setSelectedValue(const QString &value) {
-    if (!value.isEmpty()) {
+    if (!value.isEmpty() && options.contains(value)) {
+      infoLabel->setText(options[value]);
+      infoLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+    } else if (!value.isEmpty()) {
+      // Fallback: show the raw value if no mapping found
       infoLabel->setText(value);
       infoLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
     } else {
-      infoLabel->setText("Select a value");
+      infoLabel->setText(defaultDesc.isEmpty() ? "Select a value" : defaultDesc);
       infoLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
     }
   }
@@ -394,6 +407,7 @@ private:
   QLabel *infoLabel;
   std::string paramName;
   QString defaultDesc;
+  QMap<QString, QString> options; // Map from value to display name
 };
 
 class BPSegmentedControl : public QFrame {
