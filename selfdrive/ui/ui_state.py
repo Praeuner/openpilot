@@ -146,11 +146,19 @@ class UIState:
 
 class Device:
   def __init__(self):
+    self.params = Params()
     self._ignition = False
     self._interaction_time: float = -1
     self._interactive_timeout_callbacks: list[Callable] = []
     self._prev_timed_out = False
     self._awake = False
+
+    # Onroad display behavior tracking
+    self._onroad_start_time: float = -1
+    self._onroad_display_behavior: int = 0  # Default: Do Nothing
+    self._onroad_display_timeout: int = 30  # Default: 30 seconds
+    self._onroad_display_applied: bool = False
+    self._original_brightness: int = 0
 
     self._offroad_brightness: int = BACKLIGHT_OFFROAD
     self._last_brightness: int = 0
@@ -170,6 +178,7 @@ class Device:
     if self._interaction_time <= 0:
       self.reset_interactive_timeout()
 
+    self._update_onroad_display_behavior()
     self._update_brightness()
     self._update_wakefulness()
 
@@ -177,7 +186,90 @@ class Device:
     # TODO: not yet used, should be used in prime widget for QR code, etc.
     self._offroad_brightness = min(max(brightness, 0), 100)
 
+  def _update_onroad_display_behavior(self):
+    """Handle onroad display behavior based on user settings."""
+    try:
+      # Get current settings
+      self._onroad_display_behavior = int(self.params.get("OnroadDisplayBehavior", "0"))
+      timeout_index = int(self.params.get("OnroadDisplayTimeout", "0"))
+
+      # Convert timeout index to actual seconds
+      timeout_seconds_map = {
+        0: 30,    # 30 seconds
+        1: 60,    # 1 minute
+        2: 120,   # 2 minutes
+        3: 180,   # 3 minutes
+        4: 300,   # 5 minutes
+        5: 600,   # 10 minutes
+        6: 900,   # 15 minutes
+      }
+      self._onroad_display_timeout = timeout_seconds_map.get(timeout_index, 30)
+    except (ValueError, KeyError):
+      # Use defaults if parameters don't exist or are invalid
+      self._onroad_display_behavior = 0
+      self._onroad_display_timeout = 30
+
+    # Only apply onroad behavior when actually onroad (started and not offroad)
+    is_onroad = ui_state.started and not ui_state.is_offroad()
+
+    if is_onroad and self._onroad_display_behavior > 0:  # Not "Do Nothing"
+      # Start tracking onroad time
+      if self._onroad_start_time < 0:
+        self._onroad_start_time = time.monotonic()
+        self._onroad_display_applied = False
+        # Store the current brightness as original (will be updated in _update_brightness)
+        if self._original_brightness == 0:
+          self._original_brightness = self._last_brightness
+
+      # Check if timeout has elapsed
+      time_onroad = time.monotonic() - self._onroad_start_time
+      if time_onroad >= self._onroad_display_timeout and not self._onroad_display_applied:
+        self._apply_onroad_display_behavior()
+        self._onroad_display_applied = True
+    else:
+      # Reset onroad tracking when not onroad or behavior is "Do Nothing"
+      if self._onroad_start_time >= 0:
+        self._reset_onroad_display_behavior()
+        self._onroad_start_time = -1
+        self._onroad_display_applied = False
+
+  def _apply_onroad_display_behavior(self):
+    """Apply the selected onroad display behavior."""
+    # Ensure we have a valid original brightness
+    if self._original_brightness <= 0:
+      self._original_brightness = max(self._last_brightness, 50)  # Fallback to 50% if needed
+
+    if self._onroad_display_behavior == 1:  # Dim 70%
+      target_brightness = max(int(self._original_brightness * 0.7), 10)
+    elif self._onroad_display_behavior == 2:  # Dim 50%
+      target_brightness = max(int(self._original_brightness * 0.5), 10)
+    elif self._onroad_display_behavior == 3:  # Dim 30%
+      target_brightness = max(int(self._original_brightness * 0.3), 10)
+    elif self._onroad_display_behavior == 4:  # Turn Off
+      target_brightness = 0
+    else:
+      return  # Do Nothing
+
+    # Apply the brightness change
+    if target_brightness != self._last_brightness:
+      cloudlog.debug(f"applying onroad display behavior: {self._onroad_display_behavior}, brightness: {target_brightness}")
+      if self._brightness_thread is None or not self._brightness_thread.is_alive():
+        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(target_brightness,))
+        self._brightness_thread.start()
+        self._last_brightness = target_brightness
+
+  def _reset_onroad_display_behavior(self):
+    """Reset display to normal brightness when exiting onroad behavior."""
+    if self._onroad_display_applied and self._onroad_display_behavior > 0:
+      cloudlog.debug("resetting onroad display behavior")
+      # Force brightness update to restore normal behavior
+      self._last_brightness = -1  # Force update
+
   def _update_brightness(self):
+    # Update original brightness if we're not in onroad behavior
+    if not self._onroad_display_applied and self._last_brightness > 0:
+      self._original_brightness = self._last_brightness
+
     clipped_brightness = self._offroad_brightness
 
     if ui_state.started and ui_state.light_sensor >= 0:
@@ -192,8 +284,13 @@ class Device:
       clipped_brightness = float(np.clip(100 * clipped_brightness, 10, 100))
 
     brightness = round(self._brightness_filter.update(clipped_brightness))
+
+    # Don't override brightness if onroad behavior is applied
     if not self._awake:
       brightness = 0
+    elif self._onroad_display_applied and self._onroad_display_behavior > 0:
+      # Keep the applied onroad brightness
+      return
 
     if brightness != self._last_brightness:
       if self._brightness_thread is None or not self._brightness_thread.is_alive():

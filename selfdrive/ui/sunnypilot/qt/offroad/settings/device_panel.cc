@@ -98,7 +98,33 @@ DevicePanelSP::DevicePanelSP(SettingsWindowSP *parent) : DevicePanel(parent) {
   });
 
   addItem(interactivityTimeout);
-  
+
+  // Onroad Display Behavior
+  onroadDisplayBehavior = new OptionControlSP("OnroadDisplayBehavior", tr("Onroad Display Behavior"),
+                                             tr("Controls display behavior when driving onroad.\n"
+                                                "• 0: Do Nothing - Screen stays on (default)\n"
+                                                "• 1: Dim 70% - Reduces brightness to 70%\n"
+                                                "• 2: Dim 50% - Reduces brightness to 50%\n"
+                                                "• 3: Dim 30% - Reduces brightness to 30%\n"
+                                                "• 4: Turn Off - Completely turns off display"),
+                                             "", {0, 4}, 1, true, nullptr, false);
+  addItem(onroadDisplayBehavior);
+
+  connect(onroadDisplayBehavior, &OptionControlSP::updateLabels, [=]() {
+    updateState();
+  });
+
+  // Onroad Display Timeout
+  onroadDisplayTimeout = new OptionControlSP("OnroadDisplayTimeout", tr("Onroad Display Timeout"),
+                                            tr("Time before applying the selected onroad display behavior.\n"
+                                               "Only applies when 'Do Nothing' is not selected."),
+                                            "", {0, 6}, 1, true, nullptr, false);
+  addItem(onroadDisplayTimeout);
+
+  connect(onroadDisplayTimeout, &OptionControlSP::updateLabels, [=]() {
+    updateState();
+  });
+
   // Brightness
   brightness = new Brightness();
   connect(brightness, &OptionControlSP::updateLabels, brightness, &Brightness::refresh);
@@ -216,4 +242,56 @@ void DevicePanelSP::updateState() {
   } else {
     interactivityTimeout->setLabel(timeoutValue + "s");
   }
+
+  // Update onroad display timeout label
+  QString onroadTimeoutValue = QString::fromStdString(params.get("OnroadDisplayTimeout"));
+  QString timeoutLabel;
+  int timeoutIndex = onroadTimeoutValue.toInt();
+
+  // Convert numeric index to human-friendly labels
+  switch (timeoutIndex) {
+    case 0:
+      timeoutLabel = "30 sec";
+      break;
+    case 1:
+      timeoutLabel = "1 min";
+      break;
+    case 2:
+      timeoutLabel = "2 min";
+      break;
+    case 3:
+      timeoutLabel = "3 min";
+      break;
+    case 4:
+      timeoutLabel = "5 min";
+      break;
+    case 5:
+      timeoutLabel = "10 min";
+      break;
+    case 6:
+      timeoutLabel = "15 min";
+      break;
+    default:
+      timeoutLabel = "30 sec";
+      break;
+  }
+  onroadDisplayTimeout->setLabel(timeoutLabel);
+
+  // Update onroad display behavior label
+  QString onroadBehaviorValue = QString::fromStdString(params.get("OnroadDisplayBehavior"));
+  QString behaviorLabel;
+  if (onroadBehaviorValue == "0") {
+    behaviorLabel = "Do Nothing";
+  } else if (onroadBehaviorValue == "1") {
+    behaviorLabel = "Dim 70%";
+  } else if (onroadBehaviorValue == "2") {
+    behaviorLabel = "Dim 50%";
+  } else if (onroadBehaviorValue == "3") {
+    behaviorLabel = "Dim 30%";
+  } else if (onroadBehaviorValue == "4") {
+    behaviorLabel = "Turn Off";
+  } else {
+    behaviorLabel = "Do Nothing";
+  }
+  onroadDisplayBehavior->setLabel(behaviorLabel);
 }

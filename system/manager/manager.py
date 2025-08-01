@@ -82,6 +82,8 @@ def manager_init() -> None:
     ("ModelManager_LastSyncTime", "0"),
     ("ModelManager_ModelsCache", ""),
     ("NeuralNetworkLateralControl", "0"),
+    ("OnroadDisplayBehavior", "0"),  # Default: Do Nothing
+    ("OnroadDisplayTimeout", "0"),  # Default: 30 seconds (index 0)
     ("QuickBootToggle", "0"),
     ("QuietMode", "0"),
     ("ShowAdvancedControls", "0" if build_metadata.tested_channel else "1"),
