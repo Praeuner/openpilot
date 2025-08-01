@@ -261,14 +261,6 @@
       "enabled": true
     },
     {
-      "name": "BlindSpot",
-      "default": true,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true
-    },
-    {
       "name": "ShowStopIndicatorOverlay",
       "default": true,
       "type": "bool",
