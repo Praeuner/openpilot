@@ -108,6 +108,14 @@ public:
       }
     )");
   }
+
+protected:
+  void mouseReleaseEvent(QMouseEvent *event) override {
+    if (isEnabled() && event->button() == Qt::LeftButton) {
+      // Ensure the click is properly handled for touch devices
+      QPushButton::mouseReleaseEvent(event);
+    }
+  }
 };
 
 /*

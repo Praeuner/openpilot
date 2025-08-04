@@ -101,10 +101,10 @@ BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option>
     )"));
 
     buttonGroup->addButton(button);
-    connect(button, &QPushButton::clicked, [this, opt, currentValue]() {
+    connect(button, &QPushButton::clicked, [this, opt]() {
       selected = opt.value;
       if (selectButton) {
-        selectButton->setEnabled(selected != currentValue);
+        selectButton->setEnabled(true); // Always enable select button when an option is chosen
       }
     });
     buttonLayout->addWidget(button);
@@ -145,7 +145,9 @@ BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option>
   // Select button
   selectButton = new QPushButton(tr("Select"), container);
   selectButton->setStyleSheet(actionButtonStyle.arg("#2196F3", "#1976D2"));
-  selectButton->setEnabled(false);
+  // Initialize selected value to current value and enable select button if there's a current selection
+  selected = currentValue;
+  selectButton->setEnabled(!currentValue.isEmpty());
   connect(selectButton, &QPushButton::clicked, this, &QDialog::accept);
 
   actionButtonLayout->addWidget(cancelBtn);
