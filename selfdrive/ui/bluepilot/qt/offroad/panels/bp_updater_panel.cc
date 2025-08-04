@@ -17,6 +17,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <iostream>
+#include <unistd.h>
 #include <QtConcurrent>
 
 #include "bp_updater_panel.h"
@@ -1707,8 +1708,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   layout->setContentsMargins(45, 35, 45, 45);
   layout->setSpacing(0);
 
-  // Add title
-  QLabel *titleLabel = new QLabel(title);
+  // Add title with core count information
+  int numCores = sysconf(_SC_NPROCESSORS_ONLN);
+  QString baseTitle = QString("%1 (%2 cores)").arg(title).arg(numCores);
+  QLabel *titleLabel = new QLabel(baseTitle);
   titleLabel->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black;");
   layout->addWidget(titleLabel);
   layout->addSpacing(30);
@@ -1869,24 +1872,32 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   QTimer *runtimeTimer = new QTimer(currentDialog);
   runtimeTimer->setInterval(1000); // Update every second
 
-  // Update the runtime timer on the button
+  // Update the runtime timer on the button and title
   connect(runtimeTimer, &QTimer::timeout, [=]() {
-    if (process->state() == QProcess::NotRunning) {
-      return; // Skip updating if process has finished
+    // Continue updating until explicitly stopped, even if process finishes briefly
+    // This ensures consistent second-by-second updates during command execution
+    if (!closeButton->isEnabled()) {  // Only update while command is running (button disabled)
+      int elapsedSecs = elapsedTimer->elapsed() / 1000;
+      int timeoutSecs = timeoutMs / 1000;
+
+      // Format as Command Running: (MM:SS/TT:TT)
+      QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
+
+      // Set the button text with formatting
+      closeButton->setText(timerText);
+
+      // Update title with elapsed time
+      QString titleWithTime = QString("%1 - %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+      titleLabel->setText(titleWithTime);
     }
-
-    int elapsedSecs = elapsedTimer->elapsed() / 1000;
-    int timeoutSecs = timeoutMs / 1000;
-
-    // Format as Command Running: (MM:SS/TT:TT)
-    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
-
-    // Set the button text with formatting (green timer text)
-    closeButton->setText(timerText);
   });
 
-  // Start the runtime timer immediately
+  // Start the runtime timer immediately and trigger initial update
   runtimeTimer->start();
+
+  // Trigger initial title update
+  QString initialTitleWithTime = QString("%1 - %2").arg(baseTitle).arg(formatTime(0));
+  titleLabel->setText(initialTitleWithTime);
 
   // Connect process signals for output
   connect(process, &QProcess::readyReadStandardOutput, [=]() {
@@ -1929,6 +1940,11 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
       // Stop the runtime timer
       runtimeTimer->stop();
+
+      // Update title to show timeout
+      int elapsedSecs = elapsedTimer->elapsed() / 1000;
+      QString timeoutTitleWithTime = QString("%1 - Timed out at %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+      titleLabel->setText(timeoutTitleWithTime);
     }
   });
 
@@ -1959,9 +1975,11 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         // Stop the runtime timer
         runtimeTimer->stop();
 
-        // Show terminated message
+        // Show terminated message and update title
         int elapsedSecs = elapsedTimer->elapsed() / 1000;
         QString finalTime = QString("Terminated at %1").arg(formatTime(elapsedSecs));
+        QString terminatedTitleWithTime = QString("%1 - Terminated at %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+        titleLabel->setText(terminatedTitleWithTime);
       }
     });
   }
@@ -1984,6 +2002,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
     // Show final runtime
     int elapsedSecs = elapsedTimer->elapsed() / 1000;
     QString finalTime = QString("Total Runtime: %1").arg(formatTime(elapsedSecs));
+
+    // Update title with final elapsed time
+    QString finalTitleWithTime = QString("%1 - Completed in %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+    titleLabel->setText(finalTitleWithTime);
 
     if (exitStatus == QProcess::CrashExit) {
       // Show retry button for crash
