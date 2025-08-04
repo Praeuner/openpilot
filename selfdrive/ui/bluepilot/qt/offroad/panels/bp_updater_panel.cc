@@ -1684,6 +1684,11 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Set commandInProgress to true to make sure the UI stays awake while the command is running
   commandInProgress = true;
 
+#ifdef QCOM2
+  // Disable power save mode for better performance during git/scons operations
+  disablePowerSave();
+#endif
+
   // Create and set up process
   QProcess *process = new QProcess(this);
   if (!workingDir.isEmpty()) {
@@ -1963,6 +1968,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
   // Handle process completion
   connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), [=](int exitCode, QProcess::ExitStatus exitStatus) {
+#ifdef QCOM2
+    // Restore power save mode after command completion
+    restorePowerSave();
+#endif
     timeoutTimer->stop();
     closeButton->setEnabled(true);
     commandInProgress = false;
@@ -2044,6 +2053,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Add retry button functionality
   if (retryButton) {
     connect(retryButton, &QPushButton::clicked, [=]() {
+#ifdef QCOM2
+      // Disable power save mode again for retry
+      disablePowerSave();
+#endif
       outputText->clear();
       outputText->append(tr("Retrying command:\n\n%1\n\n").arg(command));
       retryButton->setEnabled(false);
@@ -2097,6 +2110,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Connect close button and cleanup
   connect(closeButton, &QPushButton::clicked, currentDialog, &QDialog::accept);
   connect(currentDialog, &QDialog::finished, [=]() {
+#ifdef QCOM2
+    // Restore power save mode if dialog is closed manually
+    restorePowerSave();
+#endif
     timeoutTimer->stop();
     runtimeTimer->stop();
     delete elapsedTimer;
@@ -3090,3 +3107,30 @@ void BPUpdateConfirmDialog::alert(const QString &message, QWidget *parent) {
   BPUpdateConfirmDialog dlg(tr("Alert"), message, tr("OK"), "", parent);
   dlg.exec();
 }
+
+#ifdef QCOM2
+// Power management implementations
+bool BPUpdaterPanel::isPowerSaveActive() const {
+  QProcess process;
+  process.start("python3", QStringList() << "scripts/bp_power_management.py" << "--get-state");
+  if (process.waitForFinished(5000)) {
+    QString output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+    return output.contains("power_save_active=true");
+  }
+  return false;
+}
+
+void BPUpdaterPanel::disablePowerSave() {
+  powerSaveWasActive = isPowerSaveActive();
+  if (powerSaveWasActive) {
+    QProcess::execute("python3", QStringList() << "scripts/bp_power_management.py" << "--disable");
+  }
+}
+
+void BPUpdaterPanel::restorePowerSave() {
+  if (powerSaveWasActive) {
+    QProcess::execute("python3", QStringList() << "scripts/bp_power_management.py" << "--restore");
+    powerSaveWasActive = false;
+  }
+}
+#endif

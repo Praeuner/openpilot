@@ -135,6 +135,13 @@ public:
   static QString getTimeDateString(const QDateTime &time);
   void showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir, int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn);
 
+#ifdef QCOM2
+  // Power management methods
+  bool isPowerSaveActive() const;
+  void disablePowerSave();
+  void restorePowerSave();
+#endif
+
   static void setupFullscreenDialog(QDialog *dialog) {
 #ifdef QCOM2
     QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
@@ -323,6 +330,11 @@ private:
   bool checkRootDiskSpace();
   bool repairRootDiskSpace();
   bool restoreSSHFromUtility();
+
+#ifdef QCOM2
+  // Power management state
+  bool powerSaveWasActive = false;
+#endif
 };
 
 class BPUpdaterSelectionDialog : public QDialog {
