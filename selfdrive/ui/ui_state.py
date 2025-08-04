@@ -190,8 +190,8 @@ class Device:
     """Handle onroad display behavior based on user settings."""
     try:
       # Get current settings
-      self._onroad_display_behavior = int(self.params.get("OnroadDisplayBehavior", "0"))
-      timeout_index = int(self.params.get("OnroadDisplayTimeout", "0"))
+      self._onroad_display_behavior = int(self.params.get("OnroadDisplayBehavior", return_default=True))
+      timeout_index = int(self.params.get("OnroadDisplayTimeout", return_default=True))
 
       # Convert timeout index to actual seconds
       timeout_seconds_map = {

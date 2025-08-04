@@ -1,5 +1,15 @@
 {
   "versions": {
+    "4.1.0": {
+      "changes": [
+        "Merged in latest sunnypilot upstream changes",
+        "Added a new OnroadDisplayBehavior parameter to control the behavior of the onroad display",
+        "Added a new OnroadDisplayTimeout parameter to control the timeout of the onroad display"
+      ],
+      "fixes": [],
+      "removals": [],
+      "known_issues": []
+    },
     "4.0.0": {
       "changes": [
         "Added this recent changes dialog functionality to offroad transition in UI",

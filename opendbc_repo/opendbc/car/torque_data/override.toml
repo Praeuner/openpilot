@@ -18,11 +18,12 @@ legend = ["LAT_ACCEL_FACTOR", "MAX_LAT_ACCEL_MEASURED", "FRICTION"]
 # Tesla angle based controllers
 "TESLA_MODEL_3" = [nan, 2.5, nan]
 "TESLA_MODEL_Y" = [nan, 2.5, nan]
+"TESLA_MODEL_X" = [nan, 2.5, nan]
 
 # Guess
 "FORD_BRONCO_SPORT_MK1" = [nan, 1.5, nan]
 "FORD_ESCAPE_MK4" = [nan, 1.5, nan]
-"FORD_ESCAPE_MK5" = [nan, 1.5, nan]
+"FORD_ESCAPE_MK4_5" = [nan, 1.5, nan]
 "FORD_EXPLORER_MK6" = [nan, 1.5, nan]
 "FORD_EXPEDITION_MK4" = [nan, 1.5, nan]
 "FORD_F_150_MK14" = [nan, 1.5, nan]
@@ -31,7 +32,6 @@ legend = ["LAT_ACCEL_FACTOR", "MAX_LAT_ACCEL_MEASURED", "FRICTION"]
 "FORD_F_150_LIGHTNING_MK1" = [nan, 1.5, nan]
 "FORD_MUSTANG_MACH_E_MK1" = [nan, 1.5, nan]
 "FORD_RANGER_MK2" = [nan, 1.5, nan]
-"FORD_EDGE_MK2" = [nan, 1.5, nan]
 ###
 
 # No steering wheel

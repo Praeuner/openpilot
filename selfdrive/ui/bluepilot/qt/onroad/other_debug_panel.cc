@@ -58,7 +58,8 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
       cache->carValues.vEgoRaw = car.getVEgoRaw();
       cache->carValues.yawRate = car.getYawRate();
       cache->carValues.standstill = car.getStandstill();
-      cache->carValues.engineRpm = car.getEngineRpm();
+      // engineRpm is deprecated, set to 0
+      cache->carValues.engineRpm = 0.0f;
 
       cache->carValues.steeringAngleDeg = car.getSteeringAngleDeg();
       cache->carValues.steeringRateDeg = car.getSteeringRateDeg();
@@ -69,11 +70,13 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
       cache->carValues.steerFaultPermanent = car.getSteerFaultPermanent();
 
       cache->carValues.brake = car.getBrake();
-      cache->carValues.gas = car.getGas();
+      // gas is deprecated, set to 0
+      cache->carValues.gas = 0.0f;
       cache->carValues.gasPressed = car.getGasPressed();
       cache->carValues.brakePressed = car.getBrakePressed();
       cache->carValues.regenBraking = car.getRegenBraking();
-      cache->carValues.clutchPressed = car.getClutchPressed();
+      // clutchPressed is deprecated, set to false
+      cache->carValues.clutchPressed = false;
       cache->carValues.parkingBrake = car.getParkingBrake();
       cache->carValues.brakeHoldActive = car.getBrakeHoldActive();
 
@@ -284,7 +287,8 @@ void OtherDataWorker::processCarParams(const UIState *s, OtherDataCache *cache) 
       } else if (params.getLateralTuning().which() == cereal::CarParams::LateralTuning::TORQUE) {
         cache->paramValues.lateralTuningType = OtherDataCache::CarParameterValues::LateralTuningType::TORQUE;
         auto torque = params.getLateralTuning().getTorque();
-        cache->paramValues.torqueUseSteeringAngle = torque.getUseSteeringAngle();
+        // useSteeringAngle is deprecated, set to false
+        cache->paramValues.torqueUseSteeringAngle = false;
         cache->paramValues.torqueKp = torque.getKp();
         cache->paramValues.torqueKi = torque.getKi();
         cache->paramValues.torqueKf = torque.getKf();
@@ -400,10 +404,8 @@ void OtherDataWorker::processDeviceState(const UIState *s, OtherDataCache *cache
 
       cache->deviceValues.memoryTempC = device.getMemoryTempC();
 
+      // nvmeTempC is deprecated, set to empty list
       cache->deviceValues.nvmeTempC.clear();
-      for (auto temp : device.getNvmeTempC()) {
-        cache->deviceValues.nvmeTempC.append(temp);
-      }
 
       cache->deviceValues.modemTempC.clear();
       for (auto temp : device.getModemTempC()) {

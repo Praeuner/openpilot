@@ -1,6 +1,6 @@
 import json
 from typing import Any
-from openpilot.common.params import Params
+from openpilot.common.params import Params, ParamKeyFlag, ParamKeyType
 from bluepilot.logger.bp_logger import debug, error
 
 # Define the path to the params.json file
@@ -12,16 +12,28 @@ _params_data = None
 _cc_props_cache = {}
 _interface_props_cache = {}
 
-# Map the flag names to values using direct integer values
+# Map the flag names to values using the new ParamKeyFlag enum values
 flag_mapping = {
-  "PERSISTENT": 0x02,
-  "CLEAR_ON_MANAGER_START": 0x04,
-  "CLEAR_ON_ONROAD_TRANSITION": 0x08,
-  "CLEAR_ON_OFFROAD_TRANSITION": 0x10,
-  "DONT_LOG": 0x20,
-  "DEVELOPMENT_ONLY": 0x40,
-  "BACKUP": 0x80,
-  "ALL": 0xFFFFFFFF,
+  "PERSISTENT": ParamKeyFlag.PERSISTENT,
+  "CLEAR_ON_MANAGER_START": ParamKeyFlag.CLEAR_ON_MANAGER_START,
+  "CLEAR_ON_ONROAD_TRANSITION": ParamKeyFlag.CLEAR_ON_ONROAD_TRANSITION,
+  "CLEAR_ON_OFFROAD_TRANSITION": ParamKeyFlag.CLEAR_ON_OFFROAD_TRANSITION,
+  "DONT_LOG": ParamKeyFlag.DONT_LOG,
+  "DEVELOPMENT_ONLY": ParamKeyFlag.DEVELOPMENT_ONLY,
+  "CLEAR_ON_IGNITION_ON": ParamKeyFlag.CLEAR_ON_IGNITION_ON,
+  "BACKUP": ParamKeyFlag.BACKUP,
+  "ALL": ParamKeyFlag.ALL,
+}
+
+# Map parameter types to ParamKeyType enum
+type_mapping = {
+  "string": ParamKeyType.STRING,
+  "bool": ParamKeyType.BOOL,
+  "int": ParamKeyType.INT,
+  "float": ParamKeyType.FLOAT,
+  "time": ParamKeyType.TIME,
+  "json": ParamKeyType.JSON,
+  "bytes": ParamKeyType.BYTES,
 }
 
 
@@ -91,29 +103,30 @@ def get_param_value(params: Params, param_name: str, param_type: str, default_va
       log_debug(f"Parameter {param_name} not found, using default value: {default_value}")
       return default_value
 
-    value = params.get(param_name, encoding='utf8')
-    if value in (None, ""):
-      log_debug(f"Parameter {param_name} is empty or None, using default value: {default_value}")
-      return default_value
-
+    # Use type-specific getters for better type safety
     try:
       if param_type == "bool":
-        result = value == "1"
+        result = params.get_bool(param_name)
         log_debug(f" - Retrieved bool parameter {param_name}: {result}")
         return result
       elif param_type == "int":
-        result = int(value)
+        result = params.get_int(param_name)
         log_debug(f" - Retrieved int parameter {param_name}: {result}")
         return result
       elif param_type == "float":
-        result = float(value)
+        result = params.get_float(param_name)
         log_debug(f" - Retrieved float parameter {param_name}: {result}")
         return result
       else:
+        # For string and other types, use the generic get method
+        value = params.get(param_name)
+        if value is None or value == "":
+          log_debug(f"Parameter {param_name} is empty or None, using default value: {default_value}")
+          return default_value
         log_debug(f" - Retrieved string parameter {param_name}: {value}")
         return value
-    except ValueError:
-      error(f"Could not convert {param_name} value '{value}' to {param_type}. Using default: {default_value}", True)
+    except (ValueError, TypeError) as e:
+      error(f"Could not convert {param_name} value to {param_type}. Using default: {default_value}. Error: {e}", True)
       return default_value
   except Exception as e:
     error(f"Error getting parameter {param_name}: {e}. Using default: {default_value}", True)
@@ -135,12 +148,13 @@ def initialize_custom_params(params: Params) -> None:
     flags = 0
     flag_list = []
 
-    # Step 1: Register the parameter
+    # Step 1: Register the parameter with the new system
     for flag_str in param.get("flags", []):
       flag_value = flag_mapping.get(flag_str)
       if flag_value is not None:
         flags |= flag_value
         flag_list.append(flag_str)
+
     log_debug(f"Registering {name} with flags: {flag_list} (value: {flags:#x})")
     try:
       params.register_key(name, flags)
@@ -152,7 +166,15 @@ def initialize_custom_params(params: Params) -> None:
     current_value = None
     try:
       if check_param_exists(params, name):
-        current_value = params.get(name, encoding='utf-8')
+        # Use type-specific getters for better type safety
+        if param_type == "bool":
+          current_value = params.get_bool(name)
+        elif param_type == "int":
+          current_value = params.get_int(name)
+        elif param_type == "float":
+          current_value = params.get_float(name)
+        else:
+          current_value = params.get(name)
         log_debug(f"Param {name} exists with value: '{current_value}'")
       else:
         log_debug(f"Param {name} does not exist yet")
@@ -178,16 +200,26 @@ def initialize_custom_params(params: Params) -> None:
 
     # Step 4: Set the parameter value if it doesn't exist or is empty
     if current_value in (None, ""):
-      value = "1" if param_type == "bool" and default_value else "0" if param_type == "bool" else str(default_value) if default_value is not None else ""
-      if value:
-        log_debug(f"Setting {name} to default value: '{value}'")
-        try:
-          params.put(name, value)
-          log_debug(f"Successfully set {name} to: '{value}'")
-        except Exception as e:
-          error(f"Error setting {name} to '{value}': {e}", True)
-      else:
-        log_debug(f"No value set for {name} (default is empty)")
+      # Use type-specific putters for better type safety
+      try:
+        if param_type == "bool":
+          params.put_bool(name, bool(default_value))
+          log_debug(f"Set {name} to bool default value: {bool(default_value)}")
+        elif param_type == "int":
+          params.put_int(name, int(default_value) if default_value is not None else 0)
+          log_debug(f"Set {name} to int default value: {int(default_value) if default_value is not None else 0}")
+        elif param_type == "float":
+          params.put_float(name, float(default_value) if default_value is not None else 0.0)
+          log_debug(f"Set {name} to float default value: {float(default_value) if default_value is not None else 0.0}")
+        else:
+          value = str(default_value) if default_value is not None else ""
+          if value:
+            params.put(name, value)
+            log_debug(f"Set {name} to string default value: '{value}'")
+          else:
+            log_debug(f"No value set for {name} (default is empty)")
+      except Exception as e:
+        error(f"Error setting {name} to default value: {e}", True)
     else:
       log_debug(f"Retaining existing value for {name}: '{current_value}'")
 
