@@ -3133,11 +3133,13 @@ void BPUpdateConfirmDialog::alert(const QString &message, QWidget *parent) {
 #ifdef QCOM2
 // Power management implementations
 bool BPUpdaterPanel::isPowerSaveActive() const {
+  // Check if power save is active by counting CPU cores
   QProcess process;
-  process.start("python3", QStringList() << "scripts/bp_power_management.py" << "--get-state");
+  process.start("nproc", QStringList());
   if (process.waitForFinished(5000)) {
     QString output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
-    return output.contains("power_save_active=true");
+    int coreCount = output.toInt();
+    return coreCount <= 4; // Power save is active if 4 or fewer cores are available
   }
   return false;
 }
@@ -3145,13 +3147,13 @@ bool BPUpdaterPanel::isPowerSaveActive() const {
 void BPUpdaterPanel::disablePowerSave() {
   powerSaveWasActive = isPowerSaveActive();
   if (powerSaveWasActive) {
-    QProcess::execute("python3", QStringList() << "scripts/bp_power_management.py" << "--disable");
+    QProcess::execute("python3", QStringList() << "scripts/disable-powersave.py");
   }
 }
 
 void BPUpdaterPanel::restorePowerSave() {
   if (powerSaveWasActive) {
-    QProcess::execute("python3", QStringList() << "scripts/bp_power_management.py" << "--restore");
+    QProcess::execute("python3", QStringList() << "scripts/manage-powersave.py" << "--enable");
     powerSaveWasActive = false;
   }
 }
