@@ -16,6 +16,7 @@ cdef extern from "common/params.h":
     CLEAR_ON_MANAGER_START
     CLEAR_ON_ONROAD_TRANSITION
     CLEAR_ON_OFFROAD_TRANSITION
+    DONT_LOG
     DEVELOPMENT_ONLY
     CLEAR_ON_IGNITION_ON
     BACKUP
@@ -155,7 +156,7 @@ cdef class Params:
     with nogil:
       r = self.p.getFloat(k, block)
     return r
-    
+
   def _put_cast(self, key, dat):
     cdef string k = self.check_key(key)
     cdef ParamKeyType t = self.p.getKeyType(k)
