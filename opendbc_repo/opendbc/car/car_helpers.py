@@ -89,7 +89,7 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
                 fixed_fingerprint: str | None) -> tuple[str | None, dict, str, list[CarParams.CarFw], CarParams.FingerprintSource, bool]:
   # Load FORD SELECTED VEHICLE MODEL PARAMS if set, use that fingerprint instead of defaul
   params = Params()
-  selected_vehicle_model = params.get("FordSelectedVehicleModel", encoding='utf8')
+  selected_vehicle_model = params.get("FordSelectedVehicleModel")
 
   if selected_vehicle_model is not None and selected_vehicle_model != "":
     print(f'Selected Ford Vehicle Model: {selected_vehicle_model}')

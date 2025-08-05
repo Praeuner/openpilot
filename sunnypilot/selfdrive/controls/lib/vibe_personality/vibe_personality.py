@@ -99,7 +99,7 @@ class VibePersonalityController:
 
     # Update AccelPersonality
     try:
-      accel_personality_str = self.params.get(self.param_keys['accel_personality'], encoding='utf-8')
+      accel_personality_str = self.params.get(self.param_keys['accel_personality'])
       if accel_personality_str:
         accel_personality_int = int(accel_personality_str)
         if accel_personality_int in [AccelPersonality.eco, AccelPersonality.normal, AccelPersonality.sport]:
@@ -109,7 +109,7 @@ class VibePersonalityController:
 
     # Update LongPersonality
     try:
-      long_personality_str = self.params.get(self.param_keys['long_personality'], encoding='utf-8')
+      long_personality_str = self.params.get(self.param_keys['long_personality'])
       if long_personality_str:
         long_personality_int = int(long_personality_str)
         if long_personality_int in [LongPersonality.relaxed, LongPersonality.standard, LongPersonality.aggressive]:
