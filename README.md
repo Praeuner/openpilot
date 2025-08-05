@@ -74,6 +74,11 @@ The following changes are a **VIOLATION** of this policy and **ARE NOT** include
 
 <details><summary><h3>⚒ Installation</h3></summary>
 
+Please see the note above about updated branch names:
+
+[Updates on Branch Names and Links](#-updates-on-branch-names-and-links)
+
+
 * bluepilot not installed
   1. [Factory reset/uninstall](https://github.com/commaai/openpilot/wiki/FAQ#how-can-i-reset-the-device) the previous software if you have another software/fork installed.
   2. After factory reset/uninstall and upon reboot, select `Custom Software` when given the option.
