@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Any
 
 from openpilot.common.git import get_branch
-from openpilot.common.params import Params, ParamKeyType
+from openpilot.common.params import Params, ParamKeyFlag
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.version import get_version
@@ -72,7 +72,7 @@ class BackupManagerSP:
   def _collect_config_data(self) -> dict[str, Any]:
     """Collects configuration data to be backed up."""
     config_data = {}
-    params_to_backup = [k.decode('utf-8') for k in self.params.all_keys(ParamKeyType.BACKUP)]
+    params_to_backup = [k.decode('utf-8') for k in self.params.all_keys(ParamKeyFlag.BACKUP)]
     for param in params_to_backup:
       value = self.params.get(param)
       if value is not None:
@@ -186,7 +186,7 @@ class BackupManagerSP:
   def _apply_config(self, config_data: dict[str, str], all_values_encoded: bool = False) -> None:
     """Applies configuration data from a backup, but only for parameters marked as backupable."""
     # Get the current list of parameters that can be backed up
-    backupable_params = [k.decode('utf-8') for k in self.params.all_keys(ParamKeyType.BACKUP)]
+    backupable_params = [k.decode('utf-8') for k in self.params.all_keys(ParamKeyFlag.BACKUP)]
 
     # Count for logging/reporting
     restored_count = 0
