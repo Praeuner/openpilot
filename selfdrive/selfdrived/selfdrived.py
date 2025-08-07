@@ -280,10 +280,12 @@ class SelfdriveD(CruiseHelper):
     if self.sm.updated['liveCalibration']:
       self.calibrator.feed_live_calib(self.sm['liveCalibration'])
 
-    self.excessive_actuation_counter, excessive_actuation = check_excessive_actuation(self.sm, CS, self.calibrator, self.excessive_actuation_counter)
-    if not self.excessive_actuation and excessive_actuation:
-      set_offroad_alert("Offroad_ExcessiveActuation", True, extra_text="longitudinal")
-      self.excessive_actuation = True
+    # Only check excessive actuation every 10 frames (10Hz instead of 100Hz) to reduce CPU load
+    if self.sm.frame % 10 == 0:
+      self.excessive_actuation_counter, excessive_actuation = check_excessive_actuation(self.sm, CS, self.calibrator, self.excessive_actuation_counter)
+      if not self.excessive_actuation and excessive_actuation:
+        set_offroad_alert("Offroad_ExcessiveActuation", True, extra_text="longitudinal")
+        self.excessive_actuation = True
 
     if self.excessive_actuation:
       self.events.add(EventName.excessiveActuation)

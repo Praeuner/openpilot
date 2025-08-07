@@ -104,48 +104,34 @@ class VibePersonalityController:
         accel_personality_int = int(accel_personality_str)
         if accel_personality_int in [AccelPersonality.eco, AccelPersonality.normal, AccelPersonality.sport]:
           self.accel_personality = accel_personality_int
-    except (ValueError, TypeError, Exception) as e:
-      # Silently fall back to default if parameter read fails
+    except (ValueError, TypeError):
       pass
 
     # Update LongPersonality
     try:
-      long_personality_str = self.params.get(self.param_keys['long_personality'])
+      long_personality_str = self.params.get(self.param_keys['long_personality'], encoding='utf-8')
       if long_personality_str:
         long_personality_int = int(long_personality_str)
         if long_personality_int in [LongPersonality.relaxed, LongPersonality.standard, LongPersonality.aggressive]:
           self.long_personality = long_personality_int
-    except (ValueError, TypeError, Exception) as e:
-      # Silently fall back to default if parameter read fails
+    except (ValueError, TypeError):
       pass
 
   def _get_toggle_state(self, key: str, default: bool = True) -> bool:
     """Get toggle state with default fallback"""
-    try:
-      return self.params.get_bool(self.param_keys.get(key, key)) if key in self.param_keys else default
-    except Exception:
-      # Return default if parameter read fails
-      return default
+    return self.params.get_bool(self.param_keys.get(key, key)) if key in self.param_keys else default
 
   def _set_toggle_state(self, key: str, value: bool):
     """Set toggle state in params"""
-    try:
-      if key in self.param_keys:
-        self.params.put_bool(self.param_keys[key], value)
-    except Exception:
-      # Silently ignore parameter write failures
-      pass
+    if key in self.param_keys:
+      self.params.put_bool(self.param_keys[key], value)
 
   # AccelPersonality Management (for acceleration)
   def set_accel_personality(self, personality: int) -> bool:
     """Set AccelPersonality (eco=0, normal=1, sport=2)"""
     if personality in [AccelPersonality.eco, AccelPersonality.normal, AccelPersonality.sport]:
       self.accel_personality = personality
-      try:
-        self.params.put(self.param_keys['accel_personality'], str(personality))
-      except Exception:
-        # Silently ignore parameter write failures
-        pass
+      self.params.put(self.param_keys['accel_personality'], str(personality))
       return True
     return False
 
@@ -167,11 +153,7 @@ class VibePersonalityController:
     """Set LongPersonality (relaxed=0, standard=1, aggressive=2)"""
     if personality in [LongPersonality.relaxed, LongPersonality.standard, LongPersonality.aggressive]:
       self.long_personality = personality
-      try:
-        self.params.put(self.param_keys['long_personality'], str(personality))
-      except Exception:
-        # Silently ignore parameter write failures
-        pass
+      self.params.put(self.param_keys['long_personality'], str(personality))
       return True
     return False
 
