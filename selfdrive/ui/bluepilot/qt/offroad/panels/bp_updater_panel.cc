@@ -1925,18 +1925,16 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       // Set the button text with formatting
       closeButton->setText(timerText);
 
-      // Update title with elapsed time
-      QString titleWithTime = QString("%1 - %2").arg(title).arg(formatTime(elapsedSecs));
-      titleLabel->setText(titleWithTime);
+      // Title stays static - elapsed time shown in button
+      titleLabel->setText(title);
     }
   });
 
   // Start the runtime timer immediately and trigger initial update
   runtimeTimer->start();
 
-  // Trigger initial title update
-  QString initialTitleWithTime = QString("%1 - %2").arg(title).arg(formatTime(0));
-  titleLabel->setText(initialTitleWithTime);
+  // Set initial title (no elapsed time)
+  titleLabel->setText(title);
 
   // Connect process signals for output
   connect(process, &QProcess::readyReadStandardOutput, [=]() {
@@ -1980,10 +1978,8 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       // Stop the runtime timer
       runtimeTimer->stop();
 
-      // Update title to show timeout
-      int elapsedSecs = elapsedTimer->elapsed() / 1000;
-      QString timeoutTitleWithTime = QString("%1 - Timed out at %2").arg(title).arg(formatTime(elapsedSecs));
-      titleLabel->setText(timeoutTitleWithTime);
+      // Title stays static - timeout status shown in button
+      titleLabel->setText(title);
     }
   });
 
@@ -2014,11 +2010,10 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         // Stop the runtime timer
         runtimeTimer->stop();
 
-        // Show terminated message and update title
+        // Show terminated message - title stays static
         int elapsedSecs = elapsedTimer->elapsed() / 1000;
         QString finalTime = QString("Terminated at %1").arg(formatTime(elapsedSecs));
-        QString terminatedTitleWithTime = QString("%1 - Terminated at %2").arg(title).arg(formatTime(elapsedSecs));
-        titleLabel->setText(terminatedTitleWithTime);
+        titleLabel->setText(title);
       }
     });
   }
@@ -2042,9 +2037,8 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
     int elapsedSecs = elapsedTimer->elapsed() / 1000;
     QString finalTime = QString("Total Runtime: %1").arg(formatTime(elapsedSecs));
 
-    // Update title with final elapsed time
-    QString finalTitleWithTime = QString("%1 - Completed in %2").arg(title).arg(formatTime(elapsedSecs));
-    titleLabel->setText(finalTitleWithTime);
+    // Title stays static - completion status shown in button
+    titleLabel->setText(title);
 
     if (exitStatus == QProcess::CrashExit) {
       // Show retry button for crash
