@@ -18,14 +18,13 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_HW
 from openpilot.selfdrive.selfdrived.alertmanager import set_offroad_alert
-from openpilot.system.hardware import HARDWARE, TICI, AGNOS, PC
+from openpilot.system.hardware import HARDWARE, TICI, AGNOS
 from openpilot.system.loggerd.config import get_available_percent
 from openpilot.system.statsd import statlog
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import TiciFanController
 from openpilot.system.version import terms_version, training_version
-from openpilot.system.athena.registration import UNREGISTERED_DONGLE_ID
 
 ThermalStatus = log.DeviceState.ThermalStatus
 NetworkType = log.DeviceState.NetworkType
@@ -164,7 +163,7 @@ def hw_state_thread(end_event, hw_queue):
 
 def hardware_thread(end_event, hw_queue) -> None:
   pm = messaging.PubMaster(['deviceState'])
-  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates"], poll="pandaStates")
+  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates", "carState"], poll="pandaStates")
 
   count = 0
 
@@ -172,6 +171,7 @@ def hardware_thread(end_event, hw_queue) -> None:
     "ignition": False,
     "not_onroad_cycle": True,
     "device_temp_good": True,
+    "gear_allowed": True,
   }
   startup_conditions: dict[str, bool] = {}
   startup_conditions_prev: dict[str, bool] = {}
@@ -241,6 +241,36 @@ def hardware_thread(end_event, hw_queue) -> None:
       if onroad_conditions["ignition"]:
         onroad_conditions["ignition"] = False
         cloudlog.error("panda timed out onroad")
+
+    # Check gear state for OnlyOnroadWhenInGear feature
+    only_onroad_when_in_gear = params.get_bool("OnlyOnroadWhenInGear")
+    if only_onroad_when_in_gear:
+      if sm.updated['carState'] and sm.valid['carState']:
+        car_state = sm['carState']
+        # Allow onroad only when NOT in park (park = 1 in GearShifter enum)
+        gear_allowed = car_state.gearShifter != log.CarState.GearShifter.park
+        if onroad_conditions["gear_allowed"] != gear_allowed:
+          gear_name = {
+            log.CarState.GearShifter.unknown: "unknown",
+            log.CarState.GearShifter.park: "park",
+            log.CarState.GearShifter.drive: "drive",
+            log.CarState.GearShifter.neutral: "neutral",
+            log.CarState.GearShifter.reverse: "reverse",
+            log.CarState.GearShifter.sport: "sport",
+            log.CarState.GearShifter.low: "low",
+            log.CarState.GearShifter.brake: "brake"
+          }.get(car_state.gearShifter, "unknown")
+          cloudlog.info(f"OnlyOnroadWhenInGear: gear changed to {gear_name}, onroad allowed: {gear_allowed}")
+        onroad_conditions["gear_allowed"] = gear_allowed
+      elif not sm.alive['carState']:
+        # If carState is not available, default to not allowing onroad for safety
+        if onroad_conditions["gear_allowed"]:
+          cloudlog.warning("OnlyOnroadWhenInGear: carState not available, disabling onroad")
+        onroad_conditions["gear_allowed"] = False
+      # If carState is alive but not updated this frame, keep previous state
+    else:
+      # If feature is disabled, always allow any gear
+      onroad_conditions["gear_allowed"] = True
 
     # Run at 2Hz, plus either edge of ignition
     ign_edge = (started_ts is not None) != all(onroad_conditions.values())
@@ -332,12 +362,6 @@ def hardware_thread(end_event, hw_queue) -> None:
     extra_text = f"{offroad_comp_temp:.1f}C"
     show_alert = (not onroad_conditions["device_temp_good"] or not startup_conditions["device_temp_engageable"]) and onroad_conditions["ignition"]
     set_offroad_alert_if_changed("Offroad_TemperatureTooHigh", show_alert, extra_text=extra_text)
-
-    # *** registration check ***
-    if not PC:
-      # we enforce this for our software, but you are welcome
-      # to make a different decision in your software
-      startup_conditions["registered_device"] = PC or (params.get("DongleId") != UNREGISTERED_DONGLE_ID)
 
     # TODO: this should move to TICI.initialize_hardware, but we currently can't import params there
     if TICI and HARDWARE.get_device_type() == "tici":

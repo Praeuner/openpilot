@@ -70,7 +70,6 @@ class UIState:
     self.panda_type: log.PandaState.PandaType = log.PandaState.PandaType.unknown
     self.personality: log.LongitudinalPersonality = log.LongitudinalPersonality.standard
     self.light_sensor: float = -1.0
-    self.only_onroad_when_in_gear: bool = False
 
     self._update_params()
 
@@ -79,48 +78,10 @@ class UIState:
     return self.started and self.sm["selfdriveState"].enabled
 
   def is_onroad(self) -> bool:
-    if not self.started:
-      return False
-
-    # If the gear restriction is enabled, check if vehicle is not in park
-    if self.only_onroad_when_in_gear:
-      # Check if we have valid car state data
-      if self.sm.valid["carState"] and self.sm.updated["carState"]:
-        gear_shifter = self.sm["carState"].gearShifter
-        # Only allow onroad if not in park (gearShifter.park = 1)
-        is_allowed = gear_shifter != log.CarState.GearShifter.park
-        if not is_allowed:
-          cloudlog.debug(f"Gear restriction: vehicle in {self.get_gear_status()}, staying offroad")
-        return is_allowed
-      else:
-        # If no valid car state data, assume we're not in gear (stay offroad)
-        cloudlog.debug("Gear restriction: no valid car state data, staying offroad")
-        return False
-
-    return True
+    return self.started
 
   def is_offroad(self) -> bool:
-    return not self.is_onroad()
-
-  def get_gear_status(self) -> str:
-    """Get current gear status as a string for debugging."""
-    if not self.sm.valid["carState"]:
-      return "unknown (no car state data)"
-
-    gear_shifter = self.sm["carState"].gearShifter
-    gear_names = {
-      log.CarState.GearShifter.unknown: "unknown",
-      log.CarState.GearShifter.park: "park",
-      log.CarState.GearShifter.drive: "drive",
-      log.CarState.GearShifter.neutral: "neutral",
-      log.CarState.GearShifter.reverse: "reverse",
-      log.CarState.GearShifter.sport: "sport",
-      log.CarState.GearShifter.low: "low",
-      log.CarState.GearShifter.brake: "brake",
-      log.CarState.GearShifter.eco: "eco",
-      log.CarState.GearShifter.manumatic: "manumatic"
-    }
-    return gear_names.get(gear_shifter, f"unknown({gear_shifter})")
+    return not self.started
 
   def update(self) -> None:
     self.sm.update(0)
@@ -152,8 +113,8 @@ class UIState:
     elif not self.sm.alive["wideRoadCameraState"] or not self.sm.valid["wideRoadCameraState"]:
       self.light_sensor = -1
 
-    # Update started state
-    self.started = self.sm["deviceState"].started and self.ignition
+    # Update started state - deviceState.started already includes ignition and gear checks
+    self.started = self.sm["deviceState"].started
 
   def _update_status(self) -> None:
     if self.started and self.sm.updated["selfdriveState"]:
@@ -180,12 +141,8 @@ class UIState:
   def _update_params(self) -> None:
     try:
       self.is_metric = self.params.get_bool("IsMetric")
-      self.only_onroad_when_in_gear = self.params.get_bool("OnlyOnroadWhenInGear")
-      if self.only_onroad_when_in_gear:
-        cloudlog.info("OnlyOnroadWhenInGear parameter enabled - vehicle must be out of park to go onroad")
     except UnknownKeyName:
       self.is_metric = False
-      self.only_onroad_when_in_gear = False
 
 
 class Device:
