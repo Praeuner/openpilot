@@ -16,6 +16,8 @@
 #include <QGuiApplication>
 #include <QProcess>
 #include <QTimer>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <iostream>
 #include <unistd.h>
 #include <QtConcurrent>
@@ -1708,12 +1710,49 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   layout->setContentsMargins(45, 35, 45, 45);
   layout->setSpacing(0);
 
-  // Add title with core count information
+  // Create title section with horizontal layout
+  QWidget *titleSection = new QWidget(currentDialog);
+  QHBoxLayout *titleLayout = new QHBoxLayout(titleSection);
+  titleLayout->setContentsMargins(0, 0, 0, 0);
+  titleLayout->setSpacing(0);
+
+  // Add title label (without cores)
+  QLabel *titleLabel = new QLabel(title);
+  titleLabel->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black; color: white;");
+  titleLayout->addWidget(titleLabel);
+
+  // Add spacer to push cores display to the right
+  titleLayout->addStretch();
+
+    // Add cores display with microchip icon
   int numCores = sysconf(_SC_NPROCESSORS_ONLN);
-  QString baseTitle = QString("%1 (%2 cores)").arg(title).arg(numCores);
-  QLabel *titleLabel = new QLabel(baseTitle);
-  titleLabel->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black;");
-  layout->addWidget(titleLabel);
+  QLabel *coresLabel = new QLabel(QString("🔲 %1").arg(numCores));
+  coresLabel->setStyleSheet("font-size: 60px; font-weight: 600; background-color: black; color: #888888; padding: 10px;");
+  coresLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  titleLayout->addWidget(coresLabel);
+
+  // Create timer to update core count frequently
+  QTimer *coresUpdateTimer = new QTimer(currentDialog);
+  coresUpdateTimer->setInterval(500); // Update every 500ms for more responsiveness
+  coresUpdateTimer->setSingleShot(false);
+
+    // Connect timer to update core count
+  QObject::connect(coresUpdateTimer, &QTimer::timeout, [=]() {
+    int numCores = sysconf(_SC_NPROCESSORS_ONLN);
+    coresLabel->setText(QString("🔲 %1").arg(numCores));
+  });
+
+  // Start the timer
+  coresUpdateTimer->start();
+
+  // Ensure timer is stopped when dialog is destroyed
+  QObject::connect(currentDialog, &QDialog::destroyed, [=]() {
+    if (coresUpdateTimer) {
+      coresUpdateTimer->stop();
+    }
+  });
+
+  layout->addWidget(titleSection);
   layout->addSpacing(30);
 
   // Create elapsed timer to track runtime
@@ -1887,7 +1926,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       closeButton->setText(timerText);
 
       // Update title with elapsed time
-      QString titleWithTime = QString("%1 - %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+      QString titleWithTime = QString("%1 - %2").arg(title).arg(formatTime(elapsedSecs));
       titleLabel->setText(titleWithTime);
     }
   });
@@ -1896,7 +1935,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   runtimeTimer->start();
 
   // Trigger initial title update
-  QString initialTitleWithTime = QString("%1 - %2").arg(baseTitle).arg(formatTime(0));
+  QString initialTitleWithTime = QString("%1 - %2").arg(title).arg(formatTime(0));
   titleLabel->setText(initialTitleWithTime);
 
   // Connect process signals for output
@@ -1943,7 +1982,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
       // Update title to show timeout
       int elapsedSecs = elapsedTimer->elapsed() / 1000;
-      QString timeoutTitleWithTime = QString("%1 - Timed out at %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+      QString timeoutTitleWithTime = QString("%1 - Timed out at %2").arg(title).arg(formatTime(elapsedSecs));
       titleLabel->setText(timeoutTitleWithTime);
     }
   });
@@ -1978,7 +2017,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         // Show terminated message and update title
         int elapsedSecs = elapsedTimer->elapsed() / 1000;
         QString finalTime = QString("Terminated at %1").arg(formatTime(elapsedSecs));
-        QString terminatedTitleWithTime = QString("%1 - Terminated at %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+        QString terminatedTitleWithTime = QString("%1 - Terminated at %2").arg(title).arg(formatTime(elapsedSecs));
         titleLabel->setText(terminatedTitleWithTime);
       }
     });
@@ -2004,7 +2043,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
     QString finalTime = QString("Total Runtime: %1").arg(formatTime(elapsedSecs));
 
     // Update title with final elapsed time
-    QString finalTitleWithTime = QString("%1 - Completed in %2").arg(baseTitle).arg(formatTime(elapsedSecs));
+    QString finalTitleWithTime = QString("%1 - Completed in %2").arg(title).arg(formatTime(elapsedSecs));
     titleLabel->setText(finalTitleWithTime);
 
     if (exitStatus == QProcess::CrashExit) {
