@@ -341,11 +341,27 @@
       "enabled": true
     },
     {
+      "name": "OnroadDisplayBehavior",
+      "default": 0,
+      "type": "int",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "OnroadDisplayTimeout",
+      "default": 0,
+      "type": "int",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
       "name": "OnlyOnroadWhenInGear",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
+      "create_default": false,
       "enabled": true
     }
   ]
