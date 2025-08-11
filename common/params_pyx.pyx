@@ -109,7 +109,7 @@ cdef class Params:
       return cast(value)
     raise TypeError(f"Type mismatch while writing param {key}: {proposed_type=} {expected_type=} {value=}")
 
-  def cpp2python(self, t, value, default, key):
+  def _cpp2python(self, t, value, default, key):
     if value is None:
       return None
     try:
@@ -215,4 +215,9 @@ cdef class Params:
     cdef string k = self.check_key(key)
     cdef ParamKeyType t = self.p.getKeyType(k)
     cdef optional[string] default = self.p.getKeyDefaultValue(k)
-    return self.cpp2python(t, default.value(), None, key) if default.has_value() else None
+    return self._cpp2python(t, default.value(), None, key) if default.has_value() else None
+
+  def cpp2python(self, key, value):
+    cdef string k = self.check_key(key)
+    cdef ParamKeyType t = self.p.getKeyType(k)
+    return self._cpp2python(t, value, None, key)
