@@ -100,6 +100,17 @@
             },
             {
               "type": "toggle",
+              "param": "OnlyOnroadWhenInGear",
+              "title": "Only OnRoad When In Gear",
+              "desc": "Restricts going OnRoad until the vehicle is out of park. This makes it easier to make changes to settings and also reduces the amount of video being recorded/uploaded to comma.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
               "param": "QuietMode",
               "title": "Quiet Mode - Warnings/Alerts Only",
               "desc": "BluePilot displays alerts but only plays important warning sounds.",
