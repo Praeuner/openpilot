@@ -3143,8 +3143,7 @@ bool BPUpdaterPanel::isPowerSaveActive() const {
   }
   return false;
 #else
-  // On Mac and other platforms, power save is typically not an issue
-  // Return false to indicate power save is not active
+  // On non-QCOM2 platforms, power save is not applicable
   return false;
 #endif
 }
@@ -3162,9 +3161,7 @@ void BPUpdaterPanel::disablePowerSave() {
     }
   }
 #else
-  // On Mac, just log that power save would be disabled
-  // No actual action needed since Mac doesn't have the same power save restrictions
-  std::cout << "Power save disable requested (not needed on this platform)" << std::endl;
+  // On non-QCOM2 platforms, do nothing
   powerSaveWasActive = false;
 #endif
 }
@@ -3182,9 +3179,7 @@ void BPUpdaterPanel::restorePowerSave() {
     powerSaveWasActive = false;
   }
 #else
-  // On Mac, just log that power save would be restored
-  // No actual action needed since Mac doesn't have the same power save restrictions
-  std::cout << "Power save restore requested (not needed on this platform)" << std::endl;
+  // On non-QCOM2 platforms, do nothing
   powerSaveWasActive = false;
 #endif
 }
