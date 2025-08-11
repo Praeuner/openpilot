@@ -3130,9 +3130,9 @@ void BPUpdateConfirmDialog::alert(const QString &message, QWidget *parent) {
   dlg.exec();
 }
 
-#ifdef QCOM2
 // Power management implementations
 bool BPUpdaterPanel::isPowerSaveActive() const {
+#ifdef QCOM2
   // Check if power save is active by counting CPU cores
   QProcess process;
   process.start("nproc", QStringList());
@@ -3142,19 +3142,49 @@ bool BPUpdaterPanel::isPowerSaveActive() const {
     return coreCount <= 4; // Power save is active if 4 or fewer cores are available
   }
   return false;
+#else
+  // On Mac and other platforms, power save is typically not an issue
+  // Return false to indicate power save is not active
+  return false;
+#endif
 }
 
 void BPUpdaterPanel::disablePowerSave() {
+#ifdef QCOM2
   powerSaveWasActive = isPowerSaveActive();
   if (powerSaveWasActive) {
-    QProcess::execute("python3", QStringList() << "scripts/disable-powersave.py");
+    // Use absolute path to ensure script is found
+    QString scriptPath = qApp->applicationDirPath() + "/../../scripts/disable-powersave.py";
+    if (QFile::exists(scriptPath)) {
+      QProcess::execute("python3", QStringList() << scriptPath);
+    } else {
+      std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
+    }
   }
+#else
+  // On Mac, just log that power save would be disabled
+  // No actual action needed since Mac doesn't have the same power save restrictions
+  std::cout << "Power save disable requested (not needed on this platform)" << std::endl;
+  powerSaveWasActive = false;
+#endif
 }
 
 void BPUpdaterPanel::restorePowerSave() {
+#ifdef QCOM2
   if (powerSaveWasActive) {
-    QProcess::execute("python3", QStringList() << "scripts/manage-powersave.py" << "--enable");
+    // Use absolute path to ensure script is found
+    QString scriptPath = qApp->applicationDirPath() + "/../../scripts/manage-powersave.py";
+    if (QFile::exists(scriptPath)) {
+      QProcess::execute("python3", QStringList() << scriptPath << "--enable");
+    } else {
+      std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
+    }
     powerSaveWasActive = false;
   }
-}
+#else
+  // On Mac, just log that power save would be restored
+  // No actual action needed since Mac doesn't have the same power save restrictions
+  std::cout << "Power save restore requested (not needed on this platform)" << std::endl;
+  powerSaveWasActive = false;
 #endif
+}
