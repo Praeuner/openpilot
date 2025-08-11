@@ -1914,21 +1914,18 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
   // Update the runtime timer on the button and title
   connect(runtimeTimer, &QTimer::timeout, [=]() {
-    // Continue updating until explicitly stopped, even if process finishes briefly
-    // This ensures consistent second-by-second updates during command execution
-    if (!closeButton->isEnabled()) {  // Only update while command is running (button disabled)
-      int elapsedSecs = elapsedTimer->elapsed() / 1000;
-      int timeoutSecs = timeoutMs / 1000;
+    // Always update the elapsed time display every second while the timer is running
+    int elapsedSecs = elapsedTimer->elapsed() / 1000;
+    int timeoutSecs = timeoutMs / 1000;
 
-      // Format as Command Running: (MM:SS/TT:TT)
-      QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
+    // Format as Command Running: (MM:SS/TT:TT)
+    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
 
-      // Set the button text with formatting
-      closeButton->setText(timerText);
+    // Set the button text with formatting
+    closeButton->setText(timerText);
 
-      // Title stays static - elapsed time shown in button
-      titleLabel->setText(title);
-    }
+    // Title stays static - elapsed time shown in button
+    titleLabel->setText(title);
   });
 
   // Start the runtime timer immediately and trigger initial update
@@ -1936,6 +1933,14 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
   // Set initial title (no elapsed time)
   titleLabel->setText(title);
+
+  // Trigger initial timer update to show 0:00 immediately
+  QTimer::singleShot(0, [=]() {
+    int elapsedSecs = elapsedTimer->elapsed() / 1000;
+    int timeoutSecs = timeoutMs / 1000;
+    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
+    closeButton->setText(timerText);
+  });
 
   // Connect process signals for output
   connect(process, &QProcess::readyReadStandardOutput, [=]() {
@@ -2147,6 +2152,14 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
 
       // Reset and start timeout timer
       timeoutTimer->start();
+
+      // Trigger immediate timer update to show 0:00 for retry
+      QTimer::singleShot(0, [=]() {
+        int elapsedSecs = elapsedTimer->elapsed() / 1000;
+        int timeoutSecs = timeoutMs / 1000;
+        QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
+        closeButton->setText(timerText);
+      });
 
       // Start process again
       process->start("/bin/bash", QStringList() << "-c" << command);
