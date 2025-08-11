@@ -40,8 +40,17 @@ void HudRenderer::updateState(const UIState &s) {
   float v_ego = v_ego_cluster_seen ? car_state.getVEgoCluster() : car_state.getVEgo();
   speed = std::max<float>(0.0f, v_ego * (is_metric ? MS_TO_KPH : MS_TO_MPH));
 
-  // Update brake status
-  brake_pressed = car_state.getBrakePressed();
+  // Update brake status - try to use brake light status from carStateBP if available
+  brake_pressed = car_state.getBrakePressed(); // fallback to original behavior
+
+  // Check if we have carStateBP with brake light status
+  if (sm.rcv_frame("carStateBP") >= s.scene.started_frame && sm.valid("carStateBP")) {
+    const auto &car_state_bp = sm["carStateBP"].getCarStateBP();
+    if (car_state_bp.getBrakeLightStatus().getDataAvailable()) {
+      // Use brake light status instead of brake pressed
+      brake_pressed = car_state_bp.getBrakeLightStatus().getBrakeLightsOn();
+    }
+  }
 }
 
 void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {

@@ -188,6 +188,7 @@ class CarState(CarStateBase, MadsCarState):
     # Get handles to the message structures
     hybrid_drive = dat.carStateBP.hybridDrive
     hybrid_battery = dat.carStateBP.hybridBattery
+    brake_light_status = dat.carStateBP.brakeLightStatus
 
     # Initialize with default values
     hybrid_drive.dataAvailable = False
@@ -204,6 +205,20 @@ class CarState(CarStateBase, MadsCarState):
     hybrid_battery.socMinPerc = 0.0
     hybrid_battery.socMaxPerc = 0.0
     hybrid_battery.socActual = 0.0
+
+    # Initialize brake light status
+    brake_light_status.dataAvailable = False
+    brake_light_status.brakeLightsOn = False
+
+    # Brake light status from BrakeSysFeatures_2 message
+    try:
+      brake_data = cp.vl["BrakeSysFeatures_2"]
+      if brake_data is not None:
+        brake_light_status.dataAvailable = True
+        # BrkLamp_B_Rq indicates when brake lights should be on
+        brake_light_status.brakeLightsOn = brake_data["BrkLamp_B_Rq"] == 1
+    except (KeyError, AttributeError):
+      pass
 
     # HEV cluster data
     try:
@@ -261,6 +276,7 @@ class CarState(CarStateBase, MadsCarState):
       # sig_address, frequency
       ("VehicleOperatingModes", 100),
       ("BrakeSysFeatures", 50),
+      ("BrakeSysFeatures_2", 50),
       ("Yaw_Data_FD1", 100),
       ("DesiredTorqBrk", 50),
       ("EngVehicleSpThrottle", 100),

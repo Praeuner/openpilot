@@ -150,6 +150,12 @@ class HybridBattery:
 
 
 @auto_dataclass
+class BrakeLightStatus:
+    dataAvailable: bool = auto_field()
+    brakeLightsOn: bool = auto_field()
+
+
+@auto_dataclass
 class CarStateSP:
   pass
 
@@ -157,3 +163,4 @@ class CarStateSP:
 class CarStateBP:
     hybridDrive: HybridDrive = field(default_factory=lambda: HybridDrive())
     hybridBattery: HybridBattery = field(default_factory=lambda: HybridBattery())
+    brakeLightStatus: BrakeLightStatus = field(default_factory=lambda: BrakeLightStatus())

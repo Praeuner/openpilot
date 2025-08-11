@@ -298,6 +298,7 @@ struct CustomReserved18 @0xc86a3d38d13eb3ef {
 struct CarStateBP @0xa4f1eb3323f5f582 {
   hybridDrive @0 :HybridDrive;
   hybridBattery @1 :HybridBattery;
+  brakeLightStatus @2 :BrakeLightStatus;
 
   struct HybridDrive {
     dataAvailable @0 :Bool;                 # Whether the data is available
@@ -316,5 +317,10 @@ struct CarStateBP @0xa4f1eb3323f5f582 {
     socMinPerc @5 :Float32;             # Battery SOC min percent (BattTracSoc_Pc_MnPrtct)
     socMaxPerc @6 :Float32;             # Battery SOC max percent (BattTracSoc_Pc_MxPrtct)
     socActual @7 :Float32;              # Battery SOC actual percent (BattTracSoc2_Pc_Actl)
+  }
+
+  struct BrakeLightStatus {
+    dataAvailable @0 :Bool;             # Whether the brake light data is available
+    brakeLightsOn @1 :Bool;             # Whether the brake lights are currently on
   }
 }

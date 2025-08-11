@@ -45,6 +45,7 @@ class UIState:
         "carParams",
         "driverMonitoringState",
         "carState",
+        "carStateBP",
         "driverStateV2",
         "roadCameraState",
         "wideRoadCameraState",
