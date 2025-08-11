@@ -20,7 +20,7 @@ VisualAlert = structs.CarControl.HUDControl.VisualAlert
 COMFORT_BAND_VAL = 0.01
 
 DYNAMIC_LOWER_JERK_BP = [-2.0, -1.5, -1.0, -0.25, -0.1, -0.025, -0.01, -0.005]
-DYNAMIC_LOWER_JERK_V  = [ 3.3,  2.5,  2.0,   1.9,  1.8,   1.65,  1.15,    0.5]
+DYNAMIC_LOWER_JERK_V  = [3.3,  2.5,  2.0,   1.9,  1.8,   1.65,  1.15,    0.5]
 
 SPEED_BP = [0.0, 5.0, 20.0]
 
@@ -147,7 +147,6 @@ class LongitudinalController:
     Returns:
         Dynamic lower jerk limit (m/s³)
     """
-
 
     if accel_error < 0:
       # Scale the brake jerk values based on car config

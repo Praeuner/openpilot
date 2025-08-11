@@ -228,7 +228,15 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
     return;
   }
 
-  // Let parent handle flag/home button and other events
+  // Handle home/flag button for bookmark functionality (compatible with base Sidebar changes)
+  if (onroad && bp_home_btn.contains(event->pos())) {
+    // Let the base class handle the bookmark button message
+    // This ensures compatibility with the userBookmark system
+    Sidebar::mouseReleaseEvent(event);
+    return;
+  }
+
+  // Let parent handle other events
   Sidebar::mouseReleaseEvent(event);
 }
 
