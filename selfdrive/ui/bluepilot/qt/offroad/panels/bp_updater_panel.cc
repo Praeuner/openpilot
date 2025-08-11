@@ -18,6 +18,7 @@
 #include <QTimer>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QThread>
 #include <iostream>
 #include <unistd.h>
 #include <QtConcurrent>
@@ -1155,21 +1156,21 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
                       "git fetch origin && "
                       "git reset --hard origin/%1 && " // Reset to remote version
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j8")
+                      "git submodule update --init --recursive && scons -j$(nproc)")
                   .arg(branch);
   } else if (branchExistsLocally) {
     // Branch exists only locally
     command = QString("git checkout -f %1 && "
                       "git reset --hard && "
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j8")
+                      "git submodule update --init --recursive && scons -j$(nproc)")
                   .arg(branch);
   } else if (branchExistsRemotely) {
     // Branch exists only remotely - create tracking branch
     command = QString("git checkout -f -b %1 origin/%1 && "
                       "git reset --hard && "
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j8")
+                      "git submodule update --init --recursive && scons -j$(nproc)")
                   .arg(branch);
   } else {
     // Try to fetch the branch from remote
@@ -1178,7 +1179,7 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
                       "git reset --hard && "
                       "git clean -fd && "
                       "git pull && "
-                      "git submodule update --init --recursive && scons -j8")
+                      "git submodule update --init --recursive && scons -j$(nproc)")
                   .arg(branch);
   }
 
@@ -2388,7 +2389,7 @@ void BPUpdaterPanel::showCommitHistory(QWidget *parent, const QString &title, co
                                       "git reset --hard && "
                                       "git clean -fd && "
                                       "git submodule update --init --recursive && "
-                                      "scons -j8")
+                                      "scons -j$(nproc)")
                                   .arg(commitHash);
 
             dialog->accept(); // Close history dialog
@@ -2466,7 +2467,7 @@ void BPUpdaterPanel::handleRepoUpdate() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update
-  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j8", "", 1800000, true, true,
+  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 1800000, true, true,
                           true); // 30 minutes timeout
 }
 
@@ -2490,7 +2491,7 @@ void BPUpdaterPanel::handleRepoUpdateAll() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update all submodules
-  showCommandOutputDialog(tr("Update All Submodules"), "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j8", "", 180000, true, true,
+  showCommandOutputDialog(tr("Update All Submodules"), "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)", "", 180000, true, true,
                           true);
 }
 
@@ -3189,6 +3190,21 @@ void BPUpdaterPanel::disablePowerSave() {
     QString scriptPath = qApp->applicationDirPath() + "/../../scripts/disable-powersave.py";
     if (QFile::exists(scriptPath)) {
       QProcess::execute("python3", QStringList() << scriptPath);
+
+      // Wait for cores to come online (max 10 seconds)
+      int attempts = 0;
+      while (sysconf(_SC_NPROCESSORS_ONLN) < 8 && attempts < 20) {
+        QThread::msleep(500);  // Wait 500ms between checks
+        attempts++;
+      }
+
+      // Log the final core count for debugging
+      int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
+      if (finalCoreCount >= 8) {
+        std::cout << "Power save disabled successfully. All " << finalCoreCount << " cores are online." << std::endl;
+      } else {
+        std::cerr << "Warning: Only " << finalCoreCount << " cores are online after disabling power save." << std::endl;
+      }
     } else {
       std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
     }
@@ -3206,6 +3222,21 @@ void BPUpdaterPanel::restorePowerSave() {
     QString scriptPath = qApp->applicationDirPath() + "/../../scripts/manage-powersave.py";
     if (QFile::exists(scriptPath)) {
       QProcess::execute("python3", QStringList() << scriptPath << "--enable");
+
+      // Wait for cores to go offline (max 5 seconds)
+      int attempts = 0;
+      while (sysconf(_SC_NPROCESSORS_ONLN) > 4 && attempts < 10) {
+        QThread::msleep(500);  // Wait 500ms between checks
+        attempts++;
+      }
+
+      // Log the final core count for debugging
+      int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
+      if (finalCoreCount <= 4) {
+        std::cout << "Power save restored successfully. " << finalCoreCount << " cores are now online." << std::endl;
+      } else {
+        std::cerr << "Warning: " << finalCoreCount << " cores are still online after restoring power save." << std::endl;
+      }
     } else {
       std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
     }
