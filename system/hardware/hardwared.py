@@ -13,7 +13,6 @@ import psutil
 import cereal.messaging as messaging
 from cereal import log
 from cereal.services import SERVICE_LIST
-import opendbc.car.structs as structs
 from openpilot.common.dict_helpers import strip_deprecated_keys
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -164,7 +163,7 @@ def hw_state_thread(end_event, hw_queue):
 
 def hardware_thread(end_event, hw_queue) -> None:
   pm = messaging.PubMaster(['deviceState'])
-  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates", "carState"], poll="pandaStates")
+  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates"], poll="pandaStates")
 
   count = 0
 
@@ -172,7 +171,6 @@ def hardware_thread(end_event, hw_queue) -> None:
     "ignition": False,
     "not_onroad_cycle": True,
     "device_temp_good": True,
-    "gear_in_drive_or_reverse": True,
   }
   startup_conditions: dict[str, bool] = {}
   startup_conditions_prev: dict[str, bool] = {}
@@ -333,21 +331,6 @@ def hardware_thread(end_event, hw_queue) -> None:
     extra_text = f"{offroad_comp_temp:.1f}C"
     show_alert = (not onroad_conditions["device_temp_good"] or not startup_conditions["device_temp_engageable"]) and onroad_conditions["ignition"]
     set_offroad_alert_if_changed("Offroad_TemperatureTooHigh", show_alert, extra_text=extra_text)
-
-    # check gear state for OnlyOnroadWhenInGear feature
-    only_onroad_when_in_gear = params.get_bool("OnlyOnroadWhenInGear")
-    print(f"OnlyOnroadWhenInGear: {only_onroad_when_in_gear}")
-    if only_onroad_when_in_gear and sm.valid['carState']:
-      car_state = sm['carState']
-      gear = car_state.gearShifter
-      print(f"Gear: {gear}")
-      # Allow onroad only when in Drive or Reverse, not Park/Neutral/Unknown
-      onroad_conditions["gear_in_drive_or_reverse"] = gear in (structs.CarState.GearShifter.drive, structs.CarState.GearShifter.reverse)
-      print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
-    else:
-      # When feature is disabled or carState not available, always allow based on gear
-      onroad_conditions["gear_in_drive_or_reverse"] = True
-      # print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
 
     # TODO: this should move to TICI.initialize_hardware, but we currently can't import params there
     if TICI and HARDWARE.get_device_type() == "tici":

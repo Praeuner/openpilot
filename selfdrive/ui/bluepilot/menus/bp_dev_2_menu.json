@@ -100,17 +100,6 @@
             },
             {
               "type": "toggle",
-              "param": "OnlyOnroadWhenInGear",
-              "title": "Only Go Onroad When In Gear",
-              "desc": "Prevents device from going onroad when in Park. Requires Drive or Reverse gear. Reduces logging/uploads when parked and makes settings easier to change.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            },
-            {
-              "type": "toggle",
               "param": "QuietMode",
               "title": "Quiet Mode - Warnings/Alerts Only",
               "desc": "BluePilot displays alerts but only plays important warning sounds.",
