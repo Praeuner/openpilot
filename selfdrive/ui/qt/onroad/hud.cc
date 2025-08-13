@@ -51,6 +51,17 @@ void HudRenderer::updateState(const UIState &s) {
       brake_pressed = car_state_bp.getBrakeLightStatus().getBrakeLightsOn();
     }
   }
+
+  // Read current road name if available
+#ifdef SUNNYPILOT
+  if (sm.alive("liveMapDataSP") && sm.valid("liveMapDataSP")) {
+    const auto &map_data = sm["liveMapDataSP"].getLiveMapDataSP();
+    auto rn = QString::fromStdString(map_data.getRoadName());
+    road_name = rn.trimmed();
+  } else {
+    road_name.clear();
+  }
+#endif
 }
 
 void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
@@ -150,4 +161,29 @@ void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, const
 
   p.setPen(color);
   p.drawText(real_rect.x(), real_rect.bottom(), text);
+}
+
+void HudRenderer::drawRoadName(QPainter &p, const QRect &surface_rect) {
+#ifdef SUNNYPILOT
+  if (road_name.isEmpty()) return;
+
+  // Background gradient already drawn; overlay text with subtle shadow
+  QFont font = InterFont(42, QFont::DemiBold);
+  p.setFont(font);
+
+  // Text bounds centered at top
+  QString text = road_name;
+  QRect text_rect = p.fontMetrics().boundingRect(text);
+  int x = surface_rect.center().x();
+  int y = UI_HEADER_HEIGHT - 8; // slightly below header top
+  text_rect.moveCenter({x, y});
+
+  // Shadow
+  p.setPen(QColor(0, 0, 0, 180));
+  p.drawText(text_rect.translated(0, 2), Qt::AlignCenter, text);
+
+  // Foreground
+  p.setPen(QColor(255, 255, 255, 230));
+  p.drawText(text_rect, Qt::AlignCenter, text);
+#endif
 }
