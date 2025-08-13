@@ -131,7 +131,7 @@ class FordPlatformConfig(PlatformConfig):
 class FordCANFDPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
-    Bus.radar: RADAR.STEER_ASSIST_DATA,
+    Bus.radar: RADAR.DELPHI_MRR_64,
   })
 
   def init(self):
