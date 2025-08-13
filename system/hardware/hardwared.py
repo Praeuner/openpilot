@@ -347,7 +347,7 @@ def hardware_thread(end_event, hw_queue) -> None:
     else:
       # When feature is disabled or carState not available, always allow based on gear
       onroad_conditions["gear_in_drive_or_reverse"] = True
-      print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
+      # print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
 
     # TODO: this should move to TICI.initialize_hardware, but we currently can't import params there
     if TICI and HARDWARE.get_device_type() == "tici":
