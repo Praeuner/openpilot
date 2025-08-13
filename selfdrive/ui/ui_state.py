@@ -210,11 +210,8 @@ class Device:
       self._onroad_display_behavior = 0
       self._onroad_display_timeout = 30
 
-    # Allow testing while in Always Offroad mode by treating it as onroad
-    allow_offroad_testing = self.params.get_bool("OffroadMode")
-
-    # Apply when onroad, or when offroad testing is enabled
-    is_onroad = (ui_state.started or allow_offroad_testing)
+    # Apply only when actually onroad
+    is_onroad = ui_state.started
 
     if is_onroad and self._onroad_display_behavior > 0:  # Not "Do Nothing"
       # Start tracking onroad time
@@ -266,8 +263,15 @@ class Device:
     """Reset display to normal brightness when exiting onroad behavior."""
     if self._onroad_display_applied and self._onroad_display_behavior > 0:
       cloudlog.debug("resetting onroad display behavior")
-      # Force brightness update to restore normal behavior
-      self._last_brightness = -1  # Force update
+      # Restore the original brightness immediately
+      target = max(self._original_brightness, 10)
+      if self._brightness_thread is None or not self._brightness_thread.is_alive():
+        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(target,))
+        self._brightness_thread.start()
+        self._last_brightness = target
+      # Reset tracking state
+      self._onroad_display_applied = False
+      self._onroad_start_time = -1
 
   def _update_brightness(self):
     # Update original brightness if we're not in onroad behavior
@@ -293,8 +297,14 @@ class Device:
     if not self._awake:
       brightness = 0
     elif self._onroad_display_applied and self._onroad_display_behavior > 0:
-      # Keep the applied onroad brightness
-      return
+      # Wake on critical alerts while dimmed/off
+      if self._should_wake_for_alert():
+        self._reset_onroad_display_behavior()
+        if ui_state.started:
+          self._onroad_start_time = time.monotonic()
+      else:
+        # Keep the applied onroad brightness
+        return
 
     if brightness != self._last_brightness:
       if self._brightness_thread is None or not self._brightness_thread.is_alive():
@@ -308,8 +318,15 @@ class Device:
     ignition_just_turned_off = not ui_state.ignition and self._ignition
     self._ignition = ui_state.ignition
 
-    if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
+    user_touched = any(ev.left_down for ev in gui_app.mouse_events)
+    if ignition_just_turned_off or user_touched:
       self.reset_interactive_timeout()
+      # Wake display behavior on user touch while onroad
+      if user_touched and self._onroad_display_applied and self._onroad_display_behavior > 0:
+        self._reset_onroad_display_behavior()
+        # Restart the onroad timer so it can dim again after timeout
+        if ui_state.started:
+          self._onroad_start_time = time.monotonic()
 
     interaction_timeout = time.monotonic() > self._interaction_time
     if interaction_timeout and not self._prev_timed_out:
@@ -318,6 +335,41 @@ class Device:
     self._prev_timed_out = interaction_timeout
 
     self._set_awake(ui_state.ignition or not interaction_timeout)
+
+  def _should_wake_for_alert(self) -> bool:
+    """Return True if there is a critical/important alert that should wake the display."""
+    try:
+      cs = ui_state.sm["controlsState"]
+      # Prefer explicit severity when available
+      alert_size = getattr(cs, "alertSize", None)
+      alert_status = getattr(cs, "alertStatus", None)
+      alert_sound = getattr(cs, "alertSound", None)
+      alert_text1 = getattr(cs, "alertText1", "")
+
+      # Heuristics: large/medium alerts, non-none sound, or any alert text
+      critical_sizes = set()
+      try:
+        critical_sizes = {log.ControlsState.AlertSize.full, log.ControlsState.AlertSize.mid}
+      except Exception:
+        pass
+
+      if (alert_size in critical_sizes):
+        return True
+      try:
+        critical_statuses = {log.ControlsState.AlertStatus.userPrompt, log.ControlsState.AlertStatus.critical}
+        if alert_status in critical_statuses:
+          return True
+      except Exception:
+        pass
+      try:
+        if alert_sound is not None and alert_sound != log.ControlsState.AlertSound.none:
+          return True
+      except Exception:
+        pass
+
+      return bool(alert_text1)
+    except Exception:
+      return False
 
   def _set_awake(self, on: bool):
     if on != self._awake:
