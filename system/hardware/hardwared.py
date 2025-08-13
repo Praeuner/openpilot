@@ -13,6 +13,7 @@ import psutil
 import cereal.messaging as messaging
 from cereal import log
 from cereal.services import SERVICE_LIST
+import opendbc.car.structs as structs
 from openpilot.common.dict_helpers import strip_deprecated_keys
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -163,7 +164,7 @@ def hw_state_thread(end_event, hw_queue):
 
 def hardware_thread(end_event, hw_queue) -> None:
   pm = messaging.PubMaster(['deviceState'])
-  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "carState", "pandaStates"], poll="pandaStates")
+  sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates", "carState"], poll="pandaStates")
 
   count = 0
 
@@ -171,6 +172,7 @@ def hardware_thread(end_event, hw_queue) -> None:
     "ignition": False,
     "not_onroad_cycle": True,
     "device_temp_good": True,
+    "gear_in_drive_or_reverse": True,
   }
   startup_conditions: dict[str, bool] = {}
   startup_conditions_prev: dict[str, bool] = {}
@@ -226,14 +228,6 @@ def hardware_thread(end_event, hw_queue) -> None:
 
       # Set ignition based on any panda connected
       onroad_conditions["ignition"] = any(ps.ignitionLine or ps.ignitionCan for ps in pandaStates if ps.pandaType != log.PandaState.PandaType.unknown)
-
-      # Optional: compute gear gating but only apply for entry into onroad
-      try:
-        only_onroad_when_in_gear = params.get_bool("OnlyOnroadWhenInGear")
-      except Exception:
-        only_onroad_when_in_gear = False
-
-      # Note: gear gating is applied below when computing should_start
 
       pandaState = pandaStates[0]
 
@@ -340,6 +334,21 @@ def hardware_thread(end_event, hw_queue) -> None:
     show_alert = (not onroad_conditions["device_temp_good"] or not startup_conditions["device_temp_engageable"]) and onroad_conditions["ignition"]
     set_offroad_alert_if_changed("Offroad_TemperatureTooHigh", show_alert, extra_text=extra_text)
 
+    # check gear state for OnlyOnroadWhenInGear feature
+    only_onroad_when_in_gear = params.get_bool("OnlyOnroadWhenInGear")
+    print(f"OnlyOnroadWhenInGear: {only_onroad_when_in_gear}")
+    if only_onroad_when_in_gear and sm.valid['carState']:
+      car_state = sm['carState']
+      gear = car_state.gearShifter
+      print(f"Gear: {gear}")
+      # Allow onroad only when in Drive or Reverse, not Park/Neutral/Unknown
+      onroad_conditions["gear_in_drive_or_reverse"] = gear in (structs.CarState.GearShifter.drive, structs.CarState.GearShifter.reverse)
+      print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
+    else:
+      # When feature is disabled or carState not available, always allow based on gear
+      onroad_conditions["gear_in_drive_or_reverse"] = True
+      print(f"Gear in drive or reverse: {onroad_conditions['gear_in_drive_or_reverse']}")
+
     # TODO: this should move to TICI.initialize_hardware, but we currently can't import params there
     if TICI and HARDWARE.get_device_type() == "tici":
       if not os.path.isfile("/persist/comma/living-in-the-moment"):
@@ -349,24 +358,6 @@ def hardware_thread(end_event, hw_queue) -> None:
     # Handle offroad/onroad transition
     should_start = all(onroad_conditions.values())
     if started_ts is None:
-      # Only gate entry by gear if the feature is enabled
-      try:
-        only_onroad_when_in_gear = params.get_bool("OnlyOnroadWhenInGear")
-      except Exception:
-        only_onroad_when_in_gear = False
-
-      if only_onroad_when_in_gear:
-        # Determine gear condition as above
-        gear_ok = False
-        try:
-          if sm.alive['carState'] and sm.valid['carState']:
-            cs = sm['carState']
-            gear = getattr(cs, 'gearShifter', None)
-            gear_ok = (gear is not None) and (gear in (log.CarState.GearShifter.drive, log.CarState.GearShifter.reverse))
-        except Exception:
-          gear_ok = False
-        should_start = should_start and gear_ok
-
       should_start = should_start and all(startup_conditions.values())
 
     if should_start != should_start_prev or (count == 0):

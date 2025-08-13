@@ -226,5 +226,5 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OnroadDisplayTimeout", {PERSISTENT | BACKUP, INT, "0"}},
 
     // Device may only go onroad when in gear (Drive or Reverse)
-    {"OnlyOnroadWhenInGear", {PERSISTENT | BACKUP, BOOL, "0"}},
+    // {"OnlyOnroadWhenInGear", {PERSISTENT | BACKUP, BOOL, "0"}},
 };

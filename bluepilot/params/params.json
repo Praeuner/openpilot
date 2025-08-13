@@ -44,7 +44,6 @@
       "create_default": true,
       "enabled": true
     },
-
     {
       "name": "FordPrefEnableDebugLogs",
       "default": false,

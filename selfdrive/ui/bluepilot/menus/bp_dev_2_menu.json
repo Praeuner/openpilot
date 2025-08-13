@@ -101,8 +101,8 @@
             {
               "type": "toggle",
               "param": "OnlyOnroadWhenInGear",
-              "title": "Only OnRoad When In Gear",
-              "desc": "Restricts going OnRoad until the vehicle is out of park. This makes it easier to make changes to settings and also reduces the amount of video being recorded/uploaded to comma.",
+              "title": "Only Go Onroad When In Gear",
+              "desc": "Prevents device from going onroad when in Park. Requires Drive or Reverse gear. Reduces logging/uploads when parked and makes settings easier to change.",
               "hidden": false,
               "conditions": {
                 "git_remote": ["any"],
