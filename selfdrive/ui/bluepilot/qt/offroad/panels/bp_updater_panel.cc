@@ -1911,6 +1911,7 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
   // Create runtime display timer that updates every second
   QTimer *runtimeTimer = new QTimer(currentDialog);
   runtimeTimer->setInterval(1000); // Update every second
+  runtimeTimer->setTimerType(Qt::PreciseTimer);
 
   // Update the runtime timer on the button and title
   connect(runtimeTimer, &QTimer::timeout, [=]() {
@@ -1921,8 +1922,9 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
     // Format as Command Running: (MM:SS/TT:TT)
     QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
 
-    // Set the button text with formatting
+    // Set the button text with formatting and ensure it repaints immediately
     closeButton->setText(timerText);
+    closeButton->repaint();
 
     // Title stays static - elapsed time shown in button
     titleLabel->setText(title);
