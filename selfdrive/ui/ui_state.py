@@ -113,8 +113,8 @@ class UIState:
     elif not self.sm.alive["wideRoadCameraState"] or not self.sm.valid["wideRoadCameraState"]:
       self.light_sensor = -1
 
-    # Update started state - deviceState.started already includes ignition and gear checks
-    self.started = self.sm["deviceState"].started
+    # Update started state
+    self.started = self.sm["deviceState"].started and self.ignition
 
   def _update_status(self) -> None:
     if self.started and self.sm.updated["selfdriveState"]:
