@@ -2,11 +2,13 @@
   "versions": {
     "4.1.0": {
       "changes": [
-        "Merged in latest sunnypilot upstream changes",
-        "Added a new OnroadDisplayBehavior parameter to control the behavior of the onroad display",
-        "Added a new OnroadDisplayTimeout parameter to control the timeout of the onroad display"
+        "Merged latest SunnyPilot updates",
+        "New Onroad display controls: behavior and timeout",
+        "Safety: only enter onroad when the car is in gear",
+        "Brake status indicator: Attempt to use brake light signal when available.",
+        "Faster BP updater panel"
       ],
-      "fixes": [],
+      "fixes": ["General stability and merge fixes"],
       "removals": [],
       "known_issues": []
     },
