@@ -210,8 +210,11 @@ class Device:
       self._onroad_display_behavior = 0
       self._onroad_display_timeout = 30
 
-    # Only apply onroad behavior when actually onroad (started and not offroad)
-    is_onroad = ui_state.started and not ui_state.is_offroad()
+    # Allow testing while in Always Offroad mode by treating it as onroad
+    allow_offroad_testing = self.params.get_bool("OffroadMode")
+
+    # Apply when onroad, or when offroad testing is enabled
+    is_onroad = (ui_state.started or allow_offroad_testing)
 
     if is_onroad and self._onroad_display_behavior > 0:  # Not "Do Nothing"
       # Start tracking onroad time
