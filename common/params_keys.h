@@ -227,5 +227,4 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     // Device may only go onroad when in gear (Drive or Reverse)
     {"OnlyOnroadWhenInGear", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"OffroadMode", {PERSISTENT | BACKUP, BOOL, "1"}},
 };
