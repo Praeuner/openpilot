@@ -176,11 +176,16 @@ class CarState(CarStateBase, MadsCarState):
       *create_button_events(self.lc_button, prev_lc_button, {1: ButtonType.lkas}),
     ]
 
-    self.car_state_bp_msg = self.update_car_state_bp(cp)
+    self.car_state_bp_msg = self.update_car_state_bp(cp, cp_cam)
     return ret, ret_sp
 
-  def update_car_state_bp(self, cp):
-    """Update the CarStateBP message for HEV/PHEV data"""
+  def update_car_state_bp(self, cp, cp_cam):
+    """Update the CarStateBP message for HEV/PHEV data
+
+    Args:
+        cp: Powertrain bus CAN parser
+        cp_cam: Camera bus CAN parser
+    """
     # Create a new message
     dat = messaging.new_message("carStateBP")
     dat.valid = True
