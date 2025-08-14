@@ -217,20 +217,6 @@ class CarState(CarStateBase, MadsCarState):
         brake_light_status.dataAvailable = True
         # BrkLamp_B_Rq indicates when brake lights should be on
         brake_light_status.brakeLightsOn = brake_data["BrkLamp_B_Rq"] == 1
-
-        # When openpilot long control is active, ABS may not set brake lights
-        # for ACC braking, so also check if we're commanding decel via ACC
-        if self.CP.openpilotLongitudinalControl:
-          try:
-            acc_data = cp_cam.vl["ACCDATA"]  # ACCDATA is on camera bus
-            # Check if openpilot is actively requesting braking via ACC
-            acc_brake_active = (acc_data["AccBrkPrchg_B_Rq"] == 1 or
-                               acc_data["AccBrkDecel_B_Rq"] == 1)
-            brake_light_status.brakeLightsOn = (brake_light_status.brakeLightsOn or
-                                               acc_brake_active)
-          except (KeyError, AttributeError):
-            pass  # ACCDATA not available, use original brake light status
-
     except (KeyError, AttributeError):
       pass
 
