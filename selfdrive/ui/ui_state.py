@@ -164,6 +164,12 @@ class Device:
     self._onroad_display_active = False
     self._original_brightness = 0
 
+    # Test mode variables
+    self._test_mode_active = False
+    self._test_sequence_step = 0
+    self._test_step_timer = 0
+    self._test_alert_simulated = False
+
   def reset_interactive_timeout(self, timeout: int = -1) -> None:
     if timeout == -1:
       timeout = 10 if ui_state.ignition else 30
@@ -180,6 +186,7 @@ class Device:
     self._update_brightness()
     self._update_wakefulness()
     self._update_onroad_display_behavior()
+    self._update_test_mode()
 
   def set_offroad_brightness(self, brightness: int):
     # TODO: not yet used, should be used in prime widget for QR code, etc.
@@ -198,18 +205,98 @@ class Device:
     }
     return timeout_map.get(self._onroad_display_timeout, 30)
 
+  def _update_test_mode(self):
+    """Update test mode when offroad"""
+    if ui_state.started:
+      return  # Only run test when offroad
+
+    try:
+      test_enabled = self.params.get("OffroadDisplayTest") == "1"
+    except (ValueError, TypeError):
+      test_enabled = False
+
+    if test_enabled and not self._test_mode_active:
+      print(f"[DEBUG] Test mode activated")
+      self._test_mode_active = True
+      self._test_sequence_step = 0
+      self._test_step_timer = time.monotonic()
+      self._test_alert_simulated = False
+      # Store current brightness for test
+      self._original_brightness = max(1, self._last_brightness)
+      print(f"[DEBUG] Test mode: stored brightness {self._original_brightness}")
+
+    elif not test_enabled and self._test_mode_active:
+      print(f"[DEBUG] Test mode deactivated, restoring brightness")
+      self._test_mode_active = False
+      self._restore_original_brightness()
+      return
+
+    if not self._test_mode_active:
+      return
+
+    # Test sequence timing (3 seconds per step)
+    step_duration = 3.0
+    current_time = time.monotonic()
+
+    if current_time - self._test_step_timer >= step_duration:
+      self._test_sequence_step += 1
+      self._test_step_timer = current_time
+      print(f"[DEBUG] Test mode: step {self._test_sequence_step}")
+
+      if self._test_sequence_step == 1:
+        # Step 1: Dim to 70%
+        print(f"[DEBUG] Test mode: dimming to 70%")
+        self._apply_test_brightness(70)
+      elif self._test_sequence_step == 2:
+        # Step 2: Dim to 50%
+        print(f"[DEBUG] Test mode: dimming to 50%")
+        self._apply_test_brightness(50)
+      elif self._test_sequence_step == 3:
+        # Step 3: Dim to 30%
+        print(f"[DEBUG] Test mode: dimming to 30%")
+        self._apply_test_brightness(30)
+      elif self._test_sequence_step == 4:
+        # Step 4: Turn off (dim to 5% for safety)
+        print(f"[DEBUG] Test mode: turning off (dimming to 5%)")
+        self._apply_test_brightness(5)
+      elif self._test_sequence_step == 5:
+        # Step 5: Simulate alert - wake screen
+        print(f"[DEBUG] Test mode: simulating alert - waking screen")
+        self._simulate_alert_wake()
+      elif self._test_sequence_step == 6:
+        # Step 6: Restore original brightness
+        print(f"[DEBUG] Test mode: restoring original brightness")
+        self._restore_original_brightness()
+        self._test_sequence_step = 0  # Reset for next cycle
+        print(f"[DEBUG] Test mode: cycle complete, restarting")
+
+  def _apply_test_brightness(self, percentage: int):
+    """Apply brightness for test mode"""
+    brightness = max(1, int(self._original_brightness * percentage / 100))
+    print(f"[DEBUG] Test mode: setting brightness to {brightness} ({percentage}% of {self._original_brightness})")
+
+    if self._brightness_thread is None or not self._brightness_thread.is_alive():
+      self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(brightness,))
+      self._brightness_thread.start()
+      self._last_brightness = brightness
+
+  def _simulate_alert_wake(self):
+    """Simulate an alert to wake the screen"""
+    print(f"[DEBUG] Test mode: simulating alert wake")
+    # Restore to full brightness to simulate alert
+    if self._brightness_thread is None or not self._brightness_thread.is_alive():
+      self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(self._original_brightness,))
+      self._brightness_thread.start()
+      self._last_brightness = self._original_brightness
+
   def _update_onroad_display_behavior(self):
     """Update onroad display behavior based on parameters"""
     print(f"[DEBUG] _update_onroad_display_behavior called - ui_state.started: {ui_state.started}")
 
-    # Check if test mode is enabled
-    test_mode_enabled = False
-    try:
-      test_mode_enabled = self.params.get("OffroadDisplayTest") == "1"
-      if test_mode_enabled:
-        print(f"[DEBUG] OffroadDisplayTest mode enabled - test mode active")
-    except (ValueError, TypeError):
-      pass
+    # Skip if test mode is active
+    if self._test_mode_active:
+      print(f"[DEBUG] Skipping onroad behavior - test mode active")
+      return
 
     # Read current parameters
     try:
@@ -247,12 +334,6 @@ class Device:
       print(f"[DEBUG] Onroad and not active, checking timeout")
       timeout_seconds = self._get_onroad_display_timeout_seconds()
       print(f"[DEBUG] Timeout seconds: {timeout_seconds}")
-
-      # In test mode, use immediate timeout (0 seconds)
-      if test_mode_enabled:
-        timeout_seconds = 0
-        print(f"[DEBUG] Test mode: using immediate timeout (0 seconds)")
-
       if timeout_seconds > 0:
         if self._onroad_display_timer == 0:
           self._onroad_display_timer = time.monotonic() + timeout_seconds
@@ -264,11 +345,6 @@ class Device:
         else:
           remaining = self._onroad_display_timer - time.monotonic()
           print(f"[DEBUG] Timer running, {remaining:.1f} seconds remaining")
-      elif timeout_seconds == 0:
-        # Immediate application (for test mode or 0 timeout)
-        print(f"[DEBUG] Immediate timeout, applying behavior {behavior}")
-        self._apply_onroad_display_behavior(behavior)
-        self._onroad_display_active = True
 
     # Reset timer when not onroad
     if not ui_state.started:
@@ -283,14 +359,6 @@ class Device:
   def _apply_onroad_display_behavior(self, behavior: int):
     """Apply the selected onroad display behavior"""
     print(f"[DEBUG] _apply_onroad_display_behavior called with behavior: {behavior}")
-
-    # Check if test mode is enabled
-    test_mode_enabled = False
-    try:
-      test_mode_enabled = self.params.get("OffroadDisplayTest") == "1"
-    except (ValueError, TypeError):
-      pass
-
     if behavior == 0:  # Do Nothing
       print(f"[DEBUG] Behavior 0 - Do Nothing, returning")
       return
@@ -304,13 +372,8 @@ class Device:
       print(f"[DEBUG] Behavior 3 - Dimming to 30%")
       self._dim_display(30)
     elif behavior == 4:  # Turn Off
-      if test_mode_enabled:
-        print(f"[DEBUG] Behavior 4 - Turn Off (TEST MODE: will dim to 10% instead)")
-        # In test mode, don't turn off completely - dim to 10% instead
-        self._dim_display(10)
-      else:
-        print(f"[DEBUG] Behavior 4 - Turning off display")
-        self._turn_off_display()
+      print(f"[DEBUG] Behavior 4 - Turning off display")
+      self._turn_off_display()
     else:
       print(f"[DEBUG] Unknown behavior: {behavior}")
 
