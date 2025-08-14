@@ -24,6 +24,7 @@ PROGRESS_BAR_HEIGHT = 20
 DEGREES_PER_SECOND = 360.0  # one full rotation per second
 MARGIN_H = 100
 TEXTURE_SIZE = 360
+COMMA_IMAGE_SIZE = 280  # Smaller than spinner to prevent overlapping
 FONT_SIZE = 96
 LINE_HEIGHT = 104
 ERROR_FONT_SIZE = 48
@@ -50,9 +51,9 @@ class BPSpinner(Widget):
     # Load textures with fallback
     try:
       if HAS_SUNNYPILOT:
-        self._comma_texture = gui_app_sp.sp_texture("images/spinner_sunnypilot.png", TEXTURE_SIZE, TEXTURE_SIZE)
+        self._comma_texture = gui_app_sp.sp_texture("images/spinner_sunnypilot.png", COMMA_IMAGE_SIZE, COMMA_IMAGE_SIZE)
       else:
-        self._comma_texture = gui_app.texture("images/spinner_comma.png", TEXTURE_SIZE, TEXTURE_SIZE)
+        self._comma_texture = gui_app.texture("images/spinner_comma.png", COMMA_IMAGE_SIZE, COMMA_IMAGE_SIZE)
     except Exception:
       self._comma_texture = None
 
@@ -306,7 +307,8 @@ class BPSpinner(Widget):
 
     center = rl.Vector2(rect.width / 2.0, center_y)
     spinner_origin = rl.Vector2(TEXTURE_SIZE / 2.0, TEXTURE_SIZE / 2.0)
-    comma_position = rl.Vector2(center.x - TEXTURE_SIZE / 2.0, center.y - TEXTURE_SIZE / 2.0)
+    # Center the comma image within the spinner area
+    comma_position = rl.Vector2(center.x - COMMA_IMAGE_SIZE / 2.0, center.y - COMMA_IMAGE_SIZE / 2.0)
 
     delta_time = rl.get_frame_time()
     self._rotation = (self._rotation + DEGREES_PER_SECOND * delta_time) % 360.0

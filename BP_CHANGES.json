@@ -2,12 +2,12 @@
   "versions": {
     "4.1.0": {
       "changes": [
-        "Merged latest SunnyPilot updates",
+        "Merged all of the latest upstream sunnypilot master-dev-c3-new changes",
         "New Onroad display controls: behavior (dim %) and timeout (seconds)",
         "Brake status indicator: Attempt to use brake light CAN signal when available.",
-        "Faster BP updater panel"
+        "The BP Updater panel is now twice as fast because it disables powersave mode when updating allowing access to all 8 cores of the CPU."
       ],
-      "fixes": ["General stability and merge fixes"],
+      "fixes": ["General stability and bug fixes"],
       "removals": [],
       "known_issues": []
     },
