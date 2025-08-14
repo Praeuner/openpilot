@@ -157,7 +157,17 @@ class BrakeLightStatus:
 
 @auto_dataclass
 class CarStateSP:
-  pass
+  buttonEvents: list['CarStateSP.ButtonEvent'] = auto_field()
+
+  @auto_dataclass
+  class ButtonEvent:
+    pressed: bool = auto_field()
+    type: 'CarStateSP.ButtonEvent.Type' = field(default_factory=lambda: CarStateSP.ButtonEvent.Type.unknown)
+
+    class Type(StrEnum):
+      unknown = auto()
+      customButton = auto()
+
 
 @auto_dataclass
 class CarStateBP:

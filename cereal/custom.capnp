@@ -122,7 +122,6 @@ struct ModelManagerSP @0xaedffd8f31e7b55d {
 
 struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   dec @0 :DynamicExperimentalControl;
-  accelPersonality @1 :AccelerationPersonality;
 
   struct DynamicExperimentalControl {
     state @0 :DynamicExperimentalControlState;
@@ -133,12 +132,6 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
       acc @0;
       blended @1;
     }
-  }
-
-  enum AccelerationPersonality {
-    sport @0;
-    normal @1;
-    eco @2;
   }
 }
 
@@ -254,6 +247,17 @@ struct BackupManagerSP @0xf98d843bfd7004a3 {
 }
 
 struct CarStateSP @0xb86e6369214c01c8 {
+    buttonEvents @0 :List(ButtonEvent);
+
+    struct ButtonEvent {
+        pressed @0 :Bool;
+        type @1 :Type;
+
+        enum Type {
+          unknown @0;
+          customButton @1;
+        }
+      }
 }
 
 struct LiveMapDataSP @0xf416ec09499d9d19 {
