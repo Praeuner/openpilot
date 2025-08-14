@@ -3,9 +3,8 @@
     "4.1.0": {
       "changes": [
         "Merged latest SunnyPilot updates",
-        "New Onroad display controls: behavior and timeout",
-        "Safety: only enter onroad when the car is in gear",
-        "Brake status indicator: Attempt to use brake light signal when available.",
+        "New Onroad display controls: behavior (dim %) and timeout (seconds)",
+        "Brake status indicator: Attempt to use brake light CAN signal when available.",
         "Faster BP updater panel"
       ],
       "fixes": ["General stability and merge fixes"],

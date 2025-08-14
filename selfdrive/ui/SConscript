@@ -37,8 +37,6 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel
   "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
-  # BluePilot Data Collection Panel
-  "bluepilot/qt/offroad/panels/bp_data_collect.cc",
   # BluePilot Onroad Widgets
   "bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc",
   # "bluepilot/qt/onroad/steer_graph_panel.cc",

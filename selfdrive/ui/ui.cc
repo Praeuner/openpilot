@@ -13,6 +13,7 @@
 #include <iostream>
 #include "system/hardware/hw.h"
 #include "bluepilot/qt/offroad/panels/bp_recent_changes.h"
+#include <limits>
 
 #define BACKLIGHT_DT 0.05
 #define BACKLIGHT_TS 10.00
@@ -190,6 +191,7 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
 void Device::update(const UIState &s) {
   updateBrightness(s);
   updateWakefulness(s);
+  updateOnroadDisplayBehavior(s);
 }
 
 void Device::setAwake(bool on) {
@@ -260,6 +262,106 @@ void Device::updateWakefulness(const UIState &s) {
 
   setAwake(s.scene.ignition || interactive_timeout > 0);
 }
+
+static inline int onroadTimeoutIndexToSeconds(int idx) {
+  switch (idx) {
+    case 0: return 30;   // 30 seconds
+    case 1: return 60;   // 1 minute
+    case 2: return 120;  // 2 minutes
+    case 3: return 180;  // 3 minutes
+    case 4: return 300;  // 5 minutes
+    case 5: return 600;  // 10 minutes
+    case 6: return 900;  // 15 minutes
+    default: return 30;
+  }
+}
+
+void Device::updateOnroadDisplayBehavior(const UIState &s) {
+  // Read params
+  Params params;
+  int behavior = params.getInt("OnroadDisplayBehavior");
+  int timeout_idx = params.getInt("OnroadDisplayTimeout");
+
+  // If changed, reset state
+  if (behavior != onroad_display_behavior || timeout_idx != onroad_display_timeout) {
+    onroad_display_behavior = behavior;
+    onroad_display_timeout = timeout_idx;
+    onroad_display_active = false;
+    onroad_display_deadline = {};
+  }
+
+  // Behavior 0: do nothing, ensure restore if needed
+  if (onroad_display_behavior == 0) {
+    if (onroad_display_active) {
+      restoreOriginalBrightness();
+      onroad_display_active = false;
+    }
+    return;
+  }
+
+  // Only apply when onroad
+  if (s.scene.started && !onroad_display_active) {
+    auto now = std::chrono::steady_clock::now();
+    if (onroad_display_deadline.time_since_epoch().count() == 0) {
+      int secs = onroadTimeoutIndexToSeconds(onroad_display_timeout);
+      onroad_display_deadline = now + std::chrono::seconds(secs);
+    } else if (now >= onroad_display_deadline) {
+      applyOnroadDisplayBehavior(onroad_display_behavior);
+      onroad_display_active = true;
+    }
+  }
+
+  // Reset timer when offroad
+  if (!s.scene.started) {
+    onroad_display_deadline = {};
+    if (onroad_display_active) {
+      restoreOriginalBrightness();
+      onroad_display_active = false;
+    }
+  }
+}
+
+void Device::applyOnroadDisplayBehavior(int behavior) {
+  switch (behavior) {
+    case 1: dimDisplay(70); break; // 70%
+    case 2: dimDisplay(50); break; // 50%
+    case 3: dimDisplay(30); break; // 30%
+    case 4: turnOffDisplay(); break; // off
+    default: break;
+  }
+}
+
+void Device::dimDisplay(int percentage) {
+  if (!onroad_display_active) {
+    original_brightness = last_brightness;
+    onroad_display_active = true;
+  }
+  int dimmed = std::max(1, (original_brightness * percentage) / 100);
+  if (dimmed != last_brightness && !brightness_future.isRunning()) {
+    brightness_future = QtConcurrent::run(Hardware::set_brightness, dimmed);
+    last_brightness = dimmed;
+  }
+}
+
+void Device::turnOffDisplay() {
+  if (!onroad_display_active) {
+    original_brightness = last_brightness;
+    onroad_display_active = true;
+  }
+  if (last_brightness != 0 && !brightness_future.isRunning()) {
+    brightness_future = QtConcurrent::run(Hardware::set_brightness, 0);
+    last_brightness = 0;
+  }
+}
+
+void Device::restoreOriginalBrightness() {
+  if (original_brightness > 0 && last_brightness != original_brightness && !brightness_future.isRunning()) {
+    brightness_future = QtConcurrent::run(Hardware::set_brightness, original_brightness);
+    last_brightness = original_brightness;
+  }
+}
+
+// Offroad test logic removed
 
 #ifndef SUNNYPILOT
 UIState *uiState() {
