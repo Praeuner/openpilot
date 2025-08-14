@@ -146,24 +146,23 @@ class UIState:
 
 class Device:
   def __init__(self):
-    self.params = Params()
     self._ignition = False
     self._interaction_time: float = -1
     self._interactive_timeout_callbacks: list[Callable] = []
     self._prev_timed_out = False
     self._awake = False
 
-    # Onroad display behavior tracking
-    self._onroad_start_time: float = -1
-    self._onroad_display_behavior: int = 0  # Default: Do Nothing
-    self._onroad_display_timeout: int = 30  # Default: 30 seconds
-    self._onroad_display_applied: bool = False
-    self._original_brightness: int = 0
-
     self._offroad_brightness: int = BACKLIGHT_OFFROAD
     self._last_brightness: int = 0
     self._brightness_filter = FirstOrderFilter(BACKLIGHT_OFFROAD, 10.00, 1 / DEFAULT_FPS)
     self._brightness_thread: threading.Thread | None = None
+
+    # Onroad display behavior variables
+    self._onroad_display_behavior = 0  # Default: Do Nothing
+    self._onroad_display_timeout = 0    # Default: 30 seconds
+    self._onroad_display_timer: float = 0
+    self._onroad_display_active = False
+    self._original_brightness = 0
 
   def reset_interactive_timeout(self, timeout: int = -1) -> None:
     if timeout == -1:
@@ -178,105 +177,216 @@ class Device:
     if self._interaction_time <= 0:
       self.reset_interactive_timeout()
 
-    self._update_onroad_display_behavior()
     self._update_brightness()
     self._update_wakefulness()
+    self._update_onroad_display_behavior()
 
   def set_offroad_brightness(self, brightness: int):
     # TODO: not yet used, should be used in prime widget for QR code, etc.
     self._offroad_brightness = min(max(brightness, 0), 100)
 
+  def _get_onroad_display_timeout_seconds(self) -> int:
+    """Convert timeout index to actual seconds"""
+    timeout_map = {
+      0: 30,   # 30 seconds
+      1: 60,   # 1 minute
+      2: 120,  # 2 minutes
+      3: 180,  # 3 minutes
+      4: 300,  # 5 minutes
+      5: 600,  # 10 minutes
+      6: 900   # 15 minutes
+    }
+    return timeout_map.get(self._onroad_display_timeout, 30)
+
   def _update_onroad_display_behavior(self):
-    """Handle onroad display behavior based on user settings."""
+    """Update onroad display behavior based on parameters"""
+    print(f"[DEBUG] _update_onroad_display_behavior called - ui_state.started: {ui_state.started}")
+
+    # Check if test mode is enabled
+    test_mode_enabled = False
     try:
-      # Get current settings
-      self._onroad_display_behavior = int(self.params.get("OnroadDisplayBehavior", return_default=True))
-      timeout_index = int(self.params.get("OnroadDisplayTimeout", return_default=True))
+      test_mode_enabled = self.params.get("OffroadDisplayTest") == "1"
+      if test_mode_enabled:
+        print(f"[DEBUG] OffroadDisplayTest mode enabled - test mode active")
+    except (ValueError, TypeError):
+      pass
 
-      # Convert timeout index to actual seconds
-      timeout_seconds_map = {
-        0: 30,    # 30 seconds
-        1: 60,    # 1 minute
-        2: 120,   # 2 minutes
-        3: 180,   # 3 minutes
-        4: 300,   # 5 minutes
-        5: 600,   # 10 minutes
-        6: 900,   # 15 minutes
-      }
-      self._onroad_display_timeout = timeout_seconds_map.get(timeout_index, 30)
-    except (ValueError, KeyError):
-      # Use defaults if parameters don't exist or are invalid
-      self._onroad_display_behavior = 0
-      self._onroad_display_timeout = 30
+    # Read current parameters
+    try:
+      behavior = int(self.params.get("OnroadDisplayBehavior", "0"))
+      timeout = int(self.params.get("OnroadDisplayTimeout", "0"))
+      print(f"[DEBUG] Read parameters - behavior: {behavior}, timeout: {timeout}")
+    except (ValueError, TypeError) as e:
+      print(f"[DEBUG] Error reading parameters: {e}, using defaults")
+      behavior = 0
+      timeout = 0
 
-    # Apply only when actually onroad
-    is_onroad = ui_state.started
+    # Check if parameters changed
+    if (behavior != self._onroad_display_behavior or
+        timeout != self._onroad_display_timeout):
+      print(f"[DEBUG] Parameters changed - old behavior: {self._onroad_display_behavior}, new: {behavior}")
+      print(f"[DEBUG] Parameters changed - old timeout: {self._onroad_display_timeout}, new: {timeout}")
+      self._onroad_display_behavior = behavior
+      self._onroad_display_timeout = timeout
+      self._onroad_display_timer = 0
+      self._onroad_display_active = False
+      print(f"[DEBUG] Reset state - timer: {self._onroad_display_timer}, active: {self._onroad_display_active}")
 
-    if is_onroad and self._onroad_display_behavior > 0:  # Not "Do Nothing"
-      # Start tracking onroad time
-      if self._onroad_start_time < 0:
-        self._onroad_start_time = time.monotonic()
-        self._onroad_display_applied = False
-        # Store the current brightness as original (will be updated in _update_brightness)
-        if self._original_brightness == 0:
-          self._original_brightness = self._last_brightness
+    # Only apply behavior if not "Do Nothing" (behavior != 0)
+    if behavior == 0:
+      print(f"[DEBUG] Behavior is 'Do Nothing', checking if need to restore")
+      if self._onroad_display_active:
+        print(f"[DEBUG] Restoring brightness from 'Do Nothing' state")
+        # Restore original brightness
+        self._restore_original_brightness()
+        self._onroad_display_active = False
+      return
 
-      # Check if timeout has elapsed
-      time_onroad = time.monotonic() - self._onroad_start_time
-      if time_onroad >= self._onroad_display_timeout and not self._onroad_display_applied:
-        self._apply_onroad_display_behavior()
-        self._onroad_display_applied = True
+    # Check if we should activate the onroad display behavior
+    if ui_state.started and not self._onroad_display_active:
+      print(f"[DEBUG] Onroad and not active, checking timeout")
+      timeout_seconds = self._get_onroad_display_timeout_seconds()
+      print(f"[DEBUG] Timeout seconds: {timeout_seconds}")
+
+      # In test mode, use immediate timeout (0 seconds)
+      if test_mode_enabled:
+        timeout_seconds = 0
+        print(f"[DEBUG] Test mode: using immediate timeout (0 seconds)")
+
+      if timeout_seconds > 0:
+        if self._onroad_display_timer == 0:
+          self._onroad_display_timer = time.monotonic() + timeout_seconds
+          print(f"[DEBUG] Started timer at {time.monotonic()}, will expire at {self._onroad_display_timer}")
+        elif time.monotonic() >= self._onroad_display_timer:
+          print(f"[DEBUG] Timer expired, applying behavior {behavior}")
+          self._apply_onroad_display_behavior(behavior)
+          self._onroad_display_active = True
+        else:
+          remaining = self._onroad_display_timer - time.monotonic()
+          print(f"[DEBUG] Timer running, {remaining:.1f} seconds remaining")
+      elif timeout_seconds == 0:
+        # Immediate application (for test mode or 0 timeout)
+        print(f"[DEBUG] Immediate timeout, applying behavior {behavior}")
+        self._apply_onroad_display_behavior(behavior)
+        self._onroad_display_active = True
+
+    # Reset timer when not onroad
+    if not ui_state.started:
+      if self._onroad_display_timer > 0 or self._onroad_display_active:
+        print(f"[DEBUG] No longer onroad, resetting state")
+      self._onroad_display_timer = 0
+      if self._onroad_display_active:
+        print(f"[DEBUG] Restoring brightness due to offroad transition")
+        self._restore_original_brightness()
+        self._onroad_display_active = False
+
+  def _apply_onroad_display_behavior(self, behavior: int):
+    """Apply the selected onroad display behavior"""
+    print(f"[DEBUG] _apply_onroad_display_behavior called with behavior: {behavior}")
+
+    # Check if test mode is enabled
+    test_mode_enabled = False
+    try:
+      test_mode_enabled = self.params.get("OffroadDisplayTest") == "1"
+    except (ValueError, TypeError):
+      pass
+
+    if behavior == 0:  # Do Nothing
+      print(f"[DEBUG] Behavior 0 - Do Nothing, returning")
+      return
+    elif behavior == 1:  # Dim 70%
+      print(f"[DEBUG] Behavior 1 - Dimming to 70%")
+      self._dim_display(70)
+    elif behavior == 2:  # Dim 50%
+      print(f"[DEBUG] Behavior 2 - Dimming to 50%")
+      self._dim_display(50)
+    elif behavior == 3:  # Dim 30%
+      print(f"[DEBUG] Behavior 3 - Dimming to 30%")
+      self._dim_display(30)
+    elif behavior == 4:  # Turn Off
+      if test_mode_enabled:
+        print(f"[DEBUG] Behavior 4 - Turn Off (TEST MODE: will dim to 10% instead)")
+        # In test mode, don't turn off completely - dim to 10% instead
+        self._dim_display(10)
+      else:
+        print(f"[DEBUG] Behavior 4 - Turning off display")
+        self._turn_off_display()
     else:
-      # Reset onroad tracking when not onroad or behavior is "Do Nothing"
-      if self._onroad_start_time >= 0:
-        self._reset_onroad_display_behavior()
-        self._onroad_start_time = -1
-        self._onroad_display_applied = False
+      print(f"[DEBUG] Unknown behavior: {behavior}")
 
-  def _apply_onroad_display_behavior(self):
-    """Apply the selected onroad display behavior."""
-    # Ensure we have a valid original brightness
-    if self._original_brightness <= 0:
-      self._original_brightness = max(self._last_brightness, 50)  # Fallback to 50% if needed
+  def _dim_display(self, percentage: int):
+    """Dim the display to the specified percentage"""
+    print(f"[DEBUG] _dim_display called with percentage: {percentage}")
+    if not self._onroad_display_active:
+      # Store current brightness before dimming
+      self._original_brightness = self._last_brightness
+      self._onroad_display_active = True
+      print(f"[DEBUG] Stored original brightness: {self._original_brightness}")
 
-    if self._onroad_display_behavior == 1:  # Dim 70%
-      target_brightness = max(int(self._original_brightness * 0.7), 10)
-    elif self._onroad_display_behavior == 2:  # Dim 50%
-      target_brightness = max(int(self._original_brightness * 0.5), 10)
-    elif self._onroad_display_behavior == 3:  # Dim 30%
-      target_brightness = max(int(self._original_brightness * 0.3), 10)
-    elif self._onroad_display_behavior == 4:  # Turn Off
-      target_brightness = 0
+    # Calculate dimmed brightness
+    dimmed_brightness = max(1, int(self._original_brightness * percentage / 100))
+    print(f"[DEBUG] Calculated dimmed brightness: {dimmed_brightness} (from {self._original_brightness} * {percentage}%)")
+
+    if dimmed_brightness != self._last_brightness:
+      print(f"[DEBUG] Applying dimmed brightness: {dimmed_brightness}")
+      if self._brightness_thread is None or not self._brightness_thread.is_alive():
+        print(f"[DEBUG] Starting brightness thread")
+        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(dimmed_brightness,))
+        self._brightness_thread.start()
+        self._last_brightness = dimmed_brightness
+        print(f"[DEBUG] Brightness thread started, last_brightness updated to: {self._last_brightness}")
+      else:
+        print(f"[DEBUG] Brightness thread already running, skipping")
     else:
-      return  # Do Nothing
+      print(f"[DEBUG] Brightness unchanged, no action needed")
 
-    # Apply the brightness change
-    if target_brightness != self._last_brightness:
-      cloudlog.debug(f"applying onroad display behavior: {self._onroad_display_behavior}, brightness: {target_brightness}")
-      if self._brightness_thread is None or not self._brightness_thread.is_alive():
-        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(target_brightness,))
-        self._brightness_thread.start()
-        self._last_brightness = target_brightness
+  def _turn_off_display(self):
+    """Turn off the display completely"""
+    print(f"[DEBUG] _turn_off_display called")
+    if not self._onroad_display_active:
+      # Store current brightness before turning off
+      self._original_brightness = self._last_brightness
+      self._onroad_display_active = True
+      print(f"[DEBUG] Stored original brightness: {self._original_brightness}")
 
-  def _reset_onroad_display_behavior(self):
-    """Reset display to normal brightness when exiting onroad behavior."""
-    if self._onroad_display_applied and self._onroad_display_behavior > 0:
-      cloudlog.debug("resetting onroad display behavior")
-      # Restore the original brightness immediately
-      target = max(self._original_brightness, 10)
+    if self._last_brightness != 0:
+      print(f"[DEBUG] Turning off display (current brightness: {self._last_brightness})")
       if self._brightness_thread is None or not self._brightness_thread.is_alive():
-        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(target,))
+        print(f"[DEBUG] Starting brightness thread for turn off")
+        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(0,))
         self._brightness_thread.start()
-        self._last_brightness = target
-      # Reset tracking state
-      self._onroad_display_applied = False
-      self._onroad_start_time = -1
+        self._last_brightness = 0
+        print(f"[DEBUG] Display turned off, last_brightness set to: {self._last_brightness}")
+      else:
+        print(f"[DEBUG] Brightness thread already running, skipping turn off")
+    else:
+      print(f"[DEBUG] Display already off, no action needed")
+
+  def _restore_original_brightness(self):
+    """Restore the original brightness after onroad display behavior"""
+    print(f"[DEBUG] _restore_original_brightness called")
+    print(f"[DEBUG] Original brightness: {self._original_brightness}, current: {self._last_brightness}")
+    if self._original_brightness > 0 and self._last_brightness != self._original_brightness:
+      print(f"[DEBUG] Restoring brightness from {self._last_brightness} to {self._original_brightness}")
+      if self._brightness_thread is None or not self._brightness_thread.is_alive():
+        print(f"[DEBUG] Starting brightness thread for restore")
+        self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(self._original_brightness,))
+        self._brightness_thread.start()
+        self._last_brightness = self._original_brightness
+        print(f"[DEBUG] Brightness restored, last_brightness updated to: {self._last_brightness}")
+      else:
+        print(f"[DEBUG] Brightness thread already running, skipping restore")
+    else:
+      print(f"[DEBUG] No restore needed - original: {self._original_brightness}, current: {self._last_brightness}")
 
   def _update_brightness(self):
-    # Update original brightness if we're not in onroad behavior
-    if not self._onroad_display_applied and self._last_brightness > 0:
-      self._original_brightness = self._last_brightness
+    print(f"[DEBUG] _update_brightness called - onroad_display_active: {self._onroad_display_active}")
+    # Skip brightness update if onroad display behavior is active
+    if self._onroad_display_active:
+      print(f"[DEBUG] Skipping brightness update - onroad display behavior active")
+      return
 
+    print(f"[DEBUG] Proceeding with normal brightness update")
     clipped_brightness = self._offroad_brightness
 
     if ui_state.started and ui_state.light_sensor >= 0:
@@ -291,41 +401,27 @@ class Device:
       clipped_brightness = float(np.clip(100 * clipped_brightness, 10, 100))
 
     brightness = round(self._brightness_filter.update(clipped_brightness))
-
-    # Don't override brightness if onroad behavior is applied
     if not self._awake:
       brightness = 0
-    elif self._onroad_display_applied and self._onroad_display_behavior > 0:
-      # Wake on critical alerts while dimmed/off
-      if self._should_wake_for_alert():
-        self._reset_onroad_display_behavior()
-        if ui_state.started:
-          self._onroad_start_time = time.monotonic()
-      else:
-        # Keep the applied onroad brightness
-        return
 
     if brightness != self._last_brightness:
       if self._brightness_thread is None or not self._brightness_thread.is_alive():
-        cloudlog.debug(f"setting display brightness {brightness}")
+        print(f"[DEBUG] Setting display brightness to: {brightness}")
         self._brightness_thread = threading.Thread(target=HARDWARE.set_screen_brightness, args=(brightness,))
         self._brightness_thread.start()
         self._last_brightness = brightness
+      else:
+        print(f"[DEBUG] Brightness thread already running, skipping update")
+    else:
+      print(f"[DEBUG] Brightness unchanged: {brightness}")
 
   def _update_wakefulness(self):
     # Handle interactive timeout
     ignition_just_turned_off = not ui_state.ignition and self._ignition
     self._ignition = ui_state.ignition
 
-    user_touched = any(ev.left_down for ev in gui_app.mouse_events)
-    if ignition_just_turned_off or user_touched:
+    if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
       self.reset_interactive_timeout()
-      # Wake display behavior on user touch while onroad
-      if user_touched and self._onroad_display_applied and self._onroad_display_behavior > 0:
-        self._reset_onroad_display_behavior()
-        # Restart the onroad timer so it can dim again after timeout
-        if ui_state.started:
-          self._onroad_start_time = time.monotonic()
 
     interaction_timeout = time.monotonic() > self._interaction_time
     if interaction_timeout and not self._prev_timed_out:
@@ -334,41 +430,6 @@ class Device:
     self._prev_timed_out = interaction_timeout
 
     self._set_awake(ui_state.ignition or not interaction_timeout)
-
-  def _should_wake_for_alert(self) -> bool:
-    """Return True if there is a critical/important alert that should wake the display."""
-    try:
-      cs = ui_state.sm["controlsState"]
-      # Prefer explicit severity when available
-      alert_size = getattr(cs, "alertSize", None)
-      alert_status = getattr(cs, "alertStatus", None)
-      alert_sound = getattr(cs, "alertSound", None)
-      alert_text1 = getattr(cs, "alertText1", "")
-
-      # Heuristics: large/medium alerts, non-none sound, or any alert text
-      critical_sizes = set()
-      try:
-        critical_sizes = {log.ControlsState.AlertSize.full, log.ControlsState.AlertSize.mid}
-      except Exception:
-        pass
-
-      if (alert_size in critical_sizes):
-        return True
-      try:
-        critical_statuses = {log.ControlsState.AlertStatus.userPrompt, log.ControlsState.AlertStatus.critical}
-        if alert_status in critical_statuses:
-          return True
-      except Exception:
-        pass
-      try:
-        if alert_sound is not None and alert_sound != log.ControlsState.AlertSound.none:
-          return True
-      except Exception:
-        pass
-
-      return bool(alert_text1)
-    except Exception:
-      return False
 
   def _set_awake(self, on: bool):
     if on != self._awake:
