@@ -14,6 +14,10 @@ find . -type f -name '.DS_Store' -print -exec rm -f {} +
 echo "Searching for .moc files..."
 find . -type f -name '*.moc' -print -exec rm -f {} +
 
+# Remove all _generated.dbc files
+echo "Searching for _generated.dbc files..."
+find . -type f -name '*_generated.dbc' -exec rm -f {} +
+
 # Debug output for .o files
 echo "Searching for .o files..."
 find . -type f -name '*.o' -print -exec rm -f {} +

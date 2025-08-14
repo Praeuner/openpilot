@@ -19,8 +19,7 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
     "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-    "liveMapDataSP",
-	  "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope"
+    "liveMapDataSP", "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope"
   });
 
   // update timer
