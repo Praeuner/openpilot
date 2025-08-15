@@ -181,6 +181,7 @@ void UIState::update() {
 }
 
 Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT_TS, BACKLIGHT_DT), QObject(parent) {
+  std::cout << "[Display Debug] Device initialized - setting up display behavior monitoring" << std::endl;
   setAwake(true);
   resetInteractiveTimeout();
 #ifndef SUNNYPILOT
@@ -242,8 +243,10 @@ void Device::updateBrightness(const UIState &s) {
     brightness = 0;
   }
 
-  if (brightness != last_brightness) {
+    if (brightness != last_brightness) {
     if (!brightness_future.isRunning()) {
+      std::cout << "[Display Debug] Regular brightness update: " << last_brightness << " -> " << brightness
+                << " (awake:" << (awake ? "YES" : "NO") << ", light_sensor:" << s.scene.light_sensor << ")" << std::endl;
       brightness_future = QtConcurrent::run(Hardware::set_brightness, brightness);
       last_brightness = brightness;
     }
@@ -282,8 +285,24 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
   int behavior = params.getInt("OnroadDisplayBehavior");
   int timeout_idx = params.getInt("OnroadDisplayTimeout");
 
+    // Debug: Print current state every 60 frames (once per second at 60fps)
+  static int debug_counter = 0;
+  static bool first_run = true;
+  if (first_run) {
+    std::cout << "[Display Debug] First run - Initial behavior:" << behavior << " timeout:" << timeout_idx << std::endl;
+    first_run = false;
+  }
+  if (debug_counter % 60 == 0) {
+    std::cout << "[Display Debug] Behavior:" << behavior << " Timeout:" << timeout_idx
+              << " Started:" << (s.scene.started ? "YES" : "NO") << " Active:" << (onroad_display_active ? "YES" : "NO")
+              << " LastBrightness:" << last_brightness << " OriginalBrightness:" << original_brightness << std::endl;
+  }
+  debug_counter++;
+
   // If changed, reset state
   if (behavior != onroad_display_behavior || timeout_idx != onroad_display_timeout) {
+    std::cout << "[Display Debug] Settings changed! Old behavior:" << onroad_display_behavior << "->" << behavior
+              << ", timeout:" << onroad_display_timeout << "->" << timeout_idx << " - Resetting state" << std::endl;
     onroad_display_behavior = behavior;
     onroad_display_timeout = timeout_idx;
     onroad_display_active = false;
@@ -293,28 +312,43 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
   // Behavior 0: do nothing, ensure restore if needed
   if (onroad_display_behavior == 0) {
     if (onroad_display_active) {
+      std::cout << "[Display Debug] Behavior 0 (Do Nothing) - Restoring original brightness" << std::endl;
       restoreOriginalBrightness();
       onroad_display_active = false;
     }
     return;
   }
 
-  // Only apply when onroad
+    // Only apply when onroad
   if (s.scene.started && !onroad_display_active) {
     auto now = std::chrono::steady_clock::now();
     if (onroad_display_deadline.time_since_epoch().count() == 0) {
       int secs = onroadTimeoutIndexToSeconds(onroad_display_timeout);
       onroad_display_deadline = now + std::chrono::seconds(secs);
+      std::cout << "[Display Debug] Started onroad timer - Behavior " << onroad_display_behavior
+                << " will activate in " << secs << " seconds" << std::endl;
     } else if (now >= onroad_display_deadline) {
+      std::cout << "[Display Debug] Timer expired! Applying behavior " << onroad_display_behavior << std::endl;
       applyOnroadDisplayBehavior(onroad_display_behavior);
       onroad_display_active = true;
+    } else {
+      // Show remaining time every 5 seconds
+      auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(onroad_display_deadline - now).count();
+      if (debug_counter % 300 == 0) { // Every 5 seconds at 60fps
+        std::cout << "[Display Debug] Waiting... " << remaining_ms << " ms remaining until behavior "
+                  << onroad_display_behavior << " activates" << std::endl;
+      }
     }
   }
 
   // Reset timer when offroad
   if (!s.scene.started) {
+    if (onroad_display_deadline.time_since_epoch().count() != 0) {
+      std::cout << "[Display Debug] Going offroad - Resetting timer" << std::endl;
+    }
     onroad_display_deadline = {};
     if (onroad_display_active) {
+      std::cout << "[Display Debug] Going offroad - Restoring original brightness" << std::endl;
       restoreOriginalBrightness();
       onroad_display_active = false;
     }
@@ -322,42 +356,76 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
 }
 
 void Device::applyOnroadDisplayBehavior(int behavior) {
+  std::cout << "[Display Debug] Applying onroad display behavior: " << behavior << std::endl;
   switch (behavior) {
-    case 1: dimDisplay(70); break; // 70%
-    case 2: dimDisplay(50); break; // 50%
-    case 3: dimDisplay(30); break; // 30%
-    case 4: turnOffDisplay(); break; // off
-    default: break;
+    case 1:
+      std::cout << "[Display Debug] Dimming display to 70%" << std::endl;
+      dimDisplay(70);
+      break; // 70%
+    case 2:
+      std::cout << "[Display Debug] Dimming display to 50%" << std::endl;
+      dimDisplay(50);
+      break; // 50%
+    case 3:
+      std::cout << "[Display Debug] Dimming display to 30%" << std::endl;
+      dimDisplay(30);
+      break; // 30%
+    case 4:
+      std::cout << "[Display Debug] Turning off display" << std::endl;
+      turnOffDisplay();
+      break; // off
+    default:
+      std::cout << "[Display Debug] Unknown behavior: " << behavior << std::endl;
+      break;
   }
 }
 
 void Device::dimDisplay(int percentage) {
+  std::cout << "[Display Debug] dimDisplay called with " << percentage << "% - current brightness: " << last_brightness << std::endl;
   if (!onroad_display_active) {
     original_brightness = last_brightness;
     onroad_display_active = true;
+    std::cout << "[Display Debug] Saved original brightness: " << original_brightness << std::endl;
   }
   int dimmed = std::max(1, (original_brightness * percentage) / 100);
+  std::cout << "[Display Debug] Calculated dimmed brightness: " << dimmed << " (from " << original_brightness
+            << " * " << percentage << "% / 100)" << std::endl;
   if (dimmed != last_brightness && !brightness_future.isRunning()) {
+    std::cout << "[Display Debug] Setting hardware brightness to: " << dimmed << std::endl;
     brightness_future = QtConcurrent::run(Hardware::set_brightness, dimmed);
     last_brightness = dimmed;
+  } else {
+    std::cout << "[Display Debug] Skipping brightness change - dimmed:" << dimmed << " == last:" << last_brightness
+              << " or future running" << std::endl;
   }
 }
 
 void Device::turnOffDisplay() {
+  std::cout << "[Display Debug] turnOffDisplay called - current brightness: " << last_brightness << std::endl;
   if (!onroad_display_active) {
     original_brightness = last_brightness;
     onroad_display_active = true;
+    std::cout << "[Display Debug] Saved original brightness: " << original_brightness << std::endl;
   }
   if (last_brightness != 0 && !brightness_future.isRunning()) {
+    std::cout << "[Display Debug] Turning off display (setting brightness to 0)" << std::endl;
     brightness_future = QtConcurrent::run(Hardware::set_brightness, 0);
     last_brightness = 0;
+  } else {
+    std::cout << "[Display Debug] Skipping display turn off - brightness already 0 or future running" << std::endl;
   }
 }
 
 void Device::restoreOriginalBrightness() {
+  std::cout << "[Display Debug] restoreOriginalBrightness called - original: " << original_brightness
+            << ", current: " << last_brightness << std::endl;
   if (original_brightness > 0 && last_brightness != original_brightness && !brightness_future.isRunning()) {
+    std::cout << "[Display Debug] Restoring brightness from " << last_brightness << " to " << original_brightness << std::endl;
     brightness_future = QtConcurrent::run(Hardware::set_brightness, original_brightness);
     last_brightness = original_brightness;
+  } else {
+    std::cout << "[Display Debug] Skipping brightness restore - original:" << original_brightness
+              << ", current:" << last_brightness << ", future running:" << (brightness_future.isRunning() ? "YES" : "NO") << std::endl;
   }
 }
 
