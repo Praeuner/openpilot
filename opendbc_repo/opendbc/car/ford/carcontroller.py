@@ -74,7 +74,6 @@ class CarController(CarControllerBase):
     self.packer = CANPacker(dbc_names[Bus.pt])
     self.CAN = fordcan.CanBus(CP)
 
-
     # Load initial custom parameters from params.json
     load_custom_params(self, "carcontroller")
 
@@ -185,8 +184,6 @@ class CarController(CarControllerBase):
     self.path_angle_last = 0.0
     self.curvature_rate = 0  # initialize curvature_rate
 
-
-
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
 
@@ -219,7 +216,6 @@ class CarController(CarControllerBase):
     self.tja_warn = 0
     self.hands = 0
     self.predictedSteeringAngleDeg_SP = 0.0
-
 
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):

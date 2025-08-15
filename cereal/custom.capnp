@@ -303,14 +303,6 @@ struct CarStateBP @0xa4f1eb3323f5f582 {
   hybridDrive @0 :HybridDrive;
   hybridBattery @1 :HybridBattery;
   brakeLightStatus @2 :BrakeLightStatus;
-  driveModeStatus @3 :DriveModeStatus;
-
-  # Ford drive mode fields
-  driveMode @4 :UInt8;               # Current powertrain drive mode
-  chassisDriveMode @5 :UInt8;        # Current chassis drive mode
-  awdDriveMode @6 :UInt8;            # Current AWD drive mode
-  driveModeStatusValue @7 :UInt8;    # Drive mode change status
-  availableDriveModes @8 :List(UInt8); # List of available drive mode positions
 
   struct HybridDrive {
     dataAvailable @0 :Bool;                 # Whether the data is available
@@ -334,14 +326,5 @@ struct CarStateBP @0xa4f1eb3323f5f582 {
   struct BrakeLightStatus {
     dataAvailable @0 :Bool;             # Whether the brake light data is available
     brakeLightsOn @1 :Bool;             # Whether the brake lights are currently on
-  }
-
-  struct DriveModeStatus {
-    dataAvailable @0 :Bool;             # Whether the drive mode data is available
-    currentPowertrainMode @1 :UInt8;    # Current powertrain drive mode
-    currentChassisMode @2 :UInt8;       # Current chassis drive mode
-    currentAwdMode @3 :UInt8;           # Current AWD drive mode
-    modeChangeStatus @4 :UInt8;         # Drive mode change status
-    availableModes @5 :List(UInt8);     # List of available drive modes
   }
 }

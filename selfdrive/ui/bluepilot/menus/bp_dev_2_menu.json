@@ -108,28 +108,6 @@
                 "git_remote": ["any"],
                 "git_branch": []
               }
-            },
-            {
-              "type": "selection",
-              "param": "FordDefaultDriveMode",
-              "title": "Default Drive Mode",
-              "desc": "Select the default drive mode for your Ford vehicle",
-              "hidden": false,
-              "options": [
-                { "name": "Normal", "value": "0" },
-                { "name": "Sport", "value": "1" },
-                { "name": "Economy", "value": "2" },
-                { "name": "Tow Haul", "value": "3" },
-                { "name": "Grass/Gravel/Snow", "value": "5" },
-                { "name": "Sand", "value": "7" },
-                { "name": "Mud/Ruts", "value": "8" },
-                { "name": "Rock Crawl", "value": "9" },
-                { "name": "Sport Adaptive", "value": "14" },
-                { "name": "High Speed Desert", "value": "15" },
-                { "name": "Drag Mode", "value": "16" },
-                { "name": "EV Now Mode", "value": "17" },
-                { "name": "EV Later Charger Mode", "value": "18" }
-              ]
             }
           ]
         },

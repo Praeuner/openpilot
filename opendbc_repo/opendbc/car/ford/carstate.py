@@ -45,8 +45,6 @@ class CarState(CarStateBase, MadsCarState):
     self.hev_data_available = CP.flags & FordFlags.HEV_CLUSTER_DATA
 
 
-
-
   def update(self, can_parsers) -> tuple[structs.CarState, structs.CarStateSP]:
     cp = can_parsers[Bus.pt]
     cp_cam = can_parsers[Bus.cam]
@@ -144,18 +142,6 @@ class CarState(CarStateBase, MadsCarState):
     ret.stockFcw = bool(cp_cam.vl["ACCDATA_3"]["FcwVisblWarn_B_Rq"])
     ret.stockAeb = bool(cp_cam.vl["ACCDATA_2"]["CmbbBrkDecel_B_Rq"])
 
-    # drive mode parsing - store data for use in update_car_state_bp
-    try:
-      # Parse drive mode signals if available
-      if "SelectDriveModeData" in cp.vl:
-        self.current_drive_mode_data = cp.vl["SelectDriveModeData"]
-      else:
-        self.current_drive_mode_data = None
-    except Exception as e:
-      # Handle any parsing errors gracefully
-      print(f"Error parsing drive mode data: {e}")
-      self.current_drive_mode_data = None
-
     # button presses
     ret.leftBlinker = cp.vl["Steering_Data_FD1"]["TurnLghtSwtch_D_Stat"] == 1
     ret.rightBlinker = cp.vl["Steering_Data_FD1"]["TurnLghtSwtch_D_Stat"] == 2
@@ -193,8 +179,6 @@ class CarState(CarStateBase, MadsCarState):
     self.car_state_bp_msg = self.update_car_state_bp(cp, cp_cam)
     return ret, ret_sp
 
-
-
   def update_car_state_bp(self, cp, cp_cam):
     """Update the CarStateBP message for HEV/PHEV data
 
@@ -210,7 +194,6 @@ class CarState(CarStateBase, MadsCarState):
     hybrid_drive = dat.carStateBP.hybridDrive
     hybrid_battery = dat.carStateBP.hybridBattery
     brake_light_status = dat.carStateBP.brakeLightStatus
-    drive_mode_status = dat.carStateBP.driveModeStatus
 
     # Initialize with default values
     hybrid_drive.dataAvailable = False
@@ -231,22 +214,6 @@ class CarState(CarStateBase, MadsCarState):
     # Initialize brake light status
     brake_light_status.dataAvailable = False
     brake_light_status.brakeLightsOn = False
-
-    # Initialize drive mode status
-    drive_mode_status = dat.carStateBP.driveModeStatus
-    drive_mode_status.dataAvailable = False
-    drive_mode_status.currentPowertrainMode = 0
-    drive_mode_status.currentChassisMode = 0
-    drive_mode_status.currentAwdMode = 0
-    drive_mode_status.modeChangeStatus = 0
-    drive_mode_status.availableModes = []
-
-    # Initialize individual drive mode fields
-    dat.carStateBP.driveMode = 0
-    dat.carStateBP.chassisDriveMode = 0
-    dat.carStateBP.awdDriveMode = 0
-    dat.carStateBP.driveModeStatusValue = 0
-    dat.carStateBP.availableDriveModes = []
 
     # Brake light status - try BCM message first (more reliable), then fallback to BrakeSysFeatures_2
     brake_lights_detected = False
@@ -295,50 +262,6 @@ class CarState(CarStateBase, MadsCarState):
                                            acc_brake_active)
       except (KeyError, AttributeError):
         pass  # ACCDATA not available, use original brake light status
-
-    # Drive mode data from BrakeSysFeatures_2 message
-    try:
-      brake_data = cp.vl["BrakeSysFeatures_2"]
-      if brake_data is not None:
-        # Add drive mode data from BrakeSysFeatures_2 message
-        if "SelDrvMdeChassis2_D_Rq" in brake_data:
-          drive_mode_status.dataAvailable = True
-          dat.carStateBP.chassisDriveMode = brake_data["SelDrvMdeChassis2_D_Rq"]
-          drive_mode_status.currentChassisMode = brake_data["SelDrvMdeChassis2_D_Rq"]
-
-        if "SelDrvMdeAwd_D_Rq" in brake_data:
-          drive_mode_status.dataAvailable = True
-          dat.carStateBP.awdDriveMode = brake_data["SelDrvMdeAwd_D_Rq"]
-          drive_mode_status.currentAwdMode = brake_data["SelDrvMdeAwd_D_Rq"]
-    except (KeyError, AttributeError):
-      pass  # BrakeSysFeatures_2 not available
-
-    # Add drive mode data from SelectDriveModeData message
-    if hasattr(self, 'current_drive_mode_data') and self.current_drive_mode_data is not None:
-      drive_mode_status.dataAvailable = True
-
-      # Set individual drive mode fields
-      dat.carStateBP.driveMode = self.current_drive_mode_data.get("SelDrvMdePt_D_Rq", 0)
-      dat.carStateBP.chassisDriveMode = self.current_drive_mode_data.get("SelDrvMdeChassis_D_Rq", 0)
-      dat.carStateBP.awdDriveMode = self.current_drive_mode_data.get("SelDrvMdeAwd_D_Rq", 0)
-      dat.carStateBP.driveModeStatusValue = self.current_drive_mode_data.get("SelDrvMde_D_Stat", 0)
-
-
-
-      # Also populate the drive mode status struct for compatibility
-      drive_mode_status.currentPowertrainMode = dat.carStateBP.driveMode
-      drive_mode_status.currentChassisMode = dat.carStateBP.chassisDriveMode
-      drive_mode_status.currentAwdMode = dat.carStateBP.awdDriveMode
-      drive_mode_status.modeChangeStatus = dat.carStateBP.driveModeStatusValue
-
-      # Convert available modes list to array
-      available_modes = []
-      for i in range(1, 13):
-        avail_key = f"SelDrvMdePos{i:02d}_B_Avail"
-        if avail_key in self.current_drive_mode_data and self.current_drive_mode_data[avail_key] == 1:
-          available_modes.append(i)
-      dat.carStateBP.availableDriveModes = available_modes
-      drive_mode_status.availableModes = available_modes
 
     # HEV cluster data
     try:
@@ -409,8 +332,6 @@ class CarState(CarStateBase, MadsCarState):
       ("Steering_Data_FD1", 10),
       ("BodyInfo_3_FD1", 2),
       ("RCMStatusMessage2_FD1", 10),
-      # Add drive mode messages
-      ("SelectDriveModeData", 10),  # Message 1056 - Drive mode selection
     ]
 
     # Try to add HEV message to parser config
