@@ -280,6 +280,7 @@ class CarController(CarControllerBase):
         CAN message or None if message creation fails
     """
     try:
+      print(f"[DRIVE_MODE_DEBUG] Creating CAN message for drive mode {mode}")
       # Import fordcan functions for drive mode message creation
       from opendbc.car.ford import fordcan
 
@@ -294,10 +295,12 @@ class CarController(CarControllerBase):
         awd_mode=0       # Default to 2WD mode
       )
 
+      print(f"[DRIVE_MODE_DEBUG] Successfully created drive mode CAN message: {drive_mode_msg}")
       debug(f'Created drive mode message for mode {mode}', True)
       return drive_mode_msg
 
     except Exception as e:
+      print(f"[DRIVE_MODE_DEBUG] Error creating drive mode message: {e}")
       error(f'Error creating drive mode message: {e}', True)
       return None
 
@@ -855,34 +858,60 @@ class CarController(CarControllerBase):
       # Update available drive modes from car state if available
       if hasattr(CS, 'availableDriveModes'):
         self.available_drive_modes = CS.availableDriveModes
+        print(f"[DRIVE_MODE_DEBUG] Available drive modes: {self.available_drive_modes}")
 
       # Update current drive mode from car state if available
       if hasattr(CS, 'driveMode'):
+        if self.current_drive_mode != CS.driveMode:
+          print(f"[DRIVE_MODE_DEBUG] Current drive mode changed: {self.current_drive_mode} -> {CS.driveMode}")
         self.current_drive_mode = CS.driveMode
 
-      # Check if we need to change drive mode
-      if self.drive_mode_change_requested and self.target_drive_mode != self.current_drive_mode:
+      # Check if we need to change drive mode (from car state or controller)
+      need_drive_mode_change = (
+        (hasattr(CS, 'drive_mode_change_requested') and CS.drive_mode_change_requested) or
+        self.drive_mode_change_requested
+      )
+      target_mode = getattr(CS, 'target_drive_mode', self.target_drive_mode)
+
+      # Debug logging
+      if need_drive_mode_change:
+        print(f"[DRIVE_MODE_DEBUG] Drive mode change needed: CS.requested={getattr(CS, 'drive_mode_change_requested', False)}, controller.requested={self.drive_mode_change_requested}")
+        print(f"[DRIVE_MODE_DEBUG] Target mode: {target_mode}, Current mode: {self.current_drive_mode}")
+
+      if need_drive_mode_change and target_mode != self.current_drive_mode:
         # Increment counter for drive mode change
         self.drive_mode_change_counter += 1
 
         # Send drive mode change message
         try:
+          print(f"[DRIVE_MODE_DEBUG] Creating drive mode message for mode {target_mode} (attempt {self.drive_mode_change_counter})")
           # Create drive mode change message
-          drive_mode_msg = self.create_drive_mode_msg(self.target_drive_mode)
+          drive_mode_msg = self.create_drive_mode_msg(target_mode)
           if drive_mode_msg:
             can_sends.append(drive_mode_msg)
-            debug(f'Sent drive mode change to {self.target_drive_mode}', True)
+            print(f"[DRIVE_MODE_DEBUG] Successfully sent drive mode CAN message for mode {target_mode}")
+            debug(f'Sent drive mode change to {target_mode}', True)
+          else:
+            print(f"[DRIVE_MODE_DEBUG] Failed to create drive mode message for mode {target_mode}")
 
           # Reset request after sending
           if self.drive_mode_change_counter >= 5:  # Send for 5 frames (0.5 seconds at 10Hz)
+            print(f"[DRIVE_MODE_DEBUG] Drive mode change sequence completed for mode {target_mode}")
             self.drive_mode_change_requested = False
             self.drive_mode_change_counter = 0
-            debug(f'Drive mode change request completed for mode {self.target_drive_mode}', True)
+            # Also reset carstate request if it exists
+            if hasattr(CS, 'drive_mode_change_requested'):
+              CS.drive_mode_change_requested = False
+            debug(f'Drive mode change request completed for mode {target_mode}', True)
 
         except Exception as e:
+          print(f"[DRIVE_MODE_DEBUG] Error sending drive mode change: {e}")
           error(f'Error sending drive mode change: {e}', True)
           self.drive_mode_change_requested = False
           self.drive_mode_change_counter = 0
+          # Also reset carstate request if it exists
+          if hasattr(CS, 'drive_mode_change_requested'):
+            CS.drive_mode_change_requested = False
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)

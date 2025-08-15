@@ -1,3 +1,4 @@
+import time
 from opendbc.can import CANDefine, CANParser
 from opendbc.car import Bus, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
@@ -57,13 +58,33 @@ class CarState(CarStateBase, MadsCarState):
     self.target_awd_mode = 0         # Default to 2WD mode
     self.advanced_drive_mode_change_requested = False
 
+    # Debug logging flags
+    self._drive_mode_msg_missing_logged = False
+
     # Load default drive mode from params
     try:
+      # Debug: List all Ford-related parameters
+      print(f"[DRIVE_MODE_DEBUG] Checking for Ford parameters...")
+      all_params = [key for key in dir(self.params) if 'Ford' in str(key)]
+      print(f"[DRIVE_MODE_DEBUG] Ford-related params methods: {all_params}")
+
       default_mode = self.params.get("FordDefaultDriveMode")
+      print(f"[DRIVE_MODE_DEBUG] Raw param value: {default_mode}")
       if default_mode:
         self.default_drive_mode = int(default_mode)
         self.target_drive_mode = self.default_drive_mode
-    except (ValueError, TypeError):
+        print(f"[DRIVE_MODE_DEBUG] Loaded default drive mode: {self.default_drive_mode}")
+        # Request drive mode change on startup if not Normal mode (0)
+        if self.default_drive_mode != 0:
+          self.drive_mode_change_requested = True
+          print(f"[DRIVE_MODE_DEBUG] Default drive mode {self.default_drive_mode} will be applied on startup")
+          debug(f'Default drive mode {self.default_drive_mode} will be applied on startup', True)
+        else:
+          print(f"[DRIVE_MODE_DEBUG] Default drive mode is Normal (0), no change requested")
+      else:
+        print(f"[DRIVE_MODE_DEBUG] No default drive mode parameter found or empty")
+    except (ValueError, TypeError) as e:
+      print(f"[DRIVE_MODE_DEBUG] Error parsing default drive mode: {e}")
       pass  # Use default value if param is invalid
 
 
@@ -169,11 +190,15 @@ class CarState(CarStateBase, MadsCarState):
       # Parse drive mode signals if available
       if "SelectDriveModeData" in cp.vl:
         self.current_drive_mode_data = cp.vl["SelectDriveModeData"]
+        print(f"[DRIVE_MODE_DEBUG] Parsed drive mode data: {self.current_drive_mode_data}")
       else:
+        if hasattr(self, '_drive_mode_msg_missing_logged') and not self._drive_mode_msg_missing_logged:
+          print(f"[DRIVE_MODE_DEBUG] SelectDriveModeData message not available in CAN parser")
+          self._drive_mode_msg_missing_logged = True
         self.current_drive_mode_data = None
     except Exception as e:
       # Handle any parsing errors gracefully
-      print(f"Error parsing drive mode data: {e}")
+      print(f"[DRIVE_MODE_DEBUG] Error parsing drive mode data: {e}")
       self.current_drive_mode_data = None
 
     # button presses
@@ -481,6 +506,8 @@ class CarState(CarStateBase, MadsCarState):
       dat.carStateBP.chassisDriveMode = self.current_drive_mode_data.get("SelDrvMdeChassis_D_Rq", 0)
       dat.carStateBP.awdDriveMode = self.current_drive_mode_data.get("SelDrvMdeAwd_D_Rq", 0)
       dat.carStateBP.driveModeStatusValue = self.current_drive_mode_data.get("SelDrvMde_D_Stat", 0)
+
+      print(f"[DRIVE_MODE_DEBUG] Current vehicle drive modes - PT: {dat.carStateBP.driveMode}, Chassis: {dat.carStateBP.chassisDriveMode}, AWD: {dat.carStateBP.awdDriveMode}, Status: {dat.carStateBP.driveModeStatusValue}")
 
       # Also populate the drive mode status struct for compatibility
       drive_mode_status.currentPowertrainMode = dat.carStateBP.driveMode
