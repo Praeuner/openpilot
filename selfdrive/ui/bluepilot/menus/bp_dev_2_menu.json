@@ -100,6 +100,18 @@
             },
             {
               "type": "toggle",
+              "param": "FordPassthroughStockLkas",
+              "title": "Passthrough Stock LKAS",
+              "desc": "Passthrough stock LKAS signals. This is useful if you want to use the stock LKAS signals.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+
+            {
+              "type": "toggle",
               "param": "DisableGPSAlert",
               "title": "Disable GPS Alert",
               "desc": "Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",

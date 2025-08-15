@@ -1,7 +1,9 @@
 from opendbc.car import CanBusBase, structs
+from common.params import Params
 
 HUDControl = structs.CarControl.HUDControl
 
+params = Params()
 
 class CanBus(CanBusBase):
   def __init__(self, CP=None, fingerprint=None) -> None:
@@ -194,14 +196,18 @@ def create_acc_ui_msg(packer, CAN: CanBus, CP, main_on: bool, enabled: bool, fcw
   else:
     status = 1    # Standby
 
+  # Check if we should pass through stock Ford lane keeping signals
+  use_stock_lkas = params.get_bool("FordPassthroughStockLkas")
+
   values = {s: stock_values[s] for s in [
     "HaDsply_No_Cs",
     "HaDsply_No_Cnt",
     "AccStopStat_D_Dsply",       # ACC stopped status message
     "AccTrgDist2_D_Dsply",       # ACC target distance
     "AccStopRes_B_Dsply",
-    #"TjaWarn_D_Rq",              # TJA warning
-    #"TjaMsgTxt_D_Dsply",         # TJA text
+    "Tja_D_Stat",                # TJA status (Traffic Jam Assist/Lane Keeping)
+    "TjaWarn_D_Rq",              # TJA warning
+    "TjaMsgTxt_D_Dsply",         # TJA text messages
     "IaccLamp_D_Rq",             # iACC status icon
     "AccMsgTxt_D2_Rq",           # ACC text
     "FcwDeny_B_Dsply",           # FCW disabled
@@ -223,9 +229,9 @@ def create_acc_ui_msg(packer, CAN: CanBus, CP, main_on: bool, enabled: bool, fcw
   ]}
 
   values.update({
-    "Tja_D_Stat": status,        # TJA status
-    "TjaWarn_D_Rq": tja_warn,    # TJA warning
-    "TjaMsgTxt_D_Dsply": tja_msg,# TJA text
+    "Tja_D_Stat": status if not use_stock_lkas else stock_values["Tja_D_Stat"],        # TJA status
+    "TjaWarn_D_Rq": tja_warn if not use_stock_lkas else stock_values["TjaWarn_D_Rq"],    # TJA warning
+    "TjaMsgTxt_D_Dsply": tja_msg if not use_stock_lkas else stock_values["TjaMsgTxt_D_Dsply"],# TJA text
   })
 
   if CP.openpilotLongitudinalControl:
