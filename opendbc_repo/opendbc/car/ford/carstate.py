@@ -165,55 +165,16 @@ class CarState(CarStateBase, MadsCarState):
     ret.stockFcw = bool(cp_cam.vl["ACCDATA_3"]["FcwVisblWarn_B_Rq"])
     ret.stockAeb = bool(cp_cam.vl["ACCDATA_2"]["CmbbBrkDecel_B_Rq"])
 
-    # drive mode parsing
+    # drive mode parsing - store data for use in update_car_state_bp
     try:
       # Parse drive mode signals if available
       if "SelectDriveModeData" in cp.vl:
-        drive_mode_data = cp.vl["SelectDriveModeData"]
-
-        # Current powertrain drive mode
-        if "SelDrvMdePt_D_Rq" in drive_mode_data:
-          ret.driveMode = drive_mode_data["SelDrvMdePt_D_Rq"]
-
-        # Current chassis drive mode
-        if "SelDrvMdeChassis_D_Rq" in drive_mode_data:
-          ret.chassisDriveMode = drive_mode_data["SelDrvMdeChassis_D_Rq"]
-
-        # Current AWD drive mode
-        if "SelDrvMdeAwd_D_Rq" in drive_mode_data:
-          ret.awdDriveMode = drive_mode_data["SelDrvMdeAwd_D_Rq"]
-
-        # Drive mode status
-        if "SelDrvMde_D_Stat" in drive_mode_data:
-          ret.driveModeStatus = drive_mode_data["SelDrvMde_D_Stat"]
-
-        # Available drive mode positions (12 positions)
-        ret.availableDriveModes = []
-        for i in range(1, 13):
-          avail_key = f"SelDrvMdePos{i:02d}_B_Avail"
-          if avail_key in drive_mode_data:
-            if drive_mode_data[avail_key] == 1:
-              ret.availableDriveModes.append(i)
-
-        # Store drive mode data for UI access
-        self.current_drive_mode_data = drive_mode_data
+        self.current_drive_mode_data = cp.vl["SelectDriveModeData"]
       else:
-        # Set default values if drive mode data not available
-        ret.driveMode = 0  # Normal mode
-        ret.chassisDriveMode = 0  # Normal mode
-        ret.awdDriveMode = 0  # 2WD mode
-        ret.driveModeStatus = 0  # No drive mode change request
-        ret.availableDriveModes = [0]  # Only normal mode available
         self.current_drive_mode_data = None
-
     except Exception as e:
       # Handle any parsing errors gracefully
       print(f"Error parsing drive mode data: {e}")
-      ret.driveMode = 0
-      ret.chassisDriveMode = 0
-      ret.awdDriveMode = 0
-      ret.driveModeStatus = 0
-      ret.availableDriveModes = [0]
       self.current_drive_mode_data = None
 
     # button presses
@@ -439,6 +400,13 @@ class CarState(CarStateBase, MadsCarState):
     drive_mode_status.modeChangeStatus = 0
     drive_mode_status.availableModes = []
 
+    # Initialize individual drive mode fields
+    dat.carStateBP.driveMode = 0
+    dat.carStateBP.chassisDriveMode = 0
+    dat.carStateBP.awdDriveMode = 0
+    dat.carStateBP.driveModeStatusValue = 0
+    dat.carStateBP.availableDriveModes = []
+
     # Brake light status from BrakeSysFeatures_2 message
     try:
       brake_data = cp.vl["BrakeSysFeatures_2"]
@@ -463,10 +431,12 @@ class CarState(CarStateBase, MadsCarState):
         # Add drive mode data from BrakeSysFeatures_2 message
         if "SelDrvMdeChassis2_D_Rq" in brake_data:
           drive_mode_status.dataAvailable = True
+          dat.carStateBP.chassisDriveMode = brake_data["SelDrvMdeChassis2_D_Rq"]
           drive_mode_status.currentChassisMode = brake_data["SelDrvMdeChassis2_D_Rq"]
 
         if "SelDrvMdeAwd_D_Rq" in brake_data:
           drive_mode_status.dataAvailable = True
+          dat.carStateBP.awdDriveMode = brake_data["SelDrvMdeAwd_D_Rq"]
           drive_mode_status.currentAwdMode = brake_data["SelDrvMdeAwd_D_Rq"]
 
     except (KeyError, AttributeError):
@@ -475,10 +445,18 @@ class CarState(CarStateBase, MadsCarState):
     # Add drive mode data from SelectDriveModeData message
     if hasattr(self, 'current_drive_mode_data') and self.current_drive_mode_data is not None:
       drive_mode_status.dataAvailable = True
-      drive_mode_status.currentPowertrainMode = self.current_drive_mode_data.get("SelDrvMdePt_D_Rq", 0)
-      drive_mode_status.currentChassisMode = self.current_drive_mode_data.get("SelDrvMdeChassis_D_Rq", 0)
-      drive_mode_status.currentAwdMode = self.current_drive_mode_data.get("SelDrvMdeAwd_D_Rq", 0)
-      drive_mode_status.modeChangeStatus = self.current_drive_mode_data.get("SelDrvMde_D_Stat", 0)
+
+      # Set individual drive mode fields
+      dat.carStateBP.driveMode = self.current_drive_mode_data.get("SelDrvMdePt_D_Rq", 0)
+      dat.carStateBP.chassisDriveMode = self.current_drive_mode_data.get("SelDrvMdeChassis_D_Rq", 0)
+      dat.carStateBP.awdDriveMode = self.current_drive_mode_data.get("SelDrvMdeAwd_D_Rq", 0)
+      dat.carStateBP.driveModeStatusValue = self.current_drive_mode_data.get("SelDrvMde_D_Stat", 0)
+
+      # Also populate the drive mode status struct for compatibility
+      drive_mode_status.currentPowertrainMode = dat.carStateBP.driveMode
+      drive_mode_status.currentChassisMode = dat.carStateBP.chassisDriveMode
+      drive_mode_status.currentAwdMode = dat.carStateBP.awdDriveMode
+      drive_mode_status.modeChangeStatus = dat.carStateBP.driveModeStatusValue
 
       # Convert available modes list to array
       available_modes = []
@@ -486,6 +464,7 @@ class CarState(CarStateBase, MadsCarState):
         avail_key = f"SelDrvMdePos{i:02d}_B_Avail"
         if avail_key in self.current_drive_mode_data and self.current_drive_mode_data[avail_key] == 1:
           available_modes.append(i)
+      dat.carStateBP.availableDriveModes = available_modes
       drive_mode_status.availableModes = available_modes
 
     # HEV cluster data
