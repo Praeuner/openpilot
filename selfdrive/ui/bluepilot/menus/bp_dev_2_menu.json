@@ -100,17 +100,6 @@
             },
             {
               "type": "toggle",
-              "param": "QuietMode",
-              "title": "Quiet Mode - Warnings/Alerts Only",
-              "desc": "BluePilot displays alerts but only plays important warning sounds.",
-              "hidden": true,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            },
-            {
-              "type": "toggle",
               "param": "DisableGPSAlert",
               "title": "Disable GPS Alert",
               "desc": "Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
