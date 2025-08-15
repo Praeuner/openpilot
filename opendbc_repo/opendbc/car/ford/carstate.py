@@ -11,7 +11,6 @@ from opendbc.sunnypilot.car.ford.mads import MadsCarState
 
 # from opendbc.car.ford.fordcanparser import FordCanParser
 from opendbc.car.ford.helpers import get_hev_power_flow_text, get_hev_engine_on_reason_text
-import time
 
 ButtonType = structs.CarState.ButtonEvent.Type
 GearShifter = structs.CarState.GearShifter
@@ -370,6 +369,7 @@ class CarState(CarStateBase, MadsCarState):
     hybrid_drive = dat.carStateBP.hybridDrive
     hybrid_battery = dat.carStateBP.hybridBattery
     brake_light_status = dat.carStateBP.brakeLightStatus
+    drive_mode_status = dat.carStateBP.driveModeStatus
 
     # Initialize with default values
     hybrid_drive.dataAvailable = False
@@ -407,27 +407,58 @@ class CarState(CarStateBase, MadsCarState):
     dat.carStateBP.driveModeStatusValue = 0
     dat.carStateBP.availableDriveModes = []
 
-    # Brake light status from BrakeSysFeatures_2 message
+    # Brake light status - try BCM message first (more reliable), then fallback to BrakeSysFeatures_2
+    brake_lights_detected = False
+
+    # Primary: BCM_Lamp_Stat_FD1 message (actual brake light status from Body Control Module)
+    try:
+      bcm_data = cp.vl["BCM_Lamp_Stat_FD1"]
+      if bcm_data is not None:
+        brake_light_status.dataAvailable = True
+
+        # Try StopLghtOn_B_Stat signal first (standard DBC signal)
+        if "StopLghtOn_B_Stat" in bcm_data:
+          brake_light_status.brakeLightsOn = bool(bcm_data["StopLghtOn_B_Stat"])
+          brake_lights_detected = True
+        # Fallback: Try other BCM lamp signals that might indicate brake lights
+        elif "RvrseLghtOn_B_Stat" in bcm_data:
+          # Some vehicles may use reverse light status as brake indicator
+          brake_light_status.brakeLightsOn = bcm_data["RvrseLghtOn_B_Stat"] == 1
+          brake_lights_detected = True
+        else:
+          # If no known signals work, mark as unavailable and fall back
+          brake_light_status.dataAvailable = False
+    except (KeyError, AttributeError):
+      pass  # BCM message not available, try fallback
+
+    # Fallback: BrakeSysFeatures_2 message (brake light request signal)
+    if not brake_lights_detected:
+      try:
+        brake_data = cp.vl["BrakeSysFeatures_2"]
+        if brake_data is not None:
+          brake_light_status.dataAvailable = True
+          # BrkLamp_B_Rq indicates when brake lights should be on
+          brake_light_status.brakeLightsOn = brake_data["BrkLamp_B_Rq"] == 1
+          brake_lights_detected = True
+      except (KeyError, AttributeError):
+        pass  # BrakeSysFeatures_2 not available
+
+    # ACC brake light logic (applies to both sources)
+    if brake_lights_detected and self.CP.openpilotLongitudinalControl:
+      try:
+        acc_data = cp_cam.vl["ACCDATA"]  # ACCDATA is on camera bus
+        # Check if openpilot is actively requesting braking via ACC
+        acc_brake_active = (acc_data["AccBrkPrchg_B_Rq"] == 1 or
+                           acc_data["AccBrkDecel_B_Rq"] == 1)
+        brake_light_status.brakeLightsOn = (brake_light_status.brakeLightsOn or
+                                           acc_brake_active)
+      except (KeyError, AttributeError):
+        pass  # ACCDATA not available, use original brake light status
+
+    # Drive mode data from BrakeSysFeatures_2 message
     try:
       brake_data = cp.vl["BrakeSysFeatures_2"]
       if brake_data is not None:
-        brake_light_status.dataAvailable = True
-        # BrkLamp_B_Rq indicates when brake lights should be on
-        brake_light_status.brakeLightsOn = brake_data["BrkLamp_B_Rq"] == 1
-
-        # When openpilot long control is active, ABS may not set brake lights
-        # for ACC braking, so also check if we're commanding decel via ACC
-        if self.CP.openpilotLongitudinalControl:
-          try:
-            acc_data = cp_cam.vl["ACCDATA"]  # ACCDATA is on camera bus
-            # Check if openpilot is actively requesting braking via ACC
-            acc_brake_active = (acc_data["AccBrkPrchg_B_Rq"] == 1 or
-                               acc_data["AccBrkDecel_B_Rq"] == 1)
-            brake_light_status.brakeLightsOn = (brake_light_status.brakeLightsOn or
-                                               acc_brake_active)
-          except (KeyError, AttributeError):
-            pass  # ACCDATA not available, use original brake light status
-
         # Add drive mode data from BrakeSysFeatures_2 message
         if "SelDrvMdeChassis2_D_Rq" in brake_data:
           drive_mode_status.dataAvailable = True
@@ -438,7 +469,6 @@ class CarState(CarStateBase, MadsCarState):
           drive_mode_status.dataAvailable = True
           dat.carStateBP.awdDriveMode = brake_data["SelDrvMdeAwd_D_Rq"]
           drive_mode_status.currentAwdMode = brake_data["SelDrvMdeAwd_D_Rq"]
-
     except (KeyError, AttributeError):
       pass  # BrakeSysFeatures_2 not available
 
@@ -524,6 +554,7 @@ class CarState(CarStateBase, MadsCarState):
       ("VehicleOperatingModes", 100),
       ("BrakeSysFeatures", 50),
       ("BrakeSysFeatures_2", 50),
+      ("BCM_Lamp_Stat_FD1", 1),  # Added for brake light status - matches actual vehicle frequency
       ("Yaw_Data_FD1", 100),
       ("DesiredTorqBrk", 50),
       ("EngVehicleSpThrottle", 100),
@@ -584,7 +615,6 @@ class CarState(CarStateBase, MadsCarState):
     elif CP.transmissionType == TransmissionType.manual:
       pt_messages += [
         ("Engine_Clutch_Data", 33),
-        ("BCM_Lamp_Stat_FD1", 1),
       ]
 
     if CP.enableBsm and not (CP.flags & FordFlags.CANFD):
