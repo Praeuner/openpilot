@@ -5,6 +5,7 @@
         "Merged all of the latest upstream sunnypilot master-dev-c3-new changes",
         "New Onroad display controls: behavior (dim %) and timeout (seconds)",
         "Brake status indicator: Attempt to use brake light CAN signal when available.",
+        "Added a new parameter to disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
         "The BP Updater panel is now twice as fast because it disables powersave mode when updating allowing access to all 8 cores of the CPU."
       ],
       "fixes": ["General stability and bug fixes"],
