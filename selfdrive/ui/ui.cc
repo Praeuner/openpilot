@@ -280,6 +280,13 @@ static inline int onroadTimeoutIndexToSeconds(int idx) {
 }
 
 void Device::updateOnroadDisplayBehavior(const UIState &s) {
+  // Quick test to verify function is being called
+  static int call_count = 0;
+  if (call_count++ == 0) {
+    std::cout << "[Display Debug] updateOnroadDisplayBehavior IS being called!" << std::endl;
+    std::cout.flush();
+  }
+  
   // Read params
   Params params;
   int behavior = params.getInt("OnroadDisplayBehavior");
@@ -296,6 +303,7 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
     std::cout << "[Display Debug] Behavior:" << behavior << " Timeout:" << timeout_idx
               << " Started:" << (s.scene.started ? "YES" : "NO") << " Active:" << (onroad_display_active ? "YES" : "NO")
               << " LastBrightness:" << last_brightness << " OriginalBrightness:" << original_brightness << std::endl;
+    std::cout.flush();  // Force immediate output
   }
   debug_counter++;
 
