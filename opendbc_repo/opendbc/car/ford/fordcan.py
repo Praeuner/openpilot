@@ -387,3 +387,141 @@ def create_button_msg(packer, bus: int, stock_values: dict, cancel=False, resume
     "TjaButtnOnOffPress": 1 if tja_toggle else 0,   # LCA/TJA toggle button
   })
   return packer.make_can_msg("Steering_Data_FD1", bus, values)
+
+
+def create_drive_mode_msg(packer, CAN: CanBus, powertrain_mode: int, chassis_mode: int = 0, awd_mode: int = 0):
+  """
+  Creates a CAN message for Ford drive mode selection.
+
+  This message controls the vehicle's drive mode settings including powertrain,
+  chassis, and AWD modes.
+
+  Frequency: 10Hz when changing modes, 1Hz for status updates
+
+  Args:
+      packer: CAN packer instance
+      CAN: CAN bus instance
+      powertrain_mode: Powertrain drive mode (0=Normal, 1=Sport, 2=Economy, etc.)
+      chassis_mode: Chassis drive mode (0=Normal, 1=Normal Adaptive, etc.)
+      awd_mode: AWD drive mode (0=2WD, 1=4WD Auto, 2=4WD High, etc.)
+
+  Returns:
+      CAN message for drive mode selection
+  """
+  # Validate mode ranges
+  powertrain_mode = max(0, min(31, powertrain_mode))  # 5-bit value
+  chassis_mode = max(0, min(31, chassis_mode))        # 5-bit value
+  awd_mode = max(0, min(7, awd_mode))                # 3-bit value
+
+  values = {
+    "SelDrvMdePt_D_Rq": powertrain_mode,        # Powertrain drive mode request [0|31]
+    "SelDrvMdeChassis_D_Rq": chassis_mode,      # Chassis drive mode request [0|31]
+    "SelDrvMdeAwd_D_Rq": awd_mode,              # AWD drive mode request [0|7]
+    "SelDrvMde_D_Stat": 1,                      # Drive mode change selection [0|3]
+    "SelDrvMdeMsgTxt_D_Rq": 0,                  # Message text request [0|15]
+  }
+
+  return packer.make_can_msg("SelectDriveModeData", CAN.main, values)
+
+
+def create_drive_mode_chassis_msg(packer, CAN: CanBus, chassis_mode: int):
+  """
+  Creates a CAN message for Ford chassis drive mode selection.
+
+  This message is sent on the BrakeSysFeatures_3 message (ID 1054)
+  for vehicles that support separate chassis mode control.
+
+  Frequency: 10Hz when changing modes
+
+  Args:
+      packer: CAN packer instance
+      CAN: CAN bus instance
+      chassis_mode: Chassis drive mode (0=Normal, 1=Normal Adaptive, etc.)
+
+  Returns:
+      CAN message for chassis drive mode selection
+  """
+  # Validate mode range
+  chassis_mode = max(0, min(31, chassis_mode))  # 5-bit value
+
+  values = {
+    "SelDrvMdeChassis2_D_Rq": chassis_mode,     # Chassis drive mode request [0|31]
+  }
+
+  return packer.make_can_msg("BrakeSysFeatures_3", CAN.main, values)
+
+
+def create_drive_mode_awd_msg(packer, CAN: CanBus, awd_mode: int):
+  """
+  Creates a CAN message for Ford AWD drive mode selection.
+
+  This message is sent on the BrakeSysFeatures_3 message (ID 1054)
+  for vehicles that support separate AWD mode control.
+
+  Frequency: 10Hz when changing modes
+
+  Args:
+      packer: CAN packer instance
+      CAN: CAN bus instance
+      awd_mode: AWD drive mode (0=2WD, 1=4WD Auto, 2=4WD High, etc.)
+
+  Returns:
+      CAN message for AWD drive mode selection
+  """
+  # Validate mode range
+  awd_mode = max(0, min(7, awd_mode))  # 3-bit value
+
+  values = {
+    "SelDrvMdeAwd_D_Rq": awd_mode,              # AWD drive mode request [0|7]
+  }
+
+  return packer.make_can_msg("BrakeSysFeatures_3", CAN.main, values)
+
+
+def create_drive_mode_reset_msg(packer, CAN: CanBus):
+  """
+  Creates a CAN message to reset Ford drive mode display text.
+
+  This message clears any drive mode change messages displayed
+  on the instrument cluster.
+
+  Frequency: 1Hz when needed
+
+  Args:
+      packer: CAN packer instance
+      CAN: CAN bus instance
+
+  Returns:
+      CAN message for drive mode text reset
+  """
+  values = {
+    "SelDrvMdeTxtReset_B_Rq": 1,                # Reset drive mode text [0|1]
+  }
+
+  return packer.make_can_msg("SelectDriveModeData", CAN.main, values)
+
+
+def create_drive_mode_status_msg(packer, CAN: CanBus, status: int = 0):
+  """
+  Creates a CAN message for Ford drive mode status.
+
+  This message can be used to query or set the drive mode status.
+
+  Frequency: 1Hz for status updates
+
+  Args:
+      packer: CAN packer instance
+      CAN: CAN bus instance
+      status: Drive mode status (0=No change, 1=Selection, 2=Request, 3=Not used)
+
+  Returns:
+      CAN message for drive mode status
+  """
+  # Validate status range
+  status = max(0, min(3, status))  # 2-bit value
+
+  values = {
+    "SelDrvMde_D_Stat": status,                  # Drive mode status [0|3]
+  }
+
+  return packer.make_can_msg("SelectDriveModeData", CAN.main, values)

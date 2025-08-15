@@ -17,6 +17,7 @@ from common.pid import PIDController # PID control of lateral
 from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
 from opendbc.car.ford.helpers import compute_dm_msg_values
 from bluepilot.logger.bp_logger import debug, info, warning, error, critical
+import time
 
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -185,6 +186,21 @@ class CarController(CarControllerBase):
     self.path_angle_last = 0.0
     self.curvature_rate = 0  # initialize curvature_rate
 
+    # Drive mode control variables
+    self.default_drive_mode = 0  # Normal mode by default
+    self.target_drive_mode = 0   # Target drive mode to set
+    self.drive_mode_change_requested = False
+    self.drive_mode_change_counter = 0
+    self.last_drive_mode_change_time = 0
+
+    # Load default drive mode from params
+    try:
+      default_mode = self.params.get("FordDefaultDriveMode")
+      if default_mode:
+        self.default_drive_mode = int(default_mode)
+        self.target_drive_mode = self.default_drive_mode
+    except (ValueError, TypeError):
+      pass  # Use default value if param is invalid
 
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
@@ -218,6 +234,72 @@ class CarController(CarControllerBase):
     self.tja_warn = 0
     self.hands = 0
     self.predictedSteeringAngleDeg_SP = 0.0
+
+  def set_drive_mode(self, mode: int) -> bool:
+    """Set the target drive mode for the vehicle.
+
+    Args:
+        mode: Drive mode to set (0=Normal, 1=Sport, 2=Economy, 3=TowHaul, etc.)
+
+    Returns:
+        bool: True if mode change was requested, False otherwise
+    """
+    if mode != self.target_drive_mode:
+      self.target_drive_mode = mode
+      self.drive_mode_change_requested = True
+      self.drive_mode_change_counter = 0
+      self.last_drive_mode_change_time = time.time()
+      debug(f'Drive mode change requested: {mode}', True)
+      return True
+    return False
+
+  def get_available_drive_modes(self) -> list:
+    """Get list of available drive modes for the current vehicle.
+
+    Returns:
+        list: List of available drive mode indices
+    """
+    # This will be populated from car state data
+    return getattr(self, 'available_drive_modes', [0])
+
+  def get_current_drive_mode(self) -> int:
+    """Get the current drive mode of the vehicle.
+
+    Returns:
+        int: Current drive mode index
+    """
+    return getattr(self, 'current_drive_mode', 0)
+
+  def create_drive_mode_msg(self, mode: int):
+    """Create a CAN message to change the drive mode.
+
+    Args:
+        mode: Drive mode to set (0=Normal, 1=Sport, 2=Economy, 3=TowHaul, etc.)
+
+    Returns:
+        CAN message or None if message creation fails
+    """
+    try:
+      # Import fordcan functions for drive mode message creation
+      from opendbc.car.ford import fordcan
+
+      # Create drive mode change message using fordcan
+      # For now, we'll set the powertrain mode and keep chassis/AWD in default states
+      # This can be enhanced later to support separate chassis and AWD mode control
+      drive_mode_msg = fordcan.create_drive_mode_msg(
+        self.packer,
+        self.CAN,
+        powertrain_mode=mode,
+        chassis_mode=0,  # Default to Normal mode
+        awd_mode=0       # Default to 2WD mode
+      )
+
+      debug(f'Created drive mode message for mode {mode}', True)
+      return drive_mode_msg
+
+    except Exception as e:
+      error(f'Error creating drive mode message: {e}', True)
+      return None
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -766,6 +848,41 @@ class CarController(CarControllerBase):
     self.steer_alert_last = steer_alert
     self.fcw_alert_last = fcw_alert
     self.lead_distance_bars_last = hud_control.leadDistanceBars
+
+    ### drive mode control ###
+    # Handle drive mode changes at 10Hz
+    if (self.frame % 10) == 0:
+      # Update available drive modes from car state if available
+      if hasattr(CS, 'availableDriveModes'):
+        self.available_drive_modes = CS.availableDriveModes
+
+      # Update current drive mode from car state if available
+      if hasattr(CS, 'driveMode'):
+        self.current_drive_mode = CS.driveMode
+
+      # Check if we need to change drive mode
+      if self.drive_mode_change_requested and self.target_drive_mode != self.current_drive_mode:
+        # Increment counter for drive mode change
+        self.drive_mode_change_counter += 1
+
+        # Send drive mode change message
+        try:
+          # Create drive mode change message
+          drive_mode_msg = self.create_drive_mode_msg(self.target_drive_mode)
+          if drive_mode_msg:
+            can_sends.append(drive_mode_msg)
+            debug(f'Sent drive mode change to {self.target_drive_mode}', True)
+
+          # Reset request after sending
+          if self.drive_mode_change_counter >= 5:  # Send for 5 frames (0.5 seconds at 10Hz)
+            self.drive_mode_change_requested = False
+            self.drive_mode_change_counter = 0
+            debug(f'Drive mode change request completed for mode {self.target_drive_mode}', True)
+
+        except Exception as e:
+          error(f'Error sending drive mode change: {e}', True)
+          self.drive_mode_change_requested = False
+          self.drive_mode_change_counter = 0
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)
