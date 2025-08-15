@@ -186,6 +186,7 @@ class CarController(CarControllerBase):
     self.curvature_rate = 0  # initialize curvature_rate
 
 
+
     # Logging variables
     debug(f'Car Fingerprint (CarController): {CP.carFingerprint}', True)
 
@@ -218,6 +219,8 @@ class CarController(CarControllerBase):
     self.tja_warn = 0
     self.hands = 0
     self.predictedSteeringAngleDeg_SP = 0.0
+
+
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -766,6 +769,8 @@ class CarController(CarControllerBase):
     self.steer_alert_last = steer_alert
     self.fcw_alert_last = fcw_alert
     self.lead_distance_bars_last = hud_control.leadDistanceBars
+
+
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)
