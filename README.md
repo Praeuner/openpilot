@@ -25,7 +25,7 @@ As of May 2025, we are updating the way branches are named and how links are gen
 
 To install any version of bleupilot, use the following URL formula (URL is case sensitive)
 
-installer.coma.ai/BluePilotDev/"branch name"  
+installer.comma.ai/BluePilotDev/"branch name"  
 
 For example
 
