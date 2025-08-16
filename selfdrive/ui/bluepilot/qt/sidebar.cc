@@ -819,13 +819,12 @@ void SidebarBP::drawSidebar(QPainter &p) {
   const int rightMargin = 25;
   const int buttonX = width() - buttonSize - rightMargin;
 
-  // Create horizontal gradient background that transitions after the cards
+  // Create horizontal gradient background that maintains dark color throughout
   // Draw horizontal gradient from cards area to button area
   QLinearGradient sidebarGradient(0, 0, width(), 0);
   sidebarGradient.setColorAt(0, background_color); // Original sidebar color for cards area
   sidebarGradient.setColorAt(0.7, background_color); // Keep original color until 70% of width
-  sidebarGradient.setColorAt(0.8, QColor(70, 70, 80, 100)); // Start transition to subtle dark blue-grey
-  sidebarGradient.setColorAt(1.0, QColor(80, 85, 95, 140)); // Subtle dark blue-grey for button area
+  sidebarGradient.setColorAt(1.0, background_color); // Keep same dark color all the way to the edge
 
   // Apply gradient to the right side of the sidebar (where buttons are)
   // Start gradient transition after the cards end
