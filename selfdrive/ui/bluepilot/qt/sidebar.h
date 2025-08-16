@@ -16,6 +16,7 @@ class SidebarBP : public Sidebar {
   Q_PROPERTY(QString memoryUsage MEMBER memory_usage NOTIFY valueChanged);
   Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
   Q_PROPERTY(bool recordingAudio MEMBER recording_audio NOTIFY valueChanged);
+  Q_PROPERTY(int gpsSatelliteCount MEMBER gps_satellite_count NOTIFY valueChanged);
 
 public:
   explicit SidebarBP(QWidget *parent = 0);
@@ -31,7 +32,9 @@ protected:
   void enterEvent(QEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void drawSidebar(QPainter &p) override;
+  void drawNetworkCard(QPainter &p); // New method for custom network card
   void drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
+  void buildMetricCard(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor color, int cardIndex, bool compactMode);
   void drawProgressBar(QPainter &p, int x, int y, int width, int height, float percentage, QColor color);
 
 public slots:
@@ -66,6 +69,7 @@ private:
   QString memory_usage = "0%";
   QString fan_demand = "0%";
   bool show_fan_instead_memory = false;
+  int gps_satellite_count = 0;
 
   // Hover animation
   bool is_hovering = false;
@@ -79,6 +83,7 @@ private:
   // Network data
   QString net_type;
   int net_strength = 0;
+  QString net_carrier_ssid; // Store carrier name or WiFi SSID
   Networking *local_networking = nullptr;
 
   const QMap<cereal::DeviceState::NetworkType, QString> network_type = {

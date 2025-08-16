@@ -286,7 +286,7 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
     std::cout << "[Display Debug] updateOnroadDisplayBehavior IS being called!" << std::endl;
     std::cout.flush();
   }
-  
+
   // Read params
   Params params;
   int behavior = params.getInt("OnroadDisplayBehavior");
