@@ -1,5 +1,7 @@
 #include "selfdrive/ui/bluepilot/qt/home.h"
 
+#include <iostream>
+
 HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
   // Replace stock sidebar with BluePilot sidebar
   delete sidebar;
@@ -22,13 +24,19 @@ HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
 }
 
 void HomeWindowBP::showDebugPanel() {
+  std::cout << "HomeWindowBP: showDebugPanel called, debug panel visible:" << (debug_panel ? debug_panel->isVisible() : false) << std::endl;
+
   if (!debug_panel->isVisible()) {
+    std::cout << "HomeWindowBP: Setting debug panel height to:" << height() << std::endl;
     debug_panel->setFixedHeight(height());
-    debug_panel->setFixedWidth(width() * 0.8);
+    // Width is now calculated dynamically by the debug panel
   }
 
   debug_panel->toggleVisibility();
   debug_panel->raise();
+  debug_panel->activateWindow();
+
+  std::cout << "HomeWindowBP: Debug panel toggled, new visibility:" << debug_panel->isVisible() << std::endl;
 }
 
 void HomeWindowBP::updateState(const UIState &s) {
@@ -36,6 +44,36 @@ void HomeWindowBP::updateState(const UIState &s) {
 
   if (debug_panel && debug_panel->isVisible()) {
     debug_panel->updateState(s);
+    // Keep debug panel on top during state updates
+    debug_panel->raise();
+  }
+}
+
+void HomeWindowBP::resizeEvent(QResizeEvent *event) {
+  std::cout << "HomeWindowBP: resizeEvent - new size:" << event->size().width() << "x" << event->size().height() << std::endl;
+
+  // Call parent implementation first
+  HomeWindow::resizeEvent(event);
+
+  // Update debug panel size if it exists and is visible
+  if (debug_panel && debug_panel->isVisible()) {
+    std::cout << "HomeWindowBP: Updating debug panel for resize event" << std::endl;
+    debug_panel->setFixedHeight(height());
+    // The debug panel will recalculate its width in its own resizeEvent
+  } else {
+    std::cout << "HomeWindowBP: Debug panel not visible, skipping resize update" << std::endl;
+  }
+}
+
+
+void HomeWindowBP::forceDebugPanelRefresh() {
+  std::cout << "HomeWindowBP: forceDebugPanelRefresh called" << std::endl;
+
+  if (debug_panel && debug_panel->isVisible()) {
+    std::cout << "HomeWindowBP: Forcing debug panel refresh" << std::endl;
+    debug_panel->forceRefresh();
+  } else {
+    std::cout << "HomeWindowBP: Debug panel not visible, cannot force refresh" << std::endl;
   }
 }
 

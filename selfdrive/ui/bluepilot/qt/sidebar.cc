@@ -834,7 +834,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
   p.drawRect(gradientStartX, 0, width() - gradientStartX, height());
 
   // Start from bottom and stack upwards
-  int currentButtonY = height() - buttonSize - 30; // Bottom button
+  int currentButtonY = height() - buttonSize - 30; // Bottom button position
 
   // Settings button (bottom)
   bp_settings_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
@@ -855,27 +855,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // Move up for next button
   currentButtonY -= (buttonSize + buttonSpacing);
 
-  // Debug button (above settings, only onroad)
-  if (onroad) {
-    bp_debug_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
-
-    p.setPen(QPen(QColor(255, 255, 255, 80), 2));
-    p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
-    p.drawEllipse(bp_debug_btn);
-
-    // Draw debug icon (scaled and centered for larger button)
-    float debug_scale = 0.65; // Adjusted for 100px button
-    p.setOpacity(debug_pressed ? 0.65 : 1.0);
-    p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * debug_scale) / 2,
-                 bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * debug_scale) / 2,
-                 debug_img.scaled(debug_img.width() * debug_scale, debug_img.height() * debug_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    p.setOpacity(1.0);
-
-    // Move up for next button
-    currentButtonY -= (buttonSize + buttonSpacing);
-  }
-
-  // Home/Flag button (top, only when onroad)
+  // Home/Flag button (middle, only when onroad)
   if (onroad) {
     bp_home_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
 
@@ -890,6 +870,26 @@ void SidebarBP::drawSidebar(QPainter &p) {
     p.drawPixmap(bp_home_btn.x() + (bp_home_btn.width() - flag_img.width() * flag_scale) / 2,
                  bp_home_btn.y() + (bp_home_btn.height() - flag_img.height() * flag_scale) / 2,
                  flag_img.scaled(flag_img.width() * flag_scale, flag_img.height() * flag_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    p.setOpacity(1.0);
+    
+    // Move up for next button
+    currentButtonY -= (buttonSize + buttonSpacing);
+  }
+
+  // Debug button (top of the group, only onroad)
+  if (onroad) {
+    bp_debug_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+
+    p.setPen(QPen(QColor(255, 255, 255, 80), 2));
+    p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
+    p.drawEllipse(bp_debug_btn);
+
+    // Draw debug icon (scaled and centered for larger button)
+    float debug_scale = 0.65; // Adjusted for 100px button
+    p.setOpacity(debug_pressed ? 0.65 : 1.0);
+    p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * debug_scale) / 2,
+                 bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * debug_scale) / 2,
+                 debug_img.scaled(debug_img.width() * debug_scale, debug_img.height() * debug_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     p.setOpacity(1.0);
   }
 }

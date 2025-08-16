@@ -2,6 +2,8 @@
 #include "selfdrive/ui/bluepilot/qt/onroad/lateral_debug_panel.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/long_debug_panel.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/other_debug_panel.h"
+#include "selfdrive/ui/bluepilot/qt/sidebar.h"
+#include "selfdrive/ui/qt/sidebar.h"
 
 #include <QVBoxLayout>
 #include <QLinearGradient>
@@ -58,14 +60,17 @@ ControlNavButton::ControlNavButton(const QIcon &icon, QWidget *parent) : QPushBu
 
 void ControlNavButton::setSelected(bool selected) { setChecked(selected); }
 
-OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(parent), m_updatePending(false) {
-  // Register pointer type for cross-thread signal/slot usage
+OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(parent) {
+  std::cout << "DebugPanel: Constructor called with parent:" << (parent ? "valid" : "null") << std::endl;
+
   qRegisterMetaType<const UIState *>("const UIState*");
 
-  // Initialize panel dimensions
-  m_panelWidth = parent->width() * PANEL_RATIO;
+  // Initialize panel dimensions dynamically
+  m_panelWidth = calculatePanelWidth();
   setFixedWidth(m_panelWidth);
   setFixedHeight(parent->height());
+
+  std::cout << "DebugPanel: Initial dimensions set to:" << m_panelWidth << "x" << parent->height() << std::endl;
 
   // Set window flags for proper docking
   setWindowFlags(Qt::FramelessWindowHint);
@@ -78,9 +83,14 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   // Position panel at the right edge
   move(parent->width() - m_panelWidth, 0);
 
+  std::cout << "DebugPanel: Initial position set to:" << (parent->width() - m_panelWidth) << ",0" << std::endl;
+
+  // Note: Parent resize events are handled via resizeEvent override
+  std::cout << "DebugPanel: Parent resize handling via resizeEvent override" << std::endl;
+
   // Create main horizontal layout with no margins
   QHBoxLayout *mainLayout = new QHBoxLayout(this);
-  mainLayout->setContentsMargins(0, 0, 160, 0); // Only reserve space for nav buttons
+  mainLayout->setContentsMargins(0, 0, NAV_BUTTONS_WIDTH, 0); // Reserve space for nav buttons
   mainLayout->setSpacing(0);
 
   // Create content area for the panels
@@ -124,7 +134,7 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   connect(m_animation, &QPropertyAnimation::finished, [this]() {
     if (m_visible) {
       // Double-check visibility and position at end of animation
-      qDebug() << "Animation finished - panel should be visible at:" << x() << "," << y();
+      std::cout << "Animation finished - panel should be visible at:" << x() << "," << y() << std::endl;
       raise(); // Make extra sure we're on top
     } else {
       // If animation finished but we're not visible, actually hide the widget
@@ -139,10 +149,29 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   connect(m_updateTimer, &QTimer::timeout, this, &OnroadControlsDebugPanel::updatePanels);
   m_updateTimer->start();
 
+  // Initialize size check timer
+  QTimer *sizeCheckTimer = new QTimer(this);
+  sizeCheckTimer->setInterval(500); // Check every 500ms for better responsiveness
+  sizeCheckTimer->setSingleShot(false);
+  connect(sizeCheckTimer, &QTimer::timeout, [this]() {
+    if (m_visible && needsSizeUpdate()) {
+      std::cout << "DebugPanel: Size check timer detected size mismatch, forcing refresh" << std::endl;
+      forceRefresh();
+    }
+    // Ensure panel stays on top when visible
+    if (m_visible) {
+      raise();
+    }
+  });
+  sizeCheckTimer->start();
+
   // Gesture recognition
   grabGesture(Qt::SwipeGesture);
   setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
+  // Set window flags to stay on top
+  setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
+  
   // Ensure we're on top
   raise();
 
@@ -162,6 +191,8 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   // Initialize as hidden but don't actually toggle animation
   hide();
   m_visible = false;
+
+  std::cout << "DebugPanel: Constructor completed, panel hidden" << std::endl;
 }
 
 OnroadControlsDebugPanel::~OnroadControlsDebugPanel() { delete m_updateTimer; }
@@ -200,7 +231,7 @@ void OnroadControlsDebugPanel::setupTabs() {
 
   // Create a container widget for the nav buttons
   QWidget *navContainer = new QWidget(this);
-  navContainer->setFixedWidth(160);
+  navContainer->setFixedWidth(NAV_BUTTONS_WIDTH);
   navContainer->setStyleSheet("background: transparent;");
 
   // Layout for buttons
@@ -257,6 +288,10 @@ void OnroadControlsDebugPanel::tabSelected(int index) {
     if (m_closeButton) {
       m_closeButton->raise();
     }
+    
+    // Ensure entire panel stays on top
+    raise();
+    activateWindow();
   }
 
   // Update button states
@@ -295,6 +330,9 @@ void OnroadControlsDebugPanel::updatePanels() {
         m_otherPanel->updateState(*m_lastState);
         break;
       }
+      
+      // Keep panel on top during updates
+      raise();
     }
 
     m_updatePending.store(false);
@@ -326,21 +364,90 @@ bool OnroadControlsDebugPanel::gestureEvent(QGestureEvent *event) {
   return false;
 }
 
+int OnroadControlsDebugPanel::calculatePanelWidth() const {
+  if (!parentWidget()) {
+    std::cout << "DebugPanel: No parent widget, using default width 800" << std::endl;
+    return 800; // Default fallback width if no parent
+  }
+
+  int parentWidth = parentWidget()->width();
+  if (parentWidth <= 0) {
+    std::cout << "DebugPanel: Invalid parent width:" << parentWidth << "using default 800" << std::endl;
+    return 800; // Invalid width, use default
+  }
+
+  std::cout << "DebugPanel: Parent width:" << parentWidth << std::endl;
+
+  // Check if sidebar is visible by looking for it in the parent's children
+  bool sidebarVisible = false;
+  int actualSidebarWidth = SIDEBAR_WIDTH; // Default to our constant
+  
+  QList<QWidget*> children = parentWidget()->findChildren<QWidget*>();
+  for (QWidget* child : children) {
+    if (qobject_cast<SidebarBP*>(child) || qobject_cast<Sidebar*>(child)) {
+      sidebarVisible = child->isVisible();
+      // Get the actual sidebar width dynamically
+      if (sidebarVisible) {
+        actualSidebarWidth = child->width();
+      }
+      std::cout << "DebugPanel: Found sidebar, visible:" << sidebarVisible 
+                << " width:" << actualSidebarWidth << std::endl;
+      break;
+    }
+  }
+
+  // Calculate available width - fill entire space minus sidebar when visible
+  int availableWidth;
+  if (sidebarVisible) {
+    // Fill the entire space from sidebar to right edge
+    availableWidth = parentWidth - actualSidebarWidth;
+    std::cout << "DebugPanel: Sidebar visible, filling available width:" << availableWidth 
+              << " (parent:" << parentWidth << " - sidebar:" << actualSidebarWidth << ")" << std::endl;
+  } else {
+    // Fill the entire width when sidebar is hidden
+    availableWidth = parentWidth;
+    std::cout << "DebugPanel: Sidebar hidden, filling full width:" << availableWidth << std::endl;
+  }
+
+  // Ensure we have a reasonable minimum width for usability
+  int minWidth = NAV_BUTTONS_WIDTH + 300; // 160px for nav + 300px minimum for content
+  
+  // No maximum width constraint - fill all available space
+  // Only apply minimum width constraint
+  if (availableWidth < minWidth) {
+    std::cout << "DebugPanel: Available width " << availableWidth 
+              << " is less than minimum " << minWidth << ", using minimum" << std::endl;
+    availableWidth = minWidth;
+  }
+
+  std::cout << "DebugPanel: Final calculated width:" << availableWidth 
+            << " (min:" << minWidth << ")" << std::endl;
+
+  return availableWidth;
+}
+
 void OnroadControlsDebugPanel::updatePosition() {
   if (parentWidget()) {
     int parentWidth = parentWidget()->width();
     int parentHeight = parentWidget()->height();
 
-    // Ensure panel has correct dimensions
-    m_panelWidth = parentWidth * PANEL_RATIO;
+    std::cout << "DebugPanel: updatePosition called - parent size:" << parentWidth << "x" << parentHeight << std::endl;
+
+    // Calculate panel width dynamically
+    m_panelWidth = calculatePanelWidth();
     setFixedWidth(m_panelWidth);
     setFixedHeight(parentHeight);
 
+    std::cout << "DebugPanel: Panel size set to:" << m_panelWidth << "x" << parentHeight << std::endl;
+
     // Position panel based on visibility
     if (m_visible) {
-      move(parentWidth - m_panelWidth, 0);
+      int xPos = parentWidth - m_panelWidth;
+      move(xPos, 0);
+      std::cout << "DebugPanel: Panel visible, positioned at x:" << xPos << std::endl;
     } else {
       move(parentWidth, 0);
+      std::cout << "DebugPanel: Panel hidden, positioned off-screen at x:" << parentWidth << std::endl;
     }
 
     // Reposition nav container if it exists
@@ -349,31 +456,96 @@ void OnroadControlsDebugPanel::updatePosition() {
       if (navContainer) {
         navContainer->move(width() - navContainer->width(), 0);
         navContainer->setFixedHeight(height());
+        std::cout << "DebugPanel: Nav container repositioned" << std::endl;
       }
     }
 
     // Reposition close button
     if (m_closeButton) {
       m_closeButton->move(20, 20);
+      std::cout << "DebugPanel: Close button repositioned" << std::endl;
     }
+  } else {
+    std::cout << "DebugPanel: updatePosition called but no parent widget" << std::endl;
   }
 }
 
+void OnroadControlsDebugPanel::handleParentResize() {
+  std::cout << "DebugPanel: handleParentResize called" << std::endl;
+
+  // Force recalculation of dimensions and position
+  if (parentWidget()) {
+    updatePosition();
+    std::cout << "DebugPanel: handleParentResize completed successfully" << std::endl;
+  } else {
+    std::cout << "DebugPanel: handleParentResize called but no parent widget" << std::endl;
+  }
+}
+
+void OnroadControlsDebugPanel::forceRefresh() {
+  std::cout << "DebugPanel: forceRefresh called" << std::endl;
+
+  // Force complete recalculation and update
+  if (parentWidget()) {
+    // Recalculate width based on current sidebar state
+    m_panelWidth = calculatePanelWidth();
+    setFixedWidth(m_panelWidth);
+    setFixedHeight(parentWidget()->height());
+
+    std::cout << "DebugPanel: forceRefresh - new size:" << m_panelWidth << "x" << parentWidget()->height() << std::endl;
+
+    // Update position
+    updatePosition();
+
+    // Force a repaint
+    update();
+
+    std::cout << "DebugPanel: forceRefresh completed" << std::endl;
+  } else {
+    std::cout << "DebugPanel: forceRefresh called but no parent widget" << std::endl;
+  }
+}
+
+bool OnroadControlsDebugPanel::needsSizeUpdate() const {
+  if (!parentWidget()) {
+    return false;
+  }
+
+  int calculatedWidth = calculatePanelWidth();
+  bool needsUpdate = (calculatedWidth != m_panelWidth) || (height() != parentWidget()->height());
+
+  std::cout << "DebugPanel: needsSizeUpdate check - current:" << m_panelWidth << "x" << height()
+           << "calculated:" << calculatedWidth << "x" << parentWidget()->height()
+           << "needs update:" << needsUpdate << std::endl;
+
+  return needsUpdate;
+}
+
 void OnroadControlsDebugPanel::resizeEvent(QResizeEvent *event) {
+  std::cout << "DebugPanel: resizeEvent called with new size:" << event->size().width() << "x" << event->size().height() << std::endl;
+
   updatePosition();
   QWidget::resizeEvent(event);
+
+  std::cout << "DebugPanel: resizeEvent completed" << std::endl;
 }
 
 void OnroadControlsDebugPanel::toggleVisibility() {
+  std::cout << "DebugPanel: toggleVisibility called, current visibility:" << m_visible << std::endl;
+
   m_visible = !m_visible;
   m_animation->stop();
 
+  std::cout << "DebugPanel: New visibility:" << m_visible << std::endl;
+
   // Make sure we're properly sized before animating
   if (parentWidget()) {
-    // Force recalculation of dimensions
-    m_panelWidth = parentWidget()->width() * PANEL_RATIO;
+    // Force recalculation of dimensions using dynamic sizing
+    m_panelWidth = calculatePanelWidth();
     setFixedWidth(m_panelWidth);
     setFixedHeight(parentWidget()->height());
+
+    std::cout << "DebugPanel: toggleVisibility - panel sized to:" << m_panelWidth << "x" << parentWidget()->height() << std::endl;
   }
 
   // Get the current parent width (after ensuring dimensions are correct)
@@ -389,6 +561,7 @@ void OnroadControlsDebugPanel::toggleVisibility() {
     // Show the widget before animation starts
     show();
     raise();
+    activateWindow();
 
     // Show the relevant panel
     tabSelected(m_currentTabIndex);
@@ -407,6 +580,8 @@ void OnroadControlsDebugPanel::toggleVisibility() {
   // Make sure we're at the start position before animating
   move(startPos);
 
+  std::cout << "DebugPanel: Animation positions - start:" << startPos.x() << "," << startPos.y() << " end:" << endPos.x() << "," << endPos.y() << std::endl;
+
   // Clear any existing animation properties and reset
   m_animation->setTargetObject(this);
   m_animation->setPropertyName("pos");
@@ -414,6 +589,8 @@ void OnroadControlsDebugPanel::toggleVisibility() {
   m_animation->setStartValue(startPos);
   m_animation->setEndValue(endPos);
   m_animation->start();
+
+  std::cout << "DebugPanel: Animation started" << std::endl;
 }
 
 void OnroadControlsDebugPanel::drawBackground(QPainter &p) {
@@ -425,7 +602,7 @@ void OnroadControlsDebugPanel::drawBackground(QPainter &p) {
   p.fillPath(mainPath, m_mainGradient);
 
   // Draw nav panel background with same style
-  QRect navRect(width() - 160, 0, 160, height());
+  QRect navRect(width() - NAV_BUTTONS_WIDTH, 0, NAV_BUTTONS_WIDTH, height());
   QPainterPath navPath;
   navPath.addRoundedRect(navRect, 15, 15);
 
