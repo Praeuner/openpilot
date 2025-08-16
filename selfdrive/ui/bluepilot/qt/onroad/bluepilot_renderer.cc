@@ -685,19 +685,42 @@ void BluepilotRenderer::renderStandstillTimer(QPainter &painter, const QRect &re
     QString labelText = "STOP";
     QString timeText = QString("%1:%2").arg(minute).arg(second, 2, 10, QChar('0'));
 
+    // Calculate required text widths for dynamic background sizing
+    painter.setFont(InterFont(80, QFont::DemiBold));
+    int labelWidth = painter.fontMetrics().boundingRect(labelText).width();
+
+    painter.setFont(InterFont(95, QFont::DemiBold));
+    int timeWidth = painter.fontMetrics().boundingRect(timeText).width();
+
+    // Use the wider text for background sizing, add horizontal padding
+    int textWidth = std::max(labelWidth, timeWidth);
+    int horizontalPadding = 40; // 20px padding on each side
+    int backgroundWidth = textWidth + horizontalPadding;
+    int backgroundHeight = 180;
+
+    // Ensure minimum background width for visual consistency
+    int minBackgroundWidth = 240;
+    if (backgroundWidth < minBackgroundWidth) {
+      backgroundWidth = minBackgroundWidth;
+    }
+
     int x = rect.right() - 200;
     int y = rect.center().y() - 45;
 
-    QRect backgroundRect(x - 120, y - 70, 240, 180);
+    // Center the background rectangle around the timer position
+    QRect backgroundRect(x - backgroundWidth/2, y - 70, backgroundWidth, backgroundHeight);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(0, 0, 0, 120));
     painter.drawRoundedRect(backgroundRect, 15, 15);
 
+    // Calculate center of background rectangle for proper text centering
+    int centerX = backgroundRect.center().x();
+
     painter.setFont(InterFont(80, QFont::DemiBold));
-    drawColoredText(painter, x, y, labelText, QColor(255, 175, 3, 240));
+    drawColoredText(painter, centerX, y, labelText, QColor(255, 175, 3, 240));
 
     painter.setFont(InterFont(95, QFont::DemiBold));
-    drawColoredText(painter, x, y + 90, timeText, QColor(255, 255, 255, 240));
+    drawColoredText(painter, centerX, y + 90, timeText, QColor(255, 255, 255, 240));
   }
 
   frame_state.prev_standstill = frame_state.standstill;
