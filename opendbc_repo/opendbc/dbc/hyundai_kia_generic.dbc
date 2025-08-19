@@ -70,17 +70,6 @@ BO_ 1017 ECS12: 4 ECS
  SG_ Height_RL : 16|8@1+ (1.0,-128.0) [-128.0|127.0] "mm"  AFLS
  SG_ Height_RR : 24|8@1+ (1.0,-128.0) [-128.0|127.0] "mm"  AFLS
 
-BO_ 1096 STEERING_WHEEL_MEDIA_BUTTONS: 8 XXX
- SG_ VOICE_BUTTON : 16|1@0+ (1,0) [0|1] "" XXX
- SG_ PHONE_BUTTON : 18|1@0+ (1,0) [0|1] "" XXX
- SG_ MODE_BUTTON : 22|1@0+ (1,0) [0|1] "" XXX
- SG_ RIGHT_SCROLL_PRESS : 24|1@0+ (1,0) [0|1] "" XXX
- SG_ NEXT_BUTTON : 26|1@0+ (1,0) [0|1] "" XXX
- SG_ PREVIOUS_BUTTON : 28|1@0+ (1,0) [0|1] "" XXX
- SG_ MENU_BUTTON : 34|1@0+ (1,0) [0|1] "" XXX
- SG_ LEFT_SCROLL_PRESS : 38|1@0+ (1,0) [0|1] "" XXX
- SG_ CUSTOM_BUTTON : 44|1@0+ (1,0) [0|1] "" XXX
-
 BO_ 1268 SPAS12: 8 SPAS
  SG_ CF_Spas_HMI_Stat : 0|8@1+ (1.0,0.0) [0.0|255.0] ""  CLU
  SG_ CF_Spas_Disp : 8|2@1+ (1.0,0.0) [0.0|3.0] ""  CLU,EMS
@@ -1511,6 +1500,7 @@ BO_ 913 BCM_PO_11: 8 Vector__XXX
 
 BO_ 1426 LABEL11: 8 XXX
  SG_ CC_React : 34|1@1+ (1,0) [0|1] "" XXX
+ SG_ CC_ACT : 35|1@1+ (1,0) [0|1] "" XXX
 
 BO_ 910 WHL_SPD12_FS: 5 iBAU
  SG_ CRC : 0|8@1+ (1,0) [0|0] "" Vector__XXX
@@ -1546,6 +1536,10 @@ BO_ 881 E_EMS11: 8 XXX
 
 BO_ 1355 EV_PC6: 8 CGW
  SG_ CF_Vcu_SbwWarnMsg : 16|3@1+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1429 E_CRUISE_CONTROL: 8 XXX
+ SG_ CRUISE_LAMP_M : 50|1@0+ (1,0) [0|1] "" XXX
+ SG_ CRUISE_LAMP_S : 51|1@0+ (1,0) [0|1] "" XXX
 
 BO_ 1430 EV_PC2: 8 CGW
  SG_ CR_Ldc_ActVol_LS_V : 32|8@1+ (0.1,0) [0|0] "V" Vector__XXX

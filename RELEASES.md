@@ -12,7 +12,6 @@ Version 0.10.0 (2025-08-05)
 
 * Enable live-learned steering actuation delay
 * Record driving feedback using LKAS button when MADS is disabled
-* Allow Bookmark/Record driving feedback using Custom ☆ button for Hyundai/Kia/Genesis vehicles
 * Opt-in audio recording for dashcam video
 
 Version 0.9.9 (2025-05-23)
