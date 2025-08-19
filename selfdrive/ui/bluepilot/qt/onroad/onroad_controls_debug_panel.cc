@@ -171,7 +171,7 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
 
   // Set window flags to stay on top
   setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
-  
+
   // Ensure we're on top
   raise();
 
@@ -288,7 +288,7 @@ void OnroadControlsDebugPanel::tabSelected(int index) {
     if (m_closeButton) {
       m_closeButton->raise();
     }
-    
+
     // Ensure entire panel stays on top
     raise();
     activateWindow();
@@ -330,7 +330,7 @@ void OnroadControlsDebugPanel::updatePanels() {
         m_otherPanel->updateState(*m_lastState);
         break;
       }
-      
+
       // Keep panel on top during updates
       raise();
     }
@@ -381,7 +381,7 @@ int OnroadControlsDebugPanel::calculatePanelWidth() const {
   // Check if sidebar is visible by looking for it in the parent's children
   bool sidebarVisible = false;
   int actualSidebarWidth = SIDEBAR_WIDTH; // Default to our constant
-  
+
   QList<QWidget*> children = parentWidget()->findChildren<QWidget*>();
   for (QWidget* child : children) {
     if (qobject_cast<SidebarBP*>(child) || qobject_cast<Sidebar*>(child)) {
@@ -390,7 +390,7 @@ int OnroadControlsDebugPanel::calculatePanelWidth() const {
       if (sidebarVisible) {
         actualSidebarWidth = child->width();
       }
-      std::cout << "DebugPanel: Found sidebar, visible:" << sidebarVisible 
+      std::cout << "DebugPanel: Found sidebar, visible:" << sidebarVisible
                 << " width:" << actualSidebarWidth << std::endl;
       break;
     }
@@ -401,7 +401,7 @@ int OnroadControlsDebugPanel::calculatePanelWidth() const {
   if (sidebarVisible) {
     // Fill the entire space from sidebar to right edge
     availableWidth = parentWidth - actualSidebarWidth;
-    std::cout << "DebugPanel: Sidebar visible, filling available width:" << availableWidth 
+    std::cout << "DebugPanel: Sidebar visible, filling available width:" << availableWidth
               << " (parent:" << parentWidth << " - sidebar:" << actualSidebarWidth << ")" << std::endl;
   } else {
     // Fill the entire width when sidebar is hidden
@@ -411,16 +411,16 @@ int OnroadControlsDebugPanel::calculatePanelWidth() const {
 
   // Ensure we have a reasonable minimum width for usability
   int minWidth = NAV_BUTTONS_WIDTH + 300; // 160px for nav + 300px minimum for content
-  
+
   // No maximum width constraint - fill all available space
   // Only apply minimum width constraint
   if (availableWidth < minWidth) {
-    std::cout << "DebugPanel: Available width " << availableWidth 
+    std::cout << "DebugPanel: Available width " << availableWidth
               << " is less than minimum " << minWidth << ", using minimum" << std::endl;
     availableWidth = minWidth;
   }
 
-  std::cout << "DebugPanel: Final calculated width:" << availableWidth 
+  std::cout << "DebugPanel: Final calculated width:" << availableWidth
             << " (min:" << minWidth << ")" << std::endl;
 
   return availableWidth;
@@ -596,7 +596,7 @@ void OnroadControlsDebugPanel::toggleVisibility() {
 void OnroadControlsDebugPanel::drawBackground(QPainter &p) {
   // Draw main panel background
   QPainterPath mainPath;
-  mainPath.addRoundedRect(rect(), 15, 15);
+  mainPath.addRect(rect());
 
   // Use cached gradients
   p.fillPath(mainPath, m_mainGradient);
@@ -604,7 +604,7 @@ void OnroadControlsDebugPanel::drawBackground(QPainter &p) {
   // Draw nav panel background with same style
   QRect navRect(width() - NAV_BUTTONS_WIDTH, 0, NAV_BUTTONS_WIDTH, height());
   QPainterPath navPath;
-  navPath.addRoundedRect(navRect, 15, 15);
+  navPath.addRect(navRect);
 
   p.fillPath(navPath, m_navGradient);
 

@@ -1,4 +1,5 @@
 #include "LongControlGraphWidget.h"
+#include "selfdrive/ui/qt/util.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QLinearGradient>
@@ -22,11 +23,22 @@ void ControlGraphWidget::paintEvent(QPaintEvent *event) {
   p.setRenderHint(QPainter::SmoothPixmapTransform, true);
   p.setRenderHint(QPainter::TextAntialiasing, true);
 
-  // Draw container background with rounded border - matching lateral widget
+  // Draw container background with automotive styling
   QPainterPath path;
-  path.addRoundedRect(rect().adjusted(10, 10, -10, -10), 10, 10);
-  p.fillPath(path, QColor(50, 50, 50, 200));
-  p.setPen(QPen(QColor(150, 150, 150, 150), 2));
+  path.addRoundedRect(rect().adjusted(10, 10, -10, -10), 15, 15);
+  
+  // Metallic gradient background
+  QLinearGradient containerGradient(rect().topLeft(), rect().bottomLeft());
+  containerGradient.setColorAt(0, QColor(44, 62, 80, 220));  // Metallic blue-gray
+  containerGradient.setColorAt(0.5, QColor(32, 33, 35, 220)); // Dark center
+  containerGradient.setColorAt(1, QColor(26, 37, 47, 220));   // Dark edge
+  p.fillPath(path, containerGradient);
+  
+  // Automotive-style border for control signals
+  QLinearGradient borderGradient(rect().topLeft(), rect().bottomLeft());
+  borderGradient.setColorAt(0, QColor(46, 204, 113, 150));  // Green for gas
+  borderGradient.setColorAt(1, QColor(231, 76, 60, 150));   // Red for brake
+  p.setPen(QPen(QBrush(borderGradient), 2));
   p.drawPath(path);
 
   // Layout calculations - matching lateral widget with reduced spacing
@@ -46,19 +58,25 @@ void ControlGraphWidget::paintEvent(QPaintEvent *event) {
   int time_labels_y = graph_y + graph_h + 15;       // Reduced from 20 to 15
   int legend_y = time_labels_y + time_labels_h + 5; // Reduced from 10 to 5
 
-  // Heading
-  p.setFont(QFont("Arial", 34, QFont::Bold)); // Increased to match panel title
-  p.setPen(Qt::white);
+  // Heading with automotive styling
+  p.setFont(InterFont(34, QFont::Bold));
+  p.setPen(QColor(236, 240, 241, 230));
   p.drawText(graph_x, 30, "Control Signals");
 
-  // Graph background
+  // Graph background with automotive inset effect
   QLinearGradient graphBg(0, graph_y, 0, graph_y + graph_h);
-  graphBg.setColorAt(0, QColor(20, 20, 20, 180));
-  graphBg.setColorAt(1, QColor(10, 10, 10, 180));
+  graphBg.setColorAt(0, QColor(20, 25, 30, 200));  // Darker blue-black
+  graphBg.setColorAt(1, QColor(15, 20, 25, 200));  // Even darker
   p.fillRect(graph_x, graph_y, graph_w, graph_h, graphBg);
+  
+  // Add inset shadow effect
+  p.setPen(QPen(QColor(0, 0, 0, 100), 2));
+  p.drawRect(graph_x, graph_y, graph_w, graph_h);
+  p.setPen(QPen(QColor(255, 255, 255, 20), 1));
+  p.drawRect(graph_x + 1, graph_y + 1, graph_w - 2, graph_h - 2);
 
-  // Grid lines - using whiter color
-  p.setPen(QPen(QColor(160, 160, 160, 90), 1, Qt::DotLine));
+  // Grid lines with automotive styling
+  p.setPen(QPen(QColor(189, 195, 199, 80), 1, Qt::DotLine));  // Silver metallic
 
   // More vertical markers at 1/8 increments
   for (int i = 1; i < 8; i++) {
@@ -88,16 +106,14 @@ void ControlGraphWidget::paintEvent(QPaintEvent *event) {
       // Only draw labels for key intervals
       if (i <= 5 || i % 5 == 0) {
         p.setPen(Qt::white);
-        QFont timeFont("Arial", 24); // Increased to match lateral
-        p.setFont(timeFont);
+        p.setFont(InterFont(24, QFont::Normal));
         p.drawText(x - 10, time_labels_y, i == 0 ? "Now" : QString("-%1s").arg(i));
       }
     }
   }
 
   // Scale with additional markers
-  QFont scaleFont("Arial", 26); // Increased to match lateral
-  p.setFont(scaleFont);
+  p.setFont(InterFont(26, QFont::DemiBold));
   p.setPen(Qt::white);
   p.drawText(graph_x - 50, graph_y + graph_h - 5, "0.0");
   p.drawText(graph_x - 50, graph_y + 5, "1.0");

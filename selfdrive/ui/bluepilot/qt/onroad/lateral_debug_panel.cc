@@ -1,5 +1,6 @@
 #include "lateral_debug_panel.h"
 #include "widgets/debug/LateralGraphWidget.h"
+#include "selfdrive/ui/qt/util.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include <algorithm>
@@ -125,10 +126,10 @@ LateralDebugPanel::LateralDebugPanel(QWidget *parent) : QWidget(parent), m_dataP
   QVBoxLayout *layout = new QVBoxLayout(this);
   layout->setContentsMargins(20, 20, 20, 20);
 
-  // Title
+  // Title with automotive styling
   QLabel *title = new QLabel("Lateral Control", this);
-  title->setStyleSheet("font-size: 34px; font-weight: bold; color: white; margin: 0px;");
-  title->setFont(QFont("Arial", 34, QFont::Bold));
+  title->setStyleSheet("font-size: 34px; font-weight: bold; color: #ecf0f1; margin: 0px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);");
+  title->setFont(InterFont(34, QFont::Bold));
   title->setFixedHeight(60);
   title->setAlignment(Qt::AlignCenter);
   layout->addWidget(title);
@@ -146,10 +147,11 @@ LateralDebugPanel::LateralDebugPanel(QWidget *parent) : QWidget(parent), m_dataP
   layout->addWidget(graphContainer);
   layout->setSpacing(10); // Reduced from 20 to 10
 
-  // Initialize background gradient
+  // Initialize automotive-style background gradient
   m_backgroundGradient = QLinearGradient(0, 0, 0, height());
-  m_backgroundGradient.setColorAt(0, QColor(30, 30, 30, 230));
-  m_backgroundGradient.setColorAt(1, QColor(20, 20, 20, 230));
+  m_backgroundGradient.setColorAt(0, QColor(44, 62, 80, 240));  // Metallic blue-gray
+  m_backgroundGradient.setColorAt(0.5, QColor(32, 33, 35, 240)); // Dark center
+  m_backgroundGradient.setColorAt(1, QColor(26, 37, 47, 240));   // Dark edge
   m_backgroundGradient.setCoordinateMode(QGradient::ObjectBoundingMode);
   m_gradientInitialized = true;
 
@@ -218,16 +220,45 @@ void LateralDebugPanel::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
 
-  // Draw background with material design styling
+  // Draw automotive-style card background
   QPainterPath path;
-  path.addRoundedRect(rect().adjusted(5, 5, -5, -5), 15, 15);
+  path.addRoundedRect(rect().adjusted(5, 5, -5, -5), 20, 20);
 
-  // Use cached gradient
+  // Draw shadow for depth
+  p.setPen(Qt::NoPen);
+  p.setBrush(QColor(0, 0, 0, 60));
+  p.drawPath(path.translated(3, 3));
+
+  // Use metallic gradient background
   p.fillPath(path, m_backgroundGradient);
 
-  // Material design subtle border
-  p.setPen(QPen(QColor(60, 60, 60, 150), 1));
+  // Add inner highlight for metallic effect
+  QPainterPath highlightPath;
+  QRect highlightRect = rect().adjusted(8, 8, -8, -rect().height()/2);
+  highlightPath.addRoundedRect(highlightRect, 18, 18);
+  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+  highlight.setColorAt(0, QColor(255, 255, 255, 25));
+  highlight.setColorAt(0.3, QColor(255, 255, 255, 10));
+  highlight.setColorAt(1, QColor(255, 255, 255, 0));
+  p.fillPath(highlightPath, highlight);
+
+  // Automotive-style border with gradient
+  QLinearGradient borderGradient(rect().topLeft(), rect().bottomLeft());
+  borderGradient.setColorAt(0, QColor(100, 149, 237, 180));  // Cornflower blue
+  borderGradient.setColorAt(0.5, QColor(70, 130, 180, 180)); // Steel blue
+  borderGradient.setColorAt(1, QColor(44, 62, 80, 180));     // Dark blue-gray
+  p.setPen(QPen(QBrush(borderGradient), 2));
+  p.setBrush(Qt::NoBrush);
   p.drawPath(path);
+
+  // Add accent line at top
+  QRect accentRect = rect().adjusted(10, 7, -10, 0);
+  accentRect.setHeight(3);
+  QLinearGradient accentGradient(accentRect.topLeft(), accentRect.topRight());
+  accentGradient.setColorAt(0, QColor(24, 144, 255, 0));
+  accentGradient.setColorAt(0.5, QColor(24, 144, 255, 200));
+  accentGradient.setColorAt(1, QColor(24, 144, 255, 0));
+  p.fillRect(accentRect, accentGradient);
 
   QWidget::paintEvent(event);
 }

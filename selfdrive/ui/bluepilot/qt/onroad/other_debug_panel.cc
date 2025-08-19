@@ -647,11 +647,11 @@ void OtherDebugPanel::updateVisibleTab() {
 }
 
 void OtherDebugPanel::setupMaterialStyle() {
-  // Set up the main layout with material design spacing
+  // Set up the main layout with automotive design spacing
   setStyleSheet(R"(
     QWidget {
-      background-color: #121212;
-      color: white;
+      background-color: transparent;
+      color: #ecf0f1;
       font-family: Inter, Arial, sans-serif;
     }
 
@@ -670,15 +670,17 @@ void OtherDebugPanel::setupMaterialStyle() {
     }
 
     QTabBar::tab {
-      background: #363636;
-      color: white;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #2c3e50, stop: 1 #1a252f);
+      color: #bdc3c7;
       padding: 15px 30px;
       margin: 5px 8px 0px 8px;
-      border-top-left-radius: 10px;
-      border-top-right-radius: 10px;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
       font-size: 32px;
       min-width: 150px;
       min-height: 50px;
+      border: 1px solid rgba(100, 149, 237, 80);
       border-bottom: 3px solid transparent;
     }
 
@@ -688,13 +690,19 @@ void OtherDebugPanel::setupMaterialStyle() {
 
 
     QTabBar::tab:selected {
-      background: #2196F3;
-      border-bottom: 3px solid #64B5F6;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #34495e, stop: 1 #2c3e50);
+      color: #18b4ff;
+      border: 2px solid #18b4ff;
+      border-bottom: 3px solid #18b4ff;
+      font-weight: bold;
     }
 
     QTabBar::tab:hover:!selected {
-      background: #424242;
-      border-bottom: 3px solid #555555;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #34495e, stop: 1 #2c3e50);
+      color: #ecf0f1;
+      border-bottom: 3px solid #7f8c8d;
     }
 
     QTabBar::tab:disabled {
