@@ -63,7 +63,7 @@ void ExternalStorageControl::refresh() {
     };
 
     bool isMounted = run("findmnt -n /mnt/external_realdata");
-    bool hasDrive = run("lsblk -f /dev/sdg1");
+    bool hasDrive = run("lsblk -f /dev/sdg");
     bool hasFs = run("lsblk -f /dev/sdg1 | grep -q ext4");
     bool hasLabel = run("sudo blkid /dev/sdg1 | grep -q 'LABEL=\"openpilot\"'");
 
@@ -151,14 +151,17 @@ void ExternalStorageControl::formatStorage() {
             process->deleteLater();
             formatting = false;
             if (exitCode == 0 && status == QProcess::NormalExit) {
-              QProcess::execute("sh", QStringList() << "-c" << "sudo e2label /dev/sdg1 openpilot");
               mountStorage();
             } else {
               setValue(tr("needs format"));
               updateState(!uiState()->scene.started);
             }
           });
-  process->start("sh", QStringList() << "-c" << "sudo mkfs.ext4 -F /dev/sdg1");
+  process->start("sh", QStringList() << "-c" <<
+    "sudo wipefs -a /dev/sdg && "
+    "sudo parted -s /dev/sdg mklabel gpt mkpart primary ext4 0% 100% && "
+    "sudo mkfs.ext4 -F -L openpilot /dev/sdg1"
+  );
 }
 
 void ExternalStorageControl::showEvent(QShowEvent *event) {

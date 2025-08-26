@@ -783,22 +783,22 @@ void SidebarBP::drawSidebar(QPainter &p) {
     buildMetricCard(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, 2, true);
   }
 
-  // GPS card - new addition (120px height)
-  QColor gpsColor = good_color;
-  QString gpsValue = QString("%1").arg(gps_satellite_count);
-  QString gpsLabel = tr("SAT");
+  // GPS card - disabled
+  // QColor gpsColor = good_color;
+  // QString gpsValue = QString("%1").arg(gps_satellite_count);
+  // QString gpsLabel = tr("SAT");
 
-  if (gps_satellite_count == 0) {
-    gpsColor = danger_color;
-    gpsValue = tr("NO GPS");
-    gpsLabel = tr("");
-  } else if (gps_satellite_count < 4) {
-    gpsColor = danger_color;
-  } else if (gps_satellite_count < 6) {
-    gpsColor = warning_color;
-  }
+  // if (gps_satellite_count == 0) {
+  //   gpsColor = danger_color;
+  //   gpsValue = tr("NO GPS");
+  //   gpsLabel = tr("");
+  // } else if (gps_satellite_count < 4) {
+  //   gpsColor = danger_color;
+  // } else if (gps_satellite_count < 6) {
+  //   gpsColor = warning_color;
+  // }
 
-  buildMetricCard(p, tr("GPS"), tr(""), gpsValue, gpsLabel, gpsColor, 3, true);
+  // buildMetricCard(p, tr("GPS"), tr(""), gpsValue, gpsLabel, gpsColor, 3, true);
 
   // Vehicle card - standard 3-row layout, larger size (140px height)
   buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 4, false);
