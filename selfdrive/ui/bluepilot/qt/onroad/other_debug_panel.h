@@ -9,6 +9,8 @@
 #include <QFrame>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QListWidget>
+#include <QSplitter>
 #include <QHeaderView>
 #include <QDateTime>
 #include <QVBoxLayout>
@@ -16,6 +18,8 @@
 #include <QMutex>
 #include <QWaitCondition>
 #include <QTimer>
+#include <QPushButton>
+#include <QCheckBox>
 #include <atomic>
 #include <map>
 
@@ -57,12 +61,26 @@ private:
   std::atomic<bool> m_abort;
   OtherDataCache *m_lastCache;
 
+  // CAN subscription management
+  std::unique_ptr<SubMaster> m_canSubMaster;
+  std::atomic<bool> m_canSubscriptionActive;
+  std::atomic<bool> m_canUpdatesPaused;
+  QTimer *m_canUpdateTimer;
+  uint64_t m_lastCANUpdate;
+
+public:
+  void setCANSubscriptionActive(bool active);
+  void setCANUpdatesPaused(bool paused);
+
+private:
+
   // Helper methods to process different data sections
   void processCarState(const UIState *s, OtherDataCache *cache);
   void processRadarState(const UIState *s, OtherDataCache *cache);
   void processCarOutput(const UIState *s, OtherDataCache *cache);
   void processCarParams(const UIState *s, OtherDataCache *cache);
   void processDeviceState(const UIState *s, OtherDataCache *cache);
+  void processCANData(const UIState *s, OtherDataCache *cache);
 };
 
 class OtherDebugPanel : public QWidget {
@@ -72,6 +90,8 @@ public:
   OtherDebugPanel(QWidget *parent = nullptr);
   ~OtherDebugPanel();
   void updateState(const UIState &s);
+  void setCANTabActive(bool active);
+  void setCANUpdatesPaused(bool paused);
 
 protected:
   void paintEvent(QPaintEvent *event) override;
@@ -95,6 +115,7 @@ private:
   void setupTuningTab();
   void setupFirmwareTab();
   void setupDeviceTab();
+  void setupCANTab();
   QFrame *createLabelFrame(QGridLayout *layout, QString title);
 
   // UI update methods by section
@@ -104,6 +125,8 @@ private:
   void updateFirmwareLabels();
   void updateFirmwareTable();
   void updateDeviceLabels();
+  void updateCANSignals();
+  void populateCANMessageTable();
 
   // Helper functions for formatting
   QString formatBool(bool value, const QString &trueText = "Yes", const QString &falseText = "No");
@@ -151,6 +174,7 @@ private:
   QWidget *m_tuningTab;
   QWidget *m_firmwareTab;
   QWidget *m_deviceTab;
+  QWidget *m_canTab;
 
   // Scroll areas
   QScrollArea *m_mainScrollArea;
@@ -158,6 +182,7 @@ private:
   QScrollArea *m_tuningScrollArea;
   QScrollArea *m_firmwareScrollArea;
   QScrollArea *m_deviceScrollArea;
+  QScrollArea *m_canScrollArea;
 
   // Scroll content widgets
   QWidget *m_mainScrollContent;
@@ -176,6 +201,15 @@ private:
   // Special widgets for firmware tab
   QLabel *m_vinLabel;
   QTableWidget *m_firmwareTable;
+
+  // Special widgets for CAN tab
+  QTableWidget *m_canMessageTable;
+  QTableWidget *m_canSignalTable;
+  QLabel *m_canMessageLabel;
+  QPushButton *m_canPauseButton;
+  QCheckBox *m_canFilterImportant;
+  QLabel *m_canUpdateRateLabel;
+  int m_selectedCANMessage = -1;
 
   // Organized by groups
   struct LabelPair {
@@ -417,6 +451,34 @@ struct OtherDataCache {
     } networkStats;
   } deviceValues;
 
+  // CAN data structures
+  struct CANSignal {
+    QString name;
+    double value;
+    double previousValue;  // Track previous value for change detection
+    QString unit;
+    double min;
+    double max;
+    bool hasChanged;  // Flag if value changed in last update
+  };
+
+  struct CANMessage {
+    int id;
+    QString name;
+    int bus;
+    int frequency;
+    uint64_t lastSeen;
+    uint64_t firstSeen;  // When message was first discovered
+    uint64_t updateCount;  // Total updates received
+    QByteArray lastData;  // Store raw data for comparison
+    bool hasNewData;  // Flag if data changed in last update
+    QList<CANSignal> signalList;  // Renamed from signals to avoid Qt macro conflict
+  };
+
+  QMap<int, CANMessage> canMessages;  // Key is message ID
+  bool canDataAvailable = false;
+  QList<int> discoveryOrder;  // Track order messages were discovered
+
   uint64_t lastUpdateTime = 0;
   bool valid = false;
 
@@ -427,6 +489,7 @@ struct OtherDataCache {
     bool carOutput = false;
     bool carParams = false;
     bool deviceState = false;
+    bool canData = false;
   } updated;
 };
 
