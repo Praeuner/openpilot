@@ -216,31 +216,55 @@ QString getCarrierName(const QString &operatorCode) {
 }
 
 SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
-  // Disconnect base class signal connection to avoid conflicts
-  QObject::disconnect(uiState(), &UIState::uiUpdate, this, &Sidebar::updateState);
+  // Safety check: ensure uiState is available before connecting signals
+  if (uiState()) {
+    // Disconnect base class signal connection to avoid conflicts
+    QObject::disconnect(uiState(), &UIState::uiUpdate, this, &Sidebar::updateState);
 
-  // Connect our own updateState method
-  QObject::connect(uiState(), &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
+    // Connect our own updateState method
+    QObject::connect(uiState(), &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
+  }
 
   // Initialize GPS satellite count to 0 (no GPS available initially)
   gps_satellite_count = 0;
   setProperty("gpsSatelliteCount", gps_satellite_count);
 
-  // Load button images with correct paths
+  // Load button images with correct paths and safety checks
   home_img = loadPixmap("../assets/images/button_home.png", QSize(120, 120));
+  if (home_img.isNull()) {
+    qWarning() << "Failed to load home button image";
+  }
+
   flag_img = loadPixmap("../assets/offroad/icon_flag.png", QSize(120, 120));
+  if (flag_img.isNull()) {
+    qWarning() << "Failed to load flag button image";
+  }
+
   settings_img = loadPixmap("../assets/offroad/icon_settings.png", QSize(120, 120), Qt::IgnoreAspectRatio);
+  if (settings_img.isNull()) {
+    qWarning() << "Failed to load settings button image";
+  }
+
   mic_img = loadPixmap("../assets/icons/microphone.png", QSize(30, 30));
+  if (mic_img.isNull()) {
+    qWarning() << "Failed to load microphone image";
+  }
+
   debug_img = loadPixmap("../assets/offroad/icon_debug.png", QSize(120, 120)); // Load debug icon
+  if (debug_img.isNull()) {
+    qWarning() << "Failed to load debug button image";
+  }
 
   // Network type icons removed - will show text instead
 
-  // Setup hover animation
+  // Setup hover animation with safety check
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
-  hover_animation->setDuration(300);
-  hover_animation->setStartValue(0.0);
-  hover_animation->setEndValue(1.0);
-  hover_animation->setEasingCurve(QEasingCurve::OutCubic);
+  if (hover_animation) {
+    hover_animation->setDuration(300);
+    hover_animation->setStartValue(0.0);
+    hover_animation->setEndValue(1.0);
+    hover_animation->setEasingCurve(QEasingCurve::OutCubic);
+  }
 
   // Set the appropriate width for the new sidebar layout
   // Cards: 280px + Right margin: 30px + Button width: 120px + Right margin: 30px = 460px
@@ -250,20 +274,37 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
 }
 
 SidebarBP::~SidebarBP() {
-  delete hover_animation;
+  if (hover_animation) {
+    delete hover_animation;
+    hover_animation = nullptr;
+  }
 }
 
 void SidebarBP::enterEvent(QEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
   is_hovering = true;
-  hover_animation->setDirection(QAbstractAnimation::Forward);
-  hover_animation->start();
+  if (hover_animation) {
+    hover_animation->setDirection(QAbstractAnimation::Forward);
+    hover_animation->start();
+  }
   QFrame::enterEvent(event);
 }
 
 void SidebarBP::leaveEvent(QEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
   is_hovering = false;
-  hover_animation->setDirection(QAbstractAnimation::Backward);
-  hover_animation->start();
+  if (hover_animation) {
+    hover_animation->setDirection(QAbstractAnimation::Backward);
+    hover_animation->start();
+  }
   QFrame::leaveEvent(event);
 }
 
@@ -361,7 +402,7 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
   // Draw network type text at bottom left
   p.setFont(InterFont(20, QFont::DemiBold));
   p.setPen(QColor(200, 200, 200));
-  QString networkTypeText = tethering_on ? "Hotspot" : net_type;
+  QString networkTypeText = tethering_on ? "Hotspot" : (net_type.isEmpty() ? "Unknown" : net_type);
   p.drawText(rect.adjusted(20, 0, 0, -15), Qt::AlignLeft | Qt::AlignBottom, networkTypeText);
 }
 
@@ -443,7 +484,7 @@ void SidebarBP::buildMetricCard(QPainter &p, const QString &label, const QString
   // Calculate Y position: startY + (previous cards height + spacing)
   int yPosition = startY;
   for (int i = 0; i < cardIndex; i++) {
-    int prevCardHeight = (i < 4) ? 120 : 140; // First 4 cards are compact (120px), rest are 140px
+    int prevCardHeight = (i < 3) ? 120 : 140; // First 3 cards are compact (120px), rest are 140px
     yPosition += prevCardHeight + cardSpacing;
   }
 
@@ -479,6 +520,11 @@ void SidebarBP::drawProgressBar(QPainter &p, int x, int y, int width, int height
 }
 
 void SidebarBP::mousePressEvent(QMouseEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
   // Handle button presses for the new vertical column layout
   if (onroad && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
@@ -492,14 +538,22 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   } else if (bp_debug_btn.contains(event->pos()) && onroad) {
     debug_pressed = true;
     update();
-  } else if (memory_fan_btn.contains(event->pos())) {
-    // Toggle between memory and fan display
-    show_fan_instead_memory = !show_fan_instead_memory;
+  } else if (memory_fan_btn.isValid() && memory_fan_btn.contains(event->pos())) {
+    // Toggle between memory and fan display with thread safety
+    {
+      std::lock_guard<std::mutex> lock(toggle_mutex);
+      show_fan_instead_memory = !show_fan_instead_memory;
+    }
     update();
   }
 }
 
 void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
   if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed) {
     flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = false;
     update();
@@ -523,11 +577,12 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
     return;
   }
 
-  // Handle home/flag button for bookmark functionality (compatible with base Sidebar changes)
+  // Handle home/flag button for bookmark functionality
   if (onroad && bp_home_btn.contains(event->pos())) {
-    // Let the base class handle the bookmark button message
-    // This ensures compatibility with the userBookmark system
-    Sidebar::mouseReleaseEvent(event);
+    // Use the base class's PubMaster to avoid socket binding conflicts
+    MessageBuilder msg;
+    msg.initEvent().initBookmarkButton();
+    pm->send("bookmarkButton", msg);
     return;
   }
 
@@ -536,17 +591,43 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void SidebarBP::updateStateBP(const UIState &s) {
+  // Safety check: ensure widget is visible
   if (!isVisible()) return;
 
+    // Safety check: ensure sm pointer is valid
+  if (!s.sm) {
+    return; // Exit early if sm is null
+  }
+
   auto &sm = *(s.sm);
-  auto deviceState = sm["deviceState"].getDeviceState();
+
+  // Safety check: ensure deviceState is available
+  if (!sm.alive("deviceState") || !sm.updated("deviceState")) {
+    return; // Exit early if device state is not available
+  }
+
+      auto deviceState = sm["deviceState"].getDeviceState();
+
+  // Safety check: ensure deviceState is available
+  // We'll check if we can access network type safely
 
   // Network status (from your original code)
-  local_networking = local_networking ? local_networking : window()->findChild<Networking *>("");
-  bool tethering_on = local_networking && local_networking->wifi->tethering_on;
-  net_type = tethering_on ? "Hotspot" : network_type[deviceState.getNetworkType()];
-  net_strength = tethering_on ? 4 : (int)deviceState.getNetworkStrength();
-  net_strength = net_strength > 0 ? net_strength + 1 : 0;
+  if (window()) {
+    local_networking = local_networking ? local_networking : window()->findChild<Networking *>("");
+  } else {
+    local_networking = nullptr;
+  }
+  bool tethering_on = local_networking && local_networking->wifi && local_networking->wifi->tethering_on;
+  // Safety check: ensure network type is valid
+  auto networkType = deviceState.getNetworkType();
+  if (network_type.contains(networkType)) {
+    net_type = tethering_on ? "Hotspot" : network_type[networkType];
+  } else {
+    net_type = tethering_on ? "Hotspot" : "Unknown";
+  }
+  // Safety check: ensure network strength is valid
+  int rawStrength = tethering_on ? 4 : (int)deviceState.getNetworkStrength();
+  net_strength = (rawStrength > 0 && rawStrength <= 5) ? rawStrength + 1 : 0;
 
   // Get carrier/SSID information
   if (tethering_on) {
@@ -579,8 +660,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
     // For cellular, get carrier name from network info and convert to readable name
     if (deviceState.hasNetworkInfo()) {
       auto netInfo = deviceState.getNetworkInfo();
-      QString operatorCode = QString::fromStdString(netInfo.getOperator());
-      net_carrier_ssid = getCarrierName(operatorCode); // Use the mapping function!
+      if (netInfo.hasOperator()) {  // Check if operator info is available
+        QString operatorCode = QString::fromStdString(netInfo.getOperator());
+        net_carrier_ssid = getCarrierName(operatorCode); // Use the mapping function!
+      } else {
+        net_carrier_ssid = net_type;
+      }
     } else {
       net_carrier_ssid = net_type;
     }
@@ -590,13 +675,20 @@ void SidebarBP::updateStateBP(const UIState &s) {
 
   // Connection status
   auto last_ping = deviceState.getLastAthenaPingTime();
-  if (last_ping == 0) {
+  if (last_ping == 0 || last_ping < 0) {
     connect_status = {{tr("CONNECT"), tr("OFFLINE")}, warning_color};
   } else {
-    bool is_online = nanos_since_boot() - last_ping < 80e9;
-    QString status = is_online ? tr("ONLINE") : tr("ERROR");
-    QColor color = is_online ? good_color : danger_color;
-    connect_status = {{tr("CONNECT"), status}, color};
+    // Safety check: ensure ping time is reasonable
+    uint64_t current_time = nanos_since_boot();
+    if (last_ping > current_time) {
+      // Invalid ping time, treat as offline
+      connect_status = {{tr("CONNECT"), tr("OFFLINE")}, warning_color};
+    } else {
+      bool is_online = current_time - last_ping < 80e9;
+      QString status = is_online ? tr("ONLINE") : tr("ERROR");
+      QColor color = is_online ? good_color : danger_color;
+      connect_status = {{tr("CONNECT"), status}, color};
+    }
   }
 
   // Vehicle status
@@ -627,7 +719,7 @@ void SidebarBP::updateStateBP(const UIState &s) {
         gps_satellite_count = 0; // Already 0, no change needed
       }
     }
-  } catch (const std::exception& e) {
+  } catch (...) {  // Catch all exceptions, not just std::exception
     // GPS service not available or error occurred, set to 0
     gps_satellite_count = 0;
   }
@@ -639,11 +731,19 @@ void SidebarBP::updateStateBP(const UIState &s) {
   if (metrics_refresh_counter >= METRICS_REFRESH_INTERVAL) {
     // CPU
     float max_temp = deviceState.getMaxTempC();
-    cpu_temp = QString("%1°C").arg(QString::number(max_temp, 'f', 1));
+    // Safety check: ensure temperature is reasonable
+    if (max_temp >= -50.0f && max_temp <= 150.0f) {
+      cpu_temp = QString("%1°C").arg(QString::number(max_temp, 'f', 1));
+    } else {
+      cpu_temp = "N/A";
+    }
 
     QStringList cpuUsageValues;
     for (auto usage : deviceState.getCpuUsagePercent()) {
-      cpuUsageValues.append(QString::number(usage));
+      // Safety check: ensure usage values are reasonable
+      if (usage >= 0.0f && usage <= 100.0f) {
+        cpuUsageValues.append(QString::number(usage));
+      }
     }
 
     if (!cpuUsageValues.isEmpty()) {
@@ -652,7 +752,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
         totalUsage += val.toFloat();
       }
       float avgCpuUsage = totalUsage / cpuUsageValues.size();
-      cpu_usage = QString("%1%").arg(QString::number(avgCpuUsage, 'f', 0));
+      // Safety check: ensure average is reasonable
+      if (avgCpuUsage >= 0.0f && avgCpuUsage <= 100.0f) {
+        cpu_usage = QString("%1%").arg(QString::number(avgCpuUsage, 'f', 0));
+      } else {
+        cpu_usage = "0%";
+      }
     } else {
       cpu_usage = "0%";
     }
@@ -660,21 +765,41 @@ void SidebarBP::updateStateBP(const UIState &s) {
     // GPU
     if (deviceState.getGpuTempC().size() > 0) {
       float gpu_temp_val = deviceState.getGpuTempC()[0];
-      gpu_temp = QString("%1°C").arg(QString::number(gpu_temp_val, 'f', 1));
+      // Safety check: ensure GPU temperature is reasonable
+      if (gpu_temp_val >= -50.0f && gpu_temp_val <= 150.0f) {
+        gpu_temp = QString("%1°C").arg(QString::number(gpu_temp_val, 'f', 1));
+      } else {
+        gpu_temp = "N/A";
+      }
     } else {
       gpu_temp = "N/A";
     }
 
     float gpu_usage_val = deviceState.getGpuUsagePercent();
-    gpu_usage = QString("%1%").arg(QString::number(gpu_usage_val, 'f', 0));
+    // Safety check: ensure GPU usage is reasonable
+    if (gpu_usage_val >= 0.0f && gpu_usage_val <= 100.0f) {
+      gpu_usage = QString("%1%").arg(QString::number(gpu_usage_val, 'f', 0));
+    } else {
+      gpu_usage = "0%";
+    }
 
     // Memory
     float memory_usage_val = deviceState.getMemoryUsagePercent();
-    memory_usage = QString("%1%").arg(QString::number(memory_usage_val, 'f', 0));
+    // Safety check: ensure memory usage is reasonable
+    if (memory_usage_val >= 0.0f && memory_usage_val <= 100.0f) {
+      memory_usage = QString("%1%").arg(QString::number(memory_usage_val, 'f', 0));
+    } else {
+      memory_usage = "0%";
+    }
 
     // Fan
     float fan_demand_val = deviceState.getFanSpeedPercentDesired();
-    fan_demand = QString("%1%").arg(QString::number(fan_demand_val, 'f', 0));
+    // Safety check: ensure fan demand is reasonable
+    if (fan_demand_val >= 0.0f && fan_demand_val <= 100.0f) {
+      fan_demand = QString("%1%").arg(QString::number(fan_demand_val, 'f', 0));
+    } else {
+      fan_demand = "0%";
+    }
 
     metrics_refresh_counter = 0;
   }
@@ -720,7 +845,13 @@ void SidebarBP::drawSidebar(QPainter &p) {
     const int micX = 30 + 280 - buttonSize - 20; // Position on the right side of network card (30 + 280 = network card right edge)
     const int micY = 20 + 130 + 20; // Position below network card (20 + 130 + 20 = 170px from top)
 
-    mic_indicator_btn = QRect(micX, micY, buttonSize, buttonSize);
+    // Safety check: ensure mic button coordinates are valid
+    if (micX >= 0 && micY >= 0 && micX + buttonSize <= width() && micY + buttonSize <= height()) {
+      mic_indicator_btn = QRect(micX, micY, buttonSize, buttonSize);
+    } else {
+      // Fallback to safe coordinates
+      mic_indicator_btn = QRect(30, 170, buttonSize, buttonSize);
+    }
 
     // Draw mic button with red background to indicate recording is active
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
@@ -728,23 +859,31 @@ void SidebarBP::drawSidebar(QPainter &p) {
     p.drawEllipse(mic_indicator_btn);
 
     // Draw mic icon with appropriate scaling
-    const float scale = 0.7; // Scale for smaller button
-    p.setOpacity(mic_indicator_pressed ? 0.65 : 1.0);
-    p.drawPixmap(mic_indicator_btn.x() + (mic_indicator_btn.width() - mic_img.width() * scale) / 2,
-                 mic_indicator_btn.y() + (mic_indicator_btn.height() - mic_img.height() * scale) / 2,
-                 mic_img.scaled(mic_img.width() * scale, mic_img.height() * scale, Qt::KeepAspectRatio));
-    p.setOpacity(1.0);
+    if (!mic_img.isNull()) {
+      const float scale = 0.7; // Scale for smaller button
+      p.setOpacity(mic_indicator_pressed ? 0.65 : 1.0);
+      p.drawPixmap(mic_indicator_btn.x() + (mic_indicator_btn.width() - mic_img.width() * scale) / 2,
+                   mic_indicator_btn.y() + (mic_indicator_btn.height() - mic_img.height() * scale) / 2,
+                   mic_img.scaled(mic_img.width() * scale, mic_img.height() * scale, Qt::KeepAspectRatio));
+      p.setOpacity(1.0);
+    }
   }
 
   // Draw metrics with modern styling - new order, make cards larger
 
   // CPU card with compact layout, larger size (120px height)
   QColor cpuColor = good_color;
-  // Make a temporary copy for value comparison
-  float cpuTempValue = cpu_temp.mid(0, cpu_temp.length() - 2).toFloat();
-  if (cpuTempValue > 80.0) {
+  // Make a temporary copy for value comparison with safety check
+  bool cpuTempValid = false;
+  float cpuTempValue = 0.0f;
+  if (cpu_temp.endsWith("°C") && cpu_temp.length() > 2) {
+    QString tempStr = cpu_temp.mid(0, cpu_temp.length() - 2);
+    cpuTempValue = tempStr.toFloat(&cpuTempValid);
+  }
+
+  if (cpuTempValid && cpuTempValue > 80.0) {
     cpuColor = danger_color;
-  } else if (cpuTempValue > 70.0) {
+  } else if (cpuTempValid && cpuTempValue > 70.0) {
     cpuColor = warning_color;
   }
   buildMetricCard(p, tr("CPU"), tr(""), cpu_usage, cpu_temp, cpuColor, 0, true);
@@ -752,10 +891,17 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // GPU card, larger size (120px height)
   QColor gpuColor = good_color;
   if (gpu_temp != "N/A") {
-    float gpuTempValue = gpu_temp.mid(0, gpu_temp.length() - 2).toFloat();
-    if (gpuTempValue > 75.0) {
+    // Safety check for GPU temperature parsing
+    bool gpuTempValid = false;
+    float gpuTempValue = 0.0f;
+    if (gpu_temp.endsWith("°C") && gpu_temp.length() > 2) {
+      QString tempStr = gpu_temp.mid(0, gpu_temp.length() - 2);
+      gpuTempValue = tempStr.toFloat(&gpuTempValid);
+    }
+
+    if (gpuTempValid && gpuTempValue > 75.0) {
       gpuColor = danger_color;
-    } else if (gpuTempValue > 65.0) {
+    } else if (gpuTempValid && gpuTempValue > 65.0) {
       gpuColor = warning_color;
     }
   }
@@ -763,21 +909,39 @@ void SidebarBP::drawSidebar(QPainter &p) {
 
   // Memory/Fan card with toggle functionality, larger size (120px height)
   QColor memoryFanColor = good_color;
-  if (show_fan_instead_memory) {
+  bool current_show_fan;
+  {
+    std::lock_guard<std::mutex> lock(toggle_mutex);
+    current_show_fan = show_fan_instead_memory;
+  }
+
+  if (current_show_fan) {
     // Show fan demand
-    float fanDemandValue = fan_demand.mid(0, fan_demand.length() - 1).toFloat();
-    if (fanDemandValue > 80.0) {
+    bool fanDemandValid = false;
+    float fanDemandValue = 0.0f;
+    if (fan_demand.endsWith("%") && fan_demand.length() > 1) {
+      QString fanStr = fan_demand.mid(0, fan_demand.length() - 1);
+      fanDemandValue = fanStr.toFloat(&fanDemandValid);
+    }
+
+    if (fanDemandValid && fanDemandValue > 80.0) {
       memoryFanColor = danger_color;
-    } else if (fanDemandValue > 60.0) {
+    } else if (fanDemandValid && fanDemandValue > 60.0) {
       memoryFanColor = warning_color;
     }
     buildMetricCard(p, tr("FAN"), tr(""), fan_demand, tr(""), memoryFanColor, 2, true);
   } else {
     // Show memory as before
-    float memoryValue = memory_usage.mid(0, memory_usage.length() - 1).toFloat();
-    if (memoryValue > 85) {
+    bool memoryValid = false;
+    float memoryValue = 0.0f;
+    if (memory_usage.endsWith("%") && memory_usage.length() > 1) {
+      QString memoryStr = memory_usage.mid(0, memory_usage.length() - 1);
+      memoryValue = memoryStr.toFloat(&memoryValid);
+    }
+
+    if (memoryValid && memoryValue > 85) {
       memoryFanColor = danger_color;
-    } else if (memoryValue > 70) {
+    } else if (memoryValid && memoryValue > 70) {
       memoryFanColor = warning_color;
     }
     buildMetricCard(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, 2, true);
@@ -801,22 +965,29 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // buildMetricCard(p, tr("GPS"), tr(""), gpsValue, gpsLabel, gpsColor, 3, true);
 
   // Vehicle card - standard 3-row layout, larger size (140px height)
-  buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 4, false);
+  buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 3, false);
 
   // Connect card - standard 3-row layout, larger size (140px height)
-  buildMetricCard(p, tr("CONNECT"), connect_status.first.second, tr(""), tr(""), connect_status.second, 5, false);
+  buildMetricCard(p, tr("CONNECT"), connect_status.first.second, tr(""), tr(""), connect_status.second, 4, false);
 
   // SunnyLink card - standard 3-row layout, larger size (140px height)
-  if (property("sunnylinkStatus").isValid()) {
-    ItemStatus sunnylink_status = property("sunnylinkStatus").value<ItemStatus>();
+  QVariant sunnylinkProperty = property("sunnylinkStatus");
+  if (sunnylinkProperty.isValid() && sunnylinkProperty.canConvert<ItemStatus>()) {
+    ItemStatus sunnylink_status = sunnylinkProperty.value<ItemStatus>();
     // Position it with consistent spacing
-    buildMetricCard(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, 6, false);
+    buildMetricCard(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, 5, false);
   }
 
   // Buttons in vertical column on the right side, stacked from bottom to top
   const int buttonSize = 100; // Larger buttons for better visibility
   const int buttonSpacing = 20; // Spacing between buttons
   const int rightMargin = 25;
+
+  // Safety check: ensure width is valid
+  if (width() <= 0) {
+    return; // Exit early if width is invalid
+  }
+
   const int buttonX = width() - buttonSize - rightMargin;
 
   // Create horizontal gradient background that maintains dark color throughout
@@ -829,35 +1000,58 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // Apply gradient to the right side of the sidebar (where buttons are)
   // Start gradient transition after the cards end
   int gradientStartX = width() * 0.7; // Start gradient at 70% of sidebar width
-  p.setPen(Qt::NoPen);
-  p.setBrush(sidebarGradient);
-  p.drawRect(gradientStartX, 0, width() - gradientStartX, height());
+
+  // Safety check: ensure gradient coordinates are valid
+  if (gradientStartX >= 0 && gradientStartX < width()) {
+    p.setPen(Qt::NoPen);
+    p.setBrush(sidebarGradient);
+    p.drawRect(gradientStartX, 0, width() - gradientStartX, height());
+  }
 
   // Start from bottom and stack upwards
+  // Safety check: ensure height is valid
+  if (height() <= 0) {
+    return; // Exit early if height is invalid
+  }
+
   int currentButtonY = height() - buttonSize - 30; // Bottom button position
 
   // Settings button (bottom)
-  bp_settings_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+  // Safety check: ensure button coordinates are valid
+  if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+    bp_settings_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+  } else {
+    // Fallback to safe coordinates
+    bp_settings_btn = QRect(30, height() - buttonSize - 30, buttonSize, buttonSize);
+  }
 
   // Draw settings button background and border with different background
   p.setPen(QPen(QColor(255, 255, 255, 80), 2));
   p.setBrush(settings_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
   p.drawEllipse(bp_settings_btn);
 
-  // Draw settings icon (centered with proper scaling for larger button)
-  const float settings_scale = 0.55; // Adjusted for 100px button
-  p.setOpacity(settings_pressed ? 0.65 : 1.0);
-  p.drawPixmap(bp_settings_btn.x() + (bp_settings_btn.width() - settings_img.width() * settings_scale) / 2,
-               bp_settings_btn.y() + (bp_settings_btn.height() - settings_img.height() * settings_scale) / 2,
-               settings_img.scaled(settings_img.width() * settings_scale, settings_img.height() * settings_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-  p.setOpacity(1.0);
+      // Draw settings icon (centered with proper scaling for larger button)
+    if (!settings_img.isNull()) {
+      const float settings_scale = 0.55; // Adjusted for 100px button
+      p.setOpacity(settings_pressed ? 0.65 : 1.0);
+      p.drawPixmap(bp_settings_btn.x() + (bp_settings_btn.width() - settings_img.width() * settings_scale) / 2,
+                   bp_settings_btn.y() + (bp_settings_btn.height() - settings_img.height() * settings_scale) / 2,
+                   settings_img.scaled(settings_img.width() * settings_scale, settings_img.height() * settings_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+      p.setOpacity(1.0);
+    }
 
   // Move up for next button
   currentButtonY -= (buttonSize + buttonSpacing);
 
   // Home/Flag button (middle, only when onroad)
   if (onroad) {
-    bp_home_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+    // Safety check: ensure button coordinates are valid
+    if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+      bp_home_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+    } else {
+      // Fallback to safe coordinates
+      bp_home_btn = QRect(30, currentButtonY, buttonSize, buttonSize);
+    }
 
     // Draw button background with different background
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
@@ -865,31 +1059,41 @@ void SidebarBP::drawSidebar(QPainter &p) {
     p.drawEllipse(bp_home_btn);
 
     // Draw flag icon with proper scaling to fit nicely in the circular button
-    float flag_scale = 0.45; // Smaller scale for flag to fit properly in circle
-    p.setOpacity(flag_pressed ? 0.65 : 1.0);
-    p.drawPixmap(bp_home_btn.x() + (bp_home_btn.width() - flag_img.width() * flag_scale) / 2,
-                 bp_home_btn.y() + (bp_home_btn.height() - flag_img.height() * flag_scale) / 2,
-                 flag_img.scaled(flag_img.width() * flag_scale, flag_img.height() * flag_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    p.setOpacity(1.0);
-    
+    if (!flag_img.isNull()) {
+      float flag_scale = 0.45; // Smaller scale for flag to fit properly in circle
+      p.setOpacity(flag_pressed ? 0.65 : 1.0);
+      p.drawPixmap(bp_home_btn.x() + (bp_home_btn.width() - flag_img.width() * flag_scale) / 2,
+                   bp_home_btn.y() + (bp_home_btn.height() - flag_img.height() * flag_scale) / 2,
+                   flag_img.scaled(flag_img.width() * flag_scale, flag_img.height() * flag_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+      p.setOpacity(1.0);
+    }
+
     // Move up for next button
     currentButtonY -= (buttonSize + buttonSpacing);
   }
 
   // Debug button (top of the group, only onroad)
   if (onroad) {
-    bp_debug_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+    // Safety check: ensure button coordinates are valid
+    if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+      bp_debug_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
+    } else {
+      // Fallback to safe coordinates
+      bp_debug_btn = QRect(30, currentButtonY, buttonSize, buttonSize);
+    }
 
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
     p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
     p.drawEllipse(bp_debug_btn);
 
     // Draw debug icon (scaled and centered for larger button)
-    float debug_scale = 0.65; // Adjusted for 100px button
-    p.setOpacity(debug_pressed ? 0.65 : 1.0);
-    p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * debug_scale) / 2,
-                 bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * debug_scale) / 2,
-                 debug_img.scaled(debug_img.width() * debug_scale, debug_img.height() * debug_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    p.setOpacity(1.0);
+    if (!debug_img.isNull()) {
+      float debug_scale = 0.65; // Adjusted for 100px button
+      p.setOpacity(debug_pressed ? 0.65 : 1.0);
+      p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * debug_scale) / 2,
+                   bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * debug_scale) / 2,
+                   debug_img.scaled(debug_img.width() * debug_scale, debug_img.height() * debug_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+      p.setOpacity(1.0);
+    }
   }
 }

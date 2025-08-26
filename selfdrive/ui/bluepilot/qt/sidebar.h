@@ -4,6 +4,7 @@
 #include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 #include <QPropertyAnimation>
 #include <memory>
+#include <mutex>
 #include "cereal/messaging/messaging.h"
 
 class SidebarBP : public Sidebar {
@@ -79,6 +80,9 @@ private:
   // Performance metrics refresh control
   int metrics_refresh_counter = 0;
   const int METRICS_REFRESH_INTERVAL = 20;
+
+  // Thread safety for shared state
+  mutable std::mutex toggle_mutex;
 
   // Network data
   QString net_type;

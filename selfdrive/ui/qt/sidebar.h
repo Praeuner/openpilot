@@ -66,7 +66,7 @@ protected:
   QString net_type;
   int net_strength = 0;
 
-private:
+protected:
   std::unique_ptr<PubMaster> pm;
   Networking *networking = nullptr;
 };
