@@ -139,6 +139,9 @@ protected:
   FirstOrderFilter brightness_filter;
   QFuture<void> brightness_future;
 
+  // Single Params instance for better performance and error handling
+  Params params;
+
   // Onroad display behavior state
   int onroad_display_behavior = 0;      // 0: Do Nothing
   int onroad_display_timeout = 0;       // index -> seconds mapping
@@ -156,6 +159,11 @@ protected:
   void dimDisplay(int percentage);
   void turnOffDisplay();
   void restoreOriginalBrightness();
+
+  // Helper methods for better state management
+  bool validateOnroadParameters(int behavior, int timeout_idx);
+  void resetOnroadDisplayState();
+  void logOnroadDisplayState(const UIState &s, int frame_count);
 
 signals:
   void displayPowerChanged(bool on);
