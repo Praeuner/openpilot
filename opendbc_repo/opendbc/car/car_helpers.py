@@ -87,7 +87,7 @@ def can_fingerprint(can_recv: CanRecvCallable) -> tuple[str | None, dict[int, di
 def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multiplexing: ObdCallback, num_pandas: int,
                 cached_params: CarParamsT | None,
                 fixed_fingerprint: str | None) -> tuple[str | None, dict, str, list[CarParams.CarFw], CarParams.FingerprintSource, bool]:
-  # Load FORD SELECTED VEHICLE MODEL PARAMS if set, use that fingerprint instead of defaul
+  # Load FORD SELECTED VEHICLE MODEL PARAMS if set, use that fingerprint instead of default
   params = Params()
   selected_vehicle_model = params.get("FordSelectedVehicleModel")
 
@@ -95,7 +95,13 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
     print(f'Selected Ford Vehicle Model: {selected_vehicle_model}')
     fixed_fingerprint = selected_vehicle_model
   else:
-    fixed_fingerprint = os.environ.get('FINGERPRINT', "")
+    # Check sunnypilot platform selector as secondary source
+    platform_from_selector = (params.get("CarPlatformBundle") or {}).get("platform", None)
+    if platform_from_selector:
+      print(f'Sunnypilot Platform Selector Vehicle: {platform_from_selector}')
+      fixed_fingerprint = platform_from_selector
+    else:
+      fixed_fingerprint = os.environ.get('FINGERPRINT', "")
 
   skip_fw_query = os.environ.get('SKIP_FW_QUERY', False)
   disable_fw_cache = os.environ.get('DISABLE_FW_CACHE', False)
