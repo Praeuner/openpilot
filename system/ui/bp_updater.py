@@ -502,9 +502,24 @@ class BPUpdaterPanel(Widget):
         self.git_status.clean = clean
         self.git_status.has_updates = has_updates
 
+    def has_gitmodules(self) -> bool:
+        """Check if .gitmodules file exists in the repository"""
+        return os.path.exists("/data/openpilot/.gitmodules")
+
     def refresh_submodules(self):
-        success, output, _ = self.execute_git_command("git submodule status")
-        if not success or not output.strip():
+        # Only check submodules if .gitmodules exists
+        if not self.has_gitmodules():
+            self.submodules = []
+            return
+
+        success, output, error = self.execute_git_command("git submodule status")
+        if not success:
+            # Handle error gracefully - no submodules or git issue
+            self.submodules = []
+            return
+        
+        if not output.strip():
+            # No submodules configured
             self.submodules = []
             return
 
@@ -608,15 +623,27 @@ class BPUpdaterPanel(Widget):
         if button_name == "check_updates":
             self.check_for_updates()
         elif button_name == "update_repo":
-            cmd = "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)"
+            # Build command conditionally based on submodule presence
+            if self.has_gitmodules():
+                cmd = "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)"
+            else:
+                cmd = "rm -f .git/index.lock && git fetch && git pull && scons -j$(nproc)"
             self.command_dialog = CommandDialog("Update Repository", cmd)
             self.command_dialog.start()
         elif button_name == "update_all":
-            cmd = "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)"
+            # Build command conditionally based on submodule presence
+            if self.has_gitmodules():
+                cmd = "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)"
+            else:
+                cmd = "rm -f .git/index.lock && git fetch && git pull --ff-only && scons -j$(nproc)"
             self.command_dialog = CommandDialog("Update All", cmd)
             self.command_dialog.start()
         elif button_name == "repair_repo":
-            cmd = "rm -f .git/index.lock && git reset --hard HEAD && git clean -fd && git submodule update --init --recursive && scons -j$(nproc)"
+            # Build command conditionally based on submodule presence
+            if self.has_gitmodules():
+                cmd = "rm -f .git/index.lock && git reset --hard HEAD && git clean -fd && git submodule update --init --recursive && scons -j$(nproc)"
+            else:
+                cmd = "rm -f .git/index.lock && git reset --hard HEAD && git clean -fd && scons -j$(nproc)"
             self.command_dialog = CommandDialog("Repair Repository", cmd)
             self.command_dialog.start()
         elif button_name == "reset_repo":
@@ -741,7 +768,8 @@ class BPUpdaterPanel(Widget):
         return y + card_height + CARD_SPACING
 
     def draw_submodules_section(self, y: float) -> float:
-        if not self.submodules:
+        # Don't draw submodules section if there are none
+        if not self.submodules or not self.has_gitmodules():
             return y
 
         # Submodules card

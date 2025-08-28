@@ -608,6 +608,11 @@ void BPUpdaterPanel::setupMainRepoSection() {
 }
 
 void BPUpdaterPanel::setupSubmoduleSection() {
+  // Only create submodule section if submodules exist
+  if (!hasSubmodules()) {
+    return;
+  }
+
   QGroupBox *submoduleGroup = new QGroupBox(tr("Submodules"), static_cast<QWidget *>(this));
   submoduleGroup->setStyleSheet(R"(
       QGroupBox {
@@ -664,7 +669,14 @@ void BPUpdaterPanel::setupSubmoduleSection() {
   QProcess process;
   process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
   process.start("git", QStringList() << "submodule" << "status");
-  process.waitForFinished();
+
+  // Add timeout to prevent hanging
+  if (!process.waitForFinished(3000)) { // 3 second timeout
+    process.kill();
+    process.waitForFinished(1000);
+    return; // Exit early if command times out
+  }
+
   QString output = QString::fromUtf8(process.readAllStandardOutput());
 
   if (output.isEmpty()) {
@@ -1149,6 +1161,7 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
   }
 
   QString command;
+  QString submoduleCommand = hasSubmodules() ? "git submodule update --init --recursive && " : "";
 
   if (branchExistsLocally && branchExistsRemotely) {
     // Branch exists both locally and remotely - handle potential rebase
@@ -1156,22 +1169,22 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
                       "git fetch origin && "
                       "git reset --hard origin/%1 && " // Reset to remote version
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j$(nproc)")
-                  .arg(branch);
+                      "%2scons -j$(nproc)")
+                  .arg(branch, submoduleCommand);
   } else if (branchExistsLocally) {
     // Branch exists only locally
     command = QString("git checkout -f %1 && "
                       "git reset --hard && "
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j$(nproc)")
-                  .arg(branch);
+                      "%2scons -j$(nproc)")
+                  .arg(branch, submoduleCommand);
   } else if (branchExistsRemotely) {
     // Branch exists only remotely - create tracking branch
     command = QString("git checkout -f -b %1 origin/%1 && "
                       "git reset --hard && "
                       "git clean -fd && git pull && "
-                      "git submodule update --init --recursive && scons -j$(nproc)")
-                  .arg(branch);
+                      "%2scons -j$(nproc)")
+                  .arg(branch, submoduleCommand);
   } else {
     // Try to fetch the branch from remote
     command = QString("git fetch origin %1:%1 && "
@@ -1179,8 +1192,8 @@ void BPUpdaterPanel::switchBranch(const QString &branch) {
                       "git reset --hard && "
                       "git clean -fd && "
                       "git pull && "
-                      "git submodule update --init --recursive && scons -j$(nproc)")
-                  .arg(branch);
+                      "%2scons -j$(nproc)")
+                  .arg(branch, submoduleCommand);
   }
 
   showCommandOutputDialog(tr("Switching Branch"), command, "", 1800000, true, true, true);
@@ -2402,10 +2415,11 @@ void BPUpdaterPanel::showCommitHistory(QWidget *parent, const QString &title, co
 
             QString command = QString("git checkout %1 -f && "
                                       "git reset --hard && "
-                                      "git clean -fd && "
-                                      "git submodule update --init --recursive && "
-                                      "scons -j$(nproc)")
-                                  .arg(commitHash);
+                                      "git clean -fd && ");
+            if (panel->hasSubmodules()) {
+              command += "git submodule update --init --recursive && ";
+            }
+            command += "scons -j$(nproc)";
 
             dialog->accept(); // Close history dialog
             panel->showCommandOutputDialog(tr("Checking Out Commit"), command,
@@ -2482,7 +2496,13 @@ void BPUpdaterPanel::handleRepoUpdate() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update
-  showCommandOutputDialog(tr("Update Openpilot"), "rm -f .git/index.lock && git fetch && git pull && git submodule update --init --recursive && scons -j$(nproc)", "", 1800000, true, true,
+  QString command = "rm -f .git/index.lock && git fetch && git pull";
+  if (hasSubmodules()) {
+    command += " && git submodule update --init --recursive";
+  }
+  command += " && scons -j$(nproc)";
+
+  showCommandOutputDialog(tr("Update Openpilot"), command, "", 1800000, true, true,
                           true); // 30 minutes timeout
 }
 
@@ -2506,7 +2526,13 @@ void BPUpdaterPanel::handleRepoUpdateAll() {
   executeGitCommand("git reset --hard HEAD && git clean -fd", qApp->applicationDirPath(), 30000);
 
   // Fetch, pull, and update all submodules
-  showCommandOutputDialog(tr("Update All Submodules"), "rm -f .git/index.lock && git fetch && git pull --ff-only && git submodule update --init --recursive && scons -j$(nproc)", "", 180000, true, true,
+  QString command = "rm -f .git/index.lock && git fetch && git pull --ff-only";
+  if (hasSubmodules()) {
+    command += " && git submodule update --init --recursive";
+  }
+  command += " && scons -j$(nproc)";
+
+  showCommandOutputDialog(tr("Update All Submodules"), command, "", 180000, true, true,
                           true);
 }
 
@@ -3261,4 +3287,20 @@ void BPUpdaterPanel::restorePowerSave() {
   // On non-QCOM2 platforms, do nothing
   powerSaveWasActive = false;
 #endif
+}
+
+bool BPUpdaterPanel::hasSubmodules() const {
+  QProcess process;
+  process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
+  process.start("git", QStringList() << "submodule" << "status");
+
+  // Add timeout to prevent hanging
+  if (!process.waitForFinished(3000)) { // 3 second timeout
+    process.kill();
+    process.waitForFinished(1000);
+    return false; // Assume no submodules if command times out
+  }
+
+  QString output = QString::fromUtf8(process.readAllStandardOutput());
+  return !output.trimmed().isEmpty();
 }
