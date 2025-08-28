@@ -501,25 +501,6 @@ void OtherDataWorker::processDeviceState(const UIState *s, OtherDataCache *cache
   }
 }
 
-// Helper function to check if CAN message is important for debugging
-static bool isImportantCANMessage(uint32_t can_id) {
-  // When filtering is enabled, show messages that typically have high frequency
-  // This is a generic filter that works for any car, not just Ford
-  // You can customize this based on your specific needs
-
-  // Generally important ranges (common across many vehicles):
-  // 0x000-0x0FF: High priority/safety critical
-  // 0x100-0x1FF: Powertrain
-  // 0x200-0x2FF: Chassis/body
-  // 0x300-0x3FF: Comfort/convenience
-  // 0x400-0x4FF: Infotainment/diagnostics
-
-  // For now, show all messages in the important ranges
-  if (can_id <= 0x1FF) return true;  // High priority and powertrain
-  if (can_id >= 0x300 && can_id <= 0x3FF) return true;  // Includes steering/ADAS
-
-  return false;
-}
 
 // Helper function to get CAN message name from ID
 // TODO: Integrate with vehicle's DBC file for accurate names
@@ -528,34 +509,10 @@ static bool isImportantCANMessage(uint32_t can_id) {
 // 2. Use opendbc's CANDefine or a C++ DBC parser to get message names
 // 3. Cache the parsed DBC data for performance
 static QString getMessageName(uint32_t can_id, const QString &carFingerprint = "") {
-  // For now, return known Ford messages if it's a Ford vehicle
-  // In the future, this should parse the actual DBC file
-
-  if (carFingerprint.contains("FORD") || carFingerprint.contains("LINCOLN")) {
-    // Basic Ford message names from ford_lincoln_base_pt.dbc
-    switch (can_id) {
-      case 0x82: return "EPAS_INFO";
-      case 0x165: return "BrakeSysFeatures";
-      case 0x204: return "EngVehicleSpThrottle";
-      case 0x3B3: return "Cruise_Status";
-      case 0x3D3: return "Steering_Data_FD1";
-      case 0x91: return "BodyInfo_3_FD1";
-      case 0x3D7: return "Lane_Assist_Data1";
-      case 0x167: return "ACCDATA";
-      case 0x415: return "ACCDATA_3";
-      case 0x130: return "Engine_Data_FD1";
-      case 0x168: return "BrakeSnData_4";
-      case 0x129: return "ParkingBrakeStatus";
-      case 0x3CA: return "BCMTurnSignals";
-      case 0x3D1: return "LateralMotionControl";
-      case 0x76: return "TransGearData";
-      default: return "";  // Empty for unknown
-    }
-  }
-
-  // For other vehicles or unknown messages, return empty
-  // The ID is shown in a separate column
-  return "";
+  Q_UNUSED(can_id);
+  Q_UNUSED(carFingerprint);
+  // Static message names removed - only show DBC-matched names
+  return "";  // Return empty - will be populated from DBC data only
 }
 
 // Helper function to parse CAN signals - generic version with optional DBC parsing
@@ -567,345 +524,24 @@ static void parseCANSignals(uint32_t can_id, const kj::ArrayPtr<const uint8_t> &
   for (const auto &signal : msg->signalList) {
     previousValues[signal.name] = signal.value;
   }
-  
+
   msg->signalList.clear();
 
   if (data.size() == 0) return; // No data to parse
 
   const uint8_t *bytes = data.begin();
 
-  // Check if this is a Ford vehicle and we have known signal parsing
-  bool isFord = carFingerprint.contains("FORD") || carFingerprint.contains("LINCOLN");
+  // Static signal parsing removed - only show DBC-matched signals
+  Q_UNUSED(carFingerprint);
   bool hasKnownSignals = false;
 
-  // If it's a Ford vehicle, try to parse known signals
-  if (isFord) {
-    hasKnownSignals = true;  // Will be set to false if we hit default case
-    switch (can_id) {
-    case 0x82: { // EPAS_INFO
-      // SteeringColumnTorque: bytes 0-1, scale 0.0625, offset -128
-      int16_t torque_raw = (bytes[1] << 8) | bytes[0];
-      double torque = (torque_raw * 0.0625) - 128.0;
+  // Skip all hardcoded signal parsing - only use DBC data
+  // All the switch statement cases have been removed
 
-      OtherDataCache::CANSignal torqueSignal;
-      torqueSignal.name = "SteeringColumnTorque";
-      torqueSignal.value = torque;
-      torqueSignal.previousValue = previousValues.value(torqueSignal.name, torque);
-      torqueSignal.hasChanged = (torqueSignal.value != torqueSignal.previousValue);
-      torqueSignal.unit = "Nm";
-      torqueSignal.min = -128.0;
-      torqueSignal.max = 127.9375;
-      msg->signalList.append(torqueSignal);
-
-      // SteeringAngle: bytes 2-3, scale 0.1, offset -3276.8
-      int16_t angle_raw = (bytes[3] << 8) | bytes[2];
-      double angle = (angle_raw * 0.1) - 3276.8;
-
-      OtherDataCache::CANSignal angleSignal;
-      angleSignal.name = "SteeringAngle";
-      angleSignal.value = angle;
-      angleSignal.unit = "deg";
-      angleSignal.min = -3276.8;
-      angleSignal.max = 3276.7;
-      msg->signalList.append(angleSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 4; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x165: { // BrakeSysFeatures
-      // Vehicle speed: bytes 4-5, scale 0.0625
-      uint16_t speed_raw = (bytes[5] << 8) | bytes[4];
-      double speed = speed_raw * 0.0625;
-
-      OtherDataCache::CANSignal speedSignal;
-      speedSignal.name = "Veh_V_ActlBrk";
-      speedSignal.value = speed;
-      speedSignal.unit = "km/h";
-      speedSignal.min = 0.0;
-      speedSignal.max = 655.35;
-      msg->signalList.append(speedSignal);
-
-      // Brake pedal position: byte 6, scale 0.39216
-      double brake = bytes[6] * 0.39216;
-
-      OtherDataCache::CANSignal brakeSignal;
-      brakeSignal.name = "BrakePedalPos";
-      brakeSignal.value = brake;
-      brakeSignal.unit = "%";
-      brakeSignal.min = 0.0;
-      brakeSignal.max = 100.0;
-      msg->signalList.append(brakeSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 0; i < 4; ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-
-      if (data.size() > 7) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = "Byte_7_Unknown";
-        extraSignal.value = bytes[7];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x204: { // EngVehicleSpThrottle
-      // Accelerator pedal position: byte 0, scale 0.39216
-      double gas = bytes[0] * 0.39216;
-
-      OtherDataCache::CANSignal gasSignal;
-      gasSignal.name = "ApedPos_Pc_ActlArb";
-      gasSignal.value = gas;
-      gasSignal.unit = "%";
-      gasSignal.min = 0.0;
-      gasSignal.max = 100.0;
-      msg->signalList.append(gasSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 1; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x3B3: { // Cruise_Status
-      // Cruise control status: bit in byte 0
-      bool cruise_enabled = (bytes[0] & 0x01) != 0;
-
-      OtherDataCache::CANSignal cruiseSignal;
-      cruiseSignal.name = "CruiseControlStatus";
-      cruiseSignal.value = cruise_enabled ? 1.0 : 0.0;
-      cruiseSignal.unit = "";
-      cruiseSignal.min = 0.0;
-      cruiseSignal.max = 1.0;
-      msg->signalList.append(cruiseSignal);
-
-      // Cruise speed: bytes 1-2, scale 0.0625
-      uint16_t cruise_speed_raw = (bytes[2] << 8) | bytes[1];
-      double cruise_speed = cruise_speed_raw * 0.0625;
-
-      OtherDataCache::CANSignal speedSignal;
-      speedSignal.name = "CruiseControlSpeed";
-      speedSignal.value = cruise_speed;
-      speedSignal.unit = "km/h";
-      speedSignal.min = 0.0;
-      speedSignal.max = 200.0;
-      msg->signalList.append(speedSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 3; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x3D7: { // Lane_Assist_Data1
-      // LKAS status: bit in byte 0
-      bool lkas_active = (bytes[0] & 0x01) != 0;
-
-      OtherDataCache::CANSignal lkasSignal;
-      lkasSignal.name = "LKAS_Active";
-      lkasSignal.value = lkas_active ? 1.0 : 0.0;
-      lkasSignal.unit = "";
-      lkasSignal.min = 0.0;
-      lkasSignal.max = 1.0;
-      msg->signalList.append(lkasSignal);
-
-      // Steering angle command: bytes 2-3, scale 0.1, offset -3276.8
-      int16_t steer_cmd_raw = (bytes[3] << 8) | bytes[2];
-      double steer_cmd = (steer_cmd_raw * 0.1) - 3276.8;
-
-      OtherDataCache::CANSignal steerSignal;
-      steerSignal.name = "SteeringCommand";
-      steerSignal.value = steer_cmd;
-      steerSignal.unit = "deg";
-      steerSignal.min = -3276.8;
-      steerSignal.max = 3276.7;
-      msg->signalList.append(steerSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 1; i < 2; ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-
-      for (int i = 4; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x167: { // ACCDATA
-      // ACC status: byte 0
-      OtherDataCache::CANSignal accStatusSignal;
-      accStatusSignal.name = "ACC_Status";
-      accStatusSignal.value = bytes[0];
-      accStatusSignal.unit = "";
-      accStatusSignal.min = 0.0;
-      accStatusSignal.max = 255.0;
-      msg->signalList.append(accStatusSignal);
-
-      // Target speed: bytes 1-2, scale 0.0625
-      uint16_t target_speed_raw = (bytes[2] << 8) | bytes[1];
-      double target_speed = target_speed_raw * 0.0625;
-
-      OtherDataCache::CANSignal targetSpeedSignal;
-      targetSpeedSignal.name = "Target_Speed";
-      targetSpeedSignal.value = target_speed;
-      targetSpeedSignal.unit = "km/h";
-      targetSpeedSignal.min = 0.0;
-      targetSpeedSignal.max = 200.0;
-      msg->signalList.append(targetSpeedSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 3; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x91: { // BodyInfo_3_FD1
-      // Door status: various bits in byte 0
-      bool driver_door = (bytes[0] & 0x01) != 0;
-      bool passenger_door = (bytes[0] & 0x02) != 0;
-      bool rear_left_door = (bytes[0] & 0x04) != 0;
-      bool rear_right_door = (bytes[0] & 0x08) != 0;
-
-      OtherDataCache::CANSignal driverDoorSignal;
-      driverDoorSignal.name = "Driver_Door_Open";
-      driverDoorSignal.value = driver_door ? 1.0 : 0.0;
-      driverDoorSignal.unit = "";
-      driverDoorSignal.min = 0.0;
-      driverDoorSignal.max = 1.0;
-      msg->signalList.append(driverDoorSignal);
-
-      OtherDataCache::CANSignal passengerDoorSignal;
-      passengerDoorSignal.name = "Passenger_Door_Open";
-      passengerDoorSignal.value = passenger_door ? 1.0 : 0.0;
-      passengerDoorSignal.unit = "";
-      passengerDoorSignal.min = 0.0;
-      passengerDoorSignal.max = 1.0;
-      msg->signalList.append(passengerDoorSignal);
-
-      OtherDataCache::CANSignal rearLeftDoorSignal;
-      rearLeftDoorSignal.name = "Rear_Left_Door_Open";
-      rearLeftDoorSignal.value = rear_left_door ? 1.0 : 0.0;
-      rearLeftDoorSignal.unit = "";
-      rearLeftDoorSignal.min = 0.0;
-      rearLeftDoorSignal.max = 1.0;
-      msg->signalList.append(rearLeftDoorSignal);
-
-      OtherDataCache::CANSignal rearRightDoorSignal;
-      rearRightDoorSignal.name = "Rear_Right_Door_Open";
-      rearRightDoorSignal.value = rear_right_door ? 1.0 : 0.0;
-      rearRightDoorSignal.unit = "";
-      rearRightDoorSignal.min = 0.0;
-      rearRightDoorSignal.max = 1.0;
-      msg->signalList.append(rearRightDoorSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 1; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    case 0x76: { // TransGearData
-      // Gear position: byte 0
-      OtherDataCache::CANSignal gearSignal;
-      gearSignal.name = "Gear_Position";
-      gearSignal.value = bytes[0];
-      gearSignal.unit = "";
-      gearSignal.min = 0.0;
-      gearSignal.max = 255.0;
-      msg->signalList.append(gearSignal);
-
-      // Additional signals from remaining bytes
-      for (int i = 1; i < std::min(8, (int)data.size()); ++i) {
-        OtherDataCache::CANSignal extraSignal;
-        extraSignal.name = QString("Byte_%1_Unknown").arg(i);
-        extraSignal.value = bytes[i];
-        extraSignal.unit = "";
-        extraSignal.min = 0.0;
-        extraSignal.max = 255.0;
-        msg->signalList.append(extraSignal);
-      }
-      break;
-    }
-
-    default:
-      hasKnownSignals = false;  // This message doesn't have known parsing
-      break;
-    }
-  }
-
-  // If we don't have known signals or it's not a Ford, show raw bytes
-  if (!hasKnownSignals) {
-    for (int i = 0; i < std::min(8, (int)data.size()); ++i) {
-      OtherDataCache::CANSignal byteSignal;
-      byteSignal.name = QString("Byte_%1").arg(i);
-      byteSignal.value = bytes[i];
-      byteSignal.unit = "";
-      byteSignal.min = 0.0;
-      byteSignal.max = 255.0;
-      msg->signalList.append(byteSignal);
-    }
-  }
+  // Static signal names removed - signals will only be populated from DBC data
+  Q_UNUSED(bytes);
+  Q_UNUSED(hasKnownSignals);
+  // Signal list remains empty - will only be populated from actual DBC parsing in the future
 }
 
 void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
@@ -993,7 +629,7 @@ void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
       // Check if data has changed
       QByteArray currentData(reinterpret_cast<const char*>(can_data.begin()), can_data.size());
       bool dataChanged = (cache->canMessages[can_id].lastData != currentData);
-      
+
       // Update message timing and data
       cache->canMessages[can_id].lastSeen = current_time;
       cache->canMessages[can_id].hasNewData = dataChanged;
@@ -2433,10 +2069,10 @@ void OtherDebugPanel::setupCANTab() {
   // Create compact title label
   QLabel *titleLabel = new QLabel("CAN Monitor (Cabana Lite)", m_canTab);
   titleLabel->setStyleSheet(R"(
-    font-size: 28px;
+    font-size: 36px;
     font-weight: bold;
     color: #18b4ff;
-    padding: 5px;
+    padding: 3px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
   )");
   titleLabel->setAlignment(Qt::AlignCenter);
@@ -2445,7 +2081,7 @@ void OtherDebugPanel::setupCANTab() {
   // Create compact control panel
   QWidget *controlPanel = new QWidget(m_canTab);
   QHBoxLayout *controlLayout = new QHBoxLayout(controlPanel);
-  controlLayout->setContentsMargins(5, 2, 5, 2);
+  controlLayout->setContentsMargins(3, 1, 3, 1);
 
   // Compact Pause/Resume button
   m_canPauseButton = new QPushButton("⏸", controlPanel);
@@ -2457,11 +2093,11 @@ void OtherDebugPanel::setupCANTab() {
       color: white;
       border: none;
       border-radius: 6px;
-      font-size: 24px;
+      font-size: 28px;
       font-weight: bold;
-      padding: 6px 12px;
-      min-width: 50px;
-      max-width: 50px;
+      padding: 5px 10px;
+      min-width: 45px;
+      max-width: 45px;
     }
     QPushButton:pressed {
       background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -2469,31 +2105,17 @@ void OtherDebugPanel::setupCANTab() {
     }
   )");
 
-  // Compact filter checkbox
-  m_canFilterImportant = new QCheckBox("Filter", controlPanel);
-  m_canFilterImportant->setToolTip("Show important messages only");
-  m_canFilterImportant->setStyleSheet(R"(
-    QCheckBox {
-      color: #bdc3c7;
-      font-size: 20px;
-      font-weight: bold;
-    }
-    QCheckBox::indicator {
-      width: 24px;
-      height: 24px;
-    }
-  )");
+  // Remove filter checkbox since we're showing all DBC-matched messages
 
   // Message count label
   m_canUpdateRateLabel = new QLabel("Messages: 0", controlPanel);
   m_canUpdateRateLabel->setStyleSheet(R"(
     color: #95a5a6;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: bold;
   )");
 
   controlLayout->addWidget(m_canPauseButton);
-  controlLayout->addWidget(m_canFilterImportant);
   controlLayout->addStretch();
   controlLayout->addWidget(m_canUpdateRateLabel);
 
@@ -2507,23 +2129,23 @@ void OtherDebugPanel::setupCANTab() {
   // Left side: Message table (Cabana-style)
   QWidget *messageWidget = new QWidget();
   QVBoxLayout *messageLayout = new QVBoxLayout(messageWidget);
-  messageLayout->setContentsMargins(5, 5, 5, 5);
+  messageLayout->setContentsMargins(3, 3, 3, 3);
 
   m_canMessageLabel = new QLabel("Messages", messageWidget);
   m_canMessageLabel->setStyleSheet(R"(
-    font-size: 20px;
+    font-size: 28px;
     font-weight: bold;
     color: #18b4ff;
-    padding: 4px;
+    padding: 2px;
     background: #1a1a1a;
     border-bottom: 2px solid #18b4ff;
   )");
   messageLayout->addWidget(m_canMessageLabel);
 
-  // Create Cabana-like message table with optimized columns for 6" display
-  m_canMessageTable = new QTableWidget(0, 6, messageWidget);
+  // Create Cabana-like message table with optimized columns for 5"+ display
+  m_canMessageTable = new QTableWidget(0, 3, messageWidget);
   m_canMessageTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  QStringList messageHeaders = {"Bus", "ID", "Name", "Count", "Freq", "Data"};
+  QStringList messageHeaders = {"Bus", "Freq", "Name"};
   m_canMessageTable->setHorizontalHeaderLabels(messageHeaders);
 
   // Configure table to look like Cabana
@@ -2533,14 +2155,11 @@ void OtherDebugPanel::setupCANTab() {
   m_canMessageTable->verticalHeader()->setVisible(false);
   m_canMessageTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-  // Optimize column widths for 6" display - more compact
+  // Optimize column widths for better space utilization
   m_canMessageTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // Name stretches
-  m_canMessageTable->setColumnWidth(0, 45);   // Bus
-  m_canMessageTable->setColumnWidth(1, 75);   // ID (hex)
+  m_canMessageTable->setColumnWidth(0, 100);  // Bus - reduced width since font is smaller
+  m_canMessageTable->setColumnWidth(1, 80);   // Freq - increased width for better readability
   // Column 2 (Name) stretches
-  m_canMessageTable->setColumnWidth(3, 70);   // Count
-  m_canMessageTable->setColumnWidth(4, 60);   // Freq
-  m_canMessageTable->setColumnWidth(5, 140);  // Data (hex bytes)
   m_canMessageTable->setStyleSheet(R"(
     QTableWidget {
       background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -2549,12 +2168,12 @@ void OtherDebugPanel::setupCANTab() {
       border: 1px solid #333;
       border-radius: 4px;
       font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 18px;
+      font-size: 22px;
       gridline-color: #333;
       alternate-background-color: rgba(255, 255, 255, 5);
     }
     QTableWidget::item {
-      padding: 4px;
+      padding: 2px;
       border: none;
     }
     QTableWidget::item:selected {
@@ -2565,9 +2184,9 @@ void OtherDebugPanel::setupCANTab() {
       background: #2a2a2a;
       color: #18b4ff;
       font-weight: bold;
-      padding: 6px;
+      padding: 4px;
       border: 1px solid #333;
-      font-size: 16px;
+      font-size: 24px;
       text-transform: uppercase;
     }
   )");
@@ -2577,18 +2196,18 @@ void OtherDebugPanel::setupCANTab() {
   // Right side: Signal details
   QWidget *signalWidget = new QWidget();
   QVBoxLayout *signalLayout = new QVBoxLayout(signalWidget);
-  signalLayout->setContentsMargins(5, 5, 5, 5);
+  signalLayout->setContentsMargins(3, 3, 3, 3);
 
   QLabel *signalLabel = new QLabel("Signals", signalWidget);
   signalLabel->setObjectName("signalLabel"); // Set object name for easy access
   signalLabel->setStyleSheet(R"(
-    font-size: 20px;
+    font-size: 28px;
     font-weight: bold;
     color: #18b4ff;
-    padding: 4px;
+    padding: 2px;
     background: #1a1a1a;
     border-bottom: 2px solid #18b4ff;
-  )");
+    )");
   signalLayout->addWidget(signalLabel);
 
   m_canSignalTable = new QTableWidget(0, 4, signalWidget);
@@ -2603,12 +2222,12 @@ void OtherDebugPanel::setupCANTab() {
       border: 1px solid #333;
       border-radius: 4px;
       gridline-color: #333;
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 18px;
+      font-family: 'Consolas', 'Monospace', monospace;
+      font-size: 22px;
       alternate-background-color: rgba(255, 255, 255, 5);
     }
     QTableWidget::item {
-      padding: 4px;
+      padding: 2px;
       border: none;
     }
     QTableWidget::item:selected {
@@ -2619,10 +2238,10 @@ void OtherDebugPanel::setupCANTab() {
       background: #2a2a2a;
       color: #18b4ff;
       font-weight: bold;
-      padding: 6px;
+      padding: 4px;
       border: 1px solid #333;
-      font-size: 16px;
       text-transform: uppercase;
+      font-size: 24px;
     }
   )");
 
@@ -2635,11 +2254,11 @@ void OtherDebugPanel::setupCANTab() {
   m_canSignalTable->setAlternatingRowColors(true);
   m_canSignalTable->setShowGrid(false);
 
-  // Set initial column widths
-  m_canSignalTable->setColumnWidth(0, 250); // Signal Name
-  m_canSignalTable->setColumnWidth(1, 150); // Value
-  m_canSignalTable->setColumnWidth(2, 100); // Unit
-  m_canSignalTable->setColumnWidth(3, 200); // Range
+  // Set initial column widths - optimized for smaller fonts
+  m_canSignalTable->setColumnWidth(0, 200); // Signal Name - reduced width
+  m_canSignalTable->setColumnWidth(1, 120); // Value - reduced width
+  m_canSignalTable->setColumnWidth(2, 80);  // Unit - reduced width
+  m_canSignalTable->setColumnWidth(3, 150); // Range - reduced width
 
   signalLayout->addWidget(m_canSignalTable, 1);  // Give stretch factor to the table
   splitter->addWidget(signalWidget);
@@ -2654,7 +2273,7 @@ void OtherDebugPanel::setupCANTab() {
     Q_UNUSED(previousRow);
     Q_UNUSED(previousColumn);
     if (currentRow >= 0 && currentRow < m_canMessageTable->rowCount()) {
-      QTableWidgetItem *item = m_canMessageTable->item(currentRow, 1); // ID column (now column 1)
+      QTableWidgetItem *item = m_canMessageTable->item(currentRow, 0); // ID column (now column 0)
       if (item) {
         m_selectedCANMessage = item->data(Qt::UserRole).toInt();
         updateCANSignals();
@@ -2687,11 +2306,7 @@ void OtherDebugPanel::setupCANTab() {
     }
   });
 
-  // Connect filter checkbox to refresh the message table
-  QObject::connect(m_canFilterImportant, &QCheckBox::toggled, this, [this](bool checked) {
-    Q_UNUSED(checked);
-    populateCANMessageTable(); // Refresh the table with new filter setting
-  });
+  // Filter checkbox removed - showing all DBC-matched messages
 
   // Connect tab changes to CAN subscription management
   QObject::connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
@@ -3860,19 +3475,13 @@ void OtherDebugPanel::populateCANMessageTable() {
     return;
   }
 
-  // Check if filtering is enabled
-  bool filterImportant = m_canFilterImportant && m_canFilterImportant->isChecked();
-
   // Build list of messages to display (use discovery order if available)
   QList<OtherDataCache::CANMessage> messages;
   if (!m_cache->discoveryOrder.isEmpty()) {
     // Use discovery order (Cabana-style - maintains order messages were first seen)
     for (int id : m_cache->discoveryOrder) {
       if (m_cache->canMessages.contains(id)) {
-        const auto &msg = m_cache->canMessages[id];
-        if (!filterImportant || isImportantCANMessage(id)) {
-          messages.append(msg);
-        }
+        messages.append(m_cache->canMessages[id]);
       }
     }
   } else {
@@ -3880,10 +3489,7 @@ void OtherDebugPanel::populateCANMessageTable() {
     QList<int> messageIds = m_cache->canMessages.keys();
     std::sort(messageIds.begin(), messageIds.end());
     for (int id : messageIds) {
-      const auto &msg = m_cache->canMessages[id];
-      if (!filterImportant || isImportantCANMessage(id)) {
-        messages.append(msg);
-      }
+      messages.append(m_cache->canMessages[id]);
     }
   }
 
@@ -3899,91 +3505,39 @@ void OtherDebugPanel::populateCANMessageTable() {
     QTableWidgetItem *busItem = m_canMessageTable->item(row, 0);
     if (!busItem) {
       busItem = new QTableWidgetItem();
-      busItem->setFont(QFont("Consolas", 16));
+      busItem->setFont(QFont("Consolas", 22));
       busItem->setTextAlignment(Qt::AlignCenter);
       m_canMessageTable->setItem(row, 0, busItem);
     }
-    QString busText = QString::number(message.bus);
+    QString busText = QString("0x%1").arg(message.id, 3, 16, QChar('0')).toUpper();
     if (busItem->text() != busText) {
       busItem->setText(busText);
+      busItem->setData(Qt::UserRole, message.id);
     }
 
-    // Column 1: ID (hex) - only update if changed
-    QTableWidgetItem *idItem = m_canMessageTable->item(row, 1);
-    if (!idItem) {
-      idItem = new QTableWidgetItem();
-      idItem->setFont(QFont("Consolas", 16, QFont::Bold));
-      idItem->setData(Qt::UserRole, message.id);
-      idItem->setTextAlignment(Qt::AlignCenter);
-      m_canMessageTable->setItem(row, 1, idItem);
-    }
-    QString idText = QString("0x%1").arg(message.id, 3, 16, QChar('0')).toUpper();
-    if (idItem->text() != idText) {
-      idItem->setText(idText);
-    }
-
-    // Column 2: Name - only update if changed
-    QTableWidgetItem *nameItem = m_canMessageTable->item(row, 2);
-    if (!nameItem) {
-      nameItem = new QTableWidgetItem();
-      nameItem->setFont(QFont("Consolas", 16));
-      m_canMessageTable->setItem(row, 2, nameItem);
-    }
-    QString nameText = message.name.isEmpty() ? "-" : message.name;
-    if (nameItem->text() != nameText) {
-      nameItem->setText(nameText);
-    }
-
-    // Column 3: Update count
-    QTableWidgetItem *countItem = m_canMessageTable->item(row, 3);
-    if (!countItem) {
-      countItem = new QTableWidgetItem();
-      countItem->setFont(QFont("Consolas", 16));
-      countItem->setTextAlignment(Qt::AlignCenter);
-      m_canMessageTable->setItem(row, 3, countItem);
-    }
-    QString countText = QString::number(message.updateCount);
-    if (countItem->text() != countText) {
-      countItem->setText(countText);
-    }
-
-    // Column 4: Frequency
-    QTableWidgetItem *freqItem = m_canMessageTable->item(row, 4);
+    // Column 1: Frequency
+    QTableWidgetItem *freqItem = m_canMessageTable->item(row, 1);
     if (!freqItem) {
       freqItem = new QTableWidgetItem();
-      freqItem->setFont(QFont("Consolas", 16));
+      freqItem->setFont(QFont("Consolas", 22));
       freqItem->setTextAlignment(Qt::AlignCenter);
-      m_canMessageTable->setItem(row, 4, freqItem);
+      m_canMessageTable->setItem(row, 1, freqItem);
     }
     QString freqText = message.frequency > 0 ? QString("%1").arg((int)message.frequency) : "-";
     if (freqItem->text() != freqText) {
       freqItem->setText(freqText);
     }
 
-    // Column 5: Data (first 4 bytes in hex)
-    QTableWidgetItem *dataItem = m_canMessageTable->item(row, 5);
-    if (!dataItem) {
-      dataItem = new QTableWidgetItem();
-      dataItem->setFont(QFont("Consolas", 14));
-      dataItem->setTextAlignment(Qt::AlignCenter);
-      m_canMessageTable->setItem(row, 5, dataItem);
+    // Column 2: Name - only update if changed
+    QTableWidgetItem *nameItem = m_canMessageTable->item(row, 2);
+    if (!nameItem) {
+      nameItem = new QTableWidgetItem();
+      nameItem->setFont(QFont("Consolas", 22));
+      m_canMessageTable->setItem(row, 2, nameItem);
     }
-    QString dataText;
-    if (message.lastData.size() > 0) {
-      QStringList hexBytes;
-      int bytesToShow = std::min(4, message.lastData.size());
-      for (int i = 0; i < bytesToShow; i++) {
-        hexBytes.append(QString("%1").arg((uint8_t)message.lastData[i], 2, 16, QChar('0')).toUpper());
-      }
-      dataText = hexBytes.join(" ");
-      if (message.lastData.size() > 4) {
-        dataText += "...";
-      }
-    } else {
-      dataText = "-";
-    }
-    if (dataItem->text() != dataText) {
-      dataItem->setText(dataText);
+    QString nameText = message.name.isEmpty() ? "-" : message.name;
+    if (nameItem->text() != nameText) {
+      nameItem->setText(nameText);
     }
 
     // Color coding based on update status
@@ -3995,16 +3549,13 @@ void OtherDebugPanel::populateCANMessageTable() {
       // Normal cyan for existing
       textColor = QColor(24, 180, 255);
     }
-    
-    // Apply color to ID and data columns to show activity
-    idItem->setForeground(textColor);
-    dataItem->setForeground(message.hasNewData ? QColor(50, 255, 50) : QColor(200, 200, 200));
-    
+
+    // Apply color to show activity - Bus (CAN ID) column shows activity
+    busItem->setForeground(textColor);
+
     // Other columns stay neutral
-    busItem->setForeground(QColor(150, 150, 150));
-    nameItem->setForeground(message.name.isEmpty() ? QColor(100, 100, 100) : QColor(220, 220, 220));
-    countItem->setForeground(QColor(150, 150, 150));
     freqItem->setForeground(QColor(150, 150, 150));
+    nameItem->setForeground(message.name.isEmpty() ? QColor(100, 100, 100) : QColor(220, 220, 220));
 
     row++;
   }
@@ -4038,7 +3589,7 @@ void OtherDebugPanel::updateCANSignals() {
   }
 
   const auto &message = m_cache->canMessages[m_selectedCANMessage];
-  
+
   // Update signal label with message info
   QLabel *signalLabel = m_canTab->findChild<QLabel*>("signalLabel");
   if (signalLabel) {
@@ -4089,7 +3640,7 @@ void OtherDebugPanel::updateCANSignals() {
       valueItem->setFont(QFont("Consolas", 16, QFont::Bold));
       m_canSignalTable->setItem(row, 1, valueItem);
     }
-    
+
     // Format value appropriately
     QString valueText;
     if (signal.value == std::floor(signal.value) && std::abs(signal.value) < 1000000) {
@@ -4097,11 +3648,11 @@ void OtherDebugPanel::updateCANSignals() {
     } else {
       valueText = QString::number(signal.value, 'f', 2);
     }
-    
+
     if (valueItem->text() != valueText) {
       valueItem->setText(valueText);
     }
-    
+
     // Highlight if value changed
     if (signal.hasChanged) {
       valueItem->setForeground(QColor(50, 255, 50)); // Bright green
@@ -4138,10 +3689,10 @@ void OtherDebugPanel::updateCANSignals() {
       rangeItem->setText(rangeText);
       rangeItem->setForeground(QColor(100, 100, 100));
     }
-    
+
     row++;
   }
-  
+
   // Remove extra rows if list shrunk
   if (row < m_canSignalTable->rowCount()) {
     m_canSignalTable->setRowCount(row);

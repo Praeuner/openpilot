@@ -207,7 +207,6 @@ private:
   QTableWidget *m_canSignalTable;
   QLabel *m_canMessageLabel;
   QPushButton *m_canPauseButton;
-  QCheckBox *m_canFilterImportant;
   QLabel *m_canUpdateRateLabel;
   int m_selectedCANMessage = -1;
 
