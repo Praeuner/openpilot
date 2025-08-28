@@ -25,6 +25,9 @@ OffroadHomeSP::OffroadHomeSP(QWidget *parent) : OffroadHome(parent) {
   left_layout->addWidget(new DriveStats(this));
   left_widget->setStyleSheet("border-radius: 10px;");
 
+  // Allow the left widget to expand and use available width
+  left_widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
   home_layout->insertWidget(0, left_widget);
 
   offroad_notif = new QPushButton(tr("ALWAYS OFFROAD ACTIVE"));
