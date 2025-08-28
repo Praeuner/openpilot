@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QSysInfo>
 #include <stdexcept>
+#include <iostream>
 #include "cereal/messaging/messaging.h"
 #include "common/util.h"
 
@@ -26,11 +27,83 @@ QString readSystemFile(const QString &path) {
 // Helper function to run a process and get output
 QString runProcess(const QString &program, const QStringList &arguments) {
   QProcess process;
-  process.start(program, arguments);
-  process.waitForFinished(500); // 500ms timeout - keep it short
-  if (process.exitStatus() == QProcess::NormalExit) {
-    return QString(process.readAllStandardOutput()).trimmed();
+
+  // Set process to not use shell (more secure and reliable)
+  process.setProcessChannelMode(QProcess::MergedChannels);
+
+  try {
+    process.start(program, arguments);
+    if (!process.waitForFinished(500)) { // 500ms timeout - keep it short
+      process.kill(); // Kill if it takes too long
+      return "";
+    }
+
+    if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+      QString output = QString(process.readAllStandardOutput()).trimmed();
+      if (!output.isEmpty()) {
+        return output;
+      }
+    }
+
+    // Silently handle errors - we don't want to spam logs
+
+  } catch (const std::exception &e) {
+    // Silently handle exceptions
+  } catch (...) {
+    // Silently handle unknown exceptions
   }
+
+  return "";
+}
+
+// Helper function to check if a command is available
+bool isCommandAvailable(const QString &command) {
+  static QMap<QString, bool> commandCache;
+
+  if (commandCache.contains(command)) {
+    return commandCache[command];
+  }
+
+  bool available = !runProcess("which", QStringList() << command).isEmpty();
+  commandCache[command] = available;
+  return available;
+}
+
+// Helper function to get WiFi SSID from system commands
+QString getWiFiSSIDFromSystem() {
+  // Use iwgetid as the primary method since it's most reliable
+  if (isCommandAvailable("iwgetid")) {
+    QString ssid = runProcess("iwgetid", QStringList() << "-r");
+    if (!ssid.isEmpty()) {
+      return ssid;
+    }
+  }
+
+  // Fallback to iwconfig if iwgetid fails
+  if (isCommandAvailable("iwconfig")) {
+    QString ssid = runProcess("iwconfig", QStringList());
+    if (ssid.contains("ESSID:")) {
+      int start = ssid.indexOf("ESSID:") + 6;
+      int end = ssid.indexOf("\"", start);
+      if (end > start) {
+        return ssid.mid(start, end - start);
+      }
+    }
+  }
+
+  // Final fallback to nmcli
+  if (isCommandAvailable("nmcli")) {
+    QString ssid = runProcess("nmcli", QStringList() << "-t" << "-f" << "SSID" << "device" << "wifi" << "list" << "--active");
+    if (!ssid.isEmpty()) {
+      QStringList lines = ssid.split('\n');
+      for (const QString &line : lines) {
+        if (!line.isEmpty() && line != "*") {
+          return line;
+        }
+      }
+    }
+  }
+
   return "";
 }
 
@@ -617,9 +690,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
   } else {
     local_networking = nullptr;
   }
+
   bool tethering_on = local_networking && local_networking->wifi && local_networking->wifi->tethering_on;
+
   // Safety check: ensure network type is valid
   auto networkType = deviceState.getNetworkType();
+
   if (network_type.contains(networkType)) {
     net_type = tethering_on ? "Hotspot" : network_type[networkType];
   } else {
@@ -632,29 +708,10 @@ void SidebarBP::updateStateBP(const UIState &s) {
   // Get carrier/SSID information
   if (tethering_on) {
     net_carrier_ssid = "Hotspot Active";
-  } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
-    // For WiFi, try to get SSID from networking object
-    if (local_networking && local_networking->wifi) {
-      QString current_ssid = "";
-      // Find the currently connected network
-      for (const auto &network : local_networking->wifi->seenNetworks) {
-        if (network.connected == ConnectedType::CONNECTED) {
-          current_ssid = QString::fromUtf8(network.ssid);
-          break;
-        }
-      }
-      // If no connected network found, try to get from active access point
-      if (current_ssid.isEmpty() && !local_networking->wifi->ipv4_address.isEmpty()) {
-        // We have an IP address, so we're connected to something
-        // Try to get the first available SSID
-        if (!local_networking->wifi->seenNetworks.isEmpty()) {
-          current_ssid = QString::fromUtf8(local_networking->wifi->seenNetworks.first().ssid);
-        }
-      }
-      net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
-    } else {
-      net_carrier_ssid = "Wi-Fi";
-    }
+    } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
+    // For WiFi, directly use the reliable system command method
+    QString current_ssid = getWiFiSSIDFromSystem();
+    net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
              deviceState.getNetworkType() <= cereal::DeviceState::NetworkType::CELL5_G) {
     // For cellular, get carrier name from network info and convert to readable name
