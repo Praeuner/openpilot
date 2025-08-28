@@ -384,7 +384,7 @@ void SidebarBP::leaveEvent(QEvent *event) {
 void SidebarBP::drawNetworkCard(QPainter &p) {
   // Custom network card with consistent spacing and graphical layout
   const int cardY = 20;
-  const int cardHeight = 130;
+  const int cardHeight = 140;
   const QRect rect = {30, cardY, 280, cardHeight};
 
   // Create card background with rounded corners
@@ -409,14 +409,14 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
   p.setPen(QColor(0xff, 0xff, 0xff));
 
   // Draw "NETWORK" label (top-left)
-  p.setFont(InterFont(24, QFont::DemiBold));
+  p.setFont(InterFont(28, QFont::DemiBold));
   p.drawText(rect.adjusted(20, 15, 0, 0), Qt::AlignLeft | Qt::AlignTop, tr("NETWORK"));
 
   // Network type text will be drawn at bottom left later
   bool tethering_on = local_networking && local_networking->wifi && local_networking->wifi->tethering_on;
 
   // Draw carrier/SSID (below title, full width allowed then truncated) - NOW IN BLUE
-  p.setFont(InterFont(28, QFont::Bold));
+  p.setFont(InterFont(32, QFont::Bold));
   p.setPen(accent_color); // Changed from white to blue
   QString displayName = net_carrier_ssid;
 
@@ -473,7 +473,7 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
   }
 
   // Draw network type text at bottom left
-  p.setFont(InterFont(20, QFont::DemiBold));
+  p.setFont(InterFont(24, QFont::DemiBold));
   p.setPen(QColor(200, 200, 200));
   QString networkTypeText = tethering_on ? "Hotspot" : (net_type.isEmpty() ? "Unknown" : net_type);
   p.drawText(rect.adjusted(20, 0, 0, -15), Qt::AlignLeft | Qt::AlignBottom, networkTypeText);
@@ -481,7 +481,7 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
 
 void SidebarBP::drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode) {
   // Use larger card sizes for better visibility
-  const QRect rect = {30, y, 280, compactMode ? 120 : 140}; // Increased width and height
+  const QRect rect = {30, y, 280, compactMode ? 130 : 150}; // Increased width and height
 
   // Create card background with rounded corners
   QPainterPath path;
@@ -507,38 +507,38 @@ void SidebarBP::drawMetricBP(QPainter &p, const QString &label, const QString &m
     p.setPen(QColor(0xff, 0xff, 0xff));
 
     // Draw label text (top-left)
-    p.setFont(InterFont(24, QFont::DemiBold));
+    p.setFont(InterFont(28, QFont::DemiBold));
     p.drawText(rect.adjusted(20, 10, 0, 0), Qt::AlignLeft | Qt::AlignTop, label);
 
     // Draw values side by side in the bottom row
     if (!leftValue.isEmpty()) {
-      p.setFont(InterFont(33, QFont::Bold)); // Even larger font for usage
+      p.setFont(InterFont(36, QFont::Bold)); // Even larger font for usage
       p.drawText(rect.adjusted(20, rect.height() / 2 - 10, 0, 0), Qt::AlignLeft | Qt::AlignTop, leftValue);
     }
 
     if (!rightValue.isEmpty()) {
-      p.setFont(InterFont(33, QFont::Bold)); // Even larger font for temperature
+      p.setFont(InterFont(36, QFont::Bold)); // Even larger font for temperature
       p.drawText(rect.adjusted(0, rect.height() / 2 - 10, -20, 0), Qt::AlignRight | Qt::AlignTop, rightValue);
     }
   } else {
     // 3-row layout (original mode for VEHICLE/CONNECT/SUNNYLINK)
     // Draw label text (top)
     p.setPen(QColor(0xff, 0xff, 0xff));
-    p.setFont(InterFont(24, QFont::DemiBold));
+    p.setFont(InterFont(28, QFont::DemiBold));
     p.drawText(rect.adjusted(20, 10, 0, -rect.height() / 2), Qt::AlignLeft | Qt::AlignVCenter, label);
 
     // Draw main value (center)
-    p.setFont(InterFont(30, QFont::Bold));
+    p.setFont(InterFont(34, QFont::Bold));
     p.drawText(rect.adjusted(20, rect.height() / 5, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, mainValue);
 
     // Draw bottom values (left and right)
     if (!leftValue.isEmpty()) {
-      p.setFont(InterFont(32, QFont::Bold));
+      p.setFont(InterFont(36, QFont::Bold));
       p.drawText(rect.adjusted(20, rect.height() / 2 + 20, 0, -10), Qt::AlignLeft | Qt::AlignBottom, leftValue);
     }
 
     if (!rightValue.isEmpty()) {
-      p.setFont(InterFont(32, QFont::Bold));
+      p.setFont(InterFont(36, QFont::Bold));
       p.drawText(rect.adjusted(0, rect.height() / 2 + 20, -20, -10), Qt::AlignRight | Qt::AlignBottom, rightValue);
     }
   }
@@ -549,15 +549,14 @@ void SidebarBP::buildMetricCard(QPainter &p, const QString &label, const QString
                                 QColor color, int cardIndex, bool compactMode) {
   // Calculate consistent positioning and spacing
   const int cardSpacing = 20; // Consistent gap between all cards
-  const int networkCardHeight = 130;
 
   // Calculate Y position starting after network card
-  const int startY = 20 + networkCardHeight + cardSpacing; // Position after NETWORK card ends with consistent spacing
+  const int startY = 20 + 140 + cardSpacing; // Position after NETWORK card ends with consistent spacing
 
   // Calculate Y position: startY + (previous cards height + spacing)
   int yPosition = startY;
   for (int i = 0; i < cardIndex; i++) {
-    int prevCardHeight = (i < 3) ? 120 : 140; // First 3 cards are compact (120px), rest are 140px
+    int prevCardHeight = (i < 3) ? 130 : 150; // First 3 cards are compact (130px), rest are 150px
     yPosition += prevCardHeight + cardSpacing;
   }
 
@@ -587,7 +586,7 @@ void SidebarBP::drawProgressBar(QPainter &p, int x, int y, int width, int height
 
   // Draw percentage text
   p.setPen(Qt::white);
-  p.setFont(InterFont(14, QFont::Bold));
+  p.setFont(InterFont(18, QFont::Bold));
   QString percentText = QString("%1%").arg(int(percentage * 100));
   p.drawText(x + width + 10, y + height - 2, percentText);
 }
@@ -900,14 +899,14 @@ void SidebarBP::drawSidebar(QPainter &p) {
     // Position mic button near the network card for better visibility
     const int buttonSize = 60; // Even smaller size to fit better
     const int micX = 30 + 280 - buttonSize - 20; // Position on the right side of network card (30 + 280 = network card right edge)
-    const int micY = 20 + 130 + 20; // Position below network card (20 + 130 + 20 = 170px from top)
+    const int micY = 20 + 140 + 20; // Position below network card (20 + 140 + 20 = 180px from top)
 
     // Safety check: ensure mic button coordinates are valid
     if (micX >= 0 && micY >= 0 && micX + buttonSize <= width() && micY + buttonSize <= height()) {
       mic_indicator_btn = QRect(micX, micY, buttonSize, buttonSize);
     } else {
       // Fallback to safe coordinates
-      mic_indicator_btn = QRect(30, 170, buttonSize, buttonSize);
+      mic_indicator_btn = QRect(30, 180, buttonSize, buttonSize);
     }
 
     // Draw mic button with red background to indicate recording is active
