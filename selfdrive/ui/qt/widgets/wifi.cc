@@ -9,8 +9,8 @@ WiFiPromptWidget::WiFiPromptWidget(QWidget *parent) : QFrame(parent) {
   // Setup Firehose Mode
   QVBoxLayout *main_layout = new QVBoxLayout(this);
   main_layout->setContentsMargins(56, 40, 56, 40);
-  main_layout->setSpacing(42);  
-  
+  main_layout->setSpacing(42);
+
   QLabel *title = new QLabel(tr("<span style='font-family: \"Noto Color Emoji\";'>🔥</span> Firehose Mode <span style='font-family: Noto Color Emoji;'>🔥</span>"));
   title->setStyleSheet("font-size: 64px; font-weight: 500;");
   main_layout->addWidget(title);
@@ -26,20 +26,30 @@ WiFiPromptWidget::WiFiPromptWidget(QWidget *parent) : QFrame(parent) {
     QPushButton {
       font-size: 48px;
       font-weight: 500;
-      border-radius: 10px;
-      background-color: #465BEA;
+      border-radius: 15px;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #465BEA, stop: 1 #3049F4);
       padding: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
     }
     QPushButton:pressed {
-      background-color: #3049F4;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #3049F4, stop: 1 #1a2f8f);
+    }
+    QPushButton:hover {
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #5a6fef, stop: 1 #3a59f9);
     }
   )");
   main_layout->addWidget(settings_btn);
 
   setStyleSheet(R"(
     WiFiPromptWidget {
-      background-color: #333333;
-      border-radius: 10px;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #2c2c2c, stop: 1 #1a1a1a);
+      border-radius: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
   )");
 }

@@ -22,7 +22,7 @@ ExitOffroadButton::ExitOffroadButton(QWidget *parent) : QPushButton(parent), glo
   });
 
   glowTimer->start(45);
-  
+
   pixmap = QPixmap("../../sunnypilot/selfdrive/assets/offroad/icon_exit_offroad.png").scaledToWidth(img_width, Qt::SmoothTransformation);
 
   // go to toggles and expand experimental mode description
@@ -72,7 +72,7 @@ void drawPulsingGlowOverlay(QPainter &p, QPainterPath path, int glowAlpha) {
   glowPen.setJoinStyle(Qt::RoundJoin);
   p.setPen(glowPen);
   p.drawPath(path);
-  
+
   p.restore();
 }
 
