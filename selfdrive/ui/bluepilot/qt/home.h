@@ -9,6 +9,7 @@ class HomeWindowBP : public HomeWindow {
 
 public:
   explicit HomeWindowBP(QWidget *parent = 0);
+  ~HomeWindowBP();
   void forceDebugPanelRefresh(); // Force refresh of debug panel
 
 public slots:

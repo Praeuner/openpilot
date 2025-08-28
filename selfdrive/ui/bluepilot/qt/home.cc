@@ -18,13 +18,26 @@ HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
     main_layout->insertWidget(0, sidebar);
   }
 
-  // Initialize debug panel
-  debug_panel = new OnroadControlsDebugPanel(this);
-  debug_panel->hide();
+  // Debug panel will be created on-demand when first requested
+  debug_panel = nullptr;
+}
+
+HomeWindowBP::~HomeWindowBP() {
+  // Clean up debug panel if it was created
+  if (debug_panel) {
+    delete debug_panel;
+    debug_panel = nullptr;
+  }
 }
 
 void HomeWindowBP::showDebugPanel() {
-  std::cout << "HomeWindowBP: showDebugPanel called, debug panel visible:" << (debug_panel ? debug_panel->isVisible() : false) << std::endl;
+  std::cout << "HomeWindowBP: showDebugPanel called" << std::endl;
+
+  // Create debug panel on first use
+  if (!debug_panel) {
+    std::cout << "HomeWindowBP: Creating debug panel on-demand" << std::endl;
+    debug_panel = new OnroadControlsDebugPanel(this);
+  }
 
   if (!debug_panel->isVisible()) {
     std::cout << "HomeWindowBP: Setting debug panel height to:" << height() << std::endl;
