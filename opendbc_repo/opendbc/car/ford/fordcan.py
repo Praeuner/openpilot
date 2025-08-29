@@ -197,7 +197,7 @@ def create_acc_ui_msg(packer, CAN: CanBus, CP, main_on: bool, enabled: bool, fcw
     status = 1    # Standby
 
   # Check if we should pass through stock Ford lane keeping signals
-  use_stock_lkas = params.get_bool("FordPassthroughStockLkas", False)
+  use_stock_lkas = params.get_bool("FordPassthroughStockLkas")
 
   values = {s: stock_values[s] for s in [
     "HaDsply_No_Cs",
@@ -290,13 +290,10 @@ def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, hands:
 
   """
 
-  # Check if we should pass through stock Ford lane keeping signals
-  use_stock_lkas = params.get_bool("FordPassthroughStockLkas", False)
-
   # TODO: test suppress state
   lines = 0
 
-  if hud_control is not None and not use_stock_lkas:
+  if hud_control is not None:
     left_status = 2  # Default to Suppress
     right_status = 10  # Default to Suppress
 
@@ -321,8 +318,8 @@ def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, hands:
     # Combine left and right lane status
     lines = left_status + right_status
   else:
-    # Use stock values when passthrough is enabled or hud_control is None
-    lines = stock_values.get("LaActvStats_D_Dsply", 0)
+    #Set this to 0 if hud_control is None
+    lines = 0
 
   values = {s: stock_values[s] for s in [
     "FeatConfigIpmaActl",
@@ -342,7 +339,7 @@ def create_lkas_ui_msg(packer, CAN: CanBus, main_on: bool, enabled: bool, hands:
 
   values.update({
     "LaActvStats_D_Dsply": lines,                 # LKAS status (lines) [0|31]
-    "LaHandsOff_D_Dsply": hands,   # 0=HandsOn, 1=Level1 (w/o chime), 2=Level2 (w/ chime), 3=Suppressed - Always use openpilot value for takeover prompts
+    "LaHandsOff_D_Dsply": hands,   # 0=HandsOn, 1=Level1 (w/o chime), 2=Level2 (w/ chime), 3=Suppressed
   })
   return packer.make_can_msg("IPMA_Data", CAN.main, values)
 
