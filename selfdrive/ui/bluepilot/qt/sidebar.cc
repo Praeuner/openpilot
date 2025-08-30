@@ -71,8 +71,20 @@ bool isCommandAvailable(const QString &command) {
 
 // Helper function to get WiFi SSID from system commands
 QString getWiFiSSIDFromSystem() {
+  // Static cache for command availability to avoid repeated checks
+  static bool iwgetid_checked = false;
+  static bool iwgetid_available = false;
+  static bool iwconfig_checked = false;
+  static bool iwconfig_available = false;
+  static bool nmcli_checked = false;
+  static bool nmcli_available = false;
+  
   // Use iwgetid as the primary method since it's most reliable
-  if (isCommandAvailable("iwgetid")) {
+  if (!iwgetid_checked) {
+    iwgetid_available = isCommandAvailable("iwgetid");
+    iwgetid_checked = true;
+  }
+  if (iwgetid_available) {
     QString ssid = runProcess("iwgetid", QStringList() << "-r");
     if (!ssid.isEmpty()) {
       return ssid;
@@ -80,7 +92,11 @@ QString getWiFiSSIDFromSystem() {
   }
 
   // Fallback to iwconfig if iwgetid fails
-  if (isCommandAvailable("iwconfig")) {
+  if (!iwconfig_checked) {
+    iwconfig_available = isCommandAvailable("iwconfig");
+    iwconfig_checked = true;
+  }
+  if (iwconfig_available) {
     QString ssid = runProcess("iwconfig", QStringList());
     if (ssid.contains("ESSID:")) {
       int start = ssid.indexOf("ESSID:") + 6;
@@ -92,7 +108,11 @@ QString getWiFiSSIDFromSystem() {
   }
 
   // Final fallback to nmcli
-  if (isCommandAvailable("nmcli")) {
+  if (!nmcli_checked) {
+    nmcli_available = isCommandAvailable("nmcli");
+    nmcli_checked = true;
+  }
+  if (nmcli_available) {
     QString ssid = runProcess("nmcli", QStringList() << "-t" << "-f" << "SSID" << "device" << "wifi" << "list" << "--active");
     if (!ssid.isEmpty()) {
       QStringList lines = ssid.split('\n');
@@ -674,11 +694,11 @@ void SidebarBP::updateStateBP(const UIState &s) {
   auto &sm = *(s.sm);
 
   // Safety check: ensure deviceState is available
-  if (!sm.alive("deviceState") || !sm.updated("deviceState")) {
+  if (!sm.alive("deviceState")) {
     return; // Exit early if device state is not available
   }
 
-      auto deviceState = sm["deviceState"].getDeviceState();
+  auto deviceState = sm["deviceState"].getDeviceState();
 
   // Safety check: ensure deviceState is available
   // We'll check if we can access network type safely
@@ -707,10 +727,16 @@ void SidebarBP::updateStateBP(const UIState &s) {
   // Get carrier/SSID information
   if (tethering_on) {
     net_carrier_ssid = "Hotspot Active";
-    } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
-    // For WiFi, directly use the reliable system command method
-    QString current_ssid = getWiFiSSIDFromSystem();
-    net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
+  } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
+    // Skip WiFi SSID retrieval during critical updates to avoid blocking
+    // The SSID will be updated on the next cycle when system is stable
+    if (net_carrier_ssid.isEmpty() || net_carrier_ssid == "Wi-Fi") {
+      // Only update SSID periodically to avoid blocking the UI thread
+      if (metrics_refresh_counter == 0) {
+        QString current_ssid = getWiFiSSIDFromSystem();
+        net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
+      }
+    }
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
              deviceState.getNetworkType() <= cereal::DeviceState::NetworkType::CELL5_G) {
     // For cellular, get carrier name from network info and convert to readable name
@@ -763,10 +789,10 @@ void SidebarBP::updateStateBP(const UIState &s) {
   // GPS satellite count - handle safely since services might not be running
   try {
     // Check if GPS services are available before trying to access them
-    if (sm.alive("gpsLocation") && sm.updated("gpsLocation")) {
+    if (sm.alive("gpsLocation")) {
       auto gpsData = sm["gpsLocation"].getGpsLocation();
       gps_satellite_count = gpsData.getSatelliteCount();
-    } else if (sm.alive("gpsLocationExternal") && sm.updated("gpsLocationExternal")) {
+    } else if (sm.alive("gpsLocationExternal")) {
       auto gpsData = sm["gpsLocationExternal"].getGpsLocationExternal();
       gps_satellite_count = gpsData.getSatelliteCount();
     } else {
