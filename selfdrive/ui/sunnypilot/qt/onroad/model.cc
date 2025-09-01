@@ -169,7 +169,7 @@ void ModelRendererSP::drawPath(QPainter &painter, const cereal::ModelDataV2::Rea
 
     // Draw blindspot overlays on top of custom path
     drawBlindspotOverlays(painter);
-    
+
     // Draw lead status after path rendering
     drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
     return; // Early return - don't call base drawPath
@@ -181,7 +181,7 @@ void ModelRendererSP::drawPath(QPainter &painter, const cereal::ModelDataV2::Rea
 
   // Fall back to standard path drawing
   ModelRenderer::drawPath(painter, model, surface_rect.height());
-  
+
   // Draw lead status after path rendering
   drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
 }

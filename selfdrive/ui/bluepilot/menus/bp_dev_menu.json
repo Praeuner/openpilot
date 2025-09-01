@@ -29,7 +29,7 @@
                 ]
               }
             },
-	    {
+            {
               "type": "selection",
               "param": "CustomModelPathColor",
               "title": "Custom Model Path Color",

@@ -28,6 +28,7 @@ VisualsPanel::VisualsPanel(QWidget *parent) : QWidget(parent) {
       "../assets/offroad/icon_monitoring.png",
       false,
     },
+
   };
 
   // Add regular toggles first
