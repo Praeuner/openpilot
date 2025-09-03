@@ -27,31 +27,53 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
   QVBoxLayout* main_layout = new QVBoxLayout(this);
   // Use minimal margins to maximize width usage
   main_layout->setContentsMargins(20, 30, 20, 30);
-  main_layout->setSpacing(20);
+  main_layout->setSpacing(10);
 
   auto add_stats_layouts = [=](const QString &title, StatsLabels& labels) {
-    QGridLayout* grid_layout = new QGridLayout;
-    grid_layout->setVerticalSpacing(15);
-    grid_layout->setHorizontalSpacing(40);
-    grid_layout->setContentsMargins(0, 0, 0, 0);
+    QVBoxLayout* section_layout = new QVBoxLayout;
+    section_layout->setContentsMargins(0, 0, 0, 0);
+    section_layout->setSpacing(10);
 
-    int row = 0;
-    grid_layout->addWidget(newLabel(title, "title"), row++, 0, 1, 3);
-    grid_layout->addItem(new QSpacerItem(0, 20), row++, 0, 1, 1);
+    // Title
+    section_layout->addWidget(newLabel(title, "title"));
 
-    grid_layout->addWidget(labels.routes = newLabel("0", "number"), row, 0, Qt::AlignCenter);
-    grid_layout->addWidget(labels.distance = newLabel("0", "number"), row, 1, Qt::AlignCenter);
-    grid_layout->addWidget(labels.hours = newLabel("0", "number"), row, 2, Qt::AlignCenter);
+    // Single background container for all stats
+    QFrame* stats_container = new QFrame;
+    stats_container->setProperty("type", "stats_container");
+    QHBoxLayout* stats_layout = new QHBoxLayout(stats_container);
+    stats_layout->setContentsMargins(15, 15, 15, 15);
+    stats_layout->setSpacing(0);
 
-    grid_layout->addWidget(newLabel((tr("Drives")), "unit"), row + 1, 0, Qt::AlignCenter);
-    grid_layout->addWidget(labels.distance_unit = newLabel(getDistanceUnit(), "unit"), row + 1, 1, Qt::AlignCenter);
-    grid_layout->addWidget(newLabel(tr("Hours"), "unit"), row + 1, 2, Qt::AlignCenter);
+    // Drives section
+    QVBoxLayout* drives_layout = new QVBoxLayout;
+    drives_layout->setContentsMargins(0, 0, 0, 0);
+    drives_layout->setSpacing(5);
+    drives_layout->addWidget(labels.routes = newLabel("0", "number"), 0, Qt::AlignCenter);
+    drives_layout->addWidget(newLabel(tr("Drives"), "unit"), 0, Qt::AlignCenter);
+    stats_layout->addLayout(drives_layout);
 
-    main_layout->addLayout(grid_layout);
+    // Distance section
+    QVBoxLayout* distance_layout = new QVBoxLayout;
+    distance_layout->setContentsMargins(0, 0, 0, 0);
+    distance_layout->setSpacing(5);
+    distance_layout->addWidget(labels.distance = newLabel("0", "number"), 0, Qt::AlignCenter);
+    distance_layout->addWidget(labels.distance_unit = newLabel(getDistanceUnit(), "unit"), 0, Qt::AlignCenter);
+    stats_layout->addLayout(distance_layout);
+
+    // Hours section
+    QVBoxLayout* hours_layout = new QVBoxLayout;
+    hours_layout->setContentsMargins(0, 0, 0, 0);
+    hours_layout->setSpacing(5);
+    hours_layout->addWidget(labels.hours = newLabel("0", "number"), 0, Qt::AlignCenter);
+    hours_layout->addWidget(newLabel(tr("Hours"), "unit"), 0, Qt::AlignCenter);
+    stats_layout->addLayout(hours_layout);
+
+    section_layout->addWidget(stats_container);
+    main_layout->addLayout(section_layout);
   };
 
   add_stats_layouts(tr("ALL TIME"), all_);
-  main_layout->addStretch();
+  main_layout->addSpacing(5);
   add_stats_layouts(tr("PAST WEEK"), week_);
 
   if (auto dongleId = getDongleId()) {
@@ -79,7 +101,7 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
       font-size: 72px;
       font-weight: 700;
       color: #18b4ff;
-      padding: 15px 0px;
+      padding: 8px 0px;
     }
 
     QLabel[type="unit"] {
@@ -87,6 +109,12 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
       font-weight: 400;
       color: #b0b0b0;
       padding: 5px 0px;
+    }
+
+    QFrame[type="stats_container"] {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
     }
   )");
 }

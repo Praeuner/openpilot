@@ -9,6 +9,7 @@
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/offroad_home.h"
 #include "selfdrive/ui/sunnypilot/qt/widgets/drive_stats.h"
+#include "selfdrive/ui/sunnypilot/qt/widgets/model_info.h"
 
 OffroadHomeSP::OffroadHomeSP(QWidget *parent) : OffroadHome(parent) {
   QFrame *left_widget = new QFrame(this);
@@ -23,6 +24,12 @@ OffroadHomeSP::OffroadHomeSP(QWidget *parent) : OffroadHome(parent) {
   left_layout->addWidget(btn_exit_offroad);
 
   left_layout->addWidget(new DriveStats(this));
+
+  // Add ModelInfoWidget below DriveStats
+  ModelInfoWidget *model_info = new ModelInfoWidget(this);
+  QObject::connect(model_info, &ModelInfoWidget::openSettings, this, &OffroadHomeSP::openSettings);
+  left_layout->addWidget(model_info);
+
   left_widget->setStyleSheet("border-radius: 10px;");
 
   // Allow the left widget to expand and use available width
