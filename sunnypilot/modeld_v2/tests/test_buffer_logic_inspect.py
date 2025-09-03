@@ -5,26 +5,20 @@ from typing import Any
 import openpilot.sunnypilot.models.helpers as helpers
 import openpilot.sunnypilot.models.runners.helpers as runner_helpers
 import openpilot.sunnypilot.modeld_v2.modeld as modeld_module
-from openpilot.sunnypilot.modeld_v2.model_metadata_lookup import MODEL_METADATA
 
 ModelState = modeld_module.ModelState
-SHAPE_MODE_PARAMS = []
-for _, meta in MODEL_METADATA.items():
-  mode = ''
-  if isinstance(meta, dict):
-    if meta.get('split'):
-      mode = 'split'
-    elif meta.get('non20hz'):
-      mode = 'non20hz'
-    elif meta.get('20hz'):
-      mode = '20hz'
 
-    input_shapes = {}
-    for k, v in meta.get('input_shapes', {}).items():
-      if k not in ["input_imgs", "big_input_imgs"]:
-        input_shapes[k] = v
-    if input_shapes:
-      SHAPE_MODE_PARAMS.append((input_shapes, mode))
+# These are the shapes extracted/loaded from the model onnx
+SHAPE_MODE_PARAMS = [
+  ({'desire': (1, 100, 8), 'features_buffer': (1, 99, 512), "nav_features": (1, 256), "nav_instructions": (1, 150)}, 'non20hz'), # Optimus Prime
+  ({'desire': (1, 100, 8), 'features_buffer': (1, 99, 512), "lat_planner_state": (1, 4),}, 'non20hz'), # farmville
+  ({'desire': (1, 100, 8), 'features_buffer': (1, 99, 512), "lateral_control_params": (1, 2), "prev_desired_curv": (1, 100, 1)}, 'non20hz'), # wd40
+  ({'desire': (1, 100, 8), 'features_buffer': (1, 99, 512), 'prev_desired_curv': (1, 100, 1), "lateral_control_params": (1, 2),}, 'non20hz'), # NTS
+  ({'desire': (1, 25, 8), 'features_buffer': (1, 24, 512)}, '20hz'), # NPR
+  ({'desire': (1, 100, 8), 'features_buffer': (1, 99, 512), 'prev_desired_curv': (1, 100, 1), "lateral_control_params": (1, 2),}, 'non20hz'), # NTS
+  ({'desire': (1, 25, 8), 'features_buffer': (1, 25, 512)}, 'split'), # Steam Powered v2
+  ({'desire_pulse': (1, 25, 8), 'features_buffer': (1, 25, 512)}, 'split'), # desire rename
+]
 
 
 # This creates a dummy runner, override, and bundle instance for the tests to run, without actually trying to load a physical model.
@@ -105,9 +99,7 @@ def get_expected_indices(shape, constants, mode, key=None):
     idxs = np.arange(step_size, step_size * (num_elements + 1), step_size)[::-1]
     return idxs
   elif mode == 'non20hz':
-    if key and shape[1] == constants.FULL_HISTORY_BUFFER_LEN:
-      return np.arange(constants.FULL_HISTORY_BUFFER_LEN)
-    return None
+    return np.arange(shape[1])
   return None
 
 
@@ -128,10 +120,7 @@ def test_buffer_shapes_and_indices(shapes, mode, apply_patches):
       expected_shape = (1, constants.FULL_HISTORY_BUFFER_LEN, shapes[key][2])
       expected_idxs = get_expected_indices(shapes[key], constants, '20hz', key)
     elif mode == 'non20hz':
-      if key == 'features_buffer':
-        expected_shape = (1, shapes[key][1]*4, shapes[key][2])
-      else:
-        expected_shape = (1, shapes[key][1], shapes[key][2])
+      expected_shape = (1, shapes[key][1], shapes[key][2])
       expected_idxs = get_expected_indices(shapes[key], constants, 'non20hz', key)
 
     assert buf is not None, f"{key}: buffer not found"
@@ -198,10 +187,9 @@ def legacy_buffer_update(buf, new_val, mode, key, constants, idxs, input_shape, 
       prev_desire[:] = new_val
       return buf[0]
     elif key == 'features_buffer':
-      feature_len = constants.FEATURE_LEN
-      buf[0, :-feature_len] = buf[0, feature_len:]
-      buf[0, -feature_len:] = new_val
-      return buf[0, -input_shape[1]:]
+      buf[0, :-1] = buf[0, 1:]
+      buf[0, -1] = new_val
+      return buf[0, -input_shape[1]:]  # (99, 512)
     elif key == 'prev_desired_curv':
       length = new_val.shape[0]
       buf[0,:-length,0] = buf[0,length:,0]
