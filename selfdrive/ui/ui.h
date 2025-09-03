@@ -150,6 +150,9 @@ protected:
   void updateWakefulness(const UIState &s);
   void setAwake(bool on);
 
+  // Helper method for brightness control
+  void setBrightness(int brightness);
+
   // New helpers for onroad behavior & offroad test
   void updateOnroadDisplayBehavior(const UIState &s);
   void applyOnroadDisplayBehavior(int behavior);

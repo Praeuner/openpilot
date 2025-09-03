@@ -191,7 +191,7 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
 void Device::update(const UIState &s) {
   updateBrightness(s);
   updateWakefulness(s);
-  updateOnroadDisplayBehavior(s);
+  updateOnroadDisplayBehavior(s);  // Added for onroad display behavior
 }
 
 void Device::setAwake(bool on) {
@@ -211,8 +211,15 @@ void Device::resetInteractiveTimeout(int timeout) {
   interactive_timeout = timeout * UI_FREQ;
 }
 
+void Device::setBrightness(int brightness) {
+  if (brightness != last_brightness && !brightness_future.isRunning()) {
+    brightness_future = QtConcurrent::run(Hardware::set_brightness, brightness);
+    last_brightness = brightness;
+  }
+}
+
 void Device::updateBrightness(const UIState &s) {
-  if (onroad_display_active) return;
+  if (onroad_display_active) return;  // Let onroad behavior control brightness
 
   int brightness;
   int brightness_override = QString::fromStdString(Params().get("Brightness")).toInt();
@@ -244,12 +251,7 @@ void Device::updateBrightness(const UIState &s) {
     brightness = 0;
   }
 
-  if (brightness != last_brightness) {
-    if (!brightness_future.isRunning()) {
-      brightness_future = QtConcurrent::run(Hardware::set_brightness, brightness);
-      last_brightness = brightness;
-    }
-  }
+  setBrightness(brightness);  // Use helper method instead of duplicated code
 }
 
 void Device::updateWakefulness(const UIState &s) {
@@ -298,7 +300,6 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
   if (onroad_display_behavior == 0) {
     if (onroad_display_active) {
       restoreOriginalBrightness();
-      onroad_display_active = false;
     }
     return;
   }
@@ -314,7 +315,6 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
     } else if (now >= onroad_display_deadline) {
       std::cout << "[Display] Timer expired: applying behavior " << onroad_display_behavior << std::endl;
       applyOnroadDisplayBehavior(onroad_display_behavior);
-      onroad_display_active = true;
     }
   }
 
@@ -324,7 +324,6 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
     if (onroad_display_active) {
       std::cout << "[Display] Going offroad: restoring brightness to " << original_brightness << std::endl;
       restoreOriginalBrightness();
-      onroad_display_active = false;
     }
   }
 }
@@ -361,10 +360,9 @@ void Device::dimDisplay(int percentage) {
     std::cout << "[Display] Dimming: saved brightness " << original_brightness << std::endl;
   }
   int dimmed = std::max(1, (original_brightness * percentage) / 100);
-  if (dimmed != last_brightness && !brightness_future.isRunning()) {
+  if (dimmed != last_brightness) {
     std::cout << "[Display] Dimming: " << last_brightness << " -> " << dimmed << " (" << percentage << "%)" << std::endl;
-    brightness_future = QtConcurrent::run(Hardware::set_brightness, dimmed);
-    last_brightness = dimmed;
+    setBrightness(dimmed);
   }
 }
 
@@ -374,22 +372,19 @@ void Device::turnOffDisplay() {
     onroad_display_active = true;
     std::cout << "[Display] Turn off: saved brightness " << original_brightness << std::endl;
   }
-  if (last_brightness != 0 && !brightness_future.isRunning()) {
+  if (last_brightness != 0) {
     std::cout << "[Display] Turning off display (brightness: " << last_brightness << " -> 0)" << std::endl;
-    brightness_future = QtConcurrent::run(Hardware::set_brightness, 0);
-    last_brightness = 0;
+    setBrightness(0);
   }
 }
 
 void Device::restoreOriginalBrightness() {
-  if (original_brightness > 0 && last_brightness != original_brightness && !brightness_future.isRunning()) {
+  if (onroad_display_active && original_brightness > 0) {
     std::cout << "[Display] Restoring: " << last_brightness << " -> " << original_brightness << std::endl;
-    brightness_future = QtConcurrent::run(Hardware::set_brightness, original_brightness);
-    last_brightness = original_brightness;
+    setBrightness(original_brightness);
+    onroad_display_active = false;
   }
 }
-
-// Offroad test logic removed
 
 #ifndef SUNNYPILOT
 UIState *uiState() {
