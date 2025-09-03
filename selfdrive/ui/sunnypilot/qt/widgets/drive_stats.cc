@@ -98,7 +98,7 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
     }
 
     QLabel[type="number"] {
-      font-size: 72px;
+      font-size: 66px;
       font-weight: 700;
       color: #18b4ff;
       padding: 8px 0px;

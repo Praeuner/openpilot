@@ -31,17 +31,18 @@ ModelInfoWidget::ModelInfoWidget(QWidget* parent) : QFrame(parent) {
   // Model name container
   QFrame* model_container = new QFrame;
   model_container->setProperty("type", "model_container");
+  model_container->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   QVBoxLayout* model_layout = new QVBoxLayout(model_container);
   model_layout->setContentsMargins(15, 8, 15, 8);
   model_layout->setSpacing(2);
 
   model_name_label = new QLabel();
   model_name_label->setProperty("type", "model_name");
-  model_name_label->setWordWrap(true);
+  model_name_label->setWordWrap(false);
   model_name_label->setAlignment(Qt::AlignCenter);
   model_layout->addWidget(model_name_label);
 
-  main_layout->addWidget(model_container);
+  main_layout->addWidget(model_container, 0, Qt::AlignCenter);
 
   // Settings button
   settings_button = new QPushButton(tr("Model Settings"));
