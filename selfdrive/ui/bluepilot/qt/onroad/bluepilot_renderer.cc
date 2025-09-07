@@ -1231,7 +1231,7 @@ void BluepilotRenderer::drawEnhancedLeads(QPainter &painter, const QRect &rect, 
     }
 
     drawEnhancedLead(painter, lead_data, frame_state.lead_state.vertices[i], rect,
-                    frame_state.lead_state.radar_assisted[i], confidence_alpha, scale_factor);
+                    frame_state.lead_state.radar_assisted[i], confidence_alpha, scale_factor, s);
   }
 }
 
@@ -1579,7 +1579,7 @@ void BluepilotRenderer::drawStopSignOverlay(QPainter &painter, const QPointF &po
 }
 
 void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data,
-                                        const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha, float scale_factor) {
+                                        const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha, float scale_factor, const UIState &s) {
   const float d_rel = lead_data.getDRel();
   const float v_lead = lead_data.getVLead();
   const float v_rel = lead_data.getVRel();
@@ -1675,7 +1675,10 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
 
   // Convert measurements for display
   float distance_m = d_rel;
-  float lead_speed_mph = v_lead * 2.237;
+
+  // Get metric setting from UI state to determine speed unit
+  bool is_metric = s.scene.is_metric;
+  float lead_speed_display = v_lead * (is_metric ? 3.6f : 2.237f); // MS_TO_KPH or MS_TO_MPH
 
   // Calculate time-to-lead (following time)
   float time_to_lead = 0.0f;
@@ -1690,7 +1693,7 @@ void BluepilotRenderer::drawEnhancedLead(QPainter &painter, const cereal::RadarS
   }
 
   QString distText = QString("%1m").arg(qRound(distance_m));
-  QString speedText = QString("%1mph").arg(qRound(lead_speed_mph));
+  QString speedText = QString("%1%2").arg(qRound(lead_speed_display)).arg(is_metric ? "km/h" : "mph");
   QString timeText;
 
   if (v_ego < 1.0f) {

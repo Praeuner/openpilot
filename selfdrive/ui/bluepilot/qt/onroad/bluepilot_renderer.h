@@ -149,7 +149,7 @@ private:
   static void drawStopSignOverlay(QPainter &painter, const QPointF &point, int size, float distance, float v_ego, float alpha);
   static void drawEnhancedLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data,
                               const QPointF &vd, const QRect &rect, bool radar_assisted, float alpha,
-                              float scale_factor = 1.0f);
+                              float scale_factor, const UIState &s);
 
   // Performance: cached/pre-computed data
   static QPixmap* radar_icon;
