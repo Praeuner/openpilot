@@ -75,6 +75,11 @@ void HomeWindow::showDriverView(bool show) {
 }
 
 void HomeWindow::mousePressEvent(QMouseEvent* e) {
+  // Reset onroad display timer on touch
+  if (onroad->isVisible()) {
+    device()->resetOnroadDisplayTimer();
+  }
+  
   // Handle sidebar collapsing
   if ((onroad->isVisible() || body->isVisible()) && (!sidebar->isVisible() || e->x() > sidebar->width())) {
     sidebar->setVisible(!sidebar->isVisible());

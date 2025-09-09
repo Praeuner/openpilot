@@ -219,32 +219,43 @@ void Device::setBrightness(int brightness) {
 }
 
 void Device::updateBrightness(const UIState &s) {
-  if (onroad_display_active) return;  // Let onroad behavior control brightness
-
   int brightness;
-  int brightness_override = QString::fromStdString(Params().get("Brightness")).toInt();
-  float clipped_brightness = offroad_brightness;
-  if (s.scene.started && s.scene.light_sensor >= 0) {
-    clipped_brightness = s.scene.light_sensor;
-
-    // CIE 1931 - https://www.photonstophotos.net/GeneralTopics/Exposure/Psychometric_Lightness_and_Gamma.htm
-    if (clipped_brightness <= 8) {
-      clipped_brightness = (clipped_brightness / 903.3);
-    } else {
-      clipped_brightness = std::pow((clipped_brightness + 16.0) / 116.0, 3.0);
+  
+  // When onroad display behavior is active (dimmed/off), override everything
+  if (onroad_display_active && onroad_display_behavior > 0) {
+    switch (onroad_display_behavior) {
+      case 1: brightness = 70; break;   // Dim to 70%
+      case 2: brightness = 50; break;   // Dim to 50%
+      case 3: brightness = 30; break;   // Dim to 30%
+      case 4: brightness = 0; break;    // Turn off
+      default: brightness = 100; break;
     }
-
-    if (brightness_override == 1) {
-      clipped_brightness = std::clamp(100.0f * clipped_brightness, 1.0f, 100.0f);  // Scale back to 1% to 100%
-    } else if (brightness_override == 0) {
-      clipped_brightness = std::clamp(100.0f * clipped_brightness, 10.0f, 100.0f);  // Scale back to 10% to 100%
-    }
-  }
-
-  if (brightness_override == 0 || brightness_override == 1) {
-    brightness = brightness_filter.update(clipped_brightness);
   } else {
-    brightness = brightness_override;
+    // Normal auto-brightness behavior
+    int brightness_override = QString::fromStdString(Params().get("Brightness")).toInt();
+    float clipped_brightness = offroad_brightness;
+    if (s.scene.started && s.scene.light_sensor >= 0) {
+      clipped_brightness = s.scene.light_sensor;
+
+      // CIE 1931 - https://www.photonstophotos.net/GeneralTopics/Exposure/Psychometric_Lightness_and_Gamma.htm
+      if (clipped_brightness <= 8) {
+        clipped_brightness = (clipped_brightness / 903.3);
+      } else {
+        clipped_brightness = std::pow((clipped_brightness + 16.0) / 116.0, 3.0);
+      }
+
+      if (brightness_override == 1) {
+        clipped_brightness = std::clamp(100.0f * clipped_brightness, 1.0f, 100.0f);  // Scale back to 1% to 100%
+      } else if (brightness_override == 0) {
+        clipped_brightness = std::clamp(100.0f * clipped_brightness, 10.0f, 100.0f);  // Scale back to 10% to 100%
+      }
+    }
+
+    if (brightness_override == 0 || brightness_override == 1) {
+      brightness = brightness_filter.update(clipped_brightness);
+    } else {
+      brightness = brightness_override;
+    }
   }
 
   if (!awake) {
@@ -286,105 +297,60 @@ void Device::updateOnroadDisplayBehavior(const UIState &s) {
   int behavior = params.getInt("OnroadDisplayBehavior");
   int timeout_idx = params.getInt("OnroadDisplayTimeout");
 
-  // If changed, reset state
+  // If settings changed, reset state
   if (behavior != onroad_display_behavior || timeout_idx != onroad_display_timeout) {
-    std::cout << "[Display] Settings changed: behavior " << onroad_display_behavior << "->" << behavior
-              << ", timeout " << onroad_display_timeout << "->" << timeout_idx << std::endl;
     onroad_display_behavior = behavior;
     onroad_display_timeout = timeout_idx;
     onroad_display_active = false;
     onroad_display_deadline = {};
   }
 
-  // Behavior 0: do nothing, ensure restore if needed
+  // Behavior 0: do nothing (normal auto-brightness)
   if (onroad_display_behavior == 0) {
-    if (onroad_display_active) {
-      restoreOriginalBrightness();
-    }
+    onroad_display_active = false;
     return;
   }
 
+  // Check for alerts and wake screen if needed
+  if (s.scene.started && onroad_display_active) {
+    // Wake on any alert from selfdriveState
+    if (s.sm->updated("selfdriveState")) {
+      const cereal::SelfdriveState::Reader &ss = (*s.sm)["selfdriveState"].getSelfdriveState();
+      if (ss.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
+        resetOnroadDisplayTimer();
+        return;
+      }
+    }
+  }
+
   // Only apply when onroad
-  if (s.scene.started && !onroad_display_active) {
-    auto now = std::chrono::steady_clock::now();
-    if (onroad_display_deadline.time_since_epoch().count() == 0) {
-      int secs = onroadTimeoutIndexToSeconds(onroad_display_timeout);
-      onroad_display_deadline = now + std::chrono::seconds(secs);
-      std::cout << "[Display] Started timer: behavior " << onroad_display_behavior
-                << " will activate in " << secs << "s" << std::endl;
-    } else if (now >= onroad_display_deadline) {
-      std::cout << "[Display] Timer expired: applying behavior " << onroad_display_behavior << std::endl;
-      applyOnroadDisplayBehavior(onroad_display_behavior);
+  if (s.scene.started) {
+    if (!onroad_display_active) {
+      auto now = std::chrono::steady_clock::now();
+      if (onroad_display_deadline.time_since_epoch().count() == 0) {
+        // Start the timer
+        int secs = onroadTimeoutIndexToSeconds(onroad_display_timeout);
+        onroad_display_deadline = now + std::chrono::seconds(secs);
+      } else if (now >= onroad_display_deadline) {
+        // Timer expired, activate display behavior
+        onroad_display_active = true;
+      }
     }
-  }
-
-  // Reset timer when offroad
-  if (!s.scene.started) {
-    onroad_display_deadline = {};
-    if (onroad_display_active) {
-      std::cout << "[Display] Going offroad: restoring brightness to " << original_brightness << std::endl;
-      restoreOriginalBrightness();
-    }
-  }
-}
-
-void Device::applyOnroadDisplayBehavior(int behavior) {
-  std::cout << "[Display Debug] Applying onroad display behavior: " << behavior << std::endl;
-  switch (behavior) {
-    case 1:
-      std::cout << "[Display Debug] Dimming display to 70%" << std::endl;
-      dimDisplay(70);
-      break; // 70%
-    case 2:
-      std::cout << "[Display Debug] Dimming display to 50%" << std::endl;
-      dimDisplay(50);
-      break; // 50%
-    case 3:
-      std::cout << "[Display Debug] Dimming display to 30%" << std::endl;
-      dimDisplay(30);
-      break; // 30%
-    case 4:
-      std::cout << "[Display Debug] Turning off display" << std::endl;
-      turnOffDisplay();
-      break; // off
-    default:
-      std::cout << "[Display Debug] Unknown behavior: " << behavior << std::endl;
-      break;
-  }
-}
-
-void Device::dimDisplay(int percentage) {
-  if (!onroad_display_active) {
-    original_brightness = last_brightness;
-    onroad_display_active = true;
-    std::cout << "[Display] Dimming: saved brightness " << original_brightness << std::endl;
-  }
-  int dimmed = std::max(1, (original_brightness * percentage) / 100);
-  if (dimmed != last_brightness) {
-    std::cout << "[Display] Dimming: " << last_brightness << " -> " << dimmed << " (" << percentage << "%)" << std::endl;
-    setBrightness(dimmed);
-  }
-}
-
-void Device::turnOffDisplay() {
-  if (!onroad_display_active) {
-    original_brightness = last_brightness;
-    onroad_display_active = true;
-    std::cout << "[Display] Turn off: saved brightness " << original_brightness << std::endl;
-  }
-  if (last_brightness != 0) {
-    std::cout << "[Display] Turning off display (brightness: " << last_brightness << " -> 0)" << std::endl;
-    setBrightness(0);
-  }
-}
-
-void Device::restoreOriginalBrightness() {
-  if (onroad_display_active && original_brightness > 0) {
-    std::cout << "[Display] Restoring: " << last_brightness << " -> " << original_brightness << std::endl;
-    setBrightness(original_brightness);
+  } else {
+    // Going offroad, reset everything
     onroad_display_active = false;
+    onroad_display_deadline = {};
   }
 }
+
+void Device::resetOnroadDisplayTimer() {
+  // Reset the timer and deactivate display behavior
+  if (onroad_display_behavior != 0) {
+    onroad_display_active = false;
+    onroad_display_deadline = {};
+  }
+}
+
 
 #ifndef SUNNYPILOT
 UIState *uiState() {

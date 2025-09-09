@@ -143,7 +143,6 @@ protected:
   int onroad_display_behavior = 0;      // 0: Do Nothing
   int onroad_display_timeout = 0;       // index -> seconds mapping
   bool onroad_display_active = false;   // whether behavior is currently applied
-  int original_brightness = 0;          // brightness before applying behavior
   std::chrono::steady_clock::time_point onroad_display_deadline{}; // activation deadline
 
   void updateBrightness(const UIState &s);
@@ -155,10 +154,9 @@ protected:
 
   // New helpers for onroad behavior & offroad test
   void updateOnroadDisplayBehavior(const UIState &s);
-  void applyOnroadDisplayBehavior(int behavior);
-  void dimDisplay(int percentage);
-  void turnOffDisplay();
-  void restoreOriginalBrightness();
+  
+public:
+  void resetOnroadDisplayTimer();
 
 signals:
   void displayPowerChanged(bool on);
