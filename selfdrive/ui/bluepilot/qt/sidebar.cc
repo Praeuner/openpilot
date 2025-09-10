@@ -78,7 +78,7 @@ QString getWiFiSSIDFromSystem() {
   static bool iwconfig_available = false;
   static bool nmcli_checked = false;
   static bool nmcli_available = false;
-  
+
   // Use iwgetid as the primary method since it's most reliable
   if (!iwgetid_checked) {
     iwgetid_available = isCommandAvailable("iwgetid");
@@ -311,11 +311,13 @@ QString getCarrierName(const QString &operatorCode) {
 SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   // Safety check: ensure uiState is available before connecting signals
   if (uiState()) {
-    // Disconnect base class signal connection to avoid conflicts
+    // Disconnect base class signal connections to avoid conflicts
     QObject::disconnect(uiState(), &UIState::uiUpdate, this, &Sidebar::updateState);
+    QObject::disconnect(uiState(), &UIState::offroadTransition, this, &Sidebar::offroadTransition);
 
-    // Connect our own updateState method
+    // Connect our own methods
     QObject::connect(uiState(), &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
+    QObject::connect(uiState(), &UIState::offroadTransition, this, &SidebarBP::offroadTransitionBP);
   }
 
   // Initialize GPS satellite count to 0 (no GPS available initially)
@@ -362,6 +364,10 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   // Set the appropriate width for the new sidebar layout
   // Cards: 280px + Right margin: 30px + Button width: 120px + Right margin: 30px = 460px
   setFixedWidth(460);
+
+  // Initialize status cards with placeholder text for startup
+  // connect_status = {{tr("CONNECT"), tr("WAIT")}, warning_color};
+  // panda_status = {{tr("VEHICLE"), tr("WAIT")}, warning_color};
 
   connect(this, &SidebarBP::valueChanged, [=] { update(); });
 }
@@ -500,8 +506,8 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
 }
 
 void SidebarBP::drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode) {
-  // Use larger card sizes for better visibility
-  const QRect rect = {30, y, 280, compactMode ? 130 : 150}; // Increased width and height
+  // Use optimized card sizes for better fit
+  const QRect rect = {30, y, 280, compactMode ? 130 : 120}; // Compact: 130px, Standard: 120px (reduced from 150px)
 
   // Create card background with rounded corners
   QPainterPath path;
@@ -576,7 +582,7 @@ void SidebarBP::buildMetricCard(QPainter &p, const QString &label, const QString
   // Calculate Y position: startY + (previous cards height + spacing)
   int yPosition = startY;
   for (int i = 0; i < cardIndex; i++) {
-    int prevCardHeight = (i < 3) ? 130 : 150; // First 3 cards are compact (130px), rest are 150px
+    int prevCardHeight = (i < 3) ? 130 : 120; // First 3 cards are compact (130px), vehicle/connect/sunnylink are 120px
     yPosition += prevCardHeight + cardSpacing;
   }
 
@@ -683,12 +689,18 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void SidebarBP::updateStateBP(const UIState &s) {
-  // Safety check: ensure widget is visible
+  // Safety check: ensure widget is visible and not in transition
   if (!isVisible()) return;
 
-    // Safety check: ensure sm pointer is valid
+  // Safety check: ensure sm pointer is valid
   if (!s.sm) {
     return; // Exit early if sm is null
+  }
+
+  // Safety check: prevent updates during critical transitions
+  if (onroad != s.scene.started) {
+    // State transition in progress, skip this update to prevent conflicts
+    return;
   }
 
   auto &sm = *(s.sm);
@@ -724,18 +736,16 @@ void SidebarBP::updateStateBP(const UIState &s) {
   int rawStrength = tethering_on ? 4 : (int)deviceState.getNetworkStrength();
   net_strength = (rawStrength > 0 && rawStrength <= 5) ? rawStrength + 1 : 0;
 
-  // Get carrier/SSID information
+  // Get carrier/SSID information - simplified to prevent blocking
   if (tethering_on) {
     net_carrier_ssid = "Hotspot Active";
   } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
-    // Skip WiFi SSID retrieval during critical updates to avoid blocking
-    // The SSID will be updated on the next cycle when system is stable
-    if (net_carrier_ssid.isEmpty() || net_carrier_ssid == "Wi-Fi") {
-      // Only update SSID periodically to avoid blocking the UI thread
-      if (metrics_refresh_counter == 0) {
-        QString current_ssid = getWiFiSSIDFromSystem();
-        net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
-      }
+    // Only update WiFi SSID when not in transition and periodically
+    if (onroad && metrics_refresh_counter == 0) {
+      QString current_ssid = getWiFiSSIDFromSystem();
+      net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
+    } else if (net_carrier_ssid.isEmpty()) {
+      net_carrier_ssid = "Wi-Fi";
     }
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
              deviceState.getNetworkType() <= cereal::DeviceState::NetworkType::CELL5_G) {
@@ -898,6 +908,28 @@ void SidebarBP::updateStateBP(const UIState &s) {
   emit valueChanged();
 }
 
+void SidebarBP::offroadTransitionBP(bool offroad) {
+  // Update the onroad state safely
+  onroad = !offroad;
+
+  // Reset any pressed states to prevent UI issues
+  flag_pressed = false;
+  settings_pressed = false;
+  mic_indicator_pressed = false;
+  debug_pressed = false;
+
+  // Reset network detection to prevent blocking during transitions
+  if (offroad) {
+    // Going offroad - reset network state to prevent blocking
+    net_carrier_ssid = "Offline";
+    net_type = "Offline";
+    net_strength = 0;
+  }
+
+  // Trigger UI update
+  update();
+}
+
 void SidebarBP::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   drawSidebar(p);
@@ -1046,18 +1078,21 @@ void SidebarBP::drawSidebar(QPainter &p) {
 
   // buildMetricCard(p, tr("GPS"), tr(""), gpsValue, gpsLabel, gpsColor, 3, true);
 
-  // Vehicle card - standard 3-row layout, larger size (140px height)
+  // Vehicle card - standard 3-row layout, optimized size (120px height)
   buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 3, false);
 
-  // Connect card - standard 3-row layout, larger size (140px height)
+  // Connect card - standard 3-row layout, optimized size (120px height)
   buildMetricCard(p, tr("CONNECT"), connect_status.first.second, tr(""), tr(""), connect_status.second, 4, false);
 
-  // SunnyLink card - standard 3-row layout, larger size (140px height)
+  // SunnyLink card - standard 3-row layout, optimized size (120px height)
   QVariant sunnylinkProperty = property("sunnylinkStatus");
   if (sunnylinkProperty.isValid() && sunnylinkProperty.canConvert<ItemStatus>()) {
     ItemStatus sunnylink_status = sunnylinkProperty.value<ItemStatus>();
-    // Position it with consistent spacing
     buildMetricCard(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, 5, false);
+  } else {
+    // Show placeholder when sunnylink data not available
+    ItemStatus placeholder_status = {{tr("SUNNYLINK"), tr("PENDING...")}, warning_color};
+    buildMetricCard(p, tr("SUNNYLINK"), placeholder_status.first.second, tr(""), tr(""), placeholder_status.second, 5, false);
   }
 
   // Buttons in vertical column on the right side, stacked from bottom to top

@@ -40,6 +40,7 @@ protected:
 
 public slots:
   void updateStateBP(const UIState &s);
+  void offroadTransitionBP(bool offroad);
 
 private:
   // Button images
@@ -55,7 +56,7 @@ private:
 
   // CPU card area for debug panel trigger
   const QRect cpu_card_area = QRect(30, 140, 240, 110);
-  QRect memory_fan_btn = QRect(30, 360, 240, 100);
+  QRect memory_fan_btn = QRect(30, 480, 280, 130); // Updated to match memory card position (index 2)
 
   // Recording audio button
   QRect mic_indicator_btn;

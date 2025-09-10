@@ -10,7 +10,7 @@ HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
   // Connect the debug panel signal
   QObject::connect(sidebar, SIGNAL(debugPanelRequested()), this, SLOT(showDebugPanel()));
   QObject::connect(sidebar, &Sidebar::openSettings, this, &HomeWindow::openSettings);
-  QObject::connect(uiState(), &UIState::offroadTransition, sidebar, &Sidebar::offroadTransition);
+  // Note: offroadTransition is now handled internally by SidebarBP
 
   // Re-add sidebar to layout (it was removed when we deleted the old one)
   QHBoxLayout *main_layout = qobject_cast<QHBoxLayout*>(layout());
