@@ -370,9 +370,9 @@ void SidebarBP::startAsyncSSIDUpdate() {
     return;
   }
 
-  // Try wpa_cli first (most efficient)
+  // Use iwgetid -r which was working in the original implementation
   ssid_update_pending = true;
-  ssid_process->start("wpa_cli", QStringList() << "-i" << "wlan0" << "status");
+  ssid_process->start("iwgetid", QStringList() << "-r");
 
   // Set a timeout - if process doesn't finish in 2 seconds, kill it
   QTimer::singleShot(2000, [this]() {
@@ -390,43 +390,12 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
   }
 
   if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-    QString output = QString::fromUtf8(ssid_process->readAllStandardOutput());
-
-    // Parse wpa_cli status output
-    // Look for ssid= line (not bssid= which is the MAC address)
-    if (output.contains("ssid=")) {
-      int start = output.indexOf("ssid=") + 5;
-      int end = output.indexOf('\n', start);
-      if (end > start) {
-        QString newSSID = output.mid(start, end - start);
-        // Check if this looks like a MAC address (contains colons)
-        if (!newSSID.isEmpty() && !newSSID.contains(':')) {
-          cached_ssid = newSSID;
-          ssid_cache_counter = 0; // Reset cache counter
-          return;
-        }
-      }
-    }
-  }
-
-  // If wpa_cli failed or returned a MAC address, try iwgetid as fallback
-  if (ssid_process->program() == "wpa_cli") {
-    ssid_update_pending = true;
-    ssid_process->start("iwgetid", QStringList() << "-r");
-
-    // Set timeout for iwgetid too
-    QTimer::singleShot(2000, [this]() {
-      if (ssid_process && ssid_process->state() == QProcess::Running) {
-        ssid_process->kill();
-      }
-    });
-    return;
-  } else if (ssid_process->program() == "iwgetid" && exitStatus == QProcess::NormalExit && exitCode == 0) {
-    // Parse iwgetid output (simple - just the SSID)
+    // iwgetid -r returns just the SSID directly
     QString output = QString::fromUtf8(ssid_process->readAllStandardOutput()).trimmed();
-    if (!output.isEmpty() && !output.contains(':')) { // Make sure it's not a MAC address
+    
+    if (!output.isEmpty()) {
       cached_ssid = output;
-      ssid_cache_counter = 0;
+      ssid_cache_counter = 0; // Reset cache counter
     }
   }
 }
@@ -768,15 +737,16 @@ void SidebarBP::updateStateBP(const UIState &s) {
     // Dynamic refresh intervals: 30 seconds onroad (stable), 5 seconds offroad (changing networks)
     int refresh_interval = onroad ? 30 : 5;
 
-    if (ssid_cache_counter >= refresh_interval) {
+    // Trigger immediate update if SSID is not cached yet
+    if (cached_ssid.isEmpty() || ssid_cache_counter >= refresh_interval) {
       startAsyncSSIDUpdate();
       ssid_cache_counter = 0;
     } else {
       ssid_cache_counter++;
     }
 
-    // Use cached SSID (updated async)
-    net_carrier_ssid = cached_ssid.isEmpty() ? "Wi-Fi" : cached_ssid;
+    // Use cached SSID (updated async), show "Detecting..." while waiting for first result
+    net_carrier_ssid = cached_ssid.isEmpty() ? "Detecting..." : cached_ssid;
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
              deviceState.getNetworkType() <= cereal::DeviceState::NetworkType::CELL5_G) {
     // For cellular, get carrier name from network info and convert to readable name
