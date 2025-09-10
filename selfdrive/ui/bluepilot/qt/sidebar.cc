@@ -6,7 +6,9 @@
 #include <QFile>
 #include <QTextStream>
 #include <QProcess>
+#include <QTimer>
 #include <QSysInfo>
+#include <QDateTime>
 #include <stdexcept>
 #include <iostream>
 #include "cereal/messaging/messaging.h"
@@ -69,63 +71,6 @@ bool isCommandAvailable(const QString &command) {
   return available;
 }
 
-// Helper function to get WiFi SSID from system commands
-QString getWiFiSSIDFromSystem() {
-  // Static cache for command availability to avoid repeated checks
-  static bool iwgetid_checked = false;
-  static bool iwgetid_available = false;
-  static bool iwconfig_checked = false;
-  static bool iwconfig_available = false;
-  static bool nmcli_checked = false;
-  static bool nmcli_available = false;
-
-  // Use iwgetid as the primary method since it's most reliable
-  if (!iwgetid_checked) {
-    iwgetid_available = isCommandAvailable("iwgetid");
-    iwgetid_checked = true;
-  }
-  if (iwgetid_available) {
-    QString ssid = runProcess("iwgetid", QStringList() << "-r");
-    if (!ssid.isEmpty()) {
-      return ssid;
-    }
-  }
-
-  // Fallback to iwconfig if iwgetid fails
-  if (!iwconfig_checked) {
-    iwconfig_available = isCommandAvailable("iwconfig");
-    iwconfig_checked = true;
-  }
-  if (iwconfig_available) {
-    QString ssid = runProcess("iwconfig", QStringList());
-    if (ssid.contains("ESSID:")) {
-      int start = ssid.indexOf("ESSID:") + 6;
-      int end = ssid.indexOf("\"", start);
-      if (end > start) {
-        return ssid.mid(start, end - start);
-      }
-    }
-  }
-
-  // Final fallback to nmcli
-  if (!nmcli_checked) {
-    nmcli_available = isCommandAvailable("nmcli");
-    nmcli_checked = true;
-  }
-  if (nmcli_available) {
-    QString ssid = runProcess("nmcli", QStringList() << "-t" << "-f" << "SSID" << "device" << "wifi" << "list" << "--active");
-    if (!ssid.isEmpty()) {
-      QStringList lines = ssid.split('\n');
-      for (const QString &line : lines) {
-        if (!line.isEmpty() && line != "*") {
-          return line;
-        }
-      }
-    }
-  }
-
-  return "";
-}
 
 // Helper function to map carrier codes to names
 QString getCarrierName(const QString &operatorCode) {
@@ -320,6 +265,12 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     QObject::connect(uiState(), &UIState::offroadTransition, this, &SidebarBP::offroadTransitionBP);
   }
 
+  // Initialize async SSID detection
+  ssid_process = new QProcess(this);
+  ssid_process->setProcessChannelMode(QProcess::MergedChannels);
+  connect(ssid_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          this, &SidebarBP::onSSIDProcessFinished);
+
   // Initialize GPS satellite count to 0 (no GPS available initially)
   gps_satellite_count = 0;
   setProperty("gpsSatelliteCount", gps_satellite_count);
@@ -366,8 +317,8 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   setFixedWidth(460);
 
   // Initialize status cards with placeholder text for startup
-  // connect_status = {{tr("CONNECT"), tr("WAIT")}, warning_color};
-  // panda_status = {{tr("VEHICLE"), tr("WAIT")}, warning_color};
+  connect_status = {{tr("CONNECT"), tr("...")}, warning_color};
+  panda_status = {{tr("VEHICLE"), tr("...")}, warning_color};
 
   connect(this, &SidebarBP::valueChanged, [=] { update(); });
 }
@@ -376,6 +327,12 @@ SidebarBP::~SidebarBP() {
   if (hover_animation) {
     delete hover_animation;
     hover_animation = nullptr;
+  }
+  
+  // Clean up SSID process
+  if (ssid_process && ssid_process->state() != QProcess::NotRunning) {
+    ssid_process->kill();
+    ssid_process->waitForFinished(1000);
   }
 }
 
@@ -405,6 +362,74 @@ void SidebarBP::leaveEvent(QEvent *event) {
     hover_animation->start();
   }
   QFrame::leaveEvent(event);
+}
+
+void SidebarBP::startAsyncSSIDUpdate() {
+  // Don't start new process if one is already running or pending
+  if (ssid_update_pending || !ssid_process || ssid_process->state() != QProcess::NotRunning) {
+    return;
+  }
+  
+  // Try wpa_cli first (most efficient)
+  ssid_update_pending = true;
+  ssid_process->start("wpa_cli", QStringList() << "-i" << "wlan0" << "status");
+  
+  // Set a timeout - if process doesn't finish in 2 seconds, kill it
+  QTimer::singleShot(2000, [this]() {
+    if (ssid_process && ssid_process->state() == QProcess::Running) {
+      ssid_process->kill();
+    }
+  });
+}
+
+void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+  ssid_update_pending = false;
+  
+  if (!ssid_process) {
+    return;
+  }
+  
+  if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+    QString output = QString::fromUtf8(ssid_process->readAllStandardOutput());
+    
+    // Parse wpa_cli status output
+    if (output.contains("ssid=")) {
+      int start = output.indexOf("ssid=") + 5;
+      int end = output.indexOf('\n', start);
+      if (end > start) {
+        QString newSSID = output.mid(start, end - start);
+        if (!newSSID.isEmpty()) {
+          cached_ssid = newSSID;
+          ssid_cache_counter = 0; // Reset cache counter
+          return;
+        }
+      }
+    }
+  }
+  
+  // If wpa_cli failed, try iwgetid as fallback (only if not already tried)
+  if (ssid_process->program() == "wpa_cli") {
+    static bool iwgetid_available = true; // Assume available on Linux
+    if (iwgetid_available) {
+      ssid_update_pending = true;
+      ssid_process->start("iwgetid", QStringList() << "-r");
+      
+      // Set timeout for iwgetid too
+      QTimer::singleShot(2000, [this]() {
+        if (ssid_process && ssid_process->state() == QProcess::Running) {
+          ssid_process->kill();
+        }
+      });
+      return;
+    }
+  } else if (ssid_process->program() == "iwgetid" && exitStatus == QProcess::NormalExit && exitCode == 0) {
+    // Parse iwgetid output (simple - just the SSID)
+    QString output = QString::fromUtf8(ssid_process->readAllStandardOutput()).trimmed();
+    if (!output.isEmpty()) {
+      cached_ssid = output;
+      ssid_cache_counter = 0;
+    }
+  }
 }
 
 void SidebarBP::drawNetworkCard(QPainter &p) {
@@ -740,13 +765,19 @@ void SidebarBP::updateStateBP(const UIState &s) {
   if (tethering_on) {
     net_carrier_ssid = "Hotspot Active";
   } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
-    // Only update WiFi SSID when not in transition and periodically
-    if (onroad && metrics_refresh_counter == 0) {
-      QString current_ssid = getWiFiSSIDFromSystem();
-      net_carrier_ssid = current_ssid.isEmpty() ? "Wi-Fi" : current_ssid;
-    } else if (net_carrier_ssid.isEmpty()) {
-      net_carrier_ssid = "Wi-Fi";
+    // Use async SSID detection to never block the UI thread
+    // Dynamic refresh intervals: 30 seconds onroad (stable), 5 seconds offroad (changing networks)
+    int refresh_interval = onroad ? 30 : 5;
+    
+    if (ssid_cache_counter >= refresh_interval) {
+      startAsyncSSIDUpdate();
+      ssid_cache_counter = 0;
+    } else {
+      ssid_cache_counter++;
     }
+    
+    // Use cached SSID (updated async)
+    net_carrier_ssid = cached_ssid.isEmpty() ? "Wi-Fi" : cached_ssid;
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
              deviceState.getNetworkType() <= cereal::DeviceState::NetworkType::CELL5_G) {
     // For cellular, get carrier name from network info and convert to readable name
@@ -918,14 +949,6 @@ void SidebarBP::offroadTransitionBP(bool offroad) {
   mic_indicator_pressed = false;
   debug_pressed = false;
 
-  // Reset network detection to prevent blocking during transitions
-  if (offroad) {
-    // Going offroad - reset network state to prevent blocking
-    net_carrier_ssid = "Offline";
-    net_type = "Offline";
-    net_strength = 0;
-  }
-
   // Trigger UI update
   update();
 }
@@ -1091,7 +1114,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
     buildMetricCard(p, tr("SUNNYLINK"), sunnylink_status.first.second, tr(""), tr(""), sunnylink_status.second, 5, false);
   } else {
     // Show placeholder when sunnylink data not available
-    ItemStatus placeholder_status = {{tr("SUNNYLINK"), tr("PENDING...")}, warning_color};
+    ItemStatus placeholder_status = {{tr("SUNNYLINK"), tr("...")}, warning_color};
     buildMetricCard(p, tr("SUNNYLINK"), placeholder_status.first.second, tr(""), tr(""), placeholder_status.second, 5, false);
   }
 

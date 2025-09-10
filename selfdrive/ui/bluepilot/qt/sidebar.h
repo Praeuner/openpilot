@@ -3,6 +3,7 @@
 #include "selfdrive/ui/qt/sidebar.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 #include <QPropertyAnimation>
+#include <QProcess>
 #include <memory>
 #include <mutex>
 #include "cereal/messaging/messaging.h"
@@ -37,10 +38,14 @@ protected:
   void drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
   void buildMetricCard(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor color, int cardIndex, bool compactMode);
   void drawProgressBar(QPainter &p, int x, int y, int width, int height, float percentage, QColor color);
+  void startAsyncSSIDUpdate(); // Async SSID detection
 
 public slots:
   void updateStateBP(const UIState &s);
   void offroadTransitionBP(bool offroad);
+
+private slots:
+  void onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
   // Button images
@@ -90,6 +95,12 @@ private:
   int net_strength = 0;
   QString net_carrier_ssid; // Store carrier name or WiFi SSID
   Networking *local_networking = nullptr;
+  
+  // Async SSID detection
+  QProcess *ssid_process = nullptr;
+  QString cached_ssid = "Wi-Fi";
+  int ssid_cache_counter = 0;
+  bool ssid_update_pending = false;
 
   const QMap<cereal::DeviceState::NetworkType, QString> network_type = {
     {cereal::DeviceState::NetworkType::NONE, tr("--")},
