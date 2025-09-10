@@ -204,6 +204,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LaneTurnDesire", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"LaneTurnValue", {PERSISTENT | BACKUP, FLOAT, "19.0"}},
 
+
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
     {"MapdVersion", {PERSISTENT, STRING}},
@@ -224,7 +225,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OsmWayTest", {PERSISTENT, STRING}},
     {"RoadName", {CLEAR_ON_ONROAD_TRANSITION, STRING}},
 
-    // Onroad Display Behavior
-    {"OnroadDisplayBehavior", {PERSISTENT | BACKUP, INT, "0"}},
-    {"OnroadDisplayTimeout", {PERSISTENT | BACKUP, INT, "0"}},
+    // BluePilot display brightness control params
+    {"BpDisplayBrightnessMode", {PERSISTENT | BACKUP, INT, "0"}},
+    {"BpDisplayBrightnessDimLevel", {PERSISTENT | BACKUP, INT, "90"}},
+    {"BpDisplayBrightnessTimeout", {PERSISTENT | BACKUP, INT, "30"}},
 };

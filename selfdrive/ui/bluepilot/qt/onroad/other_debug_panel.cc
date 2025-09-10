@@ -81,7 +81,7 @@ void OtherDataWorker::processData(const UIState *s) {
   processCarOutput(s, &cache);
   processCarParams(s, &cache);
   processDeviceState(s, &cache);
-  processCANData(s, &cache);
+  // processCANData(s, &cache); // DISABLED: CAN debug section disabled
 
   // Update our internal cache
   *m_lastCache = cache;
@@ -882,14 +882,14 @@ void OtherDebugPanel::updateVisibleTab() {
     }
     break;
 
-  case 5: // CAN tab
-    if (m_cache->updated.canData || currentTime - m_lastUpdates.deviceLastUpdate >= UpdateRates::DYNAMICS_UPDATE_RATE_MS) {
-      // Update CAN message list if needed
-      populateCANMessageTable();
-      // Update signal table for selected message
-      updateCANSignals();
-    }
-    break;
+  // case 5: // CAN tab DISABLED: CAN debug section disabled
+  //   if (m_cache->updated.canData || currentTime - m_lastUpdates.deviceLastUpdate >= UpdateRates::DYNAMICS_UPDATE_RATE_MS) {
+  //     // Update CAN message list if needed
+  //     populateCANMessageTable();
+  //     // Update signal table for selected message
+  //     updateCANSignals();
+  //   }
+  //   break;
   }
 
   update(); // Request a repaint
@@ -1103,7 +1103,7 @@ void OtherDebugPanel::setupTabs() {
   setupTuningTab();
   setupFirmwareTab();
   setupDeviceTab();
-  setupCANTab();
+  // setupCANTab(); // DISABLED: CAN debug section disabled
 
   // Add tabs to tab widget
   m_tabWidget->tabBar()->setShape(QTabBar::RoundedSouth);
@@ -1115,7 +1115,7 @@ void OtherDebugPanel::setupTabs() {
   m_tabWidget->addTab(m_tuningTab, "Tuning");
   m_tabWidget->addTab(m_firmwareTab, "Firmware");
   m_tabWidget->addTab(m_deviceTab, "Device");
-  m_tabWidget->addTab(m_canTab, "CAN");
+  // m_tabWidget->addTab(m_canTab, "CAN"); // DISABLED: CAN debug section disabled
 }
 
 void OtherDebugPanel::setupMainTab() {
@@ -2309,11 +2309,14 @@ void OtherDebugPanel::setupCANTab() {
   // Filter checkbox removed - showing all DBC-matched messages
 
   // Connect tab changes to CAN subscription management
+  // DISABLED: CAN debug section disabled
+  /*
   QObject::connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
     bool isCANTab = (m_tabWidget->tabText(index) == "CAN");
     qDebug() << "Tab changed to index:" << index << "tab text:" << m_tabWidget->tabText(index) << "isCANTab:" << isCANTab;
     setCANTabActive(isCANTab);
   });
+  */
 }
 
 void OtherDebugPanel::updateMainLabels() {

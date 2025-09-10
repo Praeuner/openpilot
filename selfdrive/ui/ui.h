@@ -139,24 +139,20 @@ protected:
   FirstOrderFilter brightness_filter;
   QFuture<void> brightness_future;
 
-  // Onroad display behavior state
-  int onroad_display_behavior = 0;      // 0: Do Nothing
-  int onroad_display_timeout = 0;       // index -> seconds mapping
-  bool onroad_display_active = false;   // whether behavior is currently applied
-  std::chrono::steady_clock::time_point onroad_display_deadline{}; // activation deadline
+  // BluePilot display brightness control
+  int bp_brightness_mode = 0;  // 0=always on, 1=dim, 2=off
+  int bp_dim_level = 90;       // dim brightness percentage
+  int bp_timeout = 30;         // timeout in seconds
+  int bp_brightness_timeout = 0; // timeout counter
+  bool bp_auto_brightness_override = false; // whether to override auto brightness
+  bool bp_alert_active = false; // whether an alert is currently active
 
   void updateBrightness(const UIState &s);
   void updateWakefulness(const UIState &s);
   void setAwake(bool on);
-
-  // Helper method for brightness control
-  void setBrightness(int brightness);
-
-  // New helpers for onroad behavior & offroad test
-  void updateOnroadDisplayBehavior(const UIState &s);
-  
-public:
-  void resetOnroadDisplayTimer();
+  void updateBpBrightnessControl(const UIState &s);
+  void resetBpBrightnessTimeout();
+  bool isAlertActive(const UIState &s);
 
 signals:
   void displayPowerChanged(bool on);
@@ -165,6 +161,7 @@ signals:
 public slots:
   void resetInteractiveTimeout(int timeout = -1);
   void update(const UIState &s);
+  void resetOnroadDisplayTimer();
 };
 
 #ifndef SUNNYPILOT
