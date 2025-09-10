@@ -58,6 +58,8 @@ private:
   const QColor background_color = QColor(32, 33, 35);
   const QColor card_background = QColor(48, 49, 51);
   const QColor accent_color = QColor(24, 144, 255);
+  const QColor progress_color = QColor(3, 132, 252);
+  const QColor disabled_color = QColor(128, 128, 128);
 
   // CPU card area for debug panel trigger
   const QRect cpu_card_area = QRect(30, 140, 240, 110);
@@ -95,7 +97,7 @@ private:
   int net_strength = 0;
   QString net_carrier_ssid; // Store carrier name or WiFi SSID
   Networking *local_networking = nullptr;
-  
+
   // Async SSID detection
   QProcess *ssid_process = nullptr;
   QString cached_ssid = "Wi-Fi";
@@ -113,6 +115,9 @@ private:
   };
 
   ItemStatus connect_status, panda_status, temp_status, gpu_status, memory_status, network_status;
+
+  // Params for sunnylink status
+  Params params;
 
   // Local button rectangles (since base class ones are const)
   QRect bp_settings_btn;

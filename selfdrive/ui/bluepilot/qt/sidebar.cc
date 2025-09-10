@@ -1,6 +1,7 @@
 #include "selfdrive/ui/bluepilot/qt/sidebar.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/network/wifi_manager.h"
+#include "selfdrive/ui/sunnypilot/qt/util.h"
 #include <QMouseEvent>
 #include <QPainterPath>
 #include <QFile>
@@ -13,6 +14,7 @@
 #include <iostream>
 #include "cereal/messaging/messaging.h"
 #include "common/util.h"
+#include "common/params.h"
 
 // Helper function to read system information files
 QString readSystemFile(const QString &path) {
@@ -392,7 +394,7 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
   if (exitStatus == QProcess::NormalExit && exitCode == 0) {
     // iwgetid -r returns just the SSID directly
     QString output = QString::fromUtf8(ssid_process->readAllStandardOutput()).trimmed();
-    
+
     if (!output.isEmpty()) {
       cached_ssid = output;
       ssid_cache_counter = 0; // Reset cache counter
@@ -895,6 +897,29 @@ void SidebarBP::updateStateBP(const UIState &s) {
 
     metrics_refresh_counter = 0;
   }
+
+  // Sunnylink status calculation (similar to SidebarSP)
+  ItemStatus sunnylinkStatus;
+  auto sl_dongle_id = getSunnylinkDongleId();
+  auto last_sunnylink_ping_str = params.get("LastSunnylinkPingTime");
+  auto last_sunnylink_ping = std::stoull(last_sunnylink_ping_str.empty() ? "0" : last_sunnylink_ping_str);
+  auto elapsed_sunnylink_ping = nanos_since_boot() - last_sunnylink_ping;
+  auto sunnylink_enabled = params.getBool("SunnylinkEnabled");
+
+  QString status = tr("DISABLED");
+  QColor color = disabled_color;
+
+  if (sunnylink_enabled && last_sunnylink_ping == 0) {
+    // If sunnylink is enabled, but we don't have a dongle id, and we haven't received a ping yet, we are registering
+    status = sl_dongle_id.has_value() ? tr("OFFLINE") : tr("REGIST...");
+    color = sl_dongle_id.has_value() ? warning_color : progress_color;
+  } else if (sunnylink_enabled) {
+    // If sunnylink is enabled, we are considered online if we have received a ping in the last 80 seconds, else error.
+    status = elapsed_sunnylink_ping < 80000000000ULL ? tr("ONLINE") : tr("ERROR");
+    color = elapsed_sunnylink_ping < 80000000000ULL ? good_color : danger_color;
+  }
+  sunnylinkStatus = ItemStatus{{tr("SUNNYLINK"), status}, color};
+  setProperty("sunnylinkStatus", QVariant::fromValue(sunnylinkStatus));
 
   // Update properties so QML/Qt can access them
   setProperty("cpuTemp", cpu_temp);
