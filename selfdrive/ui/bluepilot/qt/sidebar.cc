@@ -328,7 +328,7 @@ SidebarBP::~SidebarBP() {
     delete hover_animation;
     hover_animation = nullptr;
   }
-  
+
   // Clean up SSID process
   if (ssid_process && ssid_process->state() != QProcess::NotRunning) {
     ssid_process->kill();
@@ -369,11 +369,11 @@ void SidebarBP::startAsyncSSIDUpdate() {
   if (ssid_update_pending || !ssid_process || ssid_process->state() != QProcess::NotRunning) {
     return;
   }
-  
+
   // Try wpa_cli first (most efficient)
   ssid_update_pending = true;
   ssid_process->start("wpa_cli", QStringList() << "-i" << "wlan0" << "status");
-  
+
   // Set a timeout - if process doesn't finish in 2 seconds, kill it
   QTimer::singleShot(2000, [this]() {
     if (ssid_process && ssid_process->state() == QProcess::Running) {
@@ -384,14 +384,14 @@ void SidebarBP::startAsyncSSIDUpdate() {
 
 void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
   ssid_update_pending = false;
-  
+
   if (!ssid_process) {
     return;
   }
-  
+
   if (exitStatus == QProcess::NormalExit && exitCode == 0) {
     QString output = QString::fromUtf8(ssid_process->readAllStandardOutput());
-    
+
     // Parse wpa_cli status output
     if (output.contains("ssid=")) {
       int start = output.indexOf("ssid=") + 5;
@@ -406,14 +406,14 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
       }
     }
   }
-  
+
   // If wpa_cli failed, try iwgetid as fallback (only if not already tried)
   if (ssid_process->program() == "wpa_cli") {
     static bool iwgetid_available = true; // Assume available on Linux
     if (iwgetid_available) {
       ssid_update_pending = true;
       ssid_process->start("iwgetid", QStringList() << "-r");
-      
+
       // Set timeout for iwgetid too
       QTimer::singleShot(2000, [this]() {
         if (ssid_process && ssid_process->state() == QProcess::Running) {
@@ -768,14 +768,14 @@ void SidebarBP::updateStateBP(const UIState &s) {
     // Use async SSID detection to never block the UI thread
     // Dynamic refresh intervals: 30 seconds onroad (stable), 5 seconds offroad (changing networks)
     int refresh_interval = onroad ? 30 : 5;
-    
+
     if (ssid_cache_counter >= refresh_interval) {
       startAsyncSSIDUpdate();
       ssid_cache_counter = 0;
     } else {
       ssid_cache_counter++;
     }
-    
+
     // Use cached SSID (updated async)
     net_carrier_ssid = cached_ssid.isEmpty() ? "Wi-Fi" : cached_ssid;
   } else if (deviceState.getNetworkType() >= cereal::DeviceState::NetworkType::CELL2_G &&
@@ -993,7 +993,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
     // Draw mic button with red background to indicate recording is active
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
     p.setBrush(mic_indicator_pressed ? danger_color.darker(120) : danger_color);
-    p.drawEllipse(mic_indicator_btn);
+    p.drawRoundedRect(mic_indicator_btn, 15, 15);
 
     // Draw mic icon with appropriate scaling
     if (!mic_img.isNull()) {
@@ -1168,7 +1168,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
   // Draw settings button background and border with different background
   p.setPen(QPen(QColor(255, 255, 255, 80), 2));
   p.setBrush(settings_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
-  p.drawEllipse(bp_settings_btn);
+  p.drawRoundedRect(bp_settings_btn, 20, 20);
 
       // Draw settings icon (centered with proper scaling for larger button)
     if (!settings_img.isNull()) {
@@ -1196,7 +1196,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
     // Draw button background with different background
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
     p.setBrush(flag_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
-    p.drawEllipse(bp_home_btn);
+    p.drawRoundedRect(bp_home_btn, 20, 20);
 
     // Draw flag icon with proper scaling to fit nicely in the circular button
     if (!flag_img.isNull()) {
@@ -1224,7 +1224,7 @@ void SidebarBP::drawSidebar(QPainter &p) {
 
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
     p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
-    p.drawEllipse(bp_debug_btn);
+    p.drawRoundedRect(bp_debug_btn, 20, 20);
 
     // Draw debug icon (scaled and centered for larger button)
     if (!debug_img.isNull()) {
