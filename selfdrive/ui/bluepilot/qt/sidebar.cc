@@ -393,12 +393,14 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
     QString output = QString::fromUtf8(ssid_process->readAllStandardOutput());
 
     // Parse wpa_cli status output
+    // Look for ssid= line (not bssid= which is the MAC address)
     if (output.contains("ssid=")) {
       int start = output.indexOf("ssid=") + 5;
       int end = output.indexOf('\n', start);
       if (end > start) {
         QString newSSID = output.mid(start, end - start);
-        if (!newSSID.isEmpty()) {
+        // Check if this looks like a MAC address (contains colons)
+        if (!newSSID.isEmpty() && !newSSID.contains(':')) {
           cached_ssid = newSSID;
           ssid_cache_counter = 0; // Reset cache counter
           return;
@@ -407,25 +409,22 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
     }
   }
 
-  // If wpa_cli failed, try iwgetid as fallback (only if not already tried)
+  // If wpa_cli failed or returned a MAC address, try iwgetid as fallback
   if (ssid_process->program() == "wpa_cli") {
-    static bool iwgetid_available = true; // Assume available on Linux
-    if (iwgetid_available) {
-      ssid_update_pending = true;
-      ssid_process->start("iwgetid", QStringList() << "-r");
+    ssid_update_pending = true;
+    ssid_process->start("iwgetid", QStringList() << "-r");
 
-      // Set timeout for iwgetid too
-      QTimer::singleShot(2000, [this]() {
-        if (ssid_process && ssid_process->state() == QProcess::Running) {
-          ssid_process->kill();
-        }
-      });
-      return;
-    }
+    // Set timeout for iwgetid too
+    QTimer::singleShot(2000, [this]() {
+      if (ssid_process && ssid_process->state() == QProcess::Running) {
+        ssid_process->kill();
+      }
+    });
+    return;
   } else if (ssid_process->program() == "iwgetid" && exitStatus == QProcess::NormalExit && exitCode == 0) {
     // Parse iwgetid output (simple - just the SSID)
     QString output = QString::fromUtf8(ssid_process->readAllStandardOutput()).trimmed();
-    if (!output.isEmpty()) {
+    if (!output.isEmpty() && !output.contains(':')) { // Make sure it's not a MAC address
       cached_ssid = output;
       ssid_cache_counter = 0;
     }

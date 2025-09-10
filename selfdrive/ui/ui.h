@@ -146,6 +146,10 @@ protected:
   int bp_brightness_timeout = 0; // timeout counter
   bool bp_auto_brightness_override = false; // whether to override auto brightness
   bool bp_alert_active = false; // whether an alert is currently active
+  int bp_saved_brightness = -1; // saved brightness before dimming/turning off
+  bool bp_params_changed = false; // flag to indicate parameter changes
+  int bp_brightness_failure_count = 0; // count of consecutive brightness setting failures
+  std::chrono::steady_clock::time_point bp_last_brightness_attempt;
 
   void updateBrightness(const UIState &s);
   void updateWakefulness(const UIState &s);
@@ -153,6 +157,9 @@ protected:
   void updateBpBrightnessControl(const UIState &s);
   void resetBpBrightnessTimeout();
   bool isAlertActive(const UIState &s);
+  void setBrightnessSafe(int brightness);
+  void restoreAutoBrightness(const UIState &s);
+  bool validateBrightnessValue(int brightness);
 
 signals:
   void displayPowerChanged(bool on);
