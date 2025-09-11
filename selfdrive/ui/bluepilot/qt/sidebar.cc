@@ -438,18 +438,22 @@ void SidebarBP::updateFanAnimation() {
   }
 
   if (fanPercentage > 0) {
+    // Calculate animation speed based on percentage
+    // Higher percentage = faster spin (shorter duration)
     int duration = std::max(50, 2000 - static_cast<int>(fanPercentage * 19.5));
 
     if (fan_animation->state() != QAbstractAnimation::Running) {
       fan_animation->setDuration(duration);
       fan_animation->start();
     } else if (fan_animation->duration() != duration) {
+      // Update speed while running
       fan_animation->setDuration(duration);
     }
   } else {
+    // Stop animation when fan demand is 0%
     if (fan_animation->state() == QAbstractAnimation::Running) {
       fan_animation->stop();
-      fan_rotation = 0.0;
+      fan_rotation = 0.0; // Reset to 0 degrees
       setProperty("fanRotation", fan_rotation);
     }
   }
@@ -710,13 +714,6 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
     update();
   } else if (bp_debug_btn.contains(event->pos()) && onroad) {
     debug_pressed = true;
-    update();
-  } else if (memory_fan_btn.isValid() && memory_fan_btn.contains(event->pos())) {
-    // Toggle between memory and fan display with thread safety
-    {
-      std::lock_guard<std::mutex> lock(toggle_mutex);
-      show_fan_instead_memory = !show_fan_instead_memory;
-    }
     update();
   }
 }
@@ -1121,45 +1118,21 @@ void SidebarBP::drawSidebar(QPainter &p) {
   }
   buildMetricCard(p, tr("GPU"), tr(""), gpu_usage, gpu_temp, gpuColor, 1, true);
 
-  // Memory/Fan card with toggle functionality, larger size (120px height)
-  QColor memoryFanColor = good_color;
-  bool current_show_fan;
-  {
-    std::lock_guard<std::mutex> lock(toggle_mutex);
-    current_show_fan = show_fan_instead_memory;
+  // Memory card, larger size (120px height)
+  QColor memoryColor = good_color;
+  bool memoryValid = false;
+  float memoryValue = 0.0f;
+  if (memory_usage.endsWith("%") && memory_usage.length() > 1) {
+    QString memoryStr = memory_usage.mid(0, memory_usage.length() - 1);
+    memoryValue = memoryStr.toFloat(&memoryValid);
   }
 
-  if (current_show_fan) {
-    // Show fan demand
-    bool fanDemandValid = false;
-    float fanDemandValue = 0.0f;
-    if (fan_demand.endsWith("%") && fan_demand.length() > 1) {
-      QString fanStr = fan_demand.mid(0, fan_demand.length() - 1);
-      fanDemandValue = fanStr.toFloat(&fanDemandValid);
-    }
-
-    if (fanDemandValid && fanDemandValue > 80.0) {
-      memoryFanColor = danger_color;
-    } else if (fanDemandValid && fanDemandValue > 60.0) {
-      memoryFanColor = warning_color;
-    }
-    buildMetricCard(p, tr("FAN"), tr(""), fan_demand, tr(""), memoryFanColor, 2, true);
-  } else {
-    // Show memory as before
-    bool memoryValid = false;
-    float memoryValue = 0.0f;
-    if (memory_usage.endsWith("%") && memory_usage.length() > 1) {
-      QString memoryStr = memory_usage.mid(0, memory_usage.length() - 1);
-      memoryValue = memoryStr.toFloat(&memoryValid);
-    }
-
-    if (memoryValid && memoryValue > 85) {
-      memoryFanColor = danger_color;
-    } else if (memoryValid && memoryValue > 70) {
-      memoryFanColor = warning_color;
-    }
-    buildMetricCard(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, 2, true);
+  if (memoryValid && memoryValue > 85) {
+    memoryColor = danger_color;
+  } else if (memoryValid && memoryValue > 70) {
+    memoryColor = warning_color;
   }
+  buildMetricCard(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryColor, 2, true);
 
   // Vehicle card - standard 3-row layout, optimized size (120px height)
   buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 3, false);

@@ -66,7 +66,6 @@ private:
 
   // CPU card area for debug panel trigger
   const QRect cpu_card_area = QRect(30, 140, 240, 110);
-  QRect memory_fan_btn = QRect(30, 480, 280, 130); // Updated to match memory card position (index 2)
 
   // Recording audio button
   QRect mic_indicator_btn;
@@ -86,7 +85,6 @@ private:
   QString gpu_usage = "0%";
   QString memory_usage = "0%";
   QString fan_demand = "0%";
-  bool show_fan_instead_memory = false;
   int gps_satellite_count = 0;
 
   // Hover animation
@@ -97,9 +95,6 @@ private:
   // Performance metrics refresh control
   int metrics_refresh_counter = 0;
   const int METRICS_REFRESH_INTERVAL = 20;
-
-  // Thread safety for shared state
-  mutable std::mutex toggle_mutex;
 
   // Network data
   QString net_type;
