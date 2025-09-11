@@ -462,8 +462,6 @@ void Device::setBrightnessSafe(int brightness) {
   }
 }
 
-
-
 #ifndef SUNNYPILOT
 UIState *uiState() {
   static UIState ui_state;
