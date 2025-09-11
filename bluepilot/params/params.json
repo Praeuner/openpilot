@@ -367,7 +367,7 @@
     },
     {
       "name": "BpDisplayBrightnessDimLevel",
-      "default": 90,
+      "default": 70,
       "min": 20,
       "max": 90,
       "type": "int",

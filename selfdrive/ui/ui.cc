@@ -199,7 +199,7 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
 
   // Validate initial parameter values
   if (!validateBrightnessValue(bp_dim_level)) {
-    bp_dim_level = 90; // fallback to default
+    bp_dim_level = 70; // fallback to default
   }
   if (bp_timeout < 10 || bp_timeout > 120) {
     bp_timeout = 30; // fallback to default
@@ -233,7 +233,7 @@ void Device::resetInteractiveTimeout(int timeout) {
   }
   interactive_timeout = timeout * UI_FREQ;
 
-  // Also reset BluePilot brightness timeout on touch events
+  // Reset BluePilot brightness timeout on touch events
   resetBpBrightnessTimeout();
 }
 
@@ -317,7 +317,7 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     if (new_mode != bp_brightness_mode || new_dim_level != bp_dim_level || new_timeout != bp_timeout) {
       bp_params_changed = true;
       bp_brightness_mode = new_mode;
-      bp_dim_level = validateBrightnessValue(new_dim_level) ? new_dim_level : 90;
+      bp_dim_level = validateBrightnessValue(new_dim_level) ? new_dim_level : 70;
       bp_timeout = (new_timeout >= 10 && new_timeout <= 120) ? new_timeout : 30;
 
       // Reset timeout when parameters change
@@ -325,13 +325,17 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     }
   }
 
-  // Check if alert is active
+  // Check if alert is active using the existing events system
   bool current_alert_active = isAlertActive(s);
 
-  // Reset timeout when alert becomes active
-  if (current_alert_active && !bp_alert_active) {
-    std::cout << "[BP_BRIGHTNESS] Alert detected, resetting timeout" << std::endl;
-    resetBpBrightnessTimeout();
+  // Log state changes and reset timeout when alert becomes active
+  if (current_alert_active != bp_alert_active) {
+    if (current_alert_active) {
+      std::cout << "[BP_BRIGHTNESS] Alert detected, resetting timeout" << std::endl;
+      resetBpBrightnessTimeout();
+    } else {
+      std::cout << "[BP_BRIGHTNESS] Alert cleared" << std::endl;
+    }
   }
   bp_alert_active = current_alert_active;
 
@@ -405,44 +409,14 @@ void Device::resetBpBrightnessTimeout() {
 }
 
 bool Device::isAlertActive(const UIState &s) {
-  bool alert_active = false;
-  std::string alert_source = "";
-
-  // Check selfdriveState for alerts
+  // Use the existing events system - only check for alerts that require user attention
   if (s.sm && s.sm->rcv_frame("selfdriveState") > 0) {
     const auto& ss = (*s.sm)["selfdriveState"].getSelfdriveState();
-    if (ss.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
-      alert_active = true;
-      alert_source = "selfdriveState: " + std::string(ss.getAlertText1().cStr());
-    }
+    // Only reset brightness timeout for alerts that require user attention
+    return ss.getAlertStatus() == cereal::SelfdriveState::AlertStatus::USER_PROMPT ||
+           ss.getAlertStatus() == cereal::SelfdriveState::AlertStatus::CRITICAL;
   }
-
-  // Check driverMonitoringState for driver attention alerts
-  if (!alert_active && s.sm && s.sm->rcv_frame("driverMonitoringState") > 0) {
-    const auto& dm = (*s.sm)["driverMonitoringState"].getDriverMonitoringState();
-    if (!dm.getFaceDetected() || dm.getIsDistracted()) {
-      alert_active = true;
-      alert_source = "driverMonitoringState: Driver attention alert";
-    }
-  }
-
-  // Check deviceState for alerts if no alert found yet
-  if (!alert_active && s.sm && s.sm->rcv_frame("deviceState") > 0) {
-    const auto& ds = (*s.sm)["deviceState"].getDeviceState();
-    if (ds.getStarted() && ds.getFreeSpacePercent() < 10.0) {
-      alert_active = true;
-      alert_source = "deviceState: Low storage space";
-    }
-  }
-
-  // Log alert detection with source information
-  if (alert_active && !bp_alert_active) {
-    std::cout << "[BP_BRIGHTNESS] Alert detected from " << alert_source << std::endl;
-  } else if (!alert_active && bp_alert_active) {
-    std::cout << "[BP_BRIGHTNESS] Alert cleared" << std::endl;
-  }
-
-  return alert_active;
+  return false;
 }
 
 void Device::resetOnroadDisplayTimer() {

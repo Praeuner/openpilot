@@ -227,6 +227,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     // BluePilot display brightness control params
     {"BpDisplayBrightnessMode", {PERSISTENT | BACKUP, INT, "0"}},
-    {"BpDisplayBrightnessDimLevel", {PERSISTENT | BACKUP, INT, "90"}},
+    {"BpDisplayBrightnessDimLevel", {PERSISTENT | BACKUP, INT, "70"}},
     {"BpDisplayBrightnessTimeout", {PERSISTENT | BACKUP, INT, "30"}},
 };

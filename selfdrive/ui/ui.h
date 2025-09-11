@@ -141,7 +141,7 @@ protected:
 
   // BluePilot display brightness control
   int bp_brightness_mode = 0;  // 0=always on, 1=dim, 2=off
-  int bp_dim_level = 90;       // dim brightness percentage
+  int bp_dim_level = 70;       // dim brightness percentage
   int bp_timeout = 30;         // timeout in seconds
   int bp_brightness_timeout = 0; // timeout counter
   bool bp_auto_brightness_override = false; // whether to override auto brightness

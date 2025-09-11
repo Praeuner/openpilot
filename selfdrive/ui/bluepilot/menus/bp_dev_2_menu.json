@@ -19,7 +19,7 @@
               "type": "selection",
               "param": "FordSelectedVehicleModel",
               "title": "Vehicle Model",
-              "desc": "This will for the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
+              "desc": "This will force the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
               "requiresReboot": true,
               "hidden": false,
               "options": [
@@ -102,7 +102,7 @@
               "type": "selection",
               "param": "BpDisplayBrightnessMode",
               "title": "Onroad Display Brightness Control",
-              "desc": "Control display brightness behavior while onroad. Always On uses stock auto brightness, Dim reduces brightness after timeout, Off turns display off after timeout.",
+              "desc": "Control display brightness behavior while onroad. Always On uses stock auto brightness, Dim reduces brightness after timeout, Off turns display off after timeout. Default: Always On",
               "requiresReboot": false,
               "hidden": false,
               "options": [
@@ -123,7 +123,7 @@
               "type": "selection",
               "param": "BpDisplayBrightnessDimLevel",
               "title": "Onroad Dim Brightness Level",
-              "desc": "Brightness percentage when display is dimmed (20-90%).",
+              "desc": "Brightness percentage when display is dimmed (20-90%). Default: 70%",
               "requiresReboot": false,
               "hidden": false,
               "options": [
@@ -132,9 +132,9 @@
                 { "name": "40%", "value": "40" },
                 { "name": "50%", "value": "50" },
                 { "name": "60%", "value": "60" },
-                { "name": "70%", "value": "70" },
+                { "name": "70%", "value": "70", "default": true },
                 { "name": "80%", "value": "80" },
-                { "name": "90%", "value": "90", "default": true }
+                { "name": "90%", "value": "90" }
               ],
               "conditions": {
                 "allConditionsTrue": [
@@ -155,7 +155,7 @@
               "type": "selection",
               "param": "BpDisplayBrightnessTimeout",
               "title": "Onroad Brightness Timeout",
-              "desc": "Time in seconds before display action is taken (10-120s).",
+              "desc": "Time in seconds before display action is taken (10-120s). Default: 30s",
               "requiresReboot": false,
               "hidden": false,
               "options": [
