@@ -79,12 +79,12 @@ int getGpsSatelliteCountFallback() {
   static int cached_count = 0;
   static int update_counter = 0;
   static bool gps_checked = false;
-  
+
   // Only update every 10 seconds to avoid excessive AT commands
   if (update_counter++ % 10 != 0) {
     return cached_count;
   }
-  
+
   // Check if GPS is enabled on first call or every 60 seconds
   if (!gps_checked || update_counter % 60 == 0) {
     QString gps_status = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS?");
@@ -100,10 +100,10 @@ int getGpsSatelliteCountFallback() {
     }
     gps_checked = true;
   }
-  
+
   // Try to get GPS location with satellite count
   QString result = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSLOC=2");
-  
+
   if (!result.isEmpty() && result.contains("+QGPSLOC:")) {
     // Parse response: +QGPSLOC: hhmmss.sss,lat,lon,hdop,alt,fix,cog,spkm,spkn,date,nsat
     QStringList parts = result.split(',');
@@ -116,13 +116,13 @@ int getGpsSatelliteCountFallback() {
       }
     }
   }
-  
+
   // If that fails, try getting NMEA GSV data
   runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSGNMEA=\"GSV\"");
-  
+
   // Read from GPS NMEA port (with very short timeout)
   QString nmea = runProcess("timeout", QStringList() << "0.2" << "cat" << "/dev/ttyUSB1");
-  
+
   if (!nmea.isEmpty()) {
     // Parse GSV sentences for satellite count
     QStringList lines = nmea.split('\n');
@@ -140,7 +140,7 @@ int getGpsSatelliteCountFallback() {
       }
     }
   }
-  
+
   return cached_count;
 }
 
@@ -327,14 +327,16 @@ QString getCarrierName(const QString &operatorCode) {
 
 SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   // Safety check: ensure uiState is available before connecting signals
-  if (uiState()) {
+  UIState* ui = uiState();
+  if (ui) {
     // Disconnect base class signal connections to avoid conflicts
-    QObject::disconnect(uiState(), &UIState::uiUpdate, this, &Sidebar::updateState);
-    QObject::disconnect(uiState(), &UIState::offroadTransition, this, &Sidebar::offroadTransition);
+    QObject::disconnect(ui, nullptr, this, nullptr);
 
     // Connect our own methods
-    QObject::connect(uiState(), &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
-    QObject::connect(uiState(), &UIState::offroadTransition, this, &SidebarBP::offroadTransitionBP);
+    QObject::connect(ui, &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
+    QObject::connect(ui, &UIState::offroadTransition, this, &SidebarBP::offroadTransitionBP);
+  } else {
+    qWarning() << "UIState not available, skipping signal connections";
   }
 
   // Initialize async SSID detection
@@ -778,17 +780,17 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
     return;
   }
 
-  // Handle button presses for the new vertical column layout
-  if (onroad && bp_home_btn.contains(event->pos())) {
+  // Ensure button rectangles are valid before checking contains
+  if (onroad && bp_home_btn.isValid() && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
     update();
-  } else if (bp_settings_btn.contains(event->pos())) {
+  } else if (bp_settings_btn.isValid() && bp_settings_btn.contains(event->pos())) {
     settings_pressed = true;
     update();
-  } else if (recording_audio && mic_indicator_btn.contains(event->pos())) {
+  } else if (recording_audio && mic_indicator_btn.isValid() && mic_indicator_btn.contains(event->pos())) {
     mic_indicator_pressed = true;
     update();
-  } else if (bp_debug_btn.contains(event->pos()) && onroad) {
+  } else if (onroad && bp_debug_btn.isValid() && bp_debug_btn.contains(event->pos())) {
     debug_pressed = true;
     update();
   }
@@ -806,29 +808,31 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
   }
 
   // Handle debug button (new location)
-  if (bp_debug_btn.contains(event->pos()) && onroad) {
+  if (onroad && bp_debug_btn.isValid() && bp_debug_btn.contains(event->pos())) {
     emit debugPanelRequested();
     return;
   }
 
   // Handle mic indicator button (when recording)
-  if (recording_audio && mic_indicator_btn.contains(event->pos())) {
+  if (recording_audio && mic_indicator_btn.isValid() && mic_indicator_btn.contains(event->pos())) {
     emit openSettings(3, "RecordAudio");
     return;
   }
 
   // Handle settings button click directly
-  if (bp_settings_btn.contains(event->pos())) {
+  if (bp_settings_btn.isValid() && bp_settings_btn.contains(event->pos())) {
     emit openSettings();
     return;
   }
 
   // Handle home/flag button for bookmark functionality
-  if (onroad && bp_home_btn.contains(event->pos())) {
-    // Use the base class's PubMaster to avoid socket binding conflicts
-    MessageBuilder msg;
-    msg.initEvent().initBookmarkButton();
-    pm->send("bookmarkButton", msg);
+  if (onroad && bp_home_btn.isValid() && bp_home_btn.contains(event->pos())) {
+    // Safety check: ensure PubMaster is available
+    if (pm) {
+      MessageBuilder msg;
+      msg.initEvent().initBookmarkButton();
+      pm->send("bookmarkButton", msg);
+    }
     return;
   }
 
@@ -845,9 +849,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
     return; // Exit early if sm is null
   }
 
-  // Safety check: prevent updates during critical transitions
-  if (onroad != s.scene.started) {
-    // State transition in progress, skip this update to prevent conflicts
+  // Safety check: update onroad state and prevent updates during critical transitions
+  bool scene_started = s.scene.started;
+  if (onroad != scene_started) {
+    // Update onroad state to match current scene state
+    onroad = scene_started;
+    // Still skip this update cycle to prevent conflicts during transition
     return;
   }
 
@@ -954,11 +961,11 @@ void SidebarBP::updateStateBP(const UIState &s) {
   // GPS satellite count - prefer cereal messages, fallback to mmcli
   static int gps_update_counter = 0;
   static int gps_debug_counter = 0;
-  
+
   // Only update every 10 seconds
   if (gps_update_counter++ % 10 == 0) {
     bool got_from_cereal = false;
-    
+
     try {
       // Check if GPS services are available - prefer gpsLocation from qcomgpsd
       if (sm.alive("gpsLocation")) {
@@ -982,12 +989,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
       // GPS service not available or error occurred
       got_from_cereal = false;
     }
-    
+
     // If cereal messages not available (offroad or error), use mmcli fallback
     if (!got_from_cereal) {
       gps_satellite_count = getGpsSatelliteCountFallback();
     }
-    
+
     // Rate-limited debug output (every 30 seconds)
     if (gps_debug_counter++ % 3 == 0) {
       if (!got_from_cereal) {

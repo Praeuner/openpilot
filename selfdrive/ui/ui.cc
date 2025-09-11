@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include <QtConcurrent>
+#include <QThreadPool>
 
 #include "common/transformations/orientation.hpp"
 #include "common/swaglog.h"
@@ -148,8 +149,6 @@ UIState::UIState(QObject *parent) : QObject(parent) {
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     // BluePilot custom state with extended signals (e.g., brake light status)
     "carStateBP",
-    // GPS services for satellite count
-    "gpsLocation", "gpsLocationExternal", "ubloxGnss",
   });
   prime_state = new PrimeState(this);
   language = QString::fromStdString(Params().get("LanguageSetting"));
@@ -427,11 +426,9 @@ void Device::resetOnroadDisplayTimer() {
 }
 
 void Device::setBrightnessSafe(int brightness) {
-  if (!validateBrightnessValue(brightness)) {
-    // Only log error for invalid values that aren't 0 (display off)
-    if (brightness != 0) {
-      std::cout << "[BP_BRIGHTNESS] Invalid brightness value: " << brightness << ", using fallback" << std::endl;
-    }
+  // Allow 0 for display off
+  if (brightness != 0 && !validateBrightnessValue(brightness)) {
+    std::cout << "[BP_BRIGHTNESS] Invalid brightness value: " << brightness << ", using fallback" << std::endl;
     brightness = std::clamp(brightness, 1, 100);
   }
 
@@ -449,33 +446,29 @@ void Device::setBrightnessSafe(int brightness) {
 
       bp_last_brightness_attempt = now;
 
-      // Start brightness change with error handling
-      brightness_future = QtConcurrent::run([this, brightness]() {
-        try {
-          Hardware::set_brightness(brightness);
-          // Reset failure count on success
-          bp_brightness_failure_count = 0;
-          return true;
-        } catch (const std::exception& e) {
-          bp_brightness_failure_count++;
-          std::cout << "[BP_BRIGHTNESS] Hardware brightness failure (attempt "
-                    << bp_brightness_failure_count << "): " << e.what() << std::endl;
+      // Direct synchronous call - safer than threading
+      try {
+        Hardware::set_brightness(brightness);
+        bp_brightness_failure_count = 0;
+        last_brightness = brightness;
+      } catch (const std::exception& e) {
+        bp_brightness_failure_count++;
+        std::cout << "[BP_BRIGHTNESS] Hardware brightness failure: " << e.what() << std::endl;
 
-          // After multiple failures, try fallback brightness
-          if (bp_brightness_failure_count >= 5) {
-            try {
-              std::cout << "[BP_BRIGHTNESS] Attempting fallback brightness of 50%" << std::endl;
-              Hardware::set_brightness(50);
-              bp_brightness_failure_count = 0; // Reset on fallback success
-            } catch (...) {
-              std::cout << "[BP_BRIGHTNESS] Fallback brightness also failed" << std::endl;
-            }
+        // After multiple failures, try fallback brightness
+        if (bp_brightness_failure_count >= 5) {
+          try {
+            std::cout << "[BP_BRIGHTNESS] Attempting fallback brightness of 50%" << std::endl;
+            Hardware::set_brightness(50);
+            bp_brightness_failure_count = 0;
+            last_brightness = 50;
+          } catch (...) {
+            std::cout << "[BP_BRIGHTNESS] Fallback brightness also failed" << std::endl;
           }
-          return false;
         }
-      });
-
-      last_brightness = brightness;
+      } catch (...) {
+        std::cout << "[BP_BRIGHTNESS] Unknown error setting brightness" << std::endl;
+      }
     }
   }
 }
@@ -491,7 +484,7 @@ void Device::restoreAutoBrightness(const UIState &s) {
 }
 
 bool Device::validateBrightnessValue(int brightness) {
-  return brightness >= 1 && brightness <= 100;
+  return brightness == 0 || (brightness >= 1 && brightness <= 100);
 }
 
 #ifndef SUNNYPILOT
