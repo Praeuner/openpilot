@@ -474,15 +474,23 @@ void SidebarBP::startAsyncSSIDUpdate() {
     return;
   }
 
-  // Use iwgetid -r which was working in the original implementation
+  // Mark as pending before starting
   ssid_update_pending = true;
-  ssid_process->start("iwgetid", QStringList() << "-r");
-
-  // Set a timeout - if process doesn't finish in 2 seconds, kill it
-  QTimer::singleShot(2000, [this]() {
-    if (ssid_process && ssid_process->state() == QProcess::Running) {
-      ssid_process->kill();
-    }
+  
+  // Defer the actual process start to avoid blocking
+  QTimer::singleShot(0, [this]() {
+    if (!ssid_process || ssid_update_pending == false) return;
+    
+    // Use iwgetid -r which was working in the original implementation
+    ssid_process->start("iwgetid", QStringList() << "-r");
+    
+    // Set a timeout - if process doesn't finish in 1 second, kill it
+    QTimer::singleShot(1000, [this]() {
+      if (ssid_process && ssid_process->state() == QProcess::Running) {
+        ssid_process->kill();
+        ssid_update_pending = false;
+      }
+    });
   });
 }
 
@@ -786,18 +794,24 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   }
 
   // Ensure button rectangles are valid before checking contains
+  bool needs_update = false;
   if (onroad && bp_home_btn.isValid() && bp_home_btn.contains(event->pos())) {
     flag_pressed = true;
-    update();
+    needs_update = true;
   } else if (bp_settings_btn.isValid() && bp_settings_btn.contains(event->pos())) {
     settings_pressed = true;
-    update();
+    needs_update = true;
   } else if (recording_audio && mic_indicator_btn.isValid() && mic_indicator_btn.contains(event->pos())) {
     mic_indicator_pressed = true;
-    update();
+    needs_update = true;
   } else if (onroad && bp_debug_btn.isValid() && bp_debug_btn.contains(event->pos())) {
     debug_pressed = true;
-    update();
+    needs_update = true;
+  }
+  
+  if (needs_update) {
+    // Use repaint() for immediate update on touch
+    repaint();
   }
 }
 
@@ -809,7 +823,7 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 
   if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed) {
     flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = false;
-    update();
+    repaint(); // Use repaint() for immediate visual feedback
   }
 
   // Handle debug button (new location)
@@ -863,6 +877,12 @@ void SidebarBP::updateStateBP(const UIState &s) {
     return;
   }
 
+  // Throttle updates to prevent UI thread blocking
+  static int update_counter = 0;
+  if (++update_counter % 2 != 0) {
+    return; // Skip every other update to reduce load
+  }
+
   auto &sm = *(s.sm);
 
   // Safety check: ensure deviceState is available
@@ -901,11 +921,11 @@ void SidebarBP::updateStateBP(const UIState &s) {
     net_carrier_ssid = "Hotspot Active";
   } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
     // Use async SSID detection to never block the UI thread
-    // Dynamic refresh intervals: 30 seconds onroad (stable), 5 seconds offroad (changing networks)
-    int refresh_interval = onroad ? 30 : 5;
+    // Dynamic refresh intervals: 60 seconds onroad (stable), 10 seconds offroad (changing networks)
+    int refresh_interval = onroad ? 60 : 10;
 
-    // Trigger immediate update if SSID is not cached yet
-    if (cached_ssid.isEmpty() || ssid_cache_counter >= refresh_interval) {
+    // Only trigger update if SSID is not cached yet and not already pending
+    if (!ssid_update_pending && (cached_ssid.isEmpty() || ssid_cache_counter >= refresh_interval)) {
       startAsyncSSIDUpdate();
       ssid_cache_counter = 0;
     } else {
@@ -1013,9 +1033,9 @@ void SidebarBP::updateStateBP(const UIState &s) {
 
   setProperty("gpsSatelliteCount", gps_satellite_count);
 
-  // Performance metrics
+  // Performance metrics - increase refresh interval to reduce load
   metrics_refresh_counter++;
-  if (metrics_refresh_counter >= METRICS_REFRESH_INTERVAL) {
+  if (metrics_refresh_counter >= (METRICS_REFRESH_INTERVAL * 2)) {
     // CPU
     float max_temp = deviceState.getMaxTempC();
     // Safety check: ensure temperature is reasonable
@@ -1125,8 +1145,10 @@ void SidebarBP::updateStateBP(const UIState &s) {
   setProperty("memoryUsage", memory_usage);
   setProperty("fanDemand", fan_demand);
 
-  // Trigger UI update
-  emit valueChanged();
+  // Defer UI update to prevent blocking
+  QTimer::singleShot(0, [this]() {
+    emit valueChanged();
+  });
 }
 
 void SidebarBP::offroadTransitionBP(bool offroad) {
