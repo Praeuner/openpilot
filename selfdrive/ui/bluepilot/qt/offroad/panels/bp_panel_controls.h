@@ -408,22 +408,34 @@ public:
   }
 
   // When a value is selected, call this to update the selected value label with the display name.
-  // The description label always shows the white description text below.
+  // The description label shows the description text below only when a value is selected.
   void setSelectedValue(const QString &value) {
     if (!value.isEmpty() && options.contains(value)) {
+      // Show selected value in blue
       selectedValueLabel->setText(options[value]);
       selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      // Show description below when value is selected
+      if (descLabel) {
+        descLabel->setText(defaultDesc);
+        descLabel->setVisible(true);
+      }
     } else if (!value.isEmpty()) {
       // Fallback: show the raw value if no mapping found
       selectedValueLabel->setText(value);
       selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      // Show description below when value is selected
+      if (descLabel) {
+        descLabel->setText(defaultDesc);
+        descLabel->setVisible(true);
+      }
     } else {
+      // No value selected - show placeholder text and hide description to avoid duplication
       selectedValueLabel->setText(defaultDesc.isEmpty() ? "Select a value" : defaultDesc);
       selectedValueLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
-    }
-    // Description label always shows the white description text (if it exists)
-    if (descLabel) {
-      descLabel->setText(defaultDesc);
+      // Hide description when no value is selected to avoid duplication
+      if (descLabel) {
+        descLabel->setVisible(false);
+      }
     }
   }
 
