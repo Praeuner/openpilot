@@ -10,6 +10,8 @@
 #include <QTimer>
 #include <QSysInfo>
 #include <QDateTime>
+#include <QtConcurrent>
+#include <QThreadPool>
 #include <stdexcept>
 #include <iostream>
 #include "cereal/messaging/messaging.h"
@@ -73,81 +75,6 @@ bool isCommandAvailable(const QString &command) {
   return available;
 }
 
-
-// Helper function to get GPS satellite count using mmcli (fallback when cereal messages unavailable)
-int getGpsSatelliteCountFallback() {
-  // DISABLED: mmcli fallback disabled, rely on cereal messages only
-  return 0;
-
-  /* COMMENTED OUT - mmcli commands disabled
-  static int cached_count = 0;
-  static int update_counter = 0;
-  static bool gps_checked = false;
-
-  // Only update every 10 seconds to avoid excessive AT commands
-  if (update_counter++ % 10 != 0) {
-    return cached_count;
-  }
-
-  // Check if GPS is enabled on first call or every 60 seconds
-  if (!gps_checked || update_counter % 60 == 0) {
-    QString gps_status = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS?");
-    if (gps_status.contains("+QGPS: 0")) {
-      // GPS is disabled, try to enable it
-      std::cout << "GPS Debug: GPS disabled, enabling..." << std::endl;
-      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS=1");
-      // Also configure NMEA output
-      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"nmeasrc\",1");
-      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"outport\",\"usbnmea\"");
-    } else if (gps_status.contains("+QGPS: 1")) {
-      std::cout << "GPS Debug: GPS is enabled" << std::endl;
-    }
-    gps_checked = true;
-  }
-
-  // Try to get GPS location with satellite count
-  QString result = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSLOC=2");
-
-  if (!result.isEmpty() && result.contains("+QGPSLOC:")) {
-    // Parse response: +QGPSLOC: hhmmss.sss,lat,lon,hdop,alt,fix,cog,spkm,spkn,date,nsat
-    QStringList parts = result.split(',');
-    if (parts.size() >= 11) {
-      bool ok;
-      int count = parts[10].toInt(&ok);
-      if (ok && count >= 0) {
-        cached_count = count;
-        return cached_count;
-      }
-    }
-  }
-
-  // If that fails, try getting NMEA GSV data
-  runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSGNMEA=\"GSV\"");
-
-  // Read from GPS NMEA port (with very short timeout)
-  QString nmea = runProcess("timeout", QStringList() << "0.2" << "cat" << "/dev/ttyUSB1");
-
-  if (!nmea.isEmpty()) {
-    // Parse GSV sentences for satellite count
-    QStringList lines = nmea.split('\n');
-    for (const QString &line : lines) {
-      if (line.contains("GSV")) {
-        QStringList parts = line.split(',');
-        if (parts.size() >= 4) {
-          bool ok;
-          int count = parts[3].toInt(&ok);
-          if (ok && count >= 0) {
-            cached_count = count;
-            return cached_count;
-          }
-        }
-      }
-    }
-  }
-
-  return cached_count;
-  */
-}
 
 // Helper function to map carrier codes to names
 QString getCarrierName(const QString &operatorCode) {
@@ -345,14 +272,9 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   }
 
   // Initialize async SSID detection
-  ssid_process = new QProcess(this);
-  ssid_process->setProcessChannelMode(QProcess::MergedChannels);
-  connect(ssid_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this, &SidebarBP::onSSIDProcessFinished);
+  // We now use QtConcurrent instead of QProcess to avoid UI blocking
 
-  // Initialize GPS satellite count to 0 (no GPS available initially)
-  gps_satellite_count = 0;
-  setProperty("gpsSatelliteCount", gps_satellite_count);
+
 
   // Load button images with correct paths and safety checks
   home_img = loadPixmap("../assets/images/button_home.png", QSize(120, 120));
@@ -386,11 +308,7 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     qWarning() << "Failed to load fan button image";
   }
 
-  // Load GPS icon
-  gps_img = loadPixmap("../assets/images/button_gps.png", QSize(FAN_SIZE, FAN_SIZE));
-  if (gps_img.isNull()) {
-    qWarning() << "Failed to load GPS button image";
-  }
+
 
   // Setup hover animation with safety check
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
@@ -433,11 +351,7 @@ SidebarBP::~SidebarBP() {
     fan_animation = nullptr;
   }
 
-  // Clean up SSID process
-  if (ssid_process && ssid_process->state() != QProcess::NotRunning) {
-    ssid_process->kill();
-    ssid_process->waitForFinished(1000);
-  }
+  // SSID detection now uses QtConcurrent, no cleanup needed
 }
 
 void SidebarBP::enterEvent(QEvent *event) {
@@ -469,47 +383,58 @@ void SidebarBP::leaveEvent(QEvent *event) {
 }
 
 void SidebarBP::startAsyncSSIDUpdate() {
-  // Don't start new process if one is already running or pending
-  if (ssid_update_pending || !ssid_process || ssid_process->state() != QProcess::NotRunning) {
+  // Don't start if already pending
+  if (ssid_update_pending) {
     return;
   }
 
-  // Mark as pending before starting
+  // Mark as pending
   ssid_update_pending = true;
-  
-  // Defer the actual process start to avoid blocking
-  QTimer::singleShot(0, [this]() {
-    if (!ssid_process || ssid_update_pending == false) return;
-    
-    // Use iwgetid -r which was working in the original implementation
-    ssid_process->start("iwgetid", QStringList() << "-r");
-    
-    // Set a timeout - if process doesn't finish in 1 second, kill it
-    QTimer::singleShot(1000, [this]() {
-      if (ssid_process && ssid_process->state() == QProcess::Running) {
-        ssid_process->kill();
-        ssid_update_pending = false;
+
+  // Run SSID detection in background thread to prevent ANY UI blocking
+  QThreadPool::globalInstance()->start([this]() {
+    try {
+      // Create process in the worker thread
+      QProcess localProcess;
+      localProcess.setProcessChannelMode(QProcess::MergedChannels);
+
+      // Set environment to prevent any interactive prompts
+      QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+      env.insert("LANG", "C");
+      localProcess.setProcessEnvironment(env);
+
+      // Start the process with timeout protection
+      localProcess.start("iwgetid", QStringList() << "-r");
+
+      // Wait max 300ms for completion (even shorter to prevent any blocking)
+      if (localProcess.waitForStarted(100) && localProcess.waitForFinished(200)) {
+        if (localProcess.exitStatus() == QProcess::NormalExit && localProcess.exitCode() == 0) {
+          QString output = QString::fromUtf8(localProcess.readAllStandardOutput()).trimmed();
+          if (!output.isEmpty() && output.length() < 100) { // Sanity check on output length
+            // Update UI thread safely
+            QMetaObject::invokeMethod(this, [this, output]() {
+              cached_ssid = output;
+              ssid_cache_counter = 0;
+              ssid_update_pending = false;
+            }, Qt::QueuedConnection);
+            return;
+          }
+        }
+      } else {
+        // Force kill if still running
+        if (localProcess.state() != QProcess::NotRunning) {
+          localProcess.kill();
+        }
       }
-    });
-  });
-}
-
-void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
-  ssid_update_pending = false;
-
-  if (!ssid_process) {
-    return;
-  }
-
-  if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-    // iwgetid -r returns just the SSID directly
-    QString output = QString::fromUtf8(ssid_process->readAllStandardOutput()).trimmed();
-
-    if (!output.isEmpty()) {
-      cached_ssid = output;
-      ssid_cache_counter = 0; // Reset cache counter
+    } catch (...) {
+      // Silently handle any exceptions
     }
-  }
+
+    // Clear pending flag on any failure
+    QMetaObject::invokeMethod(this, [this]() {
+      ssid_update_pending = false;
+    }, Qt::QueuedConnection);
+  });
 }
 
 void SidebarBP::updateFanAnimation() {
@@ -808,7 +733,7 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
     debug_pressed = true;
     needs_update = true;
   }
-  
+
   if (needs_update) {
     // Use repaint() for immediate update on touch
     repaint();
@@ -877,11 +802,6 @@ void SidebarBP::updateStateBP(const UIState &s) {
     return;
   }
 
-  // Throttle updates to prevent UI thread blocking
-  static int update_counter = 0;
-  if (++update_counter % 2 != 0) {
-    return; // Skip every other update to reduce load
-  }
 
   auto &sm = *(s.sm);
 
@@ -921,11 +841,11 @@ void SidebarBP::updateStateBP(const UIState &s) {
     net_carrier_ssid = "Hotspot Active";
   } else if (deviceState.getNetworkType() == cereal::DeviceState::NetworkType::WIFI) {
     // Use async SSID detection to never block the UI thread
-    // Dynamic refresh intervals: 60 seconds onroad (stable), 10 seconds offroad (changing networks)
-    int refresh_interval = onroad ? 60 : 10;
+    // Dynamic refresh intervals: 30 seconds onroad (stable), 5 seconds offroad (changing networks)
+    int refresh_interval = onroad ? 30 : 5;
 
-    // Only trigger update if SSID is not cached yet and not already pending
-    if (!ssid_update_pending && (cached_ssid.isEmpty() || ssid_cache_counter >= refresh_interval)) {
+    // Trigger immediate update if SSID is not cached yet
+    if (cached_ssid.isEmpty() || ssid_cache_counter >= refresh_interval) {
       startAsyncSSIDUpdate();
       ssid_cache_counter = 0;
     } else {
@@ -983,55 +903,6 @@ void SidebarBP::updateStateBP(const UIState &s) {
   recording_audio = s.scene.recording_audio;
   setProperty("recordingAudio", recording_audio);
 
-  // GPS satellite count - prefer cereal messages, fallback to mmcli
-  static int gps_update_counter = 0;
-  static int gps_debug_counter = 0;
-
-  // Only update every 10 seconds
-  if (gps_update_counter++ % 10 == 0) {
-    bool got_from_cereal = false;
-
-    try {
-      // Check if GPS services are available - prefer gpsLocation from qcomgpsd
-      if (sm.alive("gpsLocation")) {
-        auto gpsData = sm["gpsLocation"].getGpsLocation();
-        gps_satellite_count = gpsData.getSatelliteCount();
-        got_from_cereal = true;
-      } else if (sm.alive("gpsLocationExternal")) {
-        auto gpsData = sm["gpsLocationExternal"].getGpsLocationExternal();
-        gps_satellite_count = gpsData.getSatelliteCount();
-        got_from_cereal = true;
-      } else if (sm.alive("ubloxGnss")) {
-        // Try to get satellite count from ubloxGnss satReport
-        auto ubloxData = sm["ubloxGnss"].getUbloxGnss();
-        if (ubloxData.which() == cereal::UbloxGnss::SAT_REPORT) {
-          auto satReport = ubloxData.getSatReport();
-          gps_satellite_count = satReport.getSvs().size();
-          got_from_cereal = true;
-        }
-      }
-    } catch (...) {
-      // GPS service not available or error occurred
-      got_from_cereal = false;
-    }
-
-    // If cereal messages not available (offroad or error), use mmcli fallback
-    // DISABLED: mmcli fallback disabled, rely on cereal messages only
-    if (!got_from_cereal) {
-      gps_satellite_count = 0;  // Default to 0 when no cereal data available
-    }
-
-    // Rate-limited debug output (every 30 seconds)
-    if (gps_debug_counter++ % 3 == 0) {
-      if (!got_from_cereal) {
-        std::cout << "GPS Debug: Using mmcli fallback, satellite count: " << gps_satellite_count << std::endl;
-      } else {
-        std::cout << "GPS Debug: Got from cereal messages, satellite count: " << gps_satellite_count << std::endl;
-      }
-    }
-  }
-
-  setProperty("gpsSatelliteCount", gps_satellite_count);
 
   // Performance metrics - increase refresh interval to reduce load
   metrics_refresh_counter++;
@@ -1145,10 +1016,8 @@ void SidebarBP::updateStateBP(const UIState &s) {
   setProperty("memoryUsage", memory_usage);
   setProperty("fanDemand", fan_demand);
 
-  // Defer UI update to prevent blocking
-  QTimer::singleShot(0, [this]() {
-    emit valueChanged();
-  });
+  // Trigger UI update
+  emit valueChanged();
 }
 
 void SidebarBP::offroadTransitionBP(bool offroad) {
@@ -1320,29 +1189,6 @@ void SidebarBP::drawSidebar(QPainter &p) {
     drawFan(p, fan_area);
   }
 
-  // === GPS SECTION - Below fan ===
-  const int gpsSpacing = 60; // Space between fan and GPS (increased for better positioning)
-  const int gpsY = fan_area.bottom() + gpsSpacing;
-  const QRect gps_area = QRect(buttonX, gpsY, FAN_SIZE, FAN_SIZE);
-
-  // Safety check for GPS area
-  if (gps_area.x() >= 0 && gps_area.y() >= 0 &&
-      gps_area.right() <= width() && gps_area.bottom() <= height()) {
-    // Draw GPS icon (no background or border)
-    if (!gps_img.isNull()) {
-      p.setOpacity(1.0);
-      p.drawPixmap(gps_area.x() + (gps_area.width() - gps_img.width()) / 2,
-                   gps_area.y() + (gps_area.height() - gps_img.height()) / 2,
-                   gps_img);
-    }
-
-    // Draw satellite count below GPS icon (same size as fan speed text)
-    p.setPen(QColor(255, 255, 255));
-    p.setFont(InterFont(28, QFont::Bold));
-    QString satText = QString::number(gps_satellite_count);
-    QRect satTextRect = QRect(gps_area.x(), gps_area.bottom() + 5, gps_area.width(), 30);
-    p.drawText(satTextRect, Qt::AlignCenter, satText);
-  }
 
   // === BOTTOM SECTION - BUTTONS ===
   const int bottomPadding = 20;

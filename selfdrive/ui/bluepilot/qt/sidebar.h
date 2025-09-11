@@ -3,7 +3,6 @@
 #include "selfdrive/ui/qt/sidebar.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 #include <QPropertyAnimation>
-#include <QProcess>
 #include <memory>
 #include <mutex>
 #include "cereal/messaging/messaging.h"
@@ -18,7 +17,6 @@ class SidebarBP : public Sidebar {
   Q_PROPERTY(QString memoryUsage MEMBER memory_usage NOTIFY valueChanged);
   Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
   Q_PROPERTY(bool recordingAudio MEMBER recording_audio NOTIFY valueChanged);
-  Q_PROPERTY(int gpsSatelliteCount MEMBER gps_satellite_count NOTIFY valueChanged);
   Q_PROPERTY(qreal fanRotation MEMBER fan_rotation NOTIFY valueChanged);
 
 public:
@@ -47,12 +45,9 @@ public slots:
   void updateStateBP(const UIState &s);
   void offroadTransitionBP(bool offroad);
 
-private slots:
-  void onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-
 private:
   // Button images
-  QPixmap home_img, flag_img, settings_img, mic_img, debug_img, fan_img, gps_img; // Added fan_img and gps_img
+  QPixmap home_img, flag_img, settings_img, mic_img, debug_img, fan_img;
 
   // Modern sidebar styling
   const QColor good_color = QColor(42, 199, 122);
@@ -85,7 +80,6 @@ private:
   QString gpu_usage = "0%";
   QString memory_usage = "0%";
   QString fan_demand = "0%";
-  int gps_satellite_count = 0;
 
   // Hover animation
   bool is_hovering = false;
@@ -102,8 +96,7 @@ private:
   QString net_carrier_ssid; // Store carrier name or WiFi SSID
   Networking *local_networking = nullptr;
 
-  // Async SSID detection
-  QProcess *ssid_process = nullptr;
+  // Async SSID detection (now using QtConcurrent instead of QProcess)
   QString cached_ssid = "Wi-Fi";
   int ssid_cache_counter = 0;
   bool ssid_update_pending = false;

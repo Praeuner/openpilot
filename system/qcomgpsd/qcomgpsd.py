@@ -263,12 +263,6 @@ def main() -> NoReturn:
   gpio_set(GPIO.GNSS_PWR_EN, True)
 
   pm = messaging.PubMaster(['qcomGnss', 'gpsLocation'])
-  
-  # Track satellite count from measurement reports
-  last_satellite_count = 0
-  # Debug rate limiting
-  last_position_debug_time = 0
-  position_debug_interval = 30  # Debug GPS position every 30 seconds
 
   while 1:
     if os.path.exists(ASSIST_DATA_FILE) and want_assistance:
@@ -317,10 +311,6 @@ def main() -> NoReturn:
           setattr(report, k, v)
 
       report.init('sv', dat['svCount'])
-      # Update the last known satellite count
-      if last_satellite_count != dat['svCount']:
-        cloudlog.info(f"GPS measurement: satellite count changed from {last_satellite_count} to {dat['svCount']}")
-      last_satellite_count = dat['svCount']
       sats = log_payload[size_oemdre_meas:]
       for i in range(dat['svCount']):
         sat = unpack_oemdre_meas_sv(sats[size_oemdre_meas_sv*i:size_oemdre_meas_sv*(i+1)])
@@ -366,20 +356,11 @@ def main() -> NoReturn:
       gps.verticalAccuracy = report["q_FltVdop"]
       gps.bearingAccuracyDeg = report["q_FltHeadingUncRad"] * 180/math.pi if (report["q_FltHeadingUncRad"] != 0) else 180
       gps.speedAccuracy = math.sqrt(sum([x**2 for x in vNEDsigma]))
-      # Add satellite count from last measurement report
-      gps.satelliteCount = last_satellite_count
       # quectel gps verticalAccuracy is clipped to 500, set invalid if so
       gps.hasFix = gps.verticalAccuracy != 500
       if gps.hasFix:
         want_assistance = False
         stop_download_event.set()
-      
-      # Rate-limited debug logging (every 30 seconds)
-      current_time = time.time()
-      if current_time - last_position_debug_time >= position_debug_interval:
-        cloudlog.info(f"GPS: lat={gps.latitude:.6f} lon={gps.longitude:.6f} alt={gps.altitude:.1f}m "
-                     f"satellites={gps.satelliteCount} hasFix={gps.hasFix} vAcc={gps.verticalAccuracy:.1f}")
-        last_position_debug_time = current_time
       
       pm.send('gpsLocation', msg)
 
@@ -453,8 +434,6 @@ def main() -> NoReturn:
         else:
           setattr(report, k, v)
       report.init('sv', dat['svCount'])
-      # Update the last known satellite count
-      last_satellite_count = dat['svCount']
       if dat['svCount'] > 0:
         assert len(sats)//dat['svCount'] == size_meas_sv
         for i in range(dat['svCount']):
