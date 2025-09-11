@@ -20,7 +20,7 @@
         "Fixed menu system JSON parsing and control visibility",
         "General stability and bug fixes"
       ],
-      "removals": ["Removed quiet mode from menu system"],
+      "removals": [],
       "known_issues": []
     },
     "4.0.0": {
