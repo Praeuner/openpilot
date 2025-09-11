@@ -314,7 +314,7 @@ class BPSelectionControl : public QFrame {
   Q_OBJECT
 
 public:
-  BPSelectionControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr) : QFrame(parent), paramName(param.toStdString()), defaultDesc(desc) {
+  BPSelectionControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr, bool hideDesc = false) : QFrame(parent), paramName(param.toStdString()), defaultDesc(desc), hideDescription(hideDesc) {
 
     // Overall horizontal layout
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
@@ -352,11 +352,11 @@ public:
     titleLabel->setWordWrap(true);
     rightLayout->addWidget(titleLabel);
 
-    // Info label: shows selected value description (blue) if present; otherwise, default description (gray)
-    infoLabel = new QLabel(this);
-    infoLabel->setWordWrap(true);
-    infoLabel->setText(defaultDesc);
-    infoLabel->setStyleSheet(R"(
+    // Selected value label: shows selected value (blue) if present; otherwise, default description (gray)
+    selectedValueLabel = new QLabel(this);
+    selectedValueLabel->setWordWrap(true);
+    selectedValueLabel->setText(defaultDesc);
+    selectedValueLabel->setStyleSheet(R"(
         QLabel {
             font-size: 32px;
             color: #AAAAAA;
@@ -365,7 +365,25 @@ public:
             color: #666666;
         }
     )");
-    rightLayout->addWidget(infoLabel);
+    rightLayout->addWidget(selectedValueLabel);
+
+    // Description label: shows white description text below the selected value (unless hidden)
+    if (!hideDescription) {
+      descLabel = new QLabel(defaultDesc, this);
+      descLabel->setWordWrap(true);
+      descLabel->setStyleSheet(R"(
+          QLabel {
+              font-size: 32px;
+              color: #AAAAAA;
+          }
+          QLabel:disabled {
+              color: #444444;
+          }
+      )");
+      rightLayout->addWidget(descLabel);
+    } else {
+      descLabel = nullptr;
+    }
     rightLayout->addStretch();
 
     mainLayout->addLayout(rightLayout, 1);
@@ -389,20 +407,23 @@ public:
     }
   }
 
-  // When a value is selected, call this to update the info label with the display name.
-  // If value is non-empty and found in options, display the corresponding name in blue;
-  // otherwise revert to the default description.
+  // When a value is selected, call this to update the selected value label with the display name.
+  // The description label always shows the white description text below.
   void setSelectedValue(const QString &value) {
     if (!value.isEmpty() && options.contains(value)) {
-      infoLabel->setText(options[value]);
-      infoLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      selectedValueLabel->setText(options[value]);
+      selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
     } else if (!value.isEmpty()) {
       // Fallback: show the raw value if no mapping found
-      infoLabel->setText(value);
-      infoLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      selectedValueLabel->setText(value);
+      selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
     } else {
-      infoLabel->setText(defaultDesc.isEmpty() ? "Select a value" : defaultDesc);
-      infoLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      selectedValueLabel->setText(defaultDesc.isEmpty() ? "Select a value" : defaultDesc);
+      selectedValueLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+    }
+    // Description label always shows the white description text (if it exists)
+    if (descLabel) {
+      descLabel->setText(defaultDesc);
     }
   }
 
@@ -412,9 +433,11 @@ signals:
 private:
   BPButton *selectButton;
   QLabel *titleLabel;
-  QLabel *infoLabel;
+  QLabel *selectedValueLabel;
+  QLabel *descLabel;
   std::string paramName;
   QString defaultDesc;
+  bool hideDescription;
   QMap<QString, QString> options; // Map from value to display name
 };
 

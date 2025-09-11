@@ -511,7 +511,8 @@ QWidget *BPPanelBase::createNumericControl(const QJsonObject &control, bool isFl
 }
 
 QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
-  auto selectionControl = new BPSelectionControl(control["param"].toString(), control["title"].toString(), control["desc"].toString());
+  bool hideDesc = control.contains("hideDesc") && control["hideDesc"].toBool();
+  auto selectionControl = new BPSelectionControl(control["param"].toString(), control["title"].toString(), control["desc"].toString(), nullptr, hideDesc);
   selectionControl->setObjectName(control["param"].toString());
 
   QVector<BPSelectionDialog::Option> options;
