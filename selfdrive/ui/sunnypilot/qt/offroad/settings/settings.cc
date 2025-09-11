@@ -86,7 +86,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &NetworkingSP::setPrimeType);
 
   BPNavBarView *bpNavBarView = new BPNavBarView(this);
-  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_2_menu.json");
+  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_4_menu.json");
 
   // Check if prebuilt file exists in root directory
   QString rootPath = qApp->applicationDirPath() + "/../..";
