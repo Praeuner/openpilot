@@ -148,6 +148,8 @@ UIState::UIState(QObject *parent) : QObject(parent) {
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     // BluePilot custom state with extended signals (e.g., brake light status)
     "carStateBP",
+    // GPS services for satellite count
+    "gpsLocation", "gpsLocationExternal", "ubloxGnss",
   });
   prime_state = new PrimeState(this);
   language = QString::fromStdString(Params().get("LanguageSetting"));

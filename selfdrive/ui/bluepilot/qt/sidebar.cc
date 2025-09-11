@@ -309,6 +309,12 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     qWarning() << "Failed to load fan button image";
   }
 
+  // Load GPS icon
+  gps_img = loadPixmap("../assets/images/button_gps.png", QSize(FAN_SIZE, FAN_SIZE));
+  if (gps_img.isNull()) {
+    qWarning() << "Failed to load GPS button image";
+  }
+
   // Setup hover animation with safety check
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
   if (hover_animation) {
@@ -884,6 +890,18 @@ void SidebarBP::updateStateBP(const UIState &s) {
     } else if (sm.alive("gpsLocationExternal")) {
       auto gpsData = sm["gpsLocationExternal"].getGpsLocationExternal();
       gps_satellite_count = gpsData.getSatelliteCount();
+    } else if (sm.alive("ubloxGnss")) {
+      // Try to get satellite count from ubloxGnss satReport
+      auto ubloxData = sm["ubloxGnss"].getUbloxGnss();
+      if (ubloxData.which() == cereal::UbloxGnss::SAT_REPORT) {
+        auto satReport = ubloxData.getSatReport();
+        gps_satellite_count = satReport.getSvs().size();
+      } else {
+        // If no satReport available, keep previous value or set to 0
+        if (gps_satellite_count == 0) {
+          gps_satellite_count = 0; // Already 0, no change needed
+        }
+      }
     } else {
       // If no GPS services are alive, keep previous value or set to 0
       if (gps_satellite_count == 0) {
@@ -1180,6 +1198,30 @@ void SidebarBP::drawSidebar(QPainter &p) {
   if (fan_area.x() >= 0 && fan_area.y() >= 0 &&
       fan_area.right() <= width() && fan_area.bottom() <= height()) {
     drawFan(p, fan_area);
+  }
+
+  // === GPS SECTION - Below fan ===
+  const int gpsSpacing = 60; // Space between fan and GPS (increased for better positioning)
+  const int gpsY = fan_area.bottom() + gpsSpacing;
+  const QRect gps_area = QRect(buttonX, gpsY, FAN_SIZE, FAN_SIZE);
+
+  // Safety check for GPS area
+  if (gps_area.x() >= 0 && gps_area.y() >= 0 &&
+      gps_area.right() <= width() && gps_area.bottom() <= height()) {
+    // Draw GPS icon (no background or border)
+    if (!gps_img.isNull()) {
+      p.setOpacity(1.0);
+      p.drawPixmap(gps_area.x() + (gps_area.width() - gps_img.width()) / 2,
+                   gps_area.y() + (gps_area.height() - gps_img.height()) / 2,
+                   gps_img);
+    }
+
+    // Draw satellite count below GPS icon (same size as fan speed text)
+    p.setPen(QColor(255, 255, 255));
+    p.setFont(InterFont(28, QFont::Bold));
+    QString satText = QString::number(gps_satellite_count);
+    QRect satTextRect = QRect(gps_area.x(), gps_area.bottom() + 5, gps_area.width(), 30);
+    p.drawText(satTextRect, Qt::AlignCenter, satText);
   }
 
   // === BOTTOM SECTION - BUTTONS ===

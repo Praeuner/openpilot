@@ -52,7 +52,7 @@ private slots:
 
 private:
   // Button images
-  QPixmap home_img, flag_img, settings_img, mic_img, debug_img, fan_img; // Added fan_img
+  QPixmap home_img, flag_img, settings_img, mic_img, debug_img, fan_img, gps_img; // Added fan_img and gps_img
 
   // Modern sidebar styling
   const QColor good_color = QColor(42, 199, 122);
