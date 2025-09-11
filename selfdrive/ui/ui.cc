@@ -199,9 +199,6 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
   bp_brightness_failure_count = 0;
   bp_last_brightness_attempt = std::chrono::steady_clock::now();
 
-  std::cout << "[BP_BRIGHTNESS] Initialized - mode=" << bp_brightness_mode
-            << ", dim_level=" << bp_dim_level
-            << ", timeout=" << bp_timeout << "s" << std::endl;
 
   // Validate initial parameter values
   if (bp_dim_level < 20 || bp_dim_level > 90) {
@@ -308,7 +305,6 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   if (!s.scene.started) {
     // Reset everything when going offroad
     if (bp_auto_brightness_override || bp_is_dimmed) {
-      std::cout << "[BP_BRIGHTNESS] Going offroad, resetting brightness control" << std::endl;
       bp_auto_brightness_override = false;
       bp_saved_brightness = -1;
       bp_is_dimmed = false;
@@ -318,10 +314,6 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     return;
   }
 
-  std::cout << "[BP_BRIGHTNESS] Onroad - mode=" << bp_brightness_mode
-            << ", timeout=" << bp_brightness_timeout
-            << ", dimmed=" << bp_is_dimmed
-            << ", override=" << bp_auto_brightness_override << std::endl;
 
   // Read parameters periodically
   static int param_update_counter = 0;
@@ -331,9 +323,6 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     int new_timeout = QString::fromStdString(Params().get("BpDisplayBrightnessTimeout")).toInt();
 
     if (new_mode != bp_brightness_mode || new_dim_level != bp_dim_level || new_timeout != bp_timeout) {
-      std::cout << "[BP_BRIGHTNESS] Parameters changed - mode: " << bp_brightness_mode << "->" << new_mode
-                << ", dim_level: " << bp_dim_level << "->" << new_dim_level
-                << ", timeout: " << bp_timeout << "->" << new_timeout << std::endl;
       bp_brightness_mode = new_mode;
       bp_dim_level = (new_dim_level >= 20 && new_dim_level <= 90) ? new_dim_level : 70;
       bp_timeout = (new_timeout >= 10 && new_timeout <= 120) ? new_timeout : 30;
