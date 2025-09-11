@@ -76,6 +76,10 @@ bool isCommandAvailable(const QString &command) {
 
 // Helper function to get GPS satellite count using mmcli (fallback when cereal messages unavailable)
 int getGpsSatelliteCountFallback() {
+  // DISABLED: mmcli fallback disabled, rely on cereal messages only
+  return 0;
+
+  /* COMMENTED OUT - mmcli commands disabled
   static int cached_count = 0;
   static int update_counter = 0;
   static bool gps_checked = false;
@@ -142,6 +146,7 @@ int getGpsSatelliteCountFallback() {
   }
 
   return cached_count;
+  */
 }
 
 // Helper function to map carrier codes to names
@@ -991,8 +996,9 @@ void SidebarBP::updateStateBP(const UIState &s) {
     }
 
     // If cereal messages not available (offroad or error), use mmcli fallback
+    // DISABLED: mmcli fallback disabled, rely on cereal messages only
     if (!got_from_cereal) {
-      gps_satellite_count = getGpsSatelliteCountFallback();
+      gps_satellite_count = 0;  // Default to 0 when no cereal data available
     }
 
     // Rate-limited debug output (every 30 seconds)
