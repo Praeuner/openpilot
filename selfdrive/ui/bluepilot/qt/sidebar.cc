@@ -392,7 +392,7 @@ void SidebarBP::startAsyncSSIDUpdate() {
   ssid_update_pending = true;
 
   // Run SSID detection in background thread to prevent ANY UI blocking
-  QThreadPool::globalInstance()->start([this]() {
+  QtConcurrent::run([this]() {
     try {
       // Create process in the worker thread
       QProcess localProcess;
