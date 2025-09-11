@@ -74,14 +74,14 @@ bool isCommandAvailable(const QString &command) {
 }
 
 
-// Helper function to get GPS satellite count using mmcli
-int getGpsSatelliteCount() {
+// Helper function to get GPS satellite count using mmcli (fallback when cereal messages unavailable)
+int getGpsSatelliteCountFallback() {
   static int cached_count = 0;
   static int update_counter = 0;
   static bool gps_checked = false;
   
-  // Only update every 5 seconds to avoid excessive AT commands
-  if (update_counter++ % 5 != 0) {
+  // Only update every 10 seconds to avoid excessive AT commands
+  if (update_counter++ % 10 != 0) {
     return cached_count;
   }
   
@@ -90,10 +90,13 @@ int getGpsSatelliteCount() {
     QString gps_status = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS?");
     if (gps_status.contains("+QGPS: 0")) {
       // GPS is disabled, try to enable it
+      std::cout << "GPS Debug: GPS disabled, enabling..." << std::endl;
       runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS=1");
       // Also configure NMEA output
       runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"nmeasrc\",1");
       runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"outport\",\"usbnmea\"");
+    } else if (gps_status.contains("+QGPS: 1")) {
+      std::cout << "GPS Debug: GPS is enabled" << std::endl;
     }
     gps_checked = true;
   }
@@ -948,8 +951,45 @@ void SidebarBP::updateStateBP(const UIState &s) {
   recording_audio = s.scene.recording_audio;
   setProperty("recordingAudio", recording_audio);
 
-  // GPS satellite count - use simple mmcli approach
-  gps_satellite_count = getGpsSatelliteCount();
+  // GPS satellite count - prefer cereal messages, fallback to mmcli
+  static int gps_update_counter = 0;
+  
+  // Only update every 10 seconds
+  if (gps_update_counter++ % 10 == 0) {
+    bool got_from_cereal = false;
+    
+    try {
+      // Check if GPS services are available - prefer gpsLocation from qcomgpsd
+      if (sm.alive("gpsLocation")) {
+        auto gpsData = sm["gpsLocation"].getGpsLocation();
+        gps_satellite_count = gpsData.getSatelliteCount();
+        got_from_cereal = true;
+      } else if (sm.alive("gpsLocationExternal")) {
+        auto gpsData = sm["gpsLocationExternal"].getGpsLocationExternal();
+        gps_satellite_count = gpsData.getSatelliteCount();
+        got_from_cereal = true;
+      } else if (sm.alive("ubloxGnss")) {
+        // Try to get satellite count from ubloxGnss satReport
+        auto ubloxData = sm["ubloxGnss"].getUbloxGnss();
+        if (ubloxData.which() == cereal::UbloxGnss::SAT_REPORT) {
+          auto satReport = ubloxData.getSatReport();
+          gps_satellite_count = satReport.getSvs().size();
+          got_from_cereal = true;
+        }
+      }
+    } catch (...) {
+      // GPS service not available or error occurred
+      got_from_cereal = false;
+    }
+    
+    // If cereal messages not available (offroad or error), use mmcli fallback
+    if (!got_from_cereal) {
+      gps_satellite_count = getGpsSatelliteCountFallback();
+      std::cout << "GPS Debug: Using mmcli fallback, satellite count: " << gps_satellite_count << std::endl;
+    } else {
+      std::cout << "GPS Debug: Got from cereal messages, satellite count: " << gps_satellite_count << std::endl;
+    }
+  }
 
   setProperty("gpsSatelliteCount", gps_satellite_count);
 
