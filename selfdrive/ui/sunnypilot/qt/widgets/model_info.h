@@ -8,8 +8,8 @@
 #pragma once
 
 #include <QLabel>
-#include <QPushButton>
 #include <QVBoxLayout>
+#include <QResizeEvent>
 
 #include "selfdrive/ui/sunnypilot/qt/widgets/controls.h"
 
@@ -22,11 +22,14 @@ public:
 signals:
   void openSettings(int index = 0, const QString &param = "");
 
+protected:
+  void mousePressEvent(QMouseEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
+
 private:
   void updateModelName();
   QString getActiveModelName();
 
   QLabel* model_name_label;
-  QPushButton* settings_button;
   QVBoxLayout* main_layout;
 };
