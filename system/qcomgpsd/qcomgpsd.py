@@ -266,6 +266,9 @@ def main() -> NoReturn:
   
   # Track satellite count from measurement reports
   last_satellite_count = 0
+  # Debug rate limiting
+  last_position_debug_time = 0
+  position_debug_interval = 30  # Debug GPS position every 30 seconds
 
   while 1:
     if os.path.exists(ASSIST_DATA_FILE) and want_assistance:
@@ -371,9 +374,12 @@ def main() -> NoReturn:
         want_assistance = False
         stop_download_event.set()
       
-      # Debug logging every ~10 seconds (position reports are infrequent)
-      cloudlog.info(f"GPS: lat={gps.latitude:.6f} lon={gps.longitude:.6f} alt={gps.altitude:.1f}m "
-                   f"satellites={gps.satelliteCount} hasFix={gps.hasFix} vAcc={gps.verticalAccuracy:.1f}")
+      # Rate-limited debug logging (every 30 seconds)
+      current_time = time.time()
+      if current_time - last_position_debug_time >= position_debug_interval:
+        cloudlog.info(f"GPS: lat={gps.latitude:.6f} lon={gps.longitude:.6f} alt={gps.altitude:.1f}m "
+                     f"satellites={gps.satelliteCount} hasFix={gps.hasFix} vAcc={gps.verticalAccuracy:.1f}")
+        last_position_debug_time = current_time
       
       pm.send('gpsLocation', msg)
 

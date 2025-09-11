@@ -953,6 +953,7 @@ void SidebarBP::updateStateBP(const UIState &s) {
 
   // GPS satellite count - prefer cereal messages, fallback to mmcli
   static int gps_update_counter = 0;
+  static int gps_debug_counter = 0;
   
   // Only update every 10 seconds
   if (gps_update_counter++ % 10 == 0) {
@@ -985,9 +986,15 @@ void SidebarBP::updateStateBP(const UIState &s) {
     // If cereal messages not available (offroad or error), use mmcli fallback
     if (!got_from_cereal) {
       gps_satellite_count = getGpsSatelliteCountFallback();
-      std::cout << "GPS Debug: Using mmcli fallback, satellite count: " << gps_satellite_count << std::endl;
-    } else {
-      std::cout << "GPS Debug: Got from cereal messages, satellite count: " << gps_satellite_count << std::endl;
+    }
+    
+    // Rate-limited debug output (every 30 seconds)
+    if (gps_debug_counter++ % 3 == 0) {
+      if (!got_from_cereal) {
+        std::cout << "GPS Debug: Using mmcli fallback, satellite count: " << gps_satellite_count << std::endl;
+      } else {
+        std::cout << "GPS Debug: Got from cereal messages, satellite count: " << gps_satellite_count << std::endl;
+      }
     }
   }
 
