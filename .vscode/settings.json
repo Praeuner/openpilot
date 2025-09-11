@@ -86,5 +86,15 @@
     "regex": "cpp",
     "memory": "cpp"
   },
-  "C_Cpp.errorSquiggles": "disabled"
+  "C_Cpp.errorSquiggles": "disabled",
+  "cursorpyright.analysis.exclude": [
+    "**/.git",
+    "**/.venv",
+    "**/__pycache__",
+    "common/**",
+    "selfdrive/**",
+    "system/**",
+    "third_party/**",
+    "tools/**"
+  ]
 }

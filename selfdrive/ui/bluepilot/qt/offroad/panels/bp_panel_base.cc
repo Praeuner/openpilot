@@ -529,8 +529,26 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
   // Set the options for value-to-display mapping
   selectionControl->setOptions(optionPairs);
 
-  QString currentValue = QString::fromStdString(params.get(control["param"].toString().toStdString()));
-  selectionControl->setSelectedValue(currentValue);
+  // Initialize parameter with default value if it doesn't exist
+  QString paramName = control["param"].toString();
+  std::string paramNameStd = paramName.toStdString();
+  std::string currentValue = params.get(paramNameStd);
+
+  if (currentValue.empty()) {
+    // Find the default option and set it
+    for (const auto &opt : optArray) {
+      QJsonObject optObj = opt.toObject();
+      if (optObj.contains("default") && optObj["default"].toBool()) {
+        QString defaultValue = optObj["value"].toString();
+        params.put(paramNameStd, defaultValue.toStdString());
+        currentValue = defaultValue.toStdString();
+        std::cout << "Parameter initialized with default - " << paramNameStd << ": " << defaultValue.toStdString() << std::endl;
+        break;
+      }
+    }
+  }
+
+  selectionControl->setSelectedValue(QString::fromStdString(currentValue));
 
   connect(selectionControl, &BPSelectionControl::clicked, [=]() {
     QString currentValue = QString::fromStdString(params.get(control["param"].toString().toStdString()));
@@ -741,6 +759,10 @@ void BPPanelBase::updateToggles() {
         numeric->refresh();
       } else if (auto segmented = qobject_cast<BPSegmentedControl *>(ctrl)) {
         segmented->refresh();
+      } else if (auto selection = qobject_cast<BPSelectionControl *>(ctrl)) {
+        // Refresh selection control by updating its selected value
+        QString currentValue = QString::fromStdString(params.get(ctrl->objectName().toStdString()));
+        selection->setSelectedValue(currentValue);
       }
     }
     updateResetButtonVisibility(groupData.groupBox);
@@ -899,6 +921,10 @@ void BPPanelBase::refresh() {
           numeric->refresh();
         } else if (auto segmented = qobject_cast<BPSegmentedControl *>(ctrl)) {
           segmented->refresh();
+        } else if (auto selection = qobject_cast<BPSelectionControl *>(ctrl)) {
+          // Refresh selection control by updating its selected value
+          QString currentValue = QString::fromStdString(params.get(ctrl->objectName().toStdString()));
+          selection->setSelectedValue(currentValue);
         }
 
         // Update control conditions
