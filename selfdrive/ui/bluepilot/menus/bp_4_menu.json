@@ -99,6 +99,25 @@
               }
             },
             {
+              "type": "toggle",
+              "param": "DisableGPSAlert",
+              "title": "Disable GPS Alert",
+              "desc": "Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "visualOnroadPreferencesGroup",
+          "title": "Visual Onroad Preferences:",
+          "enableResetButton": false,
+          "keepScreenAwake": true,
+          "controls": [
+            {
               "type": "selection",
               "param": "BpDisplayBrightnessMode",
               "title": "Onroad Display Brightness Control",
@@ -183,25 +202,6 @@
                 ]
               }
             },
-            {
-              "type": "toggle",
-              "param": "DisableGPSAlert",
-              "title": "Disable GPS Alert",
-              "desc": "Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
-              "hidden": false,
-              "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
-              }
-            }
-          ]
-        },
-        {
-          "groupName": "visualOnroadPreferencesGroup",
-          "title": "Visual Onroad Preferences:",
-          "enableResetButton": false,
-          "keepScreenAwake": true,
-          "controls": [
             {
               "type": "toggle",
               "param": "FordPrefShowAnimatedWheelAngle",
