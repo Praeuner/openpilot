@@ -74,6 +74,73 @@ bool isCommandAvailable(const QString &command) {
 }
 
 
+// Helper function to get GPS satellite count using mmcli
+int getGpsSatelliteCount() {
+  static int cached_count = 0;
+  static int update_counter = 0;
+  static bool gps_checked = false;
+  
+  // Only update every 5 seconds to avoid excessive AT commands
+  if (update_counter++ % 5 != 0) {
+    return cached_count;
+  }
+  
+  // Check if GPS is enabled on first call or every 60 seconds
+  if (!gps_checked || update_counter % 60 == 0) {
+    QString gps_status = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS?");
+    if (gps_status.contains("+QGPS: 0")) {
+      // GPS is disabled, try to enable it
+      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPS=1");
+      // Also configure NMEA output
+      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"nmeasrc\",1");
+      runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSCFG=\"outport\",\"usbnmea\"");
+    }
+    gps_checked = true;
+  }
+  
+  // Try to get GPS location with satellite count
+  QString result = runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSLOC=2");
+  
+  if (!result.isEmpty() && result.contains("+QGPSLOC:")) {
+    // Parse response: +QGPSLOC: hhmmss.sss,lat,lon,hdop,alt,fix,cog,spkm,spkn,date,nsat
+    QStringList parts = result.split(',');
+    if (parts.size() >= 11) {
+      bool ok;
+      int count = parts[10].toInt(&ok);
+      if (ok && count >= 0) {
+        cached_count = count;
+        return cached_count;
+      }
+    }
+  }
+  
+  // If that fails, try getting NMEA GSV data
+  runProcess("mmcli", QStringList() << "-m" << "any" << "--command=AT+QGPSGNMEA=\"GSV\"");
+  
+  // Read from GPS NMEA port (with very short timeout)
+  QString nmea = runProcess("timeout", QStringList() << "0.2" << "cat" << "/dev/ttyUSB1");
+  
+  if (!nmea.isEmpty()) {
+    // Parse GSV sentences for satellite count
+    QStringList lines = nmea.split('\n');
+    for (const QString &line : lines) {
+      if (line.contains("GSV")) {
+        QStringList parts = line.split(',');
+        if (parts.size() >= 4) {
+          bool ok;
+          int count = parts[3].toInt(&ok);
+          if (ok && count >= 0) {
+            cached_count = count;
+            return cached_count;
+          }
+        }
+      }
+    }
+  }
+  
+  return cached_count;
+}
+
 // Helper function to map carrier codes to names
 QString getCarrierName(const QString &operatorCode) {
   // If operator code is empty or just whitespace, return "Cellular"
@@ -881,37 +948,8 @@ void SidebarBP::updateStateBP(const UIState &s) {
   recording_audio = s.scene.recording_audio;
   setProperty("recordingAudio", recording_audio);
 
-  // GPS satellite count - handle safely since services might not be running
-  try {
-    // Check if GPS services are available before trying to access them
-    if (sm.alive("gpsLocation")) {
-      auto gpsData = sm["gpsLocation"].getGpsLocation();
-      gps_satellite_count = gpsData.getSatelliteCount();
-    } else if (sm.alive("gpsLocationExternal")) {
-      auto gpsData = sm["gpsLocationExternal"].getGpsLocationExternal();
-      gps_satellite_count = gpsData.getSatelliteCount();
-    } else if (sm.alive("ubloxGnss")) {
-      // Try to get satellite count from ubloxGnss satReport
-      auto ubloxData = sm["ubloxGnss"].getUbloxGnss();
-      if (ubloxData.which() == cereal::UbloxGnss::SAT_REPORT) {
-        auto satReport = ubloxData.getSatReport();
-        gps_satellite_count = satReport.getSvs().size();
-      } else {
-        // If no satReport available, keep previous value or set to 0
-        if (gps_satellite_count == 0) {
-          gps_satellite_count = 0; // Already 0, no change needed
-        }
-      }
-    } else {
-      // If no GPS services are alive, keep previous value or set to 0
-      if (gps_satellite_count == 0) {
-        gps_satellite_count = 0; // Already 0, no change needed
-      }
-    }
-  } catch (...) {  // Catch all exceptions, not just std::exception
-    // GPS service not available or error occurred, set to 0
-    gps_satellite_count = 0;
-  }
+  // GPS satellite count - use simple mmcli approach
+  gps_satellite_count = getGpsSatelliteCount();
 
   setProperty("gpsSatelliteCount", gps_satellite_count);
 
