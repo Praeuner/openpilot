@@ -577,9 +577,9 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   // Debug output for monitoring SoC values (can be removed in production)
   static int debug_counter = 0;
   if (debug_counter++ % 100 == 0) { // Print every 100 frames to avoid spam
-    std::cout << "Battery SoC Debug - Raw: " << battSocActual
-              << "%, Min: " << battSocMin << "%, Max: " << battSocMax
-              << "%, Clamped: " << clampedActual << "%, Final: " << batteryPercent << "%" << std::endl;
+    // std::cout << "Battery SoC Debug - Raw: " << battSocActual
+    //           << "%, Min: " << battSocMin << "%, Max: " << battSocMax
+    //           << "%, Clamped: " << clampedActual << "%, Final: " << batteryPercent << "%" << std::endl;
   }
 
   // Draw automotive-style background (neutral metallic look)
