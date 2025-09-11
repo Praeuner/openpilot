@@ -196,7 +196,7 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
   bp_params_changed = false;
   bp_brightness_failure_count = 0;
   bp_last_brightness_attempt = std::chrono::steady_clock::now();
-  
+
   // Validate initial parameter values
   if (!validateBrightnessValue(bp_dim_level)) {
     bp_dim_level = 90; // fallback to default
@@ -246,7 +246,7 @@ void Device::updateBrightness(const UIState &s) {
   if (bp_auto_brightness_override) {
     return; // Brightness is handled by updateBpBrightnessControl
   }
-  
+
   // Save current brightness for potential BluePilot restoration
   if (bp_saved_brightness == -1 && s.scene.started) {
     bp_saved_brightness = last_brightness;
@@ -312,14 +312,14 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     int new_mode = QString::fromStdString(Params().get("BpDisplayBrightnessMode")).toInt();
     int new_dim_level = QString::fromStdString(Params().get("BpDisplayBrightnessDimLevel")).toInt();
     int new_timeout = QString::fromStdString(Params().get("BpDisplayBrightnessTimeout")).toInt();
-    
+
     // Check for parameter changes
     if (new_mode != bp_brightness_mode || new_dim_level != bp_dim_level || new_timeout != bp_timeout) {
       bp_params_changed = true;
       bp_brightness_mode = new_mode;
       bp_dim_level = validateBrightnessValue(new_dim_level) ? new_dim_level : 90;
       bp_timeout = (new_timeout >= 10 && new_timeout <= 120) ? new_timeout : 30;
-      
+
       // Reset timeout when parameters change
       resetBpBrightnessTimeout();
     }
@@ -407,7 +407,7 @@ void Device::resetBpBrightnessTimeout() {
 bool Device::isAlertActive(const UIState &s) {
   bool alert_active = false;
   std::string alert_source = "";
-  
+
   // Check selfdriveState for alerts
   if (s.sm && s.sm->rcv_frame("selfdriveState") > 0) {
     const auto& ss = (*s.sm)["selfdriveState"].getSelfdriveState();
@@ -416,7 +416,7 @@ bool Device::isAlertActive(const UIState &s) {
       alert_source = "selfdriveState: " + std::string(ss.getAlertText1().cStr());
     }
   }
-  
+
   // Check driverMonitoringState for driver attention alerts
   if (!alert_active && s.sm && s.sm->rcv_frame("driverMonitoringState") > 0) {
     const auto& dm = (*s.sm)["driverMonitoringState"].getDriverMonitoringState();
@@ -425,7 +425,7 @@ bool Device::isAlertActive(const UIState &s) {
       alert_source = "driverMonitoringState: Driver attention alert";
     }
   }
-  
+
   // Check deviceState for alerts if no alert found yet
   if (!alert_active && s.sm && s.sm->rcv_frame("deviceState") > 0) {
     const auto& ds = (*s.sm)["deviceState"].getDeviceState();
@@ -434,14 +434,14 @@ bool Device::isAlertActive(const UIState &s) {
       alert_source = "deviceState: Low storage space";
     }
   }
-  
+
   // Log alert detection with source information
   if (alert_active && !bp_alert_active) {
     std::cout << "[BP_BRIGHTNESS] Alert detected from " << alert_source << std::endl;
   } else if (!alert_active && bp_alert_active) {
     std::cout << "[BP_BRIGHTNESS] Alert cleared" << std::endl;
   }
-  
+
   return alert_active;
 }
 
@@ -452,14 +452,17 @@ void Device::resetOnroadDisplayTimer() {
 
 void Device::setBrightnessSafe(int brightness) {
   if (!validateBrightnessValue(brightness)) {
-    std::cout << "[BP_BRIGHTNESS] Invalid brightness value: " << brightness << ", using fallback" << std::endl;
+    // Only log error for invalid values that aren't 0 (display off)
+    if (brightness != 0) {
+      std::cout << "[BP_BRIGHTNESS] Invalid brightness value: " << brightness << ", using fallback" << std::endl;
+    }
     brightness = std::clamp(brightness, 1, 100);
   }
-  
+
   if (brightness != last_brightness) {
     if (!brightness_future.isRunning()) {
       auto now = std::chrono::steady_clock::now();
-      
+
       // Rate limiting: don't attempt brightness changes too frequently after failures
       if (bp_brightness_failure_count > 3) {
         auto time_since_last = std::chrono::duration_cast<std::chrono::milliseconds>(now - bp_last_brightness_attempt);
@@ -467,9 +470,9 @@ void Device::setBrightnessSafe(int brightness) {
           return;
         }
       }
-      
+
       bp_last_brightness_attempt = now;
-      
+
       // Start brightness change with error handling
       brightness_future = QtConcurrent::run([this, brightness]() {
         try {
@@ -479,9 +482,9 @@ void Device::setBrightnessSafe(int brightness) {
           return true;
         } catch (const std::exception& e) {
           bp_brightness_failure_count++;
-          std::cout << "[BP_BRIGHTNESS] Hardware brightness failure (attempt " 
+          std::cout << "[BP_BRIGHTNESS] Hardware brightness failure (attempt "
                     << bp_brightness_failure_count << "): " << e.what() << std::endl;
-          
+
           // After multiple failures, try fallback brightness
           if (bp_brightness_failure_count >= 5) {
             try {
@@ -495,7 +498,7 @@ void Device::setBrightnessSafe(int brightness) {
           return false;
         }
       });
-      
+
       last_brightness = brightness;
     }
   }
@@ -503,7 +506,7 @@ void Device::setBrightnessSafe(int brightness) {
 
 void Device::restoreAutoBrightness(const UIState &s) {
   bp_auto_brightness_override = false;
-  
+
   // Restore saved brightness or trigger auto brightness update
   if (bp_saved_brightness > 0 && s.scene.started) {
     setBrightnessSafe(bp_saved_brightness);
