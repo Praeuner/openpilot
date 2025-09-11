@@ -148,6 +148,7 @@ protected:
   bool bp_alert_active = false; // whether an alert is currently active
   int bp_saved_brightness = -1; // saved brightness before dimming/turning off
   bool bp_params_changed = false; // flag to indicate parameter changes
+  bool bp_is_dimmed = false; // track if display is currently dimmed
   int bp_brightness_failure_count = 0; // count of consecutive brightness setting failures
   std::chrono::steady_clock::time_point bp_last_brightness_attempt;
 
@@ -158,8 +159,6 @@ protected:
   void resetBpBrightnessTimeout();
   bool isAlertActive(const UIState &s);
   void setBrightnessSafe(int brightness);
-  void restoreAutoBrightness(const UIState &s);
-  bool validateBrightnessValue(int brightness);
 
 signals:
   void displayPowerChanged(bool on);
