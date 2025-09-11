@@ -329,6 +329,13 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     fan_animation->setEasingCurve(QEasingCurve::Linear);
   }
 
+  // Setup fan stop animation
+  fan_stop_animation = new QPropertyAnimation(this, "fanRotation");
+  if (fan_stop_animation) {
+    fan_stop_animation->setDuration(800); // 0.8 seconds for smooth stop
+    fan_stop_animation->setEasingCurve(QEasingCurve::OutCubic);
+  }
+
   // Set the appropriate width for the new sidebar layout
   // Cards: 280px + Right margin: 30px + Button width: 120px + Right margin: 30px = 460px
   setFixedWidth(460);
@@ -349,6 +356,11 @@ SidebarBP::~SidebarBP() {
   if (fan_animation) {
     delete fan_animation;
     fan_animation = nullptr;
+  }
+
+  if (fan_stop_animation) {
+    delete fan_stop_animation;
+    fan_stop_animation = nullptr;
   }
 
   // SSID detection now uses QtConcurrent, no cleanup needed
@@ -380,6 +392,30 @@ void SidebarBP::leaveEvent(QEvent *event) {
     hover_animation->start();
   }
   QFrame::leaveEvent(event);
+}
+
+void SidebarBP::showEvent(QShowEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
+  panel_visible = true;
+  // Start subtle fan animation when panel becomes visible
+  startFanAnimation();
+  QFrame::showEvent(event);
+}
+
+void SidebarBP::hideEvent(QHideEvent *event) {
+  // Safety check: ensure event is valid
+  if (!event) {
+    return;
+  }
+
+  panel_visible = false;
+  // Stop fan animation smoothly when panel becomes hidden
+  stopFanAnimation();
+  QFrame::hideEvent(event);
 }
 
 void SidebarBP::startAsyncSSIDUpdate() {
@@ -438,41 +474,43 @@ void SidebarBP::startAsyncSSIDUpdate() {
 }
 
 void SidebarBP::updateFanAnimation() {
-  if (!fan_animation || !isVisible()) {
+  // Fan animation is now disabled - no continuous spinning based on fan demand
+  // The fan will only animate when the panel becomes visible
+  return;
+}
+
+void SidebarBP::startFanAnimation() {
+  if (!fan_animation || !isVisible() || fan_animation_active) {
     return;
   }
 
-  // Parse fan demand percentage
-  bool ok;
-  float fanPercentage = 0.0f;
-  if (fan_demand.endsWith("%") && fan_demand.length() > 1) {
-    QString fanStr = fan_demand.mid(0, fan_demand.length() - 1);
-    fanPercentage = fanStr.toFloat(&ok);
-    if (!ok) {
-      fanPercentage = 0.0f;
-    }
+  // Start a subtle animation - just a few rotations
+  fan_animation->setDuration(3000); // 3 seconds for subtle animation
+  fan_animation->setStartValue(fan_rotation);
+  fan_animation->setEndValue(fan_rotation + 720.0); // 2 full rotations
+  fan_animation->setLoopCount(1); // Single animation, no loop
+  fan_animation->setEasingCurve(QEasingCurve::OutCubic);
+
+  fan_animation_active = true;
+  fan_animation->start();
+}
+
+void SidebarBP::stopFanAnimation() {
+  if (!fan_stop_animation || !fan_animation_active) {
+    return;
   }
 
-  if (fanPercentage > 0) {
-    // Calculate animation speed based on percentage
-    // Higher percentage = faster spin (shorter duration)
-    int duration = std::max(50, 2000 - static_cast<int>(fanPercentage * 19.5));
-
-    if (fan_animation->state() != QAbstractAnimation::Running) {
-      fan_animation->setDuration(duration);
-      fan_animation->start();
-    } else if (fan_animation->duration() != duration) {
-      // Update speed while running
-      fan_animation->setDuration(duration);
-    }
-  } else {
-    // Stop animation when fan demand is 0%
-    if (fan_animation->state() == QAbstractAnimation::Running) {
-      fan_animation->stop();
-      fan_rotation = 0.0; // Reset to 0 degrees
-      setProperty("fanRotation", fan_rotation);
-    }
+  // Stop the current animation
+  if (fan_animation && fan_animation->state() == QAbstractAnimation::Running) {
+    fan_animation->stop();
   }
+
+  // Create smooth stop animation
+  fan_stop_animation->setStartValue(fan_rotation);
+  fan_stop_animation->setEndValue(fan_rotation + 180.0); // Complete current rotation smoothly
+  fan_stop_animation->start();
+
+  fan_animation_active = false;
 }
 
 void SidebarBP::drawFan(QPainter &p, const QRect &rect) {
@@ -979,8 +1017,7 @@ void SidebarBP::updateStateBP(const UIState &s) {
       fan_demand = "0%";
     }
 
-    // Update fan animation based on new fan demand
-    updateFanAnimation();
+    // Fan animation is now handled by panel visibility, not fan demand
 
     metrics_refresh_counter = 0;
   }

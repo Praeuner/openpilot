@@ -3,6 +3,8 @@
 #include "selfdrive/ui/qt/sidebar.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 #include <QPropertyAnimation>
+#include <QShowEvent>
+#include <QHideEvent>
 #include <memory>
 #include <mutex>
 #include "cereal/messaging/messaging.h"
@@ -32,6 +34,8 @@ protected:
   void mouseReleaseEvent(QMouseEvent *event) override;
   void enterEvent(QEvent *event) override;
   void leaveEvent(QEvent *event) override;
+  void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
   void drawSidebar(QPainter &p) override;
   void drawNetworkCard(QPainter &p); // New method for custom network card
   void drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
@@ -39,6 +43,8 @@ protected:
   void drawProgressBar(QPainter &p, int x, int y, int width, int height, float percentage, QColor color);
   void drawFan(QPainter &p, const QRect &rect);
   void updateFanAnimation();
+  void startFanAnimation();
+  void stopFanAnimation();
   void startAsyncSSIDUpdate(); // Async SSID detection
 
 public slots:
@@ -69,9 +75,12 @@ private:
 
   // Fan animation
   QPropertyAnimation *fan_animation = nullptr;
+  QPropertyAnimation *fan_stop_animation = nullptr;
   qreal fan_rotation = 0.0;
   QRect fan_area;
   const int FAN_SIZE = 90;
+  bool panel_visible = false;
+  bool fan_animation_active = false;
 
   // Modern metrics
   QString cpu_temp = "0°C";
