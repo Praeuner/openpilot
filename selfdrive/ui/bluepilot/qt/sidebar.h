@@ -19,6 +19,7 @@ class SidebarBP : public Sidebar {
   Q_PROPERTY(QString fanDemand MEMBER fan_demand NOTIFY valueChanged);
   Q_PROPERTY(bool recordingAudio MEMBER recording_audio NOTIFY valueChanged);
   Q_PROPERTY(int gpsSatelliteCount MEMBER gps_satellite_count NOTIFY valueChanged);
+  Q_PROPERTY(qreal fanRotation MEMBER fan_rotation NOTIFY valueChanged);
 
 public:
   explicit SidebarBP(QWidget *parent = 0);
@@ -38,6 +39,8 @@ protected:
   void drawMetricBP(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor c, int y, bool compactMode);
   void buildMetricCard(QPainter &p, const QString &label, const QString &mainValue, const QString &leftValue, const QString &rightValue, QColor color, int cardIndex, bool compactMode);
   void drawProgressBar(QPainter &p, int x, int y, int width, int height, float percentage, QColor color);
+  void drawFan(QPainter &p, const QRect &rect);
+  void updateFanAnimation();
   void startAsyncSSIDUpdate(); // Async SSID detection
 
 public slots:
@@ -49,7 +52,7 @@ private slots:
 
 private:
   // Button images
-  QPixmap home_img, flag_img, settings_img, mic_img, debug_img; // Added debug_img
+  QPixmap home_img, flag_img, settings_img, mic_img, debug_img, fan_img; // Added fan_img
 
   // Modern sidebar styling
   const QColor good_color = QColor(42, 199, 122);
@@ -69,6 +72,12 @@ private:
   QRect mic_indicator_btn;
   bool recording_audio = false;
   bool mic_indicator_pressed = false;
+
+  // Fan animation
+  QPropertyAnimation *fan_animation = nullptr;
+  qreal fan_rotation = 0.0;
+  QRect fan_area;
+  const int FAN_SIZE = 90;
 
   // Modern metrics
   QString cpu_temp = "0°C";

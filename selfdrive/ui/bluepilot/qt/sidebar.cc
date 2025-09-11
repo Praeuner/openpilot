@@ -303,7 +303,11 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     qWarning() << "Failed to load debug button image";
   }
 
-  // Network type icons removed - will show text instead
+  // Load fan image
+  fan_img = loadPixmap("../assets/images/button_fan.png", QSize(FAN_SIZE, FAN_SIZE));
+  if (fan_img.isNull()) {
+    qWarning() << "Failed to load fan button image";
+  }
 
   // Setup hover animation with safety check
   hover_animation = new QPropertyAnimation(this, "hover_opacity");
@@ -312,6 +316,16 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     hover_animation->setStartValue(0.0);
     hover_animation->setEndValue(1.0);
     hover_animation->setEasingCurve(QEasingCurve::OutCubic);
+  }
+
+  // Setup fan animation
+  fan_animation = new QPropertyAnimation(this, "fanRotation");
+  if (fan_animation) {
+    fan_animation->setDuration(2000); // 2 seconds for full rotation
+    fan_animation->setStartValue(0.0);
+    fan_animation->setEndValue(360.0);
+    fan_animation->setLoopCount(-1); // Infinite loop
+    fan_animation->setEasingCurve(QEasingCurve::Linear);
   }
 
   // Set the appropriate width for the new sidebar layout
@@ -329,6 +343,11 @@ SidebarBP::~SidebarBP() {
   if (hover_animation) {
     delete hover_animation;
     hover_animation = nullptr;
+  }
+
+  if (fan_animation) {
+    delete fan_animation;
+    fan_animation = nullptr;
   }
 
   // Clean up SSID process
@@ -400,6 +419,67 @@ void SidebarBP::onSSIDProcessFinished(int exitCode, QProcess::ExitStatus exitSta
       ssid_cache_counter = 0; // Reset cache counter
     }
   }
+}
+
+void SidebarBP::updateFanAnimation() {
+  if (!fan_animation || !isVisible()) {
+    return;
+  }
+
+  // Parse fan demand percentage
+  bool ok;
+  float fanPercentage = 0.0f;
+  if (fan_demand.endsWith("%") && fan_demand.length() > 1) {
+    QString fanStr = fan_demand.mid(0, fan_demand.length() - 1);
+    fanPercentage = fanStr.toFloat(&ok);
+    if (!ok) {
+      fanPercentage = 0.0f;
+    }
+  }
+
+  if (fanPercentage > 0) {
+    int duration = std::max(50, 2000 - static_cast<int>(fanPercentage * 19.5));
+
+    if (fan_animation->state() != QAbstractAnimation::Running) {
+      fan_animation->setDuration(duration);
+      fan_animation->start();
+    } else if (fan_animation->duration() != duration) {
+      fan_animation->setDuration(duration);
+    }
+  } else {
+    if (fan_animation->state() == QAbstractAnimation::Running) {
+      fan_animation->stop();
+      fan_rotation = 0.0;
+      setProperty("fanRotation", fan_rotation);
+    }
+  }
+}
+
+void SidebarBP::drawFan(QPainter &p, const QRect &rect) {
+  if (fan_img.isNull()) {
+    return;
+  }
+
+  // Save painter state
+  p.save();
+
+  // Move to center of rect for rotation
+  p.translate(rect.center());
+
+  // Apply rotation
+  p.rotate(fan_rotation);
+
+  // Draw fan image centered on rotation point
+  p.drawPixmap(-fan_img.width()/2, -fan_img.height()/2, fan_img);
+
+  // Restore painter state
+  p.restore();
+
+  // Draw percentage text below the fan image
+  QRect textRect(rect.x(), rect.bottom() + 5, rect.width(), 30);
+  p.setPen(Qt::white);
+  p.setFont(InterFont(28, QFont::Bold));
+  p.drawText(textRect, Qt::AlignCenter, fan_demand);
 }
 
 void SidebarBP::drawNetworkCard(QPainter &p) {
@@ -895,6 +975,9 @@ void SidebarBP::updateStateBP(const UIState &s) {
       fan_demand = "0%";
     }
 
+    // Update fan animation based on new fan demand
+    updateFanAnimation();
+
     metrics_refresh_counter = 0;
   }
 
@@ -1078,23 +1161,6 @@ void SidebarBP::drawSidebar(QPainter &p) {
     buildMetricCard(p, tr("MEMORY"), tr(""), memory_usage, tr(""), memoryFanColor, 2, true);
   }
 
-  // GPS card - disabled
-  // QColor gpsColor = good_color;
-  // QString gpsValue = QString("%1").arg(gps_satellite_count);
-  // QString gpsLabel = tr("SAT");
-
-  // if (gps_satellite_count == 0) {
-  //   gpsColor = danger_color;
-  //   gpsValue = tr("NO GPS");
-  //   gpsLabel = tr("");
-  // } else if (gps_satellite_count < 4) {
-  //   gpsColor = danger_color;
-  // } else if (gps_satellite_count < 6) {
-  //   gpsColor = warning_color;
-  // }
-
-  // buildMetricCard(p, tr("GPS"), tr(""), gpsValue, gpsLabel, gpsColor, 3, true);
-
   // Vehicle card - standard 3-row layout, optimized size (120px height)
   buildMetricCard(p, tr("VEHICLE"), panda_status.first.second, tr(""), tr(""), panda_status.second, 3, false);
 
@@ -1112,89 +1178,79 @@ void SidebarBP::drawSidebar(QPainter &p) {
     buildMetricCard(p, tr("SUNNYLINK"), placeholder_status.first.second, tr(""), tr(""), placeholder_status.second, 5, false);
   }
 
-  // Buttons in vertical column on the right side, stacked from bottom to top
-  const int buttonSize = 100; // Larger buttons for better visibility
-  const int buttonSpacing = 20; // Spacing between buttons
+  // === NEW BUTTON LAYOUT WITH TOP AND BOTTOM SECTIONS ===
+
+  // Button column dimensions
+  const int buttonSize = 100;
+  const int buttonSpacing = 20;
   const int rightMargin = 25;
-
-  // Safety check: ensure width is valid
-  if (width() <= 0) {
-    return; // Exit early if width is invalid
-  }
-
   const int buttonX = width() - buttonSize - rightMargin;
 
-  // Create horizontal gradient background that maintains dark color throughout
-  // Draw horizontal gradient from cards area to button area
+  // Create horizontal gradient background
   QLinearGradient sidebarGradient(0, 0, width(), 0);
-  sidebarGradient.setColorAt(0, background_color); // Original sidebar color for cards area
-  sidebarGradient.setColorAt(0.7, background_color); // Keep original color until 70% of width
-  sidebarGradient.setColorAt(1.0, background_color); // Keep same dark color all the way to the edge
+  sidebarGradient.setColorAt(0, background_color);
+  sidebarGradient.setColorAt(0.7, background_color);
+  sidebarGradient.setColorAt(1.0, background_color);
 
-  // Apply gradient to the right side of the sidebar (where buttons are)
-  // Start gradient transition after the cards end
-  int gradientStartX = width() * 0.7; // Start gradient at 70% of sidebar width
-
-  // Safety check: ensure gradient coordinates are valid
+  int gradientStartX = width() * 0.7;
   if (gradientStartX >= 0 && gradientStartX < width()) {
     p.setPen(Qt::NoPen);
     p.setBrush(sidebarGradient);
     p.drawRect(gradientStartX, 0, width() - gradientStartX, height());
   }
 
-  // Start from bottom and stack upwards
-  // Safety check: ensure height is valid
-  if (height() <= 0) {
-    return; // Exit early if height is invalid
+  // === TOP SECTION - FAN ===
+  const int topPadding = 10;
+  fan_area = QRect(buttonX, topPadding, FAN_SIZE, FAN_SIZE);
+
+  // Safety check for fan area
+  if (fan_area.x() >= 0 && fan_area.y() >= 0 &&
+      fan_area.right() <= width() && fan_area.bottom() <= height()) {
+    drawFan(p, fan_area);
   }
 
-  int currentButtonY = height() - buttonSize - 30; // Bottom button position
+  // === BOTTOM SECTION - BUTTONS ===
+  const int bottomPadding = 20;
+  int currentButtonY = height() - bottomPadding - buttonSize;
 
-  // Settings button (bottom)
-  // Safety check: ensure button coordinates are valid
-  if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+  // Settings button (bottom-most)
+  if (buttonX >= 0 && currentButtonY >= 0 &&
+      buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
     bp_settings_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
   } else {
-    // Fallback to safe coordinates
     bp_settings_btn = QRect(30, height() - buttonSize - 30, buttonSize, buttonSize);
   }
 
-  // Draw settings button background and border with different background
   p.setPen(QPen(QColor(255, 255, 255, 80), 2));
-  p.setBrush(settings_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
+  p.setBrush(settings_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140));
   p.drawRoundedRect(bp_settings_btn, 20, 20);
 
-      // Draw settings icon (centered with proper scaling for larger button)
-    if (!settings_img.isNull()) {
-      const float settings_scale = 0.55; // Adjusted for 100px button
-      p.setOpacity(settings_pressed ? 0.65 : 1.0);
-      p.drawPixmap(bp_settings_btn.x() + (bp_settings_btn.width() - settings_img.width() * settings_scale) / 2,
-                   bp_settings_btn.y() + (bp_settings_btn.height() - settings_img.height() * settings_scale) / 2,
-                   settings_img.scaled(settings_img.width() * settings_scale, settings_img.height() * settings_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-      p.setOpacity(1.0);
-    }
+  if (!settings_img.isNull()) {
+    const float settings_scale = 0.55;
+    p.setOpacity(settings_pressed ? 0.65 : 1.0);
+    p.drawPixmap(bp_settings_btn.x() + (bp_settings_btn.width() - settings_img.width() * settings_scale) / 2,
+                 bp_settings_btn.y() + (bp_settings_btn.height() - settings_img.height() * settings_scale) / 2,
+                 settings_img.scaled(settings_img.width() * settings_scale, settings_img.height() * settings_scale, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    p.setOpacity(1.0);
+  }
 
-  // Move up for next button
   currentButtonY -= (buttonSize + buttonSpacing);
 
   // Home/Flag button (middle, only when onroad)
   if (onroad) {
-    // Safety check: ensure button coordinates are valid
-    if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+    if (buttonX >= 0 && currentButtonY >= 0 &&
+        buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
       bp_home_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
     } else {
-      // Fallback to safe coordinates
       bp_home_btn = QRect(30, currentButtonY, buttonSize, buttonSize);
     }
 
-    // Draw button background with different background
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
-    p.setBrush(flag_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
+    p.setBrush(flag_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140));
     p.drawRoundedRect(bp_home_btn, 20, 20);
 
-    // Draw flag icon with proper scaling to fit nicely in the circular button
     if (!flag_img.isNull()) {
-      float flag_scale = 0.45; // Smaller scale for flag to fit properly in circle
+      float flag_scale = 0.45;
       p.setOpacity(flag_pressed ? 0.65 : 1.0);
       p.drawPixmap(bp_home_btn.x() + (bp_home_btn.width() - flag_img.width() * flag_scale) / 2,
                    bp_home_btn.y() + (bp_home_btn.height() - flag_img.height() * flag_scale) / 2,
@@ -1202,27 +1258,24 @@ void SidebarBP::drawSidebar(QPainter &p) {
       p.setOpacity(1.0);
     }
 
-    // Move up for next button
     currentButtonY -= (buttonSize + buttonSpacing);
   }
 
-  // Debug button (top of the group, only onroad)
+  // Debug button (top of button group, only onroad)
   if (onroad) {
-    // Safety check: ensure button coordinates are valid
-    if (buttonX >= 0 && currentButtonY >= 0 && buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
+    if (buttonX >= 0 && currentButtonY >= 0 &&
+        buttonX + buttonSize <= width() && currentButtonY + buttonSize <= height()) {
       bp_debug_btn = QRect(buttonX, currentButtonY, buttonSize, buttonSize);
     } else {
-      // Fallback to safe coordinates
       bp_debug_btn = QRect(30, currentButtonY, buttonSize, buttonSize);
     }
 
     p.setPen(QPen(QColor(255, 255, 255, 80), 2));
-    p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140)); // Muted blue-grey background
+    p.setBrush(debug_pressed ? QColor(100, 110, 130, 180) : QColor(100, 110, 130, 140));
     p.drawRoundedRect(bp_debug_btn, 20, 20);
 
-    // Draw debug icon (scaled and centered for larger button)
     if (!debug_img.isNull()) {
-      float debug_scale = 0.65; // Adjusted for 100px button
+      float debug_scale = 0.65;
       p.setOpacity(debug_pressed ? 0.65 : 1.0);
       p.drawPixmap(bp_debug_btn.x() + (bp_debug_btn.width() - debug_img.width() * debug_scale) / 2,
                    bp_debug_btn.y() + (bp_debug_btn.height() - debug_img.height() * debug_scale) / 2,
