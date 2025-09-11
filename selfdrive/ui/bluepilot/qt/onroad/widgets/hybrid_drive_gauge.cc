@@ -11,6 +11,7 @@
 #include <QLinearGradient>
 #include <QRadialGradient>
 #include <iostream>
+#include <algorithm>
 
 HybridDriveGauge::HybridDriveGauge(QWidget *parent) : QWidget(parent) { setupAnimation(); }
 
@@ -565,8 +566,21 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   int cornerRadius = qRound(6 * scaleFactor); // Reduced for automotive look
 
   // Calculate battery percentage for dynamic theming
-  float fillPerc = (battSocActual - battSocMin) / (battSocMax - battSocMin);
-  float batteryPercent = fillPerc * 100.0f;
+  // Clamp values to prevent division by zero and ensure valid range
+  float clampedActual = std::clamp(battSocActual, battSocMin, battSocMax);
+  float clampedMin = std::clamp(battSocMin, 0.0f, 100.0f);
+  float clampedMax = std::clamp(battSocMax, clampedMin + 1.0f, 100.0f); // Ensure max > min
+
+  float fillPerc = (clampedActual - clampedMin) / (clampedMax - clampedMin);
+  float batteryPercent = std::clamp(fillPerc * 100.0f, 0.0f, 100.0f);
+
+  // Debug output for monitoring SoC values (can be removed in production)
+  static int debug_counter = 0;
+  if (debug_counter++ % 100 == 0) { // Print every 100 frames to avoid spam
+    std::cout << "Battery SoC Debug - Raw: " << battSocActual
+              << "%, Min: " << battSocMin << "%, Max: " << battSocMax
+              << "%, Clamped: " << clampedActual << "%, Final: " << batteryPercent << "%" << std::endl;
+  }
 
   // Draw automotive-style background (neutral metallic look)
   p.setPen(Qt::NoPen);
