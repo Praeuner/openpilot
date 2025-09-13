@@ -1,6 +1,12 @@
 #pragma once
 
+// BluePilot override for modern alerts
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/onroad/alerts_bp.h"
+#define OnroadAlerts OnroadAlertsBP
+#else
 #include "selfdrive/ui/qt/onroad/alerts.h"
+#endif
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/annotated_camera.h"
