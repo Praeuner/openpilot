@@ -770,34 +770,44 @@ void Device::updateBpStatusText(const UIState &s) {
     BP_LOG("Status updated: " << new_status.toStdString());
     std::cout << "[STATUS_DEBUG] Setting s.scene.bp_status_text to: '" << new_status.toStdString() << "'" << std::endl;
 
-    // Render BP status text in bottom right - temporary for testing
+    // Force UI update - more robust for Comma device
     QApplication *app = qApp;
     if (app) {
+      // Try multiple ways to find the main window
       QWidget *main_window = app->activeWindow();
+      if (!main_window) {
+        // Fallback: get the first top-level widget
+        QWidgetList widgets = app->topLevelWidgets();
+        if (!widgets.isEmpty()) {
+          main_window = widgets.first();
+        }
+      }
+
       if (main_window) {
-        // Create a temporary overlay to show the status text
+        // Create a more persistent overlay for Comma device
         static QLabel *status_label = nullptr;
         if (!status_label) {
           status_label = new QLabel(main_window);
-          status_label->setStyleSheet("QLabel { color: white; background-color: rgba(0,0,0,128); padding: 5px; }");
+          status_label->setStyleSheet("QLabel { color: white; background-color: rgba(0,0,0,180); padding: 8px; border-radius: 4px; }");
           status_label->setFont(QFont("Inter", 24, QFont::Bold));
+          status_label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+          status_label->setWindowFlags(Qt::SubWindow);
         }
 
         status_label->setText(new_status);
         status_label->adjustSize();
 
-        // Position at top center of screen
-        int x = (main_window->width() - status_label->width()) / 2;
+        // Position at top center of screen with updated geometry
+        QRect screen_rect = main_window->geometry();
+        int x = (screen_rect.width() - status_label->width()) / 2;
         int y = 20;
         status_label->move(x, y);
-        status_label->show();
+        status_label->setVisible(true);
         status_label->raise();
 
-        // Set a very high z-order to keep it on top
-        status_label->setParent(main_window);
-        status_label->setAttribute(Qt::WA_AlwaysShowToolTips, true);
-
-        main_window->update();
+        // Force immediate repaint
+        status_label->repaint();
+        main_window->repaint();
       }
     }
   }
