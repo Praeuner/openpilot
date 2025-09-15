@@ -786,9 +786,9 @@ void Device::updateBpStatusText(const UIState &s) {
         status_label->setText(new_status);
         status_label->adjustSize();
 
-        // Position in bottom right corner
-        int x = main_window->width() - status_label->width() - 20;
-        int y = main_window->height() - status_label->height() - 20;
+        // Position at top center of screen
+        int x = (main_window->width() - status_label->width()) / 2;
+        int y = 20;
         status_label->move(x, y);
         status_label->show();
         status_label->raise();
