@@ -8,7 +8,8 @@
         "Onroad display behavior controls: dimming percentage and timeout settings",
         "Brightness control system improvements with better user interaction",
         "Radar overlay speed display fixes to match system speed units",
-        "Enhanced onroad debug panel with conditional building"
+        "Enhanced onroad debug panel with conditional building",
+        "Updated the styling of the alert overlay to match the rest of the UI"
       ],
       "fixes": [
         "Fixed BPSelection control description text display",
