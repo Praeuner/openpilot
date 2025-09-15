@@ -91,7 +91,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   // Check if prebuilt file exists in root directory
   QString rootPath = qApp->applicationDirPath() + "/../..";
   QString prebuiltPath = rootPath + "/prebuilt";
-  bool hasPrebuiltFile = QFile::exists(prebuiltPath);
+  bool hasPrebuiltFile = false; //QFile::exists(prebuiltPath);
 
   QList<PanelInfo> panels = {
     PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
