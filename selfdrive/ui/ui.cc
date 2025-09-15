@@ -323,8 +323,34 @@ void Device::updateBrightness(const UIState &s) {
       dim_start_pct = last_brightness;
       try {
         std::string v = params.get("BPDimLevel");
-        dim_target_pct = v.empty() ? bp_dim_level : std::clamp(std::stoi(v), 1, 100);
-      } catch (...) { dim_target_pct = bp_dim_level; }
+        int raw_dim_pct = v.empty() ? bp_dim_level : std::clamp(std::stoi(v), 1, 100);
+
+        // Apply perceptual brightness correction (inverse of CIE 1931)
+        // Convert percentage to perceptual brightness value
+        float perceptual_target = raw_dim_pct / 100.0f;  // Convert to 0-1 range
+
+        // Apply inverse CIE 1931 transformation to get hardware brightness
+        float corrected_brightness;
+        if (perceptual_target <= 0.08f) {
+          corrected_brightness = perceptual_target * 903.3f;
+        } else {
+          corrected_brightness = 116.0f * std::pow(perceptual_target, 1.0f/3.0f) - 16.0f;
+        }
+
+        dim_target_pct = std::clamp(int(corrected_brightness), 1, 100);
+        BP_LOG("Perceptual dimming: " << raw_dim_pct << "% perceived -> " << dim_target_pct << "% hardware");
+      } catch (...) {
+        // Fallback with perceptual correction for default value
+        float perceptual_target = bp_dim_level / 100.0f;
+        float corrected_brightness;
+        if (perceptual_target <= 0.08f) {
+          corrected_brightness = perceptual_target * 903.3f;
+        } else {
+          corrected_brightness = 116.0f * std::pow(perceptual_target, 1.0f/3.0f) - 16.0f;
+        }
+        dim_target_pct = std::clamp(int(corrected_brightness), 1, 100);
+        BP_LOG("Perceptual dimming (fallback): " << bp_dim_level << "% perceived -> " << dim_target_pct << "% hardware");
+      }
       dim_begin_ms = now_ms;
       dim_session_active = true;
     }
