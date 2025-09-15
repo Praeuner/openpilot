@@ -19,13 +19,21 @@ class ModelRenderer;
 class ModelRendererSP;
 #endif
 
+#ifdef BLUEPILOT
+class ModelRendererBP;
+#endif
+
 class BluepilotRenderer {
 public:
   // Single entry point for all BluePilot rendering
+#ifdef BLUEPILOT
+  static void renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRendererBP &model);
+#else
 #ifdef SUNNYPILOT
   static void renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRendererSP &model);
 #else
   static void renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRenderer &model);
+#endif
 #endif
 
 private:

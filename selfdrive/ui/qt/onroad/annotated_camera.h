@@ -9,12 +9,16 @@
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/buttons.h"
 #include "selfdrive/ui/sunnypilot/qt/onroad/hud.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
 #define ExperimentalButton ExperimentalButtonSP
-#define ModelRenderer ModelRendererSP
+#define HudRenderer HudRendererSP
 #else
 #include "selfdrive/ui/qt/onroad/buttons.h"
 #include "selfdrive/ui/qt/onroad/hud.h"
+#endif
+
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/onroad/model_bp.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
 #endif
 
 class AnnotatedCameraWidget : public CameraWidget {
@@ -30,7 +34,10 @@ private:
   ExperimentalButton *experimental_btn;
   DriverMonitorRenderer dmon;
   HudRenderer hud;
-  ModelRenderer model;
+  ModelRendererFinal model;
+#ifdef BLUEPILOT
+  BluepilotRenderer bluepilot_renderer;
+#endif
   std::unique_ptr<PubMaster> pm;
 
   int skip_frame_count = 0;

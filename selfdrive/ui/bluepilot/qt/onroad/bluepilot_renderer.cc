@@ -10,9 +10,14 @@
 #include <chrono>
 #include <algorithm>
 #include <iostream>
+#include <type_traits>
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
+#endif
+
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/onroad/model_bp.h"
 #endif
 
 
@@ -44,6 +49,11 @@ static QLinearGradient createAutomotiveGradient(QRect rect, QColor baseColor, bo
 
 
 
+#ifdef BLUEPILOT
+void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRendererBP &model) {
+  renderAllImpl(painter, rect, s, model);
+}
+#else
 #ifdef SUNNYPILOT
 void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRendererSP &model) {
   renderAllImpl(painter, rect, s, model);
@@ -52,6 +62,7 @@ void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UI
 void BluepilotRenderer::renderAll(QPainter &painter, const QRect &rect, const UIState &s, const ModelRenderer &model) {
   renderAllImpl(painter, rect, s, model);
 }
+#endif
 #endif
 
 template<typename ModelType>
@@ -161,8 +172,24 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
 
   // FIXED: Properly get transform and clip region from model
   if (frame_state.show_radar || frame_state.show_stop) {
-    frame_state.transform = model.getTransform();
-    frame_state.clip_region = model.getClipRegion();
+#ifdef BLUEPILOT
+    // Only ModelRendererBP has the getter methods
+    if constexpr (std::is_same_v<ModelType, ModelRendererBP>) {
+      frame_state.transform = model.getTransform();
+      frame_state.clip_region = model.getClipRegion();
+    } else {
+      // For base ModelRenderer/ModelRendererSP, we don't have access to these
+      // Model enhancements will be disabled for non-BluePilot builds
+      frame_state.show_radar = false;
+      frame_state.show_stop = false;
+      return;
+    }
+#else
+    // Non-BluePilot builds don't have these features
+    frame_state.show_radar = false;
+    frame_state.show_stop = false;
+    return;
+#endif
 
     // Check if transform is valid but don't return early
     if (frame_state.transform.isZero()) {

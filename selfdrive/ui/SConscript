@@ -51,6 +51,8 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_recent_changes.cc",
   "bluepilot/qt/onroad/alerts_bp.cc",
   "bluepilot/qt/onroad/bluepilot_renderer.cc",
+  # BluePilot Enhanced UI Components
+  "bluepilot/qt/onroad/model_bp.cc",
   "bluepilot/qt/home.cc",
   "bluepilot/qt/sidebar.cc",
 ]

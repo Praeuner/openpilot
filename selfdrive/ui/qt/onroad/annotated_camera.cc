@@ -8,9 +8,6 @@
 #include "common/swaglog.h"
 #include "selfdrive/ui/qt/util.h"
 
-#ifdef BLUEPILOT
-#include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
-#endif
 
 // Window that shows camera view and variety of info drawn on top
 AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget *parent)
@@ -139,7 +136,7 @@ void AnnotatedCameraWidget::paintGL() {
   hud.draw(painter, rect());
 
 #ifdef BLUEPILOT
-  BluepilotRenderer::renderAll(painter, rect(), *s, model);
+  bluepilot_renderer.renderAll(painter, rect(), *s, model);
 #endif
 
   double cur_draw_t = millis_since_boot();
