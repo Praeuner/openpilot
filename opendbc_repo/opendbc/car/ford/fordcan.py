@@ -33,11 +33,12 @@ def calculate_lat_ctl2_checksum(mode: int, counter: int, dat: bytearray) -> int:
   return 0xFF - (checksum & 0xFF)
 
 
-def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control):
+def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control, stock_values: dict = None):
   """
-  Creates an empty CAN message for the Ford LKA Command.
+  Creates a CAN message for the Ford LKA Command.
 
   This command can apply "Lane Keeping Aid" maneuvers, which are subject to the PSCM lockout.
+  It also provides lane departure warning and lane keep assist status to the cluster.
 
   Frequency is 33Hz.
 
@@ -57,7 +58,64 @@ def create_lka_msg(packer, CAN: CanBus, lat_active: bool, hud_control):
   )
 
   """
-  return packer.make_can_msg("Lane_Assist_Data1", CAN.main, {})
+  # Start with stock values if available, otherwise use defaults
+  if stock_values is not None:
+    values = stock_values.copy()
+  else:
+    # Initialize default values when no stock values available
+    values = {
+      "LkaActvStats_D2_Req": 0,     # LkaNoInterv
+      "LdwActvStats_D_Req": 0,      # LDW_Idle
+      "LdwActvIntns_D_Req": 0,       # None
+      "LaRefAng_No_Req": 2048,       # Default neutral angle (0 degrees)
+      "LaCurvature_No_Calc": 2048,   # Default neutral curvature (0 1/m)
+      "LaRampType_B_Req": 0,         # Smooth
+      "LkaDrvOvrrd_D_Rq": 0,         # Level_0
+    }
+
+  # Only override LKA/LDW status when we have hud_control
+  if hud_control is not None:
+    # Determine LKA activation status based on lane departure warnings
+    if hud_control.leftLaneDepart and hud_control.rightLaneDepart:
+      lka_actv_stats = 7  # NotUsed (both lanes departing)
+    elif hud_control.leftLaneDepart:
+      lka_actv_stats = 1  # LkaIncrIntervLeft
+    elif hud_control.rightLaneDepart:
+      lka_actv_stats = 6  # LkaIncrIntervRight
+    elif lat_active:
+      lka_actv_stats = 0  # LkaNoInterv (active but no intervention needed)
+    else:
+      # Keep stock value when not actively controlling
+      lka_actv_stats = values.get("LkaActvStats_D2_Req", 0)
+
+    # Determine LDW activation status
+    if hud_control.leftLaneDepart and hud_control.rightLaneDepart:
+      ldw_actv_stats = 7  # LDW_Suppress_Right_Left
+    elif hud_control.leftLaneDepart:
+      ldw_actv_stats = 2  # LDW_Warning_Left
+    elif hud_control.rightLaneDepart:
+      ldw_actv_stats = 4  # LDW_Warning_Right
+    elif lat_active:
+      ldw_actv_stats = 0  # LDW_Idle (active but no warning needed)
+    else:
+      # Keep stock value when not actively controlling
+      ldw_actv_stats = values.get("LdwActvStats_D_Req", 0)
+
+    # Set LDW intensity based on departure severity
+    if hud_control.leftLaneDepart or hud_control.rightLaneDepart:
+      ldw_actv_intns = 2  # Medium intensity for lane departure warnings
+    else:
+      # Keep stock value when no warnings
+      ldw_actv_intns = values.get("LdwActvIntns_D_Req", 0)
+
+    # Update only the signals we're actively controlling
+    values.update({
+      "LkaActvStats_D2_Req": lka_actv_stats,    # LKA activation status [0|7]
+      "LdwActvStats_D_Req": ldw_actv_stats,     # LDW activation status [0|7]
+      "LdwActvIntns_D_Req": ldw_actv_intns,     # LDW intensity [0|3]
+    })
+
+  return packer.make_can_msg("Lane_Assist_Data1", CAN.main, values)
 
 
 
