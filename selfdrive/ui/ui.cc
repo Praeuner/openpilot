@@ -793,6 +793,10 @@ void Device::updateBpStatusText(const UIState &s) {
         status_label->show();
         status_label->raise();
 
+        // Set a very high z-order to keep it on top
+        status_label->setParent(main_window);
+        status_label->setAttribute(Qt::WA_AlwaysShowToolTips, true);
+
         main_window->update();
       }
     }
