@@ -14,6 +14,7 @@
         "Fixed BPSelection control description text display",
         "Fixed radar overlay speed unit matching with system settings",
         "Fixed BP Updater crashes on built branches without submodules",
+        "Fixed HybridDriveBatteryGauge values so they are now more accurate",
         "Fixed sunnylink card display issues in sidebar",
         "Fixed onroad debug panel width utilization",
         "Fixed brightness control system interactions",
