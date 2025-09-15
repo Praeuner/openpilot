@@ -169,7 +169,7 @@ class CarState(CarStateBase, MadsCarState):
     self.acc_tja_status_stock_values = cp_cam.vl["ACCDATA_3"]
     self.lkas_status_stock_values = cp_cam.vl["IPMA_Data"]
     # Stock values from Lane_Assist_Data1 for lane assist functionality
-    self.lane_assist_stock_values = None #cp_cam.vl["Lane_Assist_Data1"]
+    self.lane_assist_stock_values = cp_cam.vl["Lane_Assist_Data1"]
 
     MadsCarState.update_mads(self, ret, can_parsers)
 

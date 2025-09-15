@@ -240,11 +240,18 @@ void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFulls
   p.setBrush(alert_colors[alert.status]);
   p.drawPath(path);
 
-  // Add material gradient overlay for depth
+  // Add material gradient overlay for depth - reduced for warning alerts
   QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
-  gradient.setColorAt(0, QColor(255, 255, 255, 30)); // Brighter top
-  gradient.setColorAt(0.5, QColor(255, 255, 255, 15));
-  gradient.setColorAt(1, QColor(0, 0, 0, 50)); // Darker bottom
+  if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
+    // Reduced gradient for warning alerts to minimize yellow appearance
+    gradient.setColorAt(0, QColor(255, 255, 255, 15)); // Lighter top
+    gradient.setColorAt(0.5, QColor(255, 255, 255, 8));
+    gradient.setColorAt(1, QColor(0, 0, 0, 25)); // Lighter bottom
+  } else {
+    gradient.setColorAt(0, QColor(255, 255, 255, 30)); // Brighter top
+    gradient.setColorAt(0.5, QColor(255, 255, 255, 15));
+    gradient.setColorAt(1, QColor(0, 0, 0, 50)); // Darker bottom
+  }
 
   p.setPen(Qt::NoPen);
   p.setBrush(gradient);
@@ -256,9 +263,16 @@ void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFulls
   innerPath.addRoundedRect(innerRect, radius - 3, radius - 3);
 
   QLinearGradient innerGlow(rect.topLeft(), rect.topRight());
-  innerGlow.setColorAt(0, QColor(255, 255, 255, 25)); // Brighter inner glow
-  innerGlow.setColorAt(0.5, QColor(255, 255, 255, 10));
-  innerGlow.setColorAt(1, QColor(255, 255, 255, 25));
+  if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
+    // Reduced inner glow for warning alerts
+    innerGlow.setColorAt(0, QColor(255, 255, 255, 12)); // Lighter inner glow
+    innerGlow.setColorAt(0.5, QColor(255, 255, 255, 5));
+    innerGlow.setColorAt(1, QColor(255, 255, 255, 12));
+  } else {
+    innerGlow.setColorAt(0, QColor(255, 255, 255, 25)); // Brighter inner glow
+    innerGlow.setColorAt(0.5, QColor(255, 255, 255, 10));
+    innerGlow.setColorAt(1, QColor(255, 255, 255, 25));
+  }
 
   p.setPen(QPen(QBrush(innerGlow), 2)); // Thicker inner border
   p.setBrush(Qt::NoBrush);

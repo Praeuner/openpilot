@@ -500,20 +500,6 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   }
 
   updateBpStatusText(s);
-
-  // Handle dimmed state - continuously apply dim brightness
-  if (bp_state == BP_DIMMED && bp_brightness_mode == 1) {
-    int filtered_brightness = brightness_filter.update(bp_dim_level);
-    if (!brightness_future.isRunning() && filtered_brightness != last_brightness) {
-      brightness_future = QtConcurrent::run(Hardware::set_brightness, filtered_brightness);
-      last_brightness = filtered_brightness;
-      // Only log occasionally to avoid spam
-      static int dim_log_counter = 0;
-      if (dim_log_counter++ % (UI_FREQ * 10) == 0) { // Every 10 seconds
-        BP_LOG("Maintaining dim brightness at " << filtered_brightness << "%");
-      }
-    }
-  }
 }
 
 void Device::resetBpBrightnessTimeout() {

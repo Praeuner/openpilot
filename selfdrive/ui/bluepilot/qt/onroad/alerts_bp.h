@@ -45,28 +45,28 @@ protected:
   // Alert status colors with modern touch
   const QMap<cereal::SelfdriveState::AlertStatus, QColor> alert_colors = {
     {cereal::SelfdriveState::AlertStatus::NORMAL, QColor(35, 36, 38, 241)},      // Darker background
-    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(255, 140, 0, 241)}, // Orange warning
+    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(220, 100, 20, 241)}, // Less yellow orange warning
     {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(242, 72, 85, 241)},    // Danger
   };
 
   // Status accent colors for borders
   const QMap<cereal::SelfdriveState::AlertStatus, QColor> accent_colors = {
     {cereal::SelfdriveState::AlertStatus::NORMAL, accent_color},
-    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(255, 120, 0)}, // Deeper orange
+    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(200, 80, 15)}, // Less yellow orange border
     {cereal::SelfdriveState::AlertStatus::CRITICAL, danger_color},
   };
 
   void paintEvent(QPaintEvent*) override;
   OnroadAlertsBP::Alert getAlert(const SubMaster &sm, uint64_t started_frame);
-  
+
   // Helper methods
   void drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen);
   void drawRadialProgress(QPainter &p, const QRect &rect, float percentage);
   float extractPercentage(const QString &text);
-  
+
   QColor bg;
   Alert alert = {};
-  
+
   // Animation properties
   QPropertyAnimation *opacity_animation = nullptr;
   QPropertyAnimation *progress_animation = nullptr;
