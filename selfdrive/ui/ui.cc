@@ -6,6 +6,8 @@
 
 #include <QtConcurrent>
 #include <QThreadPool>
+#include <QApplication>
+#include <QWidget>
 
 #include "common/transformations/orientation.hpp"
 #include "common/swaglog.h"
@@ -13,7 +15,23 @@
 #include "common/watchdog.h"
 #include "qt/util.h"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include "system/hardware/hw.h"
+
+// Helper function to generate timestamp for BP_BRIGHTNESS logging
+std::string bp_timestamp() {
+  auto now = std::chrono::system_clock::now();
+  auto time_t = std::chrono::system_clock::to_time_t(now);
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&time_t), "%H:%M:%S");
+  ss << "." << std::setfill('0') << std::setw(3) << ms.count();
+  return ss.str();
+}
+
+#define BP_LOG(msg) std::cout << "[BP_BRIGHTNESS " << bp_timestamp() << "] " << msg << std::endl
 #include "bluepilot/qt/offroad/panels/bp_recent_changes.h"
 #include <limits>
 
@@ -186,13 +204,18 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
   setAwake(true);
   resetInteractiveTimeout();
 
-  std::cout << "[BP_BRIGHTNESS] Initializing BluePilot brightness control" << std::endl;
+  BP_LOG("Initializing BluePilot brightness control");
 
   // Initialize BluePilot brightness control timer
   bp_brightness_timer = new QTimer(this);
   bp_brightness_timer->setSingleShot(true);
   connect(bp_brightness_timer, &QTimer::timeout, this, &Device::onBpBrightnessTimeout);
-  std::cout << "[BP_BRIGHTNESS] Timer created and connected" << std::endl;
+  BP_LOG("Timer created and connected");
+
+  alert_reset_timer = new QTimer(this);
+  alert_reset_timer->setInterval(5000);
+  alert_reset_timer->setSingleShot(false);
+  connect(alert_reset_timer, &QTimer::timeout, this, &Device::onAlertReset);
 
   // Read and validate initial parameters
   auto params = Params();
@@ -202,20 +225,20 @@ Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT
 
   // Validate parameter values with fallbacks
   if (bp_dim_level < 20 || bp_dim_level > 90) {
-    std::cout << "[BP_BRIGHTNESS] Invalid dim level " << bp_dim_level << ", using default 70%" << std::endl;
+    BP_LOG("Invalid dim level " << bp_dim_level << ", using default 70%");
     bp_dim_level = 70;
   }
   if (bp_timeout < 10 || bp_timeout > 120) {
-    std::cout << "[BP_BRIGHTNESS] Invalid timeout " << bp_timeout << ", using default 30s" << std::endl;
+    BP_LOG("Invalid timeout " << bp_timeout << ", using default 30s");
     bp_timeout = 30;
   }
   if (bp_brightness_mode < 0 || bp_brightness_mode > 2) {
-    std::cout << "[BP_BRIGHTNESS] Invalid mode " << bp_brightness_mode << ", using default 0 (always on)" << std::endl;
+    BP_LOG("Invalid mode " << bp_brightness_mode << ", using default 0 (always on)");
     bp_brightness_mode = 0;
   }
 
-  std::cout << "[BP_BRIGHTNESS] Initialized with mode=" << bp_brightness_mode
-            << ", dim_level=" << bp_dim_level << "%, timeout=" << bp_timeout << "s" << std::endl;
+  BP_LOG("Initialized with mode=" << bp_brightness_mode
+            << ", dim_level=" << bp_dim_level << "%, timeout=" << bp_timeout << "s");
 
 #ifndef SUNNYPILOT
   QObject::connect(uiState(), &UIState::uiUpdate, this, &Device::update);
@@ -232,7 +255,7 @@ void Device::setAwake(bool on) {
   if (on != awake) {
     awake = on;
     Hardware::set_display_power(awake);
-    std::cout << "[BP_BRIGHTNESS] Display power changed to " << (awake ? "ON" : "OFF") << std::endl;
+    BP_LOG("Display power changed to " << (awake ? "ON" : "OFF"));
     LOGD("setting display power %d", awake);
     emit displayPowerChanged(awake);
   }
@@ -250,6 +273,75 @@ void Device::resetInteractiveTimeout(int timeout) {
 }
 
 void Device::updateBrightness(const UIState &s) {
+  // --- BluePilot Dim/Off Hold (drop-in guard) ---
+  static Params params;
+  static bool dim_session_active = false;
+  static int dim_start_pct = 0;
+  static int dim_target_pct = 8;
+  static int64_t dim_begin_ms = 0;
+
+  static bool off_session_active = false;
+  static int off_start_pct = 0;
+  static int64_t off_begin_ms = 0;
+  static bool panel_off_applied = false;
+
+  const int64_t now_ms = nanos_since_boot() / 1000000LL;
+
+  // 1) OFF has highest priority
+  if (params.getBool("BPDisplayOffActive")) {
+    if (!off_session_active) {
+      off_start_pct = last_brightness;
+      off_begin_ms = now_ms;
+      off_session_active = true;
+      panel_off_applied = false;
+    }
+    // Fade to 0, then power off panel/backlight once
+    const int duration_ms = 300;
+    const float t = std::clamp((now_ms - off_begin_ms) / float(duration_ms), 0.0f, 1.0f);
+    const int eased = int(off_start_pct + (0 - off_start_pct) * t);
+    if (eased != last_brightness && !brightness_future.isRunning()) {
+      brightness_future = QtConcurrent::run(Hardware::set_brightness, eased);
+      last_brightness = eased;
+    }
+    if (t >= 1.0f && !panel_off_applied) {
+      Hardware::set_display_power(false);
+      panel_off_applied = true;
+    }
+    return; // skip auto while off
+  } else if (off_session_active) {
+    // Waking up: turn panel back on before auto resumes
+    if (panel_off_applied) {
+      Hardware::set_display_power(true);
+      panel_off_applied = false;
+    }
+    off_session_active = false;
+  }
+
+  // 2) DIM mode
+  if (params.getBool("BPDimActive")) {
+    if (!dim_session_active) {
+      dim_start_pct = last_brightness;
+      try {
+        std::string v = params.get("BPDimLevel");
+        dim_target_pct = v.empty() ? bp_dim_level : std::clamp(std::stoi(v), 1, 100);
+      } catch (...) { dim_target_pct = bp_dim_level; }
+      dim_begin_ms = now_ms;
+      dim_session_active = true;
+    }
+    const int duration_ms = 350;
+    const float t = std::clamp((now_ms - dim_begin_ms) / float(duration_ms), 0.0f, 1.0f);
+    const int eased = int(dim_start_pct + (dim_target_pct - dim_start_pct) * t);
+    int target = (t >= 1.0f) ? dim_target_pct : eased;
+    if (target != last_brightness && !brightness_future.isRunning()) {
+      brightness_future = QtConcurrent::run(Hardware::set_brightness, target);
+      last_brightness = target;
+    }
+    return; // skip auto while dimmed
+  }
+
+  if (dim_session_active) dim_session_active = false;
+  // --- end BluePilot Dim/Off Hold ---
+
   // When BluePilot is controlling brightness, skip auto brightness logic
   if (bp_auto_brightness_override) {
     // Don't update brightness - let updateBpBrightnessControl handle it
@@ -314,10 +406,13 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   if (!s.scene.started) {
     // Reset everything when going offroad
     if (bp_state != BP_NORMAL) {
-      std::cout << "[BP_BRIGHTNESS] Going offroad, resetting BP control from "
-                << getBpStateString() << " to BP_NORMAL" << std::endl;
+      BP_LOG("Going offroad, resetting BP control from "
+                << getBpStateString() << " to BP_NORMAL");
       restoreFromBpControl();
     }
+    Params().putBool("BPDimActive", false);
+    Params().putBool("BPDisplayOffActive", false);
+    updateBpStatusText(s);
     return;
   }
 
@@ -327,8 +422,8 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     was_started = true;
     bp_state = BP_COUNTDOWN;
     bp_brightness_timer->start(bp_timeout * 1000);
-    std::cout << "[BP_BRIGHTNESS] Auto-starting timer on onroad transition: "
-              << bp_timeout << "s (mode=" << bp_brightness_mode << ")" << std::endl;
+    BP_LOG("Auto-starting timer on onroad transition: "
+              << bp_timeout << "s (mode=" << bp_brightness_mode << ")");
   } else if (!s.scene.started) {
     was_started = false;
   }
@@ -346,9 +441,9 @@ void Device::updateBpBrightnessControl(const UIState &s) {
     new_mode = (new_mode >= 0 && new_mode <= 2) ? new_mode : 0;
 
     if (new_mode != bp_brightness_mode || new_dim_level != bp_dim_level || new_timeout != bp_timeout) {
-      std::cout << "[BP_BRIGHTNESS] Parameter change detected: mode " << bp_brightness_mode
+      BP_LOG("Parameter change detected: mode " << bp_brightness_mode
                 << "→" << new_mode << ", dim " << bp_dim_level << "→" << new_dim_level
-                << "%, timeout " << bp_timeout << "→" << new_timeout << "s" << std::endl;
+                << "%, timeout " << bp_timeout << "→" << new_timeout << "s");
 
       bp_brightness_mode = new_mode;
       bp_dim_level = new_dim_level;
@@ -357,7 +452,7 @@ void Device::updateBpBrightnessControl(const UIState &s) {
       // Handle immediate mode changes
       if (new_mode == 0) {
         // Switching to always-on mode
-        std::cout << "[BP_BRIGHTNESS] Switching to always-on mode" << std::endl;
+        BP_LOG("Switching to always-on mode");
         restoreFromBpControl();
         return;
       } else {
@@ -371,10 +466,17 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   bool current_alert_active = isAlertActive(s);
   if (current_alert_active != bp_alert_active) {
     if (current_alert_active) {
-      std::cout << "[BP_BRIGHTNESS] Alert detected, resetting timeout" << std::endl;
+      BP_LOG("Alert detected, resetting timeout");
       onUserInteraction();
+      if (!alert_reset_timer->isActive()) {
+        alert_reset_timer->start();
+      }
     } else {
-      std::cout << "[BP_BRIGHTNESS] Alert cleared" << std::endl;
+      BP_LOG("Alert cleared, restarting full timeout");
+      onUserInteraction();
+      if (alert_reset_timer->isActive()) {
+        alert_reset_timer->stop();
+      }
     }
     bp_alert_active = current_alert_active;
   }
@@ -382,9 +484,10 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   // Mode 0 = always on (pure stock behavior)
   if (bp_brightness_mode == 0) {
     if (bp_state != BP_NORMAL) {
-      std::cout << "[BP_BRIGHTNESS] Always-on mode active, restoring stock behavior" << std::endl;
+      BP_LOG("Always-on mode active, restoring stock behavior");
       restoreFromBpControl();
     }
+    updateBpStatusText(s);
     return;
   }
 
@@ -392,9 +495,11 @@ void Device::updateBpBrightnessControl(const UIState &s) {
   if (bp_state == BP_NORMAL && !bp_brightness_timer->isActive()) {
     bp_state = BP_COUNTDOWN;
     bp_brightness_timer->start(bp_timeout * 1000);
-    std::cout << "[BP_BRIGHTNESS] Starting countdown timer: " << bp_timeout
-              << "s (state: " << getBpStateString() << ")" << std::endl;
+    BP_LOG("Starting countdown timer: " << bp_timeout
+              << "s (state: " << getBpStateString() << ")");
   }
+
+  updateBpStatusText(s);
 
   // Handle dimmed state - continuously apply dim brightness
   if (bp_state == BP_DIMMED && bp_brightness_mode == 1) {
@@ -405,7 +510,7 @@ void Device::updateBpBrightnessControl(const UIState &s) {
       // Only log occasionally to avoid spam
       static int dim_log_counter = 0;
       if (dim_log_counter++ % (UI_FREQ * 10) == 0) { // Every 10 seconds
-        std::cout << "[BP_BRIGHTNESS] Maintaining dim brightness at " << filtered_brightness << "%" << std::endl;
+        BP_LOG("Maintaining dim brightness at " << filtered_brightness << "%");
       }
     }
   }
@@ -420,18 +525,18 @@ void Device::resetBpBrightnessTimeout() {
   // Stop any existing timer
   if (bp_brightness_timer->isActive()) {
     bp_brightness_timer->stop();
-    std::cout << "[BP_BRIGHTNESS] Stopped existing timer" << std::endl;
+    BP_LOG("Stopped existing timer");
   }
 
   // Only start timer if we're onroad and not in always-on mode
   if (bp_brightness_mode > 0) {
     bp_brightness_timer->start(bp_timeout * 1000);
-    std::cout << "[BP_BRIGHTNESS] Reset timeout to " << bp_timeout << "s (timer active: "
-              << (bp_brightness_timer->isActive() ? "YES" : "NO") << ")" << std::endl;
+    BP_LOG("Reset timeout to " << bp_timeout << "s (timer active: "
+              << (bp_brightness_timer->isActive() ? "YES" : "NO") << ")");
 
     // Update state
     if (bp_state == BP_DIMMED || bp_state == BP_OFF) {
-      std::cout << "[BP_BRIGHTNESS] Restoring from " << getBpStateString() << std::endl;
+      BP_LOG("Restoring from " << getBpStateString());
       restoreFromBpControl();
     }
     bp_state = BP_COUNTDOWN;
@@ -439,36 +544,44 @@ void Device::resetBpBrightnessTimeout() {
 }
 
 void Device::restoreFromBpControl() {
-  std::cout << "[BP_BRIGHTNESS] Restoring from BP control, current state: " << getBpStateString() << std::endl;
+  BP_LOG("Restoring from BP control, current state: " << getBpStateString());
+
+  // Clear the dim/off active flags
+  Params().putBool("BPDimActive", false);
+  Params().putBool("BPDisplayOffActive", false);
 
   // Stop timer
   if (bp_brightness_timer->isActive()) {
     bp_brightness_timer->stop();
-    std::cout << "[BP_BRIGHTNESS] Timer stopped" << std::endl;
+    BP_LOG("Timer stopped");
+  }
+
+  if (alert_reset_timer->isActive()) {
+    alert_reset_timer->stop();
   }
 
   // Restore display power if it was turned off
   if (bp_state == BP_OFF && !awake) {
-    std::cout << "[BP_BRIGHTNESS] Waking display from OFF state" << std::endl;
+    BP_LOG("Waking display from OFF state");
     setAwake(true);
   }
 
   // Restore brightness control to auto
   if (bp_auto_brightness_override) {
-    std::cout << "[BP_BRIGHTNESS] Restoring auto brightness control (was overridden)" << std::endl;
+    BP_LOG("Restoring auto brightness control (was overridden)");
     bp_auto_brightness_override = false;
 
     // Reset brightness filter for smooth transition
     if (bp_saved_brightness > 0) {
       brightness_filter.reset(bp_saved_brightness);
-      std::cout << "[BP_BRIGHTNESS] Restored brightness filter to saved value: " << bp_saved_brightness << "%" << std::endl;
+      BP_LOG("Restored brightness filter to saved value: " << bp_saved_brightness << "%");
     }
     bp_saved_brightness = -1;
   }
 
   // Reset state
   bp_state = BP_NORMAL;
-  std::cout << "[BP_BRIGHTNESS] State restored to " << getBpStateString() << std::endl;
+  BP_LOG("State restored to " << getBpStateString());
 }
 
 bool Device::isAlertActive(const UIState &s) {
@@ -481,9 +594,9 @@ bool Device::isAlertActive(const UIState &s) {
     // Log alert state changes
     static bool last_alert_state = false;
     if (alert_active != last_alert_state) {
-      std::cout << "[BP_BRIGHTNESS] Alert state changed: "
+      BP_LOG("Alert state changed: "
                 << (alert_active ? "ACTIVE" : "INACTIVE")
-                << " (type: " << static_cast<int>(ss.getAlertStatus()) << ")" << std::endl;
+                << " (type: " << static_cast<int>(ss.getAlertStatus()) << ")");
       last_alert_state = alert_active;
     }
 
@@ -495,7 +608,7 @@ bool Device::isAlertActive(const UIState &s) {
 void Device::setBrightnessSafe(int brightness) {
   // Validate brightness value
   if (brightness != 0 && (brightness < 1 || brightness > 100)) {
-    std::cout << "[BP_BRIGHTNESS] Invalid brightness value: " << brightness << ", clamping" << std::endl;
+    BP_LOG("Invalid brightness value: " << brightness << ", clamping");
     brightness = std::clamp(brightness, 1, 100);
   }
 
@@ -508,7 +621,7 @@ void Device::setBrightnessSafe(int brightness) {
     // Set brightness asynchronously
     brightness_future = QtConcurrent::run(Hardware::set_brightness, brightness);
     last_brightness = brightness;
-    std::cout << "[BP_BRIGHTNESS] Setting hardware brightness to " << brightness << "%" << std::endl;
+    BP_LOG("Setting hardware brightness to " << brightness << "%");
   }
 }
 
@@ -531,20 +644,37 @@ void Device::resetOnroadDisplayTimer() {
   if (elapsed.count() < 100) {  // Less than 100ms since last call
     static int spam_count = 0;
     if (++spam_count % 50 == 0) {  // Log every 50th spam call
-      std::cout << "[BP_BRIGHTNESS] WARNING: resetOnroadDisplayTimer() called "
-                << spam_count << " times rapidly! Check Qt connections." << std::endl;
+      BP_LOG("WARNING: resetOnroadDisplayTimer() called "
+                << spam_count << " times rapidly! Check Qt connections.");
     }
     return;  // Ignore rapid-fire calls
   }
 
-  std::cout << "[BP_BRIGHTNESS] Display timer reset via external call (elapsed: "
-            << elapsed.count() << "ms)" << std::endl;
+  BP_LOG("Display timer reset via external call (elapsed: "
+            << elapsed.count() << "ms)");
   last_call = now;
   resetInteractiveTimeout();
 }
 
 void Device::onUserInteraction() {
-  std::cout << "[BP_BRIGHTNESS] User interaction detected, current state: " << getBpStateString() << std::endl;
+  static auto last_interaction = std::chrono::steady_clock::now();
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_interaction).count();
+
+  if (elapsed < 100) {
+    static int spam_count = 0;
+    if (++spam_count % 50 == 0) {
+      BP_LOG("WARNING: onUserInteraction() called " << spam_count << " times rapidly!");
+    }
+    return;
+  }
+  last_interaction = now;
+
+  BP_LOG("User interaction detected, current state: " << getBpStateString());
+
+  // Clear both dim and off flags
+  Params().putBool("BPDimActive", false);
+  Params().putBool("BPDisplayOffActive", false);
 
   // Reset BluePilot brightness timeout
   resetBpBrightnessTimeout();
@@ -552,43 +682,121 @@ void Device::onUserInteraction() {
   // Note: resetInteractiveTimeout() is called by the caller, so we don't need to call it again
 }
 
+void Device::onAlertReset() {
+  if (bp_alert_active) {
+    BP_LOG("Periodic alert reset triggered");
+    onUserInteraction();
+  }
+}
+
 void Device::onBpBrightnessTimeout() {
-  std::cout << "[BP_BRIGHTNESS] Timeout triggered! Current state: " << getBpStateString()
-            << ", mode: " << bp_brightness_mode << std::endl;
+  BP_LOG("Timeout triggered! Current state: " << getBpStateString()
+            << ", mode: " << bp_brightness_mode);
+
+  Params p;
 
   if (bp_brightness_mode == 1) {
-    // Mode 1: Dim the display
-    std::cout << "[BP_BRIGHTNESS] Dimming display to " << bp_dim_level << "%" << std::endl;
+    // Mode 1: Dim the display using the new params approach
+    BP_LOG("Setting dim params: level=" << bp_dim_level << "%");
 
-    // Save current brightness before overriding
-    if (!bp_auto_brightness_override) {
-      bp_saved_brightness = last_brightness;
-      bp_auto_brightness_override = true;
-      std::cout << "[BP_BRIGHTNESS] Saved current brightness: " << bp_saved_brightness << "%" << std::endl;
-    }
-
-    // Set filter to dim level immediately, no gradual transition
-    brightness_filter.reset(bp_dim_level);
-    setBrightnessSafe(bp_dim_level);
-    std::cout << "[BP_BRIGHTNESS] Applied dim brightness: " << bp_dim_level << "%" << std::endl;
-
+    // Set the dim level and activate dimming
+    p.put("BPDimLevel", std::to_string(bp_dim_level));
+    p.putBool("BPDimActive", true);
     bp_state = BP_DIMMED;
-
   } else if (bp_brightness_mode == 2) {
-    // Mode 2: Turn off display
-    std::cout << "[BP_BRIGHTNESS] Turning off display" << std::endl;
+    // Mode 2: Turn off display with fade-to-black
+    BP_LOG("Turning off display with fade-to-black");
 
-    // Save current brightness
+    // Save current brightness and override auto
     if (!bp_auto_brightness_override) {
       bp_saved_brightness = last_brightness;
-      std::cout << "[BP_BRIGHTNESS] Saved current brightness: " << bp_saved_brightness << "%" << std::endl;
+      brightness_filter.reset(bp_saved_brightness);
+      bp_auto_brightness_override = true;
+      BP_LOG("Saved current brightness: " << bp_saved_brightness << "% and overridden auto");
     }
 
-    setAwake(false);
+    // Trigger the fade-to-black and panel power off
+    p.putBool("BPDisplayOffActive", true);
     bp_state = BP_OFF;
   }
 
-  std::cout << "[BP_BRIGHTNESS] Timeout handling complete, new state: " << getBpStateString() << std::endl;
+  BP_LOG("Timeout handling complete, new state: " << getBpStateString());
+}
+
+void Device::updateBpStatusText(const UIState &s) {
+  static QString prev_status;
+  static int touch_counter = 0;
+  static auto last_touch = std::chrono::steady_clock::now();
+  static bool debug_logged = false;
+
+  if (!debug_logged) {
+    std::cout << "[STATUS_DEBUG] updateBpStatusText called for first time" << std::endl;
+    debug_logged = true;
+  }
+
+  QString new_status;
+  if (!s.scene.started) {
+    new_status = "Offroad";
+  } else if (bp_brightness_mode == 0) {
+    new_status = "Auto";
+  } else if (bp_alert_active) {
+    new_status = "Alert Active";
+  } else if (bp_state == BP_COUNTDOWN) {
+    int remaining = (bp_brightness_timer->remainingTime() + 999) / 1000;
+    if (bp_brightness_mode == 1) {
+      new_status = QString("Dim to %1%: %2s").arg(bp_dim_level).arg(remaining);
+    } else {
+      new_status = QString("Off in %1s").arg(remaining);
+    }
+  } else if (bp_state == BP_DIMMED) {
+    new_status = QString("Dimmed to %1%").arg(bp_dim_level);
+  } else if (bp_state == BP_OFF) {
+    new_status = "Display Off";
+  } else {
+    new_status = "Normal";
+  }
+
+  // Check for recent touch events
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_touch).count();
+  if (elapsed < 2000 && touch_counter > 0) {
+    new_status = "Touch Event";
+    touch_counter--;
+  }
+
+  if (new_status != prev_status) {
+    prev_status = new_status;
+    const_cast<UIScene&>(s.scene).bp_status_text = new_status;
+    BP_LOG("Status updated: " << new_status.toStdString());
+    std::cout << "[STATUS_DEBUG] Setting s.scene.bp_status_text to: '" << new_status.toStdString() << "'" << std::endl;
+
+    // Render BP status text in bottom right - temporary for testing
+    QApplication *app = qApp;
+    if (app) {
+      QWidget *main_window = app->activeWindow();
+      if (main_window) {
+        // Create a temporary overlay to show the status text
+        static QLabel *status_label = nullptr;
+        if (!status_label) {
+          status_label = new QLabel(main_window);
+          status_label->setStyleSheet("QLabel { color: white; background-color: rgba(0,0,0,128); padding: 5px; }");
+          status_label->setFont(QFont("Inter", 24, QFont::Bold));
+        }
+
+        status_label->setText(new_status);
+        status_label->adjustSize();
+
+        // Position in bottom right corner
+        int x = main_window->width() - status_label->width() - 20;
+        int y = main_window->height() - status_label->height() - 20;
+        status_label->move(x, y);
+        status_label->show();
+        status_label->raise();
+
+        main_window->update();
+      }
+    }
+  }
 }
 
 #ifndef SUNNYPILOT

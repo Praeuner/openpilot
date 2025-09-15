@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QColor>
 #include <QFuture>
+#include <QString>
 
 #include "cereal/messaging/messaging.h"
 #include "common/mat.h"
@@ -80,6 +81,9 @@ typedef struct UIScene {
   bool show_brake_status;
 
   bool wide_camera_low_speed;
+
+  // BluePilot status text
+  QString bp_status_text;
 } UIScene;
 
 class UIState : public QObject {
@@ -155,6 +159,7 @@ protected:
   bool bp_alert_active = false; // whether an alert is currently active
   int bp_saved_brightness = -1; // saved brightness before dimming/turning off
   bool bp_auto_brightness_override = false; // whether to override auto brightness
+  QTimer *alert_reset_timer = nullptr; // timer for periodic alert reset
 
   void updateBrightness(const UIState &s);
   void updateWakefulness(const UIState &s);
@@ -165,6 +170,7 @@ protected:
   bool isAlertActive(const UIState &s);
   void setBrightnessSafe(int brightness);
   const char* getBpStateString() const;
+  void updateBpStatusText(const UIState &s);
 
 signals:
   void displayPowerChanged(bool on);
@@ -178,6 +184,7 @@ public slots:
 
 private slots:
   void onBpBrightnessTimeout();
+  void onAlertReset();
 };
 
 #ifndef SUNNYPILOT
