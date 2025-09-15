@@ -770,44 +770,12 @@ void Device::updateBpStatusText(const UIState &s) {
     BP_LOG("Status updated: " << new_status.toStdString());
     std::cout << "[STATUS_DEBUG] Setting s.scene.bp_status_text to: '" << new_status.toStdString() << "'" << std::endl;
 
-    // Force UI update - more robust for Comma device
+    // BP status text now rendered in SidebarBP - trigger UI repaint
     QApplication *app = qApp;
     if (app) {
-      // Try multiple ways to find the main window
       QWidget *main_window = app->activeWindow();
-      if (!main_window) {
-        // Fallback: get the first top-level widget
-        QWidgetList widgets = app->topLevelWidgets();
-        if (!widgets.isEmpty()) {
-          main_window = widgets.first();
-        }
-      }
-
       if (main_window) {
-        // Create a more persistent overlay for Comma device
-        static QLabel *status_label = nullptr;
-        if (!status_label) {
-          status_label = new QLabel(main_window);
-          status_label->setStyleSheet("QLabel { color: white; background-color: rgba(0,0,0,180); padding: 8px; border-radius: 4px; }");
-          status_label->setFont(QFont("Inter", 24, QFont::Bold));
-          status_label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-          status_label->setWindowFlags(Qt::SubWindow);
-        }
-
-        status_label->setText(new_status);
-        status_label->adjustSize();
-
-        // Position at top center of screen with updated geometry
-        QRect screen_rect = main_window->geometry();
-        int x = (screen_rect.width() - status_label->width()) / 2;
-        int y = 20;
-        status_label->move(x, y);
-        status_label->setVisible(true);
-        status_label->raise();
-
-        // Force immediate repaint
-        status_label->repaint();
-        main_window->repaint();
+        main_window->update();
       }
     }
   }
