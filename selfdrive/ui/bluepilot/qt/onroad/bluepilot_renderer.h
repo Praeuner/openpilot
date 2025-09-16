@@ -112,12 +112,7 @@ private:
   static void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
   static void drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color);
 
-  // Performance: cached/pre-computed data (G-force meter only now)
-  static QPolygonF octagon_template;
-  static bool octagon_initialized;
-
-  // Initialization
-  static void initOctagonTemplate();
+  // Cleanup
   static void cleanup();
 
   // Constants
