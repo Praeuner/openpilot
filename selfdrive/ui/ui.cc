@@ -780,7 +780,7 @@ void Device::updateBpStatusText(const UIState &s) {
     prev_status = new_status;
     const_cast<UIScene&>(s.scene).bp_status_text = new_status;
     BP_LOG("Status updated: " << new_status.toStdString());
-    std::cout << "[STATUS_DEBUG] Setting s.scene.bp_status_text to: '" << new_status.toStdString() << "'" << std::endl;
+    // std::cout << "[STATUS_DEBUG] Setting s.scene.bp_status_text to: '" << new_status.toStdString() << "'" << std::endl;
 
     // BP status text now rendered in SidebarBP - trigger UI repaint
     QApplication *app = qApp;

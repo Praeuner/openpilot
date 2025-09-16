@@ -262,6 +262,8 @@ void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
   int blinker_y = 90;
 
   if (frame_state.left_blinker) {
+    // Note: Drawing functions are now in ModelRendererBP
+    // For now, we'll keep the original implementation
     drawLeftTurnSignal(painter, rect.center().x() - (blinker_x + BLINKER_SIZE),
                       blinker_y, BLINKER_SIZE, state, frame_state.left_blindspot);
   }
@@ -272,6 +274,8 @@ void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
 }
 
 void BluepilotRenderer::renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s) {
+  // Note: Lead tracking and stop detection are now handled by ModelRendererBP
+  // These calls are kept for backward compatibility but should be removed
   updateLeadTracking(s);
   updateStopDetection(s);
 
@@ -295,6 +299,15 @@ void BluepilotRenderer::renderModelEnhancements(QPainter &painter, const QRect &
 }
 
 void BluepilotRenderer::updateLeadTracking(const UIState &s) {
+  // This function is deprecated - lead tracking is now handled by ModelRendererBP
+  // The implementation is kept for backward compatibility but should be removed
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::updateLeadTracking is deprecated - use ModelRendererBP::updateLeadTracking instead" << std::endl;
+    warning_shown = true;
+  }
+
+  // Simplified fallback implementation
   const SubMaster &sm = *(s.sm);
 
   // FIXED: Validate required messages before accessing
@@ -334,7 +347,12 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
         continue;
       }
 
-      int idx = get_path_length_idx(position, d_rel);
+      // Note: get_path_length_idx is now in ModelRendererBP
+      int idx = 0; // Simplified for now
+      for (int j = 1; j < static_cast<int>(line_x.size()) && line_x[j] <= d_rel; ++j) {
+        idx = j;
+      }
+
       if (idx < 0 || idx >= static_cast<int>(line_y.size()) || idx >= static_cast<int>(line_z.size())) {
         frame_state.lead_state.virtual_active[i] = false;
         continue;
@@ -415,35 +433,52 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
           }
         }
 
-        QPointF current_pos;
-        if (mapToScreen(d_rel, frame_state.lead_state.smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
-          bool reasonable_position = true;
+        // Note: mapToScreen is now in ModelRendererBP
+        // For now, we'll use a simplified approach
+        if (frame_state.transform.isZero()) {
+          frame_state.lead_state.virtual_active[i] = false;
+          continue;
+        }
 
-          if (is_radar_assisted) {
-            // Check if radar detection is reasonable
-            QRectF screen_bounds = frame_state.clip_region;
-            float margin = 100.0f;
-            QRectF extended_bounds = screen_bounds.adjusted(-margin, -margin, margin, margin);
+        Eigen::Vector3f input(d_rel, frame_state.lead_state.smoothed_yRel[i], path_z + path_offset_z);
+        auto pt = frame_state.transform * input;
 
-            if (!extended_bounds.contains(current_pos) || fabs(frame_state.lead_state.smoothed_yRel[i]) > 8.0f) {
+        if (std::abs(pt.z()) < 0.001f) {
+          frame_state.lead_state.virtual_active[i] = false;
+          continue;
+        }
+
+        QPointF screen_point(pt.x() / pt.z(), pt.y() / pt.z());
+
+        if (!std::isfinite(screen_point.x()) || !std::isfinite(screen_point.y())) {
+          frame_state.lead_state.virtual_active[i] = false;
+          continue;
+        }
+
+        bool reasonable_position = true;
+
+        if (is_radar_assisted) {
+          // Check if radar detection is reasonable
+          QRectF screen_bounds = frame_state.clip_region;
+          float margin = 100.0f;
+          QRectF extended_bounds = screen_bounds.adjusted(-margin, -margin, margin, margin);
+
+          if (!extended_bounds.contains(screen_point) || fabs(frame_state.lead_state.smoothed_yRel[i]) > 8.0f) {
+            reasonable_position = false;
+          }
+
+          if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 5.0f) {
+            frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 1, 0);
+            if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 6.5f) {
               reasonable_position = false;
             }
-
-            if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 5.0f) {
-              frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 1, 0);
-              if (fabs(frame_state.lead_state.smoothed_yRel[i]) > 6.5f) {
-                reasonable_position = false;
-              }
-            }
           }
+        }
 
-          if (reasonable_position) {
-            frame_state.lead_state.vertices[i] = current_pos;
-          } else {
-            frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 2, 0);
-            frame_state.lead_state.virtual_active[i] = false;
-          }
+        if (reasonable_position) {
+          frame_state.lead_state.vertices[i] = screen_point;
         } else {
+          frame_state.lead_state.active_counter[i] = std::max(frame_state.lead_state.active_counter[i] - 2, 0);
           frame_state.lead_state.virtual_active[i] = false;
         }
       } else {
@@ -478,6 +513,14 @@ void BluepilotRenderer::updateLeadTracking(const UIState &s) {
 }
 
 void BluepilotRenderer::updateStopDetection(const UIState &s) {
+  // This function is deprecated - stop detection is now handled by ModelRendererBP
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::updateStopDetection is deprecated - use ModelRendererBP::updateStopDetection instead" << std::endl;
+    warning_shown = true;
+  }
+
+  // Simplified fallback implementation
   const SubMaster &sm = *(s.sm);
 
   float v_ego = frame_state.vehicle_speed;
@@ -633,7 +676,14 @@ void BluepilotRenderer::updateStopDetection(const UIState &s) {
 
 
 
+// DEPRECATED: These functions have been moved to ModelRendererBP but are kept for backward compatibility
 bool BluepilotRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::mapToScreen is deprecated - use ModelRendererBP::mapToScreen instead" << std::endl;
+    warning_shown = true;
+  }
+
   if (frame_state.transform.isZero()) {
     static int error_counter = 0;
     if (error_counter++ % 200 == 0) {
@@ -664,6 +714,12 @@ bool BluepilotRenderer::mapToScreen(float in_x, float in_y, float in_z, QPointF 
 }
 
 int BluepilotRenderer::get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height) {
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::get_path_length_idx is deprecated - use ModelRendererBP::get_path_length_idx instead" << std::endl;
+    warning_shown = true;
+  }
+
   const auto &line_x = line.getX();
   int max_idx = 0;
   for (int i = 1; i < static_cast<int>(line_x.size()) && line_x[i] <= path_height; ++i) {
@@ -673,6 +729,12 @@ int BluepilotRenderer::get_path_length_idx(const cereal::XYZTData::Reader &line,
 }
 
 void BluepilotRenderer::drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::drawLeftTurnSignal is deprecated - use ModelRendererBP::drawLeftTurnSignal instead" << std::endl;
+    warning_shown = true;
+  }
+
   painter.setRenderHint(QPainter::Antialiasing, true);
 
   QColor circle_color, arrow_color;
@@ -709,6 +771,12 @@ void BluepilotRenderer::drawLeftTurnSignal(QPainter &painter, int x, int y, int 
 }
 
 void BluepilotRenderer::drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::drawRightTurnSignal is deprecated - use ModelRendererBP::drawRightTurnSignal instead" << std::endl;
+    warning_shown = true;
+  }
+
   painter.setRenderHint(QPainter::Antialiasing, true);
 
   QColor circle_color, arrow_color;
@@ -745,6 +813,12 @@ void BluepilotRenderer::drawRightTurnSignal(QPainter &painter, int x, int y, int
 }
 
 void BluepilotRenderer::drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color) {
+  static bool warning_shown = false;
+  if (!warning_shown) {
+    std::cerr << "WARNING: BluepilotRenderer::drawColoredText is deprecated - use ModelRendererBP::drawColoredText instead" << std::endl;
+    warning_shown = true;
+  }
+
   QRect real_rect = painter.fontMetrics().boundingRect(text);
   real_rect.moveCenter({x, y - real_rect.height() / 2});
   painter.setPen(color);

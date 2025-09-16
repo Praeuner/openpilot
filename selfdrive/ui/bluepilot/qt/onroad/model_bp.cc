@@ -2,9 +2,12 @@
 #include "selfdrive/ui/qt/util.h"
 #include "common/params.h"
 #include "common/util.h"
+#include "selfdrive/ui/ui.h"
 #include <QGraphicsBlurEffect>
 #include <cmath>
 #include <chrono>
+#include <algorithm>
+#include <iostream>
 
 // BluePilot blindspot enhancement constants and state
 static constexpr float BLINDSPOT_WIDTH = 1.0f; // Width of blind spot indicator in meters
@@ -771,5 +774,469 @@ void ModelRendererBP::applySmoothPath() {
 
   // Store original unsmoothed path as previous for next frame
   previous_track_vertices = current_unsmoothed;
+}
+
+// Core geometry utilities (moved from bluepilot_renderer)
+bool ModelRendererBP::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
+  if (car_space_transform.isZero()) {
+    static int error_counter = 0;
+    if (error_counter++ % 200 == 0) {
+      std::cerr << "ModelRendererBP: Transform is zero, cannot map to screen" << std::endl;
+    }
+    return false;
+  }
+
+  if (!std::isfinite(in_x) || !std::isfinite(in_y) || !std::isfinite(in_z)) {
+    return false;
+  }
+
+  Eigen::Vector3f input(in_x, in_y, in_z);
+  auto pt = car_space_transform * input;
+
+  if (std::abs(pt.z()) < 0.001f) {
+    return false;
+  }
+
+  QPointF screen_point(pt.x() / pt.z(), pt.y() / pt.z());
+
+  if (!std::isfinite(screen_point.x()) || !std::isfinite(screen_point.y())) {
+    return false;
+  }
+
+  *out = screen_point;
+  return clip_region.contains(*out);
+}
+
+int ModelRendererBP::get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height) {
+  const auto &line_x = line.getX();
+  int max_idx = 0;
+  for (int i = 1; i < static_cast<int>(line_x.size()) && line_x[i] <= path_height; ++i) {
+    max_idx = i;
+  }
+  return max_idx;
+}
+
+// Lead tracking and stop detection (moved from bluepilot_renderer)
+void ModelRendererBP::updateLeadTracking(const UIState &s) {
+  const SubMaster &sm = *(s.sm);
+
+  // Validate required messages before accessing
+  if (!sm.valid("radarState") || !sm.valid("modelV2")) {
+    static int error_counter = 0;
+    if (error_counter++ % 50 == 0) {
+      std::cerr << "WARNING: ModelRendererBP radarState or modelV2 not valid in updateLeadTracking" << std::endl;
+    }
+    // Set all leads to inactive
+    for (int i = 0; i < 2; ++i) {
+      lead_state.virtual_active[i] = false;
+      lead_state.stable[i] = false;
+    }
+    return;
+  }
+
+  const auto &radar_state = sm["radarState"].getRadarState();
+  const auto &model = sm["modelV2"].getModelV2();
+
+  for (int i = 0; i < 2; ++i) {
+    const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
+    bool current_status = lead_data.getStatus();
+
+    if (current_status) {
+      float d_rel = lead_data.getDRel();
+      float raw_yRel = lead_data.getYRel();
+      bool is_radar_assisted = lead_data.getRadar();
+
+      // Get path position at lead distance
+      const auto &position = model.getPosition();
+      const auto &line_x = position.getX();
+      const auto &line_y = position.getY();
+      const auto &line_z = position.getZ();
+
+      if (line_x.size() == 0 || line_y.size() != line_x.size() || line_z.size() != line_x.size()) {
+        lead_state.virtual_active[i] = false;
+        continue;
+      }
+
+      int idx = get_path_length_idx(position, d_rel);
+      if (idx < 0 || idx >= static_cast<int>(line_y.size()) || idx >= static_cast<int>(line_z.size())) {
+        lead_state.virtual_active[i] = false;
+        continue;
+      }
+
+      float path_y = line_y[idx];
+      float path_z = line_z[idx];
+
+      // Use the same curvature calculation as model_old.cc
+      float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
+
+      // Stricter stability requirements for visual-only detections
+      int required_stability = is_radar_assisted ? 2 : 8;
+      int max_stability = is_radar_assisted ? 10 : 15;
+
+      bool should_track = true;
+
+      if (!is_radar_assisted) {
+        // For visual-only detections, apply stricter criteria
+        if (d_rel < 3.0f || d_rel > 80.0f) should_track = false;
+        if (lead_state.prev_status[i] && fabs(raw_yRel - lead_state.smoothed_yRel[i]) > 0.5) {
+          should_track = false;
+        }
+        if (fabs(raw_yRel - path_y) > 2.0f) should_track = false;
+      }
+
+      // Update stability counter based on tracking decision
+      if (should_track && lead_state.prev_status[i]) {
+        lead_state.active_counter[i] = std::min(lead_state.active_counter[i] + 1, max_stability);
+      } else if (should_track) {
+        lead_state.active_counter[i] = 1;
+      } else {
+        lead_state.active_counter[i] = std::max(lead_state.active_counter[i] - 2, 0);
+      }
+
+      if (lead_state.active_counter[i] >= required_stability && should_track) {
+        lead_state.stable[i] = true;
+        lead_state.virtual_active[i] = true;
+        lead_state.radar_assisted[i] = is_radar_assisted;
+
+        if (!lead_state.prev_status[i]) {
+          lead_state.smoothed_yRel[i] = raw_yRel;
+        } else {
+          // Use exact approach from model_old.cc for better curve handling
+          // More path influence for curves
+          float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
+
+          // Adaptive alpha based on distance - smoother for close objects, less for distant ones
+          float alpha = is_radar_assisted ?
+                        0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
+                        0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
+
+          // Clamp alpha to reasonable range
+          alpha = std::clamp(alpha, 0.025f, 0.25f);
+
+          // Add distance-based jitter suppression
+          float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
+          float lateral_diff = raw_yRel - lead_state.smoothed_yRel[i];
+          if (fabs(lateral_diff) > max_lateral_change) {
+            // Limit lateral movement rate for stability
+            raw_yRel = lead_state.smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
+          }
+
+          // First smooth the raw radar reading
+          float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * lead_state.smoothed_yRel[i];
+
+          // Then blend with the path position using dynamic path weight
+          lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
+        }
+
+        // Use exact same approach as model_old.cc - no Y sign flip, use path_offset_z
+        float path_offset_z = 0.0f;
+        if (sm.valid("liveCalibration")) {
+          const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+          const auto &height_list = live_calib.getHeight();
+          if (height_list.size() > 0) {
+            path_offset_z = height_list[0];
+          }
+        }
+
+        QPointF current_pos;
+        if (mapToScreen(d_rel, lead_state.smoothed_yRel[i], path_z + path_offset_z, &current_pos)) {
+          bool reasonable_position = true;
+
+          if (is_radar_assisted) {
+            // Check if radar detection is reasonable
+            QRectF screen_bounds = clip_region;
+            float margin = 100.0f;
+            QRectF extended_bounds = screen_bounds.adjusted(-margin, -margin, margin, margin);
+
+            if (!extended_bounds.contains(current_pos) || fabs(lead_state.smoothed_yRel[i]) > 8.0f) {
+              reasonable_position = false;
+            }
+
+            if (fabs(lead_state.smoothed_yRel[i]) > 5.0f) {
+              lead_state.active_counter[i] = std::max(lead_state.active_counter[i] - 1, 0);
+              if (fabs(lead_state.smoothed_yRel[i]) > 6.5f) {
+                reasonable_position = false;
+              }
+            }
+          }
+
+          if (reasonable_position) {
+            lead_state.vertices[i] = current_pos;
+          } else {
+            lead_state.active_counter[i] = std::max(lead_state.active_counter[i] - 2, 0);
+            lead_state.virtual_active[i] = false;
+          }
+        } else {
+          lead_state.virtual_active[i] = false;
+        }
+      } else {
+        lead_state.virtual_active[i] = false;
+        lead_state.stable[i] = false;
+      }
+    } else {
+      // Improved decay logic to prevent rapid flickering
+      if (lead_state.active_counter[i] > 0) {
+        int decay_rate = lead_state.radar_assisted[i] ? 1 : 2;
+        lead_state.active_counter[i] = std::max(lead_state.active_counter[i] - decay_rate, 0);
+
+        int deactivation_threshold = lead_state.radar_assisted[i] ? 1 : 3;
+        lead_state.virtual_active[i] = lead_state.active_counter[i] >= deactivation_threshold;
+
+        if (lead_state.active_counter[i] == 0) {
+          lead_state.stable[i] = false;
+        }
+      } else {
+        lead_state.virtual_active[i] = false;
+        lead_state.stable[i] = false;
+      }
+    }
+
+    // Store lead data for time-to-lead calculation
+    lead_state.d_rel[i] = lead_data.getDRel();
+    lead_state.v_lead[i] = lead_data.getVLead();
+    lead_state.v_rel[i] = lead_data.getVRel();
+
+    lead_state.prev_status[i] = current_status;
+  }
+}
+
+void ModelRendererBP::updateStopDetection(const UIState &s) {
+  const SubMaster &sm = *(s.sm);
+
+  // Get vehicle speed from carState
+  float v_ego = 0.0f;
+  if (sm.valid("carState")) {
+    const auto car_state = sm["carState"].getCarState();
+    v_ego = car_state.getVEgo();
+  }
+
+  bool vehicle_stopped = v_ego < 0.5f;
+
+  if (vehicle_stopped && stop_state.active) {
+    stop_state.active = false;
+    stop_state.stability_counter = 0;
+  }
+
+  if (!s.scene.show_stop_indicator_overlay || vehicle_stopped) {
+    stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.05f);
+    return;
+  }
+
+  // Validate required messages before accessing
+  if (!sm.valid("modelV2") || !sm.valid("radarState") || !sm.valid("carState")) {
+    static int error_counter = 0;
+    if (error_counter++ % 50 == 0) {
+      std::cerr << "WARNING: ModelRendererBP required messages not valid in updateStopDetection" << std::endl;
+    }
+    stop_state.active = false;
+    stop_state.stability_counter = 0;
+    stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.1f);
+    return;
+  }
+
+  const auto &model = sm["modelV2"].getModelV2();
+  const auto &radar_state = sm["radarState"].getRadarState();
+  const auto &lead_one = radar_state.getLeadOne();
+  const auto car_state = sm["carState"].getCarState();
+  bool brake_pressed = car_state.getBrakePressed();
+  float brake_value = car_state.getBrake();
+
+  // Get path offset for z calculations
+  float path_offset_z = 0.0f;
+  if (sm.valid("liveCalibration")) {
+    const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
+    const auto &height_list = live_calib.getHeight();
+    if (height_list.size() > 0) {
+      path_offset_z = height_list[0];
+    }
+  }
+
+  const auto &velocity = model.getVelocity().getX();
+  const auto &position_x = model.getPosition().getX();
+  const auto &position_y = model.getPosition().getY();
+  const auto &position_z = model.getPosition().getZ();
+
+  size_t vel_size = velocity.size();
+  size_t pos_x_size = position_x.size();
+  const size_t MAX_ARRAY_SIZE = 1000;
+  const size_t MIN_ARRAY_SIZE = 2;
+
+  bool data_valid = (vel_size >= MIN_ARRAY_SIZE && vel_size <= MAX_ARRAY_SIZE &&
+                     pos_x_size == vel_size && position_y.size() == vel_size &&
+                     position_z.size() == vel_size);
+
+  if (!data_valid) {
+    stop_state.active = false;
+    stop_state.stability_counter = 0;
+    stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.1f);
+    return;
+  }
+
+  float stopping_distance = -1.0f;
+  int stop_idx = -1;
+  size_t max_search_idx = std::min(vel_size, static_cast<size_t>(200));
+
+  for (size_t i = 0; i < max_search_idx; ++i) {
+    if (i >= vel_size || i >= pos_x_size) break;
+
+    if (position_x[i] < 0 || position_x[i] > 200.0f) continue;
+
+    if (velocity[i] < 0.5f) {
+      stopping_distance = position_x[i];
+      stop_idx = static_cast<int>(i);
+      break;
+    }
+  }
+
+  if (stop_idx >= 0 && stop_idx < static_cast<int>(pos_x_size) && stopping_distance > 0) {
+    stopping_distance = std::min(stopping_distance, 50.0f);
+    stop_state.display_distance = std::max(0.1f, stopping_distance - 4.5f);
+
+    // Use radar data for more accurate distance when lead is present
+    if (lead_one.getStatus() && lead_one.getDRel() < stopping_distance + 5.0f) {
+      float radar_distance = lead_one.getDRel();
+      if (radar_distance > 3.0f && radar_distance < 50.0f) {
+        stopping_distance = radar_distance;
+        stop_state.stability_counter = std::max(stop_state.stability_counter, 10);
+        stop_state.active = true;
+        stop_state.stopping_distance = stopping_distance;
+      }
+    }
+
+    if (stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
+      // Increase stability based on braking
+      if (brake_pressed || brake_value > 0.1f) {
+        stop_state.stability_counter = std::min(stop_state.stability_counter + 2, 20);
+      } else {
+        stop_state.stability_counter = std::min(stop_state.stability_counter + 1, 20);
+      }
+
+      if (stop_state.stability_counter >= 3) {
+        stop_state.active = true;
+
+        if (stop_state.stopping_distance > 0) {
+          stop_state.stopping_distance = stop_state.stopping_distance * 0.8f + stopping_distance * 0.2f;
+        } else {
+          stop_state.stopping_distance = stopping_distance;
+        }
+
+        float x = position_x[stop_idx];
+        float y = position_y[stop_idx];
+        float z = position_z[stop_idx];
+
+        // Use path_offset_z like in model_old.cc
+        QPointF screen_point;
+        if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
+          stop_state.last_valid_position = screen_point;
+        }
+
+        // Update smoothed size based on distance
+        float target_size = 120.0f * (1.0 - std::min(0.7f, (stopping_distance - 5.0f) / 45.0f));
+        stop_state.smoothed_size = stop_state.smoothed_size * 0.9f + target_size * 0.1f;
+      }
+    } else {
+      stop_state.stability_counter = std::max(0, stop_state.stability_counter - 1);
+
+      // Keep sign visible longer if braking
+      if ((brake_pressed || brake_value > 0.1f) && stop_state.active) {
+        stop_state.stability_counter = std::max(stop_state.stability_counter, 5);
+      }
+
+      if (stop_state.stability_counter <= 0) {
+        stop_state.active = false;
+      }
+    }
+  } else {
+    stop_state.stability_counter = std::max(0, stop_state.stability_counter - 1);
+    if (stop_state.stability_counter <= 0) {
+      stop_state.active = false;
+    }
+  }
+
+  if (stop_state.active && stop_state.fade_alpha < 1.0f) {
+    stop_state.fade_alpha = std::min(1.0f, stop_state.fade_alpha + 0.1f);
+  } else if (!stop_state.active && stop_state.fade_alpha > 0.0f) {
+    stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.05f);
+  }
+}
+
+// Drawing utilities (moved from bluepilot_renderer)
+void ModelRendererBP::drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  QColor circle_color, arrow_color;
+  if (blindspot) {
+    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
+    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
+  } else {
+    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
+    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
+  }
+
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(circle_color);
+  painter.drawEllipse(x, y, size, size);
+
+  int arrowSize = 50;
+  int arrowX = x + (size - arrowSize) / 4;
+  int arrowY = y + (size - arrowSize) / 2;
+  painter.setBrush(arrow_color);
+
+  QPolygon arrowPolygon;
+  arrowPolygon << QPoint(arrowX + 10, arrowY + arrowSize / 2)
+               << QPoint(arrowX + arrowSize - 3, arrowY)
+               << QPoint(arrowX + arrowSize, arrowY)
+               << QPoint(arrowX + arrowSize, arrowY + arrowSize)
+               << QPoint(arrowX + arrowSize - 3, arrowY + arrowSize)
+               << QPoint(arrowX + 10, arrowY + arrowSize / 2);
+  painter.drawPolygon(arrowPolygon);
+
+  int tailWidth = arrowSize / 2.25;
+  int tailHeight = arrowSize / 2;
+  QRect tailRect(arrowX + arrowSize - 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
+  painter.fillRect(tailRect, arrow_color);
+}
+
+void ModelRendererBP::drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  QColor circle_color, arrow_color;
+  if (blindspot) {
+    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
+    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
+  } else {
+    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
+    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
+  }
+
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(circle_color);
+  painter.drawEllipse(x, y, size, size);
+
+  int arrowSize = 50;
+  int arrowX = x + (size - arrowSize) / 2 + (arrowSize / 2.5) - 3;
+  int arrowY = y + (size - arrowSize) / 2;
+  painter.setBrush(arrow_color);
+
+  QPolygon arrowPolygon;
+  arrowPolygon << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2)
+               << QPoint(arrowX + 3, arrowY)
+               << QPoint(arrowX, arrowY)
+               << QPoint(arrowX, arrowY + arrowSize)
+               << QPoint(arrowX + 3, arrowY + arrowSize)
+               << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2);
+  painter.drawPolygon(arrowPolygon);
+
+  int tailWidth = arrowSize / 2.25;
+  int tailHeight = arrowSize / 2;
+  QRect tailRect(arrowX - tailWidth + 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
+  painter.fillRect(tailRect, arrow_color);
+}
+
+void ModelRendererBP::drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color) {
+  QRect real_rect = painter.fontMetrics().boundingRect(text);
+  real_rect.moveCenter({x, y - real_rect.height() / 2});
+  painter.setPen(color);
+  painter.drawText(real_rect.x(), real_rect.bottom(), text);
 }
 

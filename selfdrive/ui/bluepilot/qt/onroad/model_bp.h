@@ -3,6 +3,14 @@
 #include <QPainter>
 #include <QPolygonF>
 #include <QPainterPath>
+#include <QPointF>
+#include <QString>
+#include <QColor>
+#include <cmath>
+#include <eigen3/Eigen/Dense>
+
+// Forward declarations
+struct UIState;
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
@@ -60,6 +68,19 @@ private:
   // BluePilot helpers
   void applySmoothPath();  // BluePilot path smoothing to reduce jitter
 
+  // Core geometry utilities (moved from bluepilot_renderer)
+  bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
+  int get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height);
+
+  // Lead tracking and stop detection (moved from bluepilot_renderer)
+  void updateLeadTracking(const UIState &s);
+  void updateStopDetection(const UIState &s);
+
+  // Drawing utilities (moved from bluepilot_renderer)
+  void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
+  void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
+  void drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color);
+
   // Frame state for optimizations
   float current_speed = 0.0f;
   bool high_speed_mode = false;
@@ -76,4 +97,31 @@ private:
 
   // BluePilot lead status animation
   float lead_status_alpha = 0.0f;
+
+  // Lead tracking state (moved from bluepilot_renderer)
+  struct LeadState {
+    int active_counter[2] = {0, 0};
+    bool virtual_active[2] = {false, false};
+    bool stable[2] = {false, false};
+    float smoothed_yRel[2] = {0.0f, 0.0f};
+    bool prev_status[2] = {false, false};
+    bool radar_assisted[2] = {false, false};
+    QPointF vertices[2] = {};
+
+    // Fields for time-to-lead calculation
+    float d_rel[2] = {0.0f, 0.0f};
+    float v_lead[2] = {0.0f, 0.0f};
+    float v_rel[2] = {0.0f, 0.0f};
+  } lead_state;
+
+  // Stop detection state (moved from bluepilot_renderer)
+  struct StopState {
+    bool active = false;
+    int stability_counter = 0;
+    float stopping_distance = 0.0f;
+    float display_distance = 0.0f;
+    float smoothed_size = 120.0f;
+    float fade_alpha = 0.0f;
+    QPointF last_valid_position;
+  } stop_state;
 };

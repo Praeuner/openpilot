@@ -99,15 +99,15 @@ private:
   static void renderStandstillTimer(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s);
 
-  // Model enhancement helpers
+  // Model enhancement helpers (deprecated - moved to ModelRendererBP)
   static void updateLeadTracking(const UIState &s);
   static void updateStopDetection(const UIState &s);
 
-  // Geometry helpers
+  // Geometry helpers (deprecated - moved to ModelRendererBP)
   static bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
   static int get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height);
 
-  // Rendering helpers
+  // Rendering helpers (deprecated - moved to ModelRendererBP)
   static void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
   static void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
   static void drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color);
