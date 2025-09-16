@@ -1,135 +1,70 @@
-// selfdrive/ui/bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc
-
-#include "selfdrive/ui/bluepilot/qt/onroad/widgets/hybrid_drive_gauge.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.h"
 #include "common/timing.h"
 #include <QColor>
 #include <QFont>
 #include <QPainter>
 #include <QPainterPath>
 #include <QString>
-#include <QWidget>
 #include <QLinearGradient>
 #include <QRadialGradient>
 #include <iostream>
 #include <algorithm>
 
-HybridDriveGauge::HybridDriveGauge(QWidget *parent) : QWidget(parent) { setupAnimation(); }
+// Static variable initialization
+float HybridGaugesOverlay::lastDisplayedAmps = 0.0f;
+double HybridGaugesOverlay::lastAmpsUpdateTime = 0.0;
 
-HybridDriveGauge::~HybridDriveGauge() { delete m_bracketAnimation; }
-
-void HybridDriveGauge::setupAnimation() {
-  m_bracketAnimation = new QPropertyAnimation(this, "bracketScale");
-  m_bracketAnimation->setDuration(200); // 200ms animation
-  m_bracketAnimation->setEasingCurve(QEasingCurve::OutElastic);
-}
-
-void HybridDriveGauge::checkBracketProximity(float currentValue, float threshold) {
-  bool isNearBracket = std::abs(std::abs(currentValue) - threshold) < 5.0f; // Within 5% of threshold
-
-  if (isNearBracket != m_wasNearBracket) {
-    m_wasNearBracket = isNearBracket;
-
-    if (isNearBracket) {
-      m_bracketAnimation->setStartValue(1.0f);
-      m_bracketAnimation->setEndValue(1.3f); // Scale up by 30%
-    } else {
-      m_bracketAnimation->setStartValue(1.3f);
-      m_bracketAnimation->setEndValue(1.0f);
-    }
-
-    m_bracketAnimation->start();
+void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIState &s, const HybridState &hybrid_state) {
+  if (!s.scene.show_hybrid_drive_overlay || !hybrid_state.hybrid_available) {
+    return;
   }
-}
 
-QRadialGradient HybridDriveGauge::getBackgroundGradient(QRect rect, const QString &mode) {
-  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
+  int gauge_scale = s.scene.hybrid_drive_gauge_size;
+  int gauge_width = rect.width() * 0.39;
+  int gauge_height = 130;
 
-  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
-  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
-
-  if (isEvMode) {
-    gradient.setColorAt(0, QColor(30, 144, 255)); // Electric blue center
-    gradient.setColorAt(1, QColor(25, 25, 60));   // Dark blue edge
-  } else if (isHybridMode) {
-    gradient.setColorAt(0, QColor(100, 149, 237)); // Cornflower blue center
-    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+  if (gauge_scale == 1) {
+    gauge_width = rect.width() * 0.30;
+    gauge_height = 100;
+  } else if (gauge_scale == 2) {
+    gauge_width = rect.width() * 0.345;
+    gauge_height = 115;
+  } else if (gauge_scale == 3) {
+    gauge_width = rect.width() * 0.39;
+    gauge_height = 130;
   } else {
-    gradient.setColorAt(0, QColor(70, 130, 180));  // Steel blue center
-    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+    gauge_width = rect.width() * 0.30;
+    gauge_height = 100;
   }
 
-  return gradient;
-}
+  int bottom_margin = 30;
+  int y_position = rect.height() - gauge_height - bottom_margin;
+  QRect gauge_rect((rect.width() - gauge_width) / 2, y_position, gauge_width, gauge_height);
 
-QLinearGradient HybridDriveGauge::createMetallicGradient(QRect rect, QColor baseColor) {
-  QLinearGradient gradient(rect.topLeft(), rect.bottomRight());
+  drawHybridDriveGauge(painter, gauge_rect, hybrid_state.throttle_demand, hybrid_state.throttle_threshold,
+                      hybrid_state.power_mode, hybrid_state.engine_reason);
 
-  QColor highlight = baseColor.lighter(150);
-  QColor shadow = baseColor.darker(150);
+  if (s.scene.show_hybrid_battery_overlay && hybrid_state.battery_available) {
+    int batt_width = gauge_width * 0.25;
+    QRect battery_rect(gauge_rect.right() + 10, y_position, batt_width, gauge_height);
 
-  gradient.setColorAt(0, highlight);
-  gradient.setColorAt(0.3, baseColor);
-  gradient.setColorAt(0.7, baseColor);
-  gradient.setColorAt(1, shadow);
-
-  return gradient;
-}
-
-void HybridDriveGauge::drawInsetBorder(QPainter &p, QRect rect, QColor borderColor) {
-  // Outer border (highlight)
-  p.setPen(QPen(borderColor, BORDER_WIDTH));
-  p.setBrush(Qt::NoBrush);
-  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
-
-  // Inner shadow effect
-  QRect innerRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH);
-  QColor shadowColor = borderColor.darker(200);
-  shadowColor.setAlpha(100);
-  p.setPen(QPen(shadowColor, 1));
-  p.drawRoundedRect(innerRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
-}
-
-void HybridDriveGauge::drawMetallicBackground(QPainter &p, QRect rect, const QString &mode) {
-  // Draw neutral metallic background (not mode-dependent)
-  p.setPen(Qt::NoPen);
-  QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
-  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
-  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
-  p.setBrush(neutralBg);
-  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
-
-  // Add inner highlight for metallic effect
-  QRect highlightRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH * 3);
-  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
-  highlight.setColorAt(0, QColor(255, 255, 255, 20));
-  highlight.setColorAt(0.3, QColor(255, 255, 255, 5));
-  highlight.setColorAt(1, QColor(255, 255, 255, 0));
-
-  p.setBrush(highlight);
-  p.drawRoundedRect(highlightRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
-}
-
-QColor HybridDriveGauge::getBorderColor(float value, const QString &mode) {
-  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
-  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
-  bool isRegenMode = value < 0;
-
-  if (isRegenMode) {
-    return QColor(0, 255, 127); // Electric green for regen
-  } else if (isEvMode) {
-    return QColor(30, 144, 255); // Electric blue for EV
-  } else if (isHybridMode) {
-    return QColor(100, 149, 237); // Cornflower blue for hybrid
-  } else {
-    return QColor(70, 130, 180);   // Steel blue default
+    drawHybridBatteryGauge(painter, battery_rect,
+                           hybrid_state.batt_soc_actual,
+                           hybrid_state.batt_soc_min,
+                           hybrid_state.batt_soc_max,
+                           hybrid_state.batt_volt_actual,
+                           hybrid_state.batt_volt_low,
+                           hybrid_state.batt_volt_high,
+                           hybrid_state.batt_amps_actual);
   }
 }
 
-void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleDemandPercent, float hevThrottleThresholdPercent, QString hevPowerFlowMode,
-                                     QString hevEngineOnReason) {
-  // Check if the bracket should be animated
-  checkBracketProximity(hevThrottleDemandPercent, hevThrottleThresholdPercent);
+// ============================================================================
+// HYBRID DRIVE GAUGE IMPLEMENTATION
+// ============================================================================
 
+void HybridGaugesOverlay::drawHybridDriveGauge(QPainter &p, QRect rect, float hevThrottleDemandPercent,
+                                              float hevThrottleThresholdPercent, QString hevPowerFlowMode, QString hevEngineOnReason) {
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
 
@@ -179,7 +114,6 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
 
   font.setWeight(QFont::Bold);
   p.setFont(font); // Apply the scaled font
-  p.setFont(font);
 
   // Draw automotive-style background and border
   drawMetallicBackground(p, rect, hevPowerFlowMode);
@@ -228,7 +162,91 @@ void HybridDriveGauge::drawGaugeImpl(QPainter &p, QRect rect, float hevThrottleD
   p.restore();
 }
 
-QLinearGradient HybridDriveGauge::getPowerBarGradient(QRect rect, float value, float threshold, const QString &mode) {
+QRadialGradient HybridGaugesOverlay::getBackgroundGradient(QRect rect, const QString &mode) {
+  QRadialGradient gradient(rect.center(), rect.width() * 0.7);
+
+  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
+  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
+
+  if (isEvMode) {
+    gradient.setColorAt(0, QColor(30, 144, 255)); // Electric blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));   // Dark blue edge
+  } else if (isHybridMode) {
+    gradient.setColorAt(0, QColor(100, 149, 237)); // Cornflower blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+  } else {
+    gradient.setColorAt(0, QColor(70, 130, 180));  // Steel blue center
+    gradient.setColorAt(1, QColor(25, 25, 60));    // Dark blue edge
+  }
+
+  return gradient;
+}
+
+QLinearGradient HybridGaugesOverlay::createMetallicGradient(QRect rect, QColor baseColor) {
+  QLinearGradient gradient(rect.topLeft(), rect.bottomRight());
+
+  QColor highlight = baseColor.lighter(150);
+  QColor shadow = baseColor.darker(150);
+
+  gradient.setColorAt(0, highlight);
+  gradient.setColorAt(0.3, baseColor);
+  gradient.setColorAt(0.7, baseColor);
+  gradient.setColorAt(1, shadow);
+
+  return gradient;
+}
+
+void HybridGaugesOverlay::drawInsetBorder(QPainter &p, QRect rect, QColor borderColor) {
+  // Outer border (highlight)
+  p.setPen(QPen(borderColor, BORDER_WIDTH));
+  p.setBrush(Qt::NoBrush);
+  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+  // Inner shadow effect
+  QRect innerRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH);
+  QColor shadowColor = borderColor.darker(200);
+  shadowColor.setAlpha(100);
+  p.setPen(QPen(shadowColor, 1));
+  p.drawRoundedRect(innerRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
+}
+
+void HybridGaugesOverlay::drawMetallicBackground(QPainter &p, QRect rect, const QString &mode) {
+  // Draw neutral metallic background (not mode-dependent)
+  p.setPen(Qt::NoPen);
+  QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
+  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
+  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  p.setBrush(neutralBg);
+  p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
+
+  // Add inner highlight for metallic effect
+  QRect highlightRect = rect.adjusted(BORDER_WIDTH, BORDER_WIDTH, -BORDER_WIDTH, -BORDER_WIDTH * 3);
+  QLinearGradient highlight(highlightRect.topLeft(), highlightRect.bottomLeft());
+  highlight.setColorAt(0, QColor(255, 255, 255, 20));
+  highlight.setColorAt(0.3, QColor(255, 255, 255, 5));
+  highlight.setColorAt(1, QColor(255, 255, 255, 0));
+
+  p.setBrush(highlight);
+  p.drawRoundedRect(highlightRect, BAR_ROUND_RADIUS - 2, BAR_ROUND_RADIUS - 2);
+}
+
+QColor HybridGaugesOverlay::getBorderColor(float value, const QString &mode) {
+  bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
+  bool isHybridMode = mode.contains("Hybrid", Qt::CaseInsensitive);
+  bool isRegenMode = value < 0;
+
+  if (isRegenMode) {
+    return QColor(0, 255, 127); // Electric green for regen
+  } else if (isEvMode) {
+    return QColor(30, 144, 255); // Electric blue for EV
+  } else if (isHybridMode) {
+    return QColor(100, 149, 237); // Cornflower blue for hybrid
+  } else {
+    return QColor(70, 130, 180);   // Steel blue default
+  }
+}
+
+QLinearGradient HybridGaugesOverlay::getPowerBarGradient(QRect rect, float value, float threshold, const QString &mode) {
   QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
 
   bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
@@ -280,7 +298,7 @@ QLinearGradient HybridDriveGauge::getPowerBarGradient(QRect rect, float value, f
   return gradient;
 }
 
-void HybridDriveGauge::drawPowerBar(QPainter &p, QRect rect, float value, float threshold, const QString &mode) {
+void HybridGaugesOverlay::drawPowerBar(QPainter &p, QRect rect, float value, float threshold, const QString &mode) {
   const int centerX = rect.center().x();
   bool isEvMode = mode.contains("Electric", Qt::CaseInsensitive);
 
@@ -361,7 +379,7 @@ void HybridDriveGauge::drawPowerBar(QPainter &p, QRect rect, float value, float 
   }
 }
 
-void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float threshold, float currentValue) {
+void HybridGaugesOverlay::drawThresholdBrackets(QPainter &p, QRect rect, float threshold, float currentValue) {
   const int centerX = rect.center().x();
   float halfThreshold = threshold / 2.0;
 
@@ -393,13 +411,6 @@ void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float thre
   // Draw left and right brackets with automotive styling
   for (int side = -1; side <= 1; side += 2) {
     int x = centerX + side * (rect.width() * halfThreshold / 100.0);
-
-    // Apply scaling transformation
-    p.save();
-    QPointF center(x, rect.center().y());
-    p.translate(center);
-    p.scale(m_bracketScale, m_bracketScale);
-    p.translate(-center);
 
     int bracketWidth = 12;  // Slightly wider for automotive look
     int bracketDepth = 8;   // Deeper for more prominence
@@ -440,15 +451,14 @@ void HybridDriveGauge::drawThresholdBrackets(QPainter &p, QRect rect, float thre
       p.drawPath(bottomPath);
       p.setOpacity(1.0);
     }
-
-    p.restore();
   }
 }
 
-float HybridBatteryGauge::lastDisplayedAmps = 0.0f;
-double HybridBatteryGauge::lastAmpsUpdateTime = 0.0;
+// ============================================================================
+// HYBRID BATTERY GAUGE IMPLEMENTATION
+// ============================================================================
 
-QRadialGradient HybridBatteryGauge::getBatteryBackgroundGradient(QRect rect, float batteryPercent) {
+QRadialGradient HybridGaugesOverlay::getBatteryBackgroundGradient(QRect rect, float batteryPercent) {
   QRadialGradient gradient(rect.center(), rect.width() * 0.7);
 
   if (batteryPercent > 50.0f) {
@@ -465,7 +475,7 @@ QRadialGradient HybridBatteryGauge::getBatteryBackgroundGradient(QRect rect, flo
   return gradient;
 }
 
-QLinearGradient HybridBatteryGauge::getBatteryGradient(QRect rect, float value, float min, float max) {
+QLinearGradient HybridGaugesOverlay::getBatteryGradient(QRect rect, float value, float min, float max) {
   QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
 
   float perc = (value - min) / (max - min);
@@ -483,7 +493,7 @@ QLinearGradient HybridBatteryGauge::getBatteryGradient(QRect rect, float value, 
   return gradient;
 }
 
-void HybridBatteryGauge::drawAutomotiveBattery(QPainter &p, QRect batteryRect, float fillPerc) {
+void HybridGaugesOverlay::drawAutomotiveBattery(QPainter &p, QRect batteryRect, float fillPerc) {
   // Draw battery outline with automotive styling
   QLinearGradient outlineGradient(batteryRect.topLeft(), batteryRect.bottomLeft());
   outlineGradient.setColorAt(0, QColor(236, 240, 241));
@@ -537,8 +547,9 @@ void HybridBatteryGauge::drawAutomotiveBattery(QPainter &p, QRect batteryRect, f
   }
 }
 
-void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual, float battSocMin, float battSocMax, float battVoltActual, float battVoltLow, float battVoltHigh,
-                                   float battAmpsActual) {
+void HybridGaugesOverlay::drawHybridBatteryGauge(QPainter &p, QRect rect, float battSocActual, float battSocMin,
+                                                float battSocMax, float battVoltActual, float battVoltLow,
+                                                float battVoltHigh, float battAmpsActual) {
   // Get current time for amp display smoothing
   double currentTime = millis_since_boot() / 1000.0;
   float displayAmps = battAmpsActual;
@@ -573,14 +584,6 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
 
   float fillPerc = (clampedActual - clampedMin) / (clampedMax - clampedMin);
   float batteryPercent = std::clamp(fillPerc * 100.0f, 0.0f, 100.0f);
-
-  // Debug output for monitoring SoC values (can be removed in production)
-  static int debug_counter = 0;
-  if (debug_counter++ % 100 == 0) { // Print every 100 frames to avoid spam
-    // std::cout << "Battery SoC Debug - Raw: " << battSocActual
-    //           << "%, Min: " << battSocMin << "%, Max: " << battSocMax
-    //           << "%, Clamped: " << clampedActual << "%, Final: " << batteryPercent << "%" << std::endl;
-  }
 
   // Draw automotive-style background (neutral metallic look)
   p.setPen(Qt::NoPen);
@@ -707,7 +710,7 @@ void HybridBatteryGauge::drawGauge(QPainter &p, QRect rect, float battSocActual,
   p.restore();
 }
 
-QColor HybridBatteryGauge::getVoltageColor(float voltage, float lowLimit, float highLimit) {
+QColor HybridGaugesOverlay::getVoltageColor(float voltage, float lowLimit, float highLimit) {
   if (voltage <= lowLimit + 10)
     return QColor(231, 76, 60, 255);   // Red
   if (voltage >= highLimit - 10)

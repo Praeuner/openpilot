@@ -37,8 +37,12 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel
   "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
-  # BluePilot Onroad Widgets
-  "bluepilot/qt/onroad/widgets/hybrid_drive_gauge.cc",
+  # BluePilot Onroad Overlays
+  "bluepilot/qt/onroad/overlays/radar_overlay.cc",
+  "bluepilot/qt/onroad/overlays/stop_sign_overlay.cc",
+  "bluepilot/qt/onroad/overlays/standstill_timer_overlay.cc",
+  "bluepilot/qt/onroad/overlays/gforce_overlay.cc",
+  "bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.cc",
   # "bluepilot/qt/onroad/steer_graph_panel.cc",
   "bluepilot/qt/onroad/long_debug_panel.cc",
   "bluepilot/qt/onroad/lateral_debug_panel.cc",
