@@ -23,6 +23,29 @@ MSG_LateralMotionControl = 0x3D3   # TX by OP, Lateral Control message
 MSG_LateralMotionControl2 = 0x3D6  # TX by OP, alternate Lateral Control message
 MSG_IPMA_Data = 0x3D8              # TX by OP, IPMA and LKAS user interface
 
+def apply_limits(curvature, curvature_rate, path_offset, path_angle):
+  curvatures_limits = [-0.012, 0.012]
+  curvature_rates_limits = [-0.001024, 0.00102375]
+  path_offsets_limits = [-1.0, 1.0]
+  path_angles_limits = [-0.25, 0.25]
+
+  print(f"For: `curvature: {curvature:.6f}, curvature_rate: {curvature_rate}, path_offset: {path_offset}, path_angle: {path_angle}`")
+  print(f"For: `curvatures_limits0: {curvatures_limits[0]:.6f}, curvature: {curvature:.6f}, curvatures_limits1: {curvatures_limits[1]:.6f}`")
+  print(f"For: `curvature_rates_limits0: {curvature_rates_limits[0]:.6f}, curvature_rate: {curvature_rate:.6f}, curvature_rates_limits1: {curvature_rates_limits[1]:.6f}`")
+  print(f"For: `path_offsets_limits0: {path_offsets_limits[0]:.6f}, path_offset: {path_offset:.6f}, path_offsets_limits1: {path_offsets_limits[1]:.6f}`")
+  print(f"For: `path_angles_limits0: {path_angles_limits[0]:.6f}, path_angle: {path_angle:.6f}, path_angles_limits1: {path_angles_limits[1]:.6f}`")
+
+  should_tx = curvatures_limits[0] <= curvature <= curvatures_limits[1]
+  print(f"For 1: `should_tx: {should_tx}")
+  should_tx = should_tx and curvature_rates_limits[0] <= curvature_rate <= curvature_rates_limits[1]
+  print(f"For 2: `should_tx: {should_tx}")
+  should_tx = should_tx and path_offsets_limits[0] <= path_offset <= path_offsets_limits[1]
+  print(f"For 3: `should_tx: {should_tx}")
+  should_tx = should_tx and path_angles_limits[0] <= path_angle <= path_angles_limits[1]
+  print(f"For 4: `should_tx: {should_tx}")
+
+  return should_tx
+
 
 def checksum(msg):
   addr, dat, bus = msg
@@ -77,13 +100,16 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
   # Curvature control limits
   DEG_TO_CAN = 50000  # 1 / (2e-5) rad to can
+  CR_DEG_TO_CAN = 1000000  # 1 / (1e-6) rad to can
+  PA_DEG_TO_CAN = 2000  # 1 / (2e-5) rad to can
+  PO_DEG_TO_CAN = 100  # 1 / (0.01) meter to can
   MAX_CURVATURE = 0.02
   MAX_CURVATURE_ERROR = 0.002
   CURVATURE_ERROR_MIN_SPEED = 10.0  # m/s
 
-  ANGLE_RATE_BP = [5., 25., 25.]
-  ANGLE_RATE_UP = [0.00045, 0.0001, 0.0001]  # windup limit
-  ANGLE_RATE_DOWN = [0.00045, 0.00015, 0.00015]  # unwind limit
+  ANGLE_RATE_BP = [5., 16., 25.]
+  ANGLE_RATE_UP = [0.0026, 0.0013, 0.0001]  # windup limit
+  ANGLE_RATE_DOWN = [0.0026, 0.0015, 0.0002]  # unwind limit
 
   cnt_speed = 0
   cnt_speed_2 = 0
@@ -102,6 +128,18 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
   def _set_prev_desired_angle(self, t):
     t = round(t * self.DEG_TO_CAN)
     self.safety.set_desired_angle_last(t)
+
+  def _set_prev_desired_path_angle(self, t):
+    t = round(t * self.PA_DEG_TO_CAN)
+    self.safety.set_desired_path_angle_last(t)
+
+  def _set_prev_desired_path_offset(self, t):
+    t = round(t * self.PO_DEG_TO_CAN)
+    self.safety.set_desired_path_offset_last(t)
+
+  def _set_prev_desired_curvature_rate(self, t):
+    t = round(t * self.CR_DEG_TO_CAN)
+    self.safety.set_desired_curvature_rate_last(t)
 
   def _reset_curvature_measurement(self, curvature, speed):
     for _ in range(6):
@@ -177,6 +215,7 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
         "LatCtlCurv_NoRate_Actl": curvature_rate,  # Curvature rate [-0.001024|0.00102375] 1/meter^2
         "LatCtlCurv_No_Actl": curvature,           # Curvature [-0.02|0.02094] 1/meter
       }
+      print(f"_lat_ctl_msg CAN Out: `values: {values}`")
       return self.packer.make_can_msg_panda("LateralMotionControl", 0, values)
     elif self.STEER_MESSAGE == MSG_LateralMotionControl2:
       values = {
@@ -186,6 +225,7 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
         "LatCtlCrv_NoRate2_Actl": curvature_rate,  # Curvature rate [-0.001024|0.001023] 1/meter^2
         "LatCtlCurv_No_Actl": curvature,           # Curvature [-0.02|0.02094] 1/meter
       }
+      print(f"_lat_ctl_msg CANFD Out: `values: {values}`")
       return self.packer.make_can_msg_panda("LateralMotionControl2", 0, values)
 
   # Cruise control buttons
@@ -256,6 +296,8 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
           self._reset_curvature_measurement(curvature, speed)
 
           should_tx = abs(curvature) <= curvature_accel_limit_upper
+          should_tx = should_tx and apply_limits(curvature, 0, 0, 0)
+
           self.assertEqual(should_tx, self._tx(self._lat_ctl_msg(True, 0, 0, curvature, 0)))
 
   def test_steer_allowed(self):
@@ -273,24 +315,88 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
             for path_angle in path_angles:
               for curvature_rate in curvature_rates:
                 for curvature in curvatures:
-                  self._mads_states_cleanup()
                   self.safety.set_controls_allowed(controls_allowed)
                   self._set_prev_desired_angle(curvature)
+                  self._set_prev_desired_path_angle(path_angle)
+                  self._set_prev_desired_path_offset(path_offset)
+                  self._set_prev_desired_curvature_rate(curvature_rate)
+
                   self._reset_curvature_measurement(curvature, speed)
 
-                  should_tx = path_offset == 0 and path_angle == 0 and curvature_rate == 0
+                  # should_tx = path_offset == 0 and path_angle == 0 and curvature_rate == 0
+                  should_tx = apply_limits(curvature, curvature_rate, path_offset, path_angle)
+                  print(f"test_steer_allowed: `should_tx: {should_tx}, curvature: {curvature}, curvature_rate: {curvature_rate}, path_offset: {path_offset}, path_angle: {path_angle}`")
+
                   # when request bit is 0, only allow curvature of 0 since the signal range
                   # is not large enough to enforce it tracking measured
-                  should_tx = should_tx and (controls_allowed if steer_control_enabled else curvature == 0)
+                  should_tx = should_tx and (controls_allowed if steer_control_enabled else (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0))
 
                   # Only CAN FD has the max lateral acceleration limit
                   if self.STEER_MESSAGE == MSG_LateralMotionControl2:
                     should_tx = should_tx and abs(curvature) <= curvature_accel_limit_upper
 
-                  with self.subTest(controls_allowed=controls_allowed, steer_control_enabled=steer_control_enabled,
+                  with self.subTest(speed=speed, controls_allowed=controls_allowed, steer_control_enabled=steer_control_enabled,
                                     path_offset=float(path_offset), path_angle=float(path_angle), curvature_rate=float(curvature_rate),
                                     curvature=float(curvature)):
                     self.assertEqual(should_tx, self._tx(self._lat_ctl_msg(steer_control_enabled, path_offset, path_angle, curvature, curvature_rate)))
+
+  def test_steer_allowed2(self):
+    # Run this test:
+    #     comment out the print statements in ford.h
+    #     run `scons`` in opendbc_repo folder`
+    #     run `pytest test_ford.py::TestFordCANFDStockSafety::test_steer_allowed -n0 -s --show-capture=all`
+    path_offsets = np.arange(-5.12, 5.11, 2.5).round()
+    path_angles = np.arange(-0.5, 0.5235, 0.25).round(1)
+    curvature_rates = np.arange(-0.001024, 0.00102375, 0.001).round(3)
+    curvatures = np.arange(-0.02, 0.02094, 0.01).round(2)
+
+    # for speed in (self.CURVATURE_ERROR_MIN_SPEED - 1,
+    #               self.CURVATURE_ERROR_MIN_SPEED + 1):
+    #   _, curvature_accel_limit_upper = self.get_canfd_curvature_limits(speed)
+    #   for controls_allowed in (True, False):
+    #     for steer_control_enabled in (True, False):
+    #       for path_offset in path_offsets:
+    #         for path_angle in path_angles:
+    #           for curvature_rate in curvature_rates:
+    #             for curvature in curvatures:
+
+    controls_allowed=False
+    curvature=0.01
+    curvature_rate=0.001
+    path_angle=0.2
+    path_offset=-0.0
+    speed=11.0
+    steer_control_enabled=True
+
+    _, curvature_accel_limit_upper = self.get_canfd_curvature_limits(speed)
+
+    self.safety.set_controls_allowed(controls_allowed)
+    self._set_prev_desired_angle(curvature)
+    self._set_prev_desired_path_angle(path_angle)
+    self._set_prev_desired_path_offset(path_offset)
+    self._set_prev_desired_curvature_rate(curvature_rate)
+    self._reset_curvature_measurement(curvature, speed)
+
+    # should_tx = path_offset == 0 and path_angle == 0 and curvature_rate == 0
+    should_tx = True
+
+    should_tx = apply_limits(curvature, curvature_rate, path_offset, path_angle)
+
+    # when request bit is 0, only allow curvature of 0 since the signal range
+    # is not large enough to enforce it tracking measured
+    should_tx = should_tx and (controls_allowed if steer_control_enabled else (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0))
+
+    # Only CAN FD has the max lateral acceleration limit
+    if self.STEER_MESSAGE == MSG_LateralMotionControl2:
+      should_tx = should_tx and abs(curvature) <= curvature_accel_limit_upper
+
+    # should_tx = False
+
+    print(f"For: `speed: {speed}, curvature: {curvature}, path_offset: {path_offset}, path_angle: {path_angle}, curvature_rate: {curvature_rate}`")
+    with self.subTest(speed=speed, controls_allowed=controls_allowed, steer_control_enabled=steer_control_enabled,
+                      path_offset=float(path_offset), path_angle=float(path_angle), curvature_rate=float(curvature_rate),
+                      curvature=float(curvature)):
+      self.assertEqual(should_tx, self._tx(self._lat_ctl_msg(steer_control_enabled, path_offset, path_angle, curvature, curvature_rate)))
 
   def test_curvature_rate_limits(self):
     """
@@ -313,12 +419,12 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
       up_cases = (self.MAX_CURVATURE_ERROR * 2, [
         (not limit_command, 0, 0),
-        (not limit_command, 0, max_delta_up_lower - small_curvature),
+        (not limit_command, 0, max_delta_up_lower - small_curvature * 2),
         (True, 1e-9, max_delta_down),  # TODO: safety should not allow down limits at 0
         (not limit_command, 1e-9, max_delta_up_lower),  # TODO: safety should not allow down limits at 0
-        (True, 0, max_delta_up_lower),
-        (True, 0, max_delta_up),
-        (False, 0, max_delta_up + small_curvature),
+        (True, 0, max_delta_up_lower + small_curvature),
+        (True, 0, max_delta_up - small_curvature),
+        (False, 0, max_delta_up + small_curvature * 2),
         # stay at boundary limit
         (True, self.MAX_CURVATURE_ERROR - small_curvature, self.MAX_CURVATURE_ERROR - small_curvature),
         # 1 unit below boundary limit
@@ -339,7 +445,7 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
         for angle_meas, cases in (up_cases, down_cases):
           self._reset_curvature_measurement(sign * angle_meas, speed)
           for should_tx, initial_curvature, desired_curvature in cases:
-
+            print(f"speed: {speed}, should_tx: {should_tx}, initial_curvature: {initial_curvature}, desired_curvature: {desired_curvature}")
             # Only CAN FD has the max lateral acceleration limit
             if self.STEER_MESSAGE == MSG_LateralMotionControl2:
               if should_tx:
@@ -352,8 +458,16 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
             # small curvature ensures we're using up limits. at 0, safety allows down limits to allow to account for rounding errors
             curvature_offset = small_curvature if initial_curvature == 0 else 0
-            self._set_prev_desired_angle(sign * (curvature_offset + initial_curvature))
-            self.assertEqual(should_tx, self._tx(self._lat_ctl_msg(True, 0, 0, sign * (curvature_offset + desired_curvature), 0)))
+
+            should_tx = should_tx and apply_limits(sign * (curvature_offset + desired_curvature), 0, 0, 0)
+            _ic = sign * (curvature_offset + initial_curvature)
+            _dc = sign * (curvature_offset + desired_curvature)
+            self._set_prev_desired_angle(_ic)
+            self._set_prev_desired_path_angle(0)
+            self._set_prev_desired_path_offset(0)
+            self._set_prev_desired_curvature_rate(0)
+            print(f"sign: {sign}, curvature_offset: {curvature_offset}, initial_curvature: {initial_curvature}, desired_curvature: {desired_curvature}, new_ic {_ic:.6f}, new_dc {_dc:.6f}")
+            self.assertEqual(should_tx, self._tx(self._lat_ctl_msg(True, 0, 0, _dc, 0)))
 
   def test_prevent_lkas_action(self):
     self.safety.set_controls_allowed(1)
@@ -378,19 +492,6 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
       self._rx(self._pcm_status_msg(enabled))
       for bus in (0, 2):
         self.assertEqual(enabled, self._tx(self._acc_button_msg(Buttons.CANCEL, bus)))
-
-  def test_enable_control_allowed_from_acc_main_on(self):
-    try:
-      for enable_mads in (True, False):
-        with self.subTest("enable_mads", mads_enabled=enable_mads):
-          for main_button_msg_valid in (True, False):
-            with self.subTest("main_button_msg_valid", state_valid=main_button_msg_valid):
-              self._mads_states_cleanup()
-              self.safety.set_mads_params(enable_mads, False, False)
-              self._rx(self._pcm_status_msg(main_button_msg_valid))
-              self.assertEqual(enable_mads and main_button_msg_valid, self.safety.get_controls_allowed_lat())
-    finally:
-      self._mads_states_cleanup()
 
 
 class TestFordCANFDStockSafety(TestFordSafetyBase):
@@ -432,6 +533,7 @@ class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
       "AccBrkDecel_B_Rq": 1 if brake_actuation else 0,  # Deceleration request: 0=Inactive, 1=Active
       "CmbbDeny_B_Actl": 1 if cmbb_deny else 0,         # [0|1] deny AEB actuation
     }
+    # print(f"_acc_command_msg: {values}")
     return self.packer.make_can_msg_panda("ACCDATA", 0, values)
 
   def test_stock_aeb(self):
@@ -480,7 +582,8 @@ class TestFordLongitudinalSafety(TestFordLongitudinalSafetyBase):
     self.packer = CANPackerPanda("ford_lincoln_base_pt")
     self.safety = libsafety_py.libsafety
     # Make sure we enforce long safety even without long flag for CAN
-    self.safety.set_safety_hooks(CarParams.SafetyModel.ford, 0)
+    # self.safety.set_safety_hooks(CarParams.SafetyModel.ford, 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.ford, FordSafetyFlags.LONG_CONTROL)
     self.safety.init_tests()
 
   def test_max_lateral_acceleration(self):

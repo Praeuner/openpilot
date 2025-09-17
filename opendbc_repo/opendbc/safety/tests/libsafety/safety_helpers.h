@@ -184,6 +184,32 @@ int get_desired_angle_last(void){
   return desired_angle_last;
 }
 
+/* start - required for test_ford.py */
+void set_desired_path_angle_last(int t){
+  desired_path_angle_last = t;
+}
+
+int get_desired_path_angle_last(void){
+  return desired_path_angle_last;
+}
+
+void set_desired_path_offset_last(int t){
+  desired_path_offset_last = t;
+}
+
+int get_desired_path_offset_last(void){
+  return desired_path_offset_last;
+}
+
+void set_desired_curvature_rate_last(int t){
+  desired_curvature_rate_last = t;
+}
+
+int get_desired_curvature_rate_last(void){
+  return desired_curvature_rate_last;
+}
+/* end - required for test_ford.py */
+
 void set_angle_meas(int min, int max){
   angle_meas.min = min;
   angle_meas.max = max;
