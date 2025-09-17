@@ -4,13 +4,14 @@
 #include "common/util.h"
 #include "selfdrive/ui/ui.h"
 #include <QGraphicsBlurEffect>
+#include <QPainterPathStroker>
 #include <cmath>
 #include <chrono>
 #include <algorithm>
 #include <iostream>
 
-// BluePilot blindspot enhancement constants and state
-static constexpr float BLINDSPOT_WIDTH = 1.0f; // Width of blind spot indicator in meters
+// ================ Constants & Static State ================
+static constexpr float BLINDSPOT_WIDTH = 1.0f;
 
 struct BlindspotState {
   bool left_blindspot = false;
@@ -23,28 +24,25 @@ struct BlindspotState {
   QRectF last_left_bounds, last_right_bounds;
 } static blindspot_state;
 
+// ================ Constructor ================
 #ifdef SUNNYPILOT
-ModelRendererBP::ModelRendererBP() : ModelRendererSP() {
-  // Initialize any BluePilot-specific state
-}
+ModelRendererBP::ModelRendererBP() : ModelRendererSP() {}
 #else
-ModelRendererBP::ModelRendererBP() : ModelRenderer() {
-  // Initialize any BluePilot-specific state
-}
+ModelRendererBP::ModelRendererBP() : ModelRenderer() {}
 #endif
 
+// ================ Main Draw Method ================
 void ModelRendererBP::draw(QPainter &painter, const QRect &surface_rect) {
-#ifdef SUNNYPILOT
-  // For SunnyPilot, implement custom BluePilot draw logic
   auto *s = uiState();
   auto &sm = *(s->sm);
 
-  // Check if data is up-to-date
+  // Validate required data
   if (sm.rcv_frame("liveCalibration") < s->scene.started_frame ||
       sm.rcv_frame("modelV2") < s->scene.started_frame) {
     return;
   }
 
+  // Initialize common state
   clip_region = surface_rect.adjusted(-CLIP_MARGIN, -CLIP_MARGIN, CLIP_MARGIN, CLIP_MARGIN);
   experimental_mode = sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
   longitudinal_control = sm["carParams"].getCarParams().getOpenpilotLongitudinalControl();
@@ -54,158 +52,64 @@ void ModelRendererBP::draw(QPainter &painter, const QRect &surface_rect) {
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
 
-  // Check if transform is initialized before processing
-  if (!car_space_transform.isZero()) {
-    // Update model data using base ModelRenderer (since SunnyPilot methods are private)
-    ModelRenderer::update_model(model, lead_one);
-    updateBluePilotState(model);
-
-    // Apply BluePilot path smoothing to ALL paths for better visual quality
-    applySmoothPath();
-  } else {
+  // Check transform validity
+  if (car_space_transform.isZero()) {
     static int warn_count = 0;
-    if (warn_count++ < 5) {  // Only warn first 5 times
-      std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
+    if (warn_count++ < 5) {
+      std::cerr << "WARNING: BluePilot transform is zero - overlays disabled" << std::endl;
     }
     return;
   }
 
-  painter.save();
-
-  // Check for custom path color FIRST
-  QString pathColor = QString::fromStdString(Params().get("CustomModelPathColor"));
-  bool hasCustomPath = !pathColor.isEmpty() && pathColor != "Stock" && pathColor != "";
-
-  if (hasCustomPath) {
-    // Draw original BluePilot custom path system
-    QLinearGradient bg(0, surface_rect.height(), 0, 0);
-
-    if (pathColor == "Rainbow") {
-      float v_ego = sm["carState"].getCarState().getVEgo();
-      float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
-
-      for (int i = 0; i < 10; ++i) {
-        float position = i / 10.0f;
-        float eased_point = pow(position, 1.5f);
-        float hue = fmod(eased_point * 360.0 + (v_ego * 20.0) + (time_offset * 100.0), 360.0);
-        float alpha = 0.8f - (eased_point * 0.8f);
-
-        bg.setColorAt(eased_point, QColor::fromHslF(hue / 360.0, 1.0f, 0.55f, alpha));
-      }
-    } else if (pathColor == "Blue") {
-      bg.setColorAt(0.0, QColor(0, 102, 204, 102));
-      bg.setColorAt(0.5, QColor(51, 153, 255, 89));
-      bg.setColorAt(1.0, QColor(51, 153, 255, 0));
-    } else if (pathColor == "Green") {
-      bg.setColorAt(0.0, QColor(0, 204, 102, 102));
-      bg.setColorAt(0.5, QColor(51, 255, 153, 89));
-      bg.setColorAt(1.0, QColor(51, 255, 153, 0));
-    } else if (pathColor == "Purple") {
-      bg.setColorAt(0.0, QColor(153, 51, 204, 102));
-      bg.setColorAt(0.5, QColor(178, 102, 255, 89));
-      bg.setColorAt(1.0, QColor(178, 102, 255, 0));
-    } else if (pathColor == "Orange") {
-      bg.setColorAt(0.0, QColor(255, 128, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 153, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 153, 51, 0));
-    } else if (pathColor == "Red") {
-      bg.setColorAt(0.0, QColor(204, 0, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 51, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 51, 51, 0));
-    } else if (pathColor == "Cyan") {
-      bg.setColorAt(0.0, QColor(0, 204, 204, 102));
-      bg.setColorAt(0.5, QColor(51, 255, 255, 89));
-      bg.setColorAt(1.0, QColor(51, 255, 255, 0));
-    } else if (pathColor == "Yellow") {
-      bg.setColorAt(0.0, QColor(204, 204, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 255, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 255, 51, 0));
-    }
-
-    painter.setBrush(bg);
-    painter.setPen(Qt::NoPen);
-    painter.drawPolygon(track_vertices);
-
-    // Draw blindspot overlays on top of custom path
-    drawBlindspotOverlays(painter);
-
-    // Draw lead status after path rendering
-    drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
-    painter.restore();
-    return; // Early return - don't call base drawPath
-  } else {
-    // Draw BluePilot enhanced lane lines and road edges
-    drawBluePilotLaneLines(painter);
-
-    // Add enhanced BluePilot blindspot overlays (superior to SunnyPilot version)
-    drawBlindspotOverlays(painter);
-
-    // Fall back to standard path drawing (original BluePilot logic)
-    ModelRenderer::drawPath(painter, model, surface_rect);
-
-    // Draw BluePilot enhanced lead status with radar overlay integration
-    drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
-  }
-
-  // Draw leads (with BluePilot radar overlay suppression)
-  if (longitudinal_control && sm.alive("radarState")) {
-    update_leads(radar_state, model.getPosition());
-    const auto &lead_two = radar_state.getLeadTwo();
-
-    // Prevent drawing lead chevron if BluePilot radar overlay is active
-    if (!s->scene.show_bp_radar_overlay) {
-      if (lead_one.getStatus()) {
-        drawLead(painter, lead_one, lead_vertices[0], surface_rect);
-      }
-      if (lead_two.getStatus() && (std::abs(lead_one.getDRel() - lead_two.getDRel()) > 3.0)) {
-        drawLead(painter, lead_two, lead_vertices[1], surface_rect);
-      }
-    }
-  }
-
-  painter.restore();
-#else
-  // For stock builds, implement the full draw logic with BluePilot radar suppression
-  auto *s = uiState();
-  auto &sm = *(s->sm);
-
-  // Check if data is up-to-date
-  if (sm.rcv_frame("liveCalibration") < s->scene.started_frame ||
-      sm.rcv_frame("modelV2") < s->scene.started_frame) {
-    return;
-  }
-
-  clip_region = surface_rect.adjusted(-CLIP_MARGIN, -CLIP_MARGIN, CLIP_MARGIN, CLIP_MARGIN);
-  experimental_mode = sm["selfdriveState"].getSelfdriveState().getExperimentalMode();
-  longitudinal_control = sm["carParams"].getCarParams().getOpenpilotLongitudinalControl();
-  path_offset_z = sm["liveCalibration"].getLiveCalibration().getHeight()[0];
-
-  painter.save();
-
-  const auto &model = sm["modelV2"].getModelV2();
-  const auto &radar_state = sm["radarState"].getRadarState();
-  const auto &lead_one = radar_state.getLeadOne();
-
+  // Update model and BluePilot state
+#ifdef SUNNYPILOT
   ModelRenderer::update_model(model, lead_one);
+#else
+  update_model(model, lead_one);
+#endif
   updateBluePilotState(model);
+  applySmoothPath(); // Currently disabled but kept for compatibility
 
-  // Apply BluePilot path smoothing to ALL paths for better visual quality
-  applySmoothPath();
+  painter.save();
 
-  // Draw BluePilot enhanced lane lines and road edges
-  drawBluePilotLaneLines(painter);
+  // Check if enhanced UI is enabled once
+  bool enhanced_ui = Params().getBool("BluepilotShowEnhancedOnroadUI");
 
-  // Fall back to standard path drawing with smoothed vertices
-  ModelRenderer::drawPath(painter, model, surface_rect);
+  // Draw lane lines (enhanced or stock)
+  if (enhanced_ui) {
+    drawEnhancedLaneLines(painter);
+  } else {
+    // Use exact stock rendering from ModelRenderer
+    painter.setPen(Qt::NoPen);
+    for (int i = 0; i < std::size(lane_line_vertices); ++i) {
+      painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, std::clamp<float>(lane_line_probs[i], 0.0, 0.7)));
+      painter.drawPolygon(lane_line_vertices[i]);
+    }
+    for (int i = 0; i < std::size(road_edge_vertices); ++i) {
+      painter.setBrush(QColor::fromRgbF(1.0, 0, 0, std::clamp<float>(1.0 - road_edge_stds[i], 0.0, 1.0)));
+      painter.drawPolygon(road_edge_vertices[i]);
+    }
+  }
 
-  // Draw leads (with BluePilot radar overlay suppression)
-  if (longitudinal_control && sm.alive("radarState")) {
-    update_leads(radar_state, model.getPosition());
-    const auto &lead_two = radar_state.getLeadTwo();
+  // Draw blindspot overlays (always enhanced when enabled)
+  drawBlindspotOverlays(painter);
 
-    // Prevent drawing lead chevron if BluePilot radar overlay is active
-    if (!s->scene.show_bp_radar_overlay) {
+  // Draw path (enhanced or stock)
+  if (enhanced_ui) {
+    drawEnhancedPath(painter, model, surface_rect);
+  } else {
+    ModelRenderer::drawPath(painter, model, surface_rect);
+  }
+
+  // Draw lead status if not suppressed by radar overlay
+  if (!s->scene.show_bp_radar_overlay) {
+    drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
+
+    // Draw leads
+    if (longitudinal_control && sm.alive("radarState")) {
+      update_leads(radar_state, model.getPosition());
+      const auto &lead_two = radar_state.getLeadTwo();
+
       if (lead_one.getStatus()) {
         drawLead(painter, lead_one, lead_vertices[0], surface_rect);
       }
@@ -216,175 +120,278 @@ void ModelRendererBP::draw(QPainter &painter, const QRect &surface_rect) {
   }
 
   painter.restore();
-#endif
 }
 
+// ================ Model Update Methods ================
 #ifndef SUNNYPILOT
 void ModelRendererBP::drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, const QRect &surface_rect) {
-  // Call base implementation first
-  ModelRenderer::drawPath(painter, model, surface_rect);
+  // Check if enhanced UI is enabled
+  bool enhanced_ui = Params().getBool("BluepilotShowEnhancedOnroadUI");
 
-  // BluePilot path drawing complete
+  if (enhanced_ui) {
+    drawEnhancedPath(painter, model, surface_rect);
+  } else {
+    // Use base class stock path rendering
+    ModelRenderer::drawPath(painter, model, surface_rect.height());
+  }
 }
-#endif
 
-#ifndef SUNNYPILOT
-void ModelRendererBP::update_model(const cereal::ModelDataV2::Reader &model, const cereal::RadarState::LeadData::Reader &lead) {
-  // Call base implementation first
+void ModelRendererBP::update_model(const cereal::ModelDataV2::Reader &model,
+                                   const cereal::RadarState::LeadData::Reader &lead) {
   ModelRenderer::update_model(model, lead);
-
-  // Update BluePilot-specific state
   updateBluePilotState(model);
 }
 #endif
 
 void ModelRendererBP::updateBluePilotState(const cereal::ModelDataV2::Reader &model) {
-  // Update BluePilot-specific state
-  current_speed = 0.0f; // We'll get this from model data or UI state
-  high_speed_mode = current_speed > 50.0f;
+  // Update lane lines based on enhanced UI setting
+  bool enhanced_ui = Params().getBool("BluepilotShowEnhancedOnroadUI");
+  updateLaneLines(model, enhanced_ui);
 
   // Create blindspot polygons
   createBlindspotPolygons(model);
+
+  // Mark glow cache for update
+  glow_cache.needs_update = true;
 }
 
-void ModelRendererBP::createBlindspotPolygons(const cereal::ModelDataV2::Reader &model) {
+void ModelRendererBP::updateLaneLines(const cereal::ModelDataV2::Reader &model, bool enhanced) {
   const auto &model_position = model.getPosition();
-  const auto &lane_lines = model.getLaneLines();
-
-  // Check if transform is initialized
-  if (car_space_transform.isZero()) {
-    static int warn_count = 0;
-    if (warn_count++ < 5 && lane_lines.size() >= 4) {  // Only warn if we have lane lines
-      std::cerr << "WARNING: BluePilot skipping lane line mapping - transform zero: 1 lane_lines size: " << lane_lines.size() << std::endl;
-    }
-    left_blindspot_vertices.clear();
-    right_blindspot_vertices.clear();
-    return;
-  }
-
   float max_distance = std::clamp(*(model_position.getX().end() - 1), MIN_DRAW_DISTANCE, MAX_DRAW_DISTANCE);
+
+  const auto &lane_lines = model.getLaneLines();
+  const auto &line_probs = model.getLaneLineProbs();
   int max_idx = get_path_length_idx(lane_lines[0], max_distance);
 
-  // Create blindspot polygons like in original SunnyPilot model.cc
-  if (lane_lines.size() >= 4) {
-    const auto &left_lane = lane_lines[1];
-    const auto &right_lane = lane_lines[2];
+  // Use wider width (0.05) for enhanced UI, stock width (0.025) otherwise
+  float line_width_multiplier = enhanced ? 0.05f : 0.025f;
 
-    // Validate lane data before processing
-    if (left_lane.getX().size() == 0 || right_lane.getX().size() == 0) {
-      left_blindspot_vertices.clear();
-      right_blindspot_vertices.clear();
+  for (int i = 0; i < std::size(lane_line_vertices); i++) {
+    lane_line_probs[i] = line_probs[i];
+    if (enhanced) {
+      mapLineToPolygonEnhanced(lane_lines[i], line_width_multiplier * lane_line_probs[i], 0,
+                               &lane_line_vertices[i], max_idx);
     } else {
-      // Limit blindspot polygon complexity
-      int safe_max_idx = std::min(max_idx, 50); // Limit to 50 points max
-      const int MAX_BLINDSPOT_VERTICES = 40; // Vertex limit for performance
-
-      // Left blind spot - same as original model.cc
-      left_blindspot_vertices.clear();
-      int left_vertex_count = 0;
-
-      // Forward pass along left lane with offset
-      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
-        QPointF lane_pt, offset_pt;
-        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt) &&
-            mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
-          left_blindspot_vertices.append(offset_pt);
-          left_vertex_count++;
-        }
-      }
-
-      // Return pass along left lane without offset
-      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()) && left_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
-        QPointF lane_pt;
-        if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
-          left_blindspot_vertices.append(lane_pt);
-          left_vertex_count++;
-        }
-      }
-
-      // Right blind spot - same as original model.cc
-      right_blindspot_vertices.clear();
-      int right_vertex_count = 0;
-
-      // Forward pass along right lane without offset
-      for (int i = 0; i <= safe_max_idx && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i++) {
-        QPointF lane_pt;
-        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
-          right_blindspot_vertices.append(lane_pt);
-          right_vertex_count++;
-        }
-      }
-
-      // Return pass along right lane with offset
-      for (int i = safe_max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()) && right_vertex_count < MAX_BLINDSPOT_VERTICES; i--) {
-        QPointF offset_pt;
-        if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
-          right_blindspot_vertices.append(offset_pt);
-          right_vertex_count++;
-        }
-      }
+      mapLineToPolygon(lane_lines[i], line_width_multiplier * lane_line_probs[i], 0,
+                      &lane_line_vertices[i], max_idx);
     }
   }
 
-  // Mark gradients dirty after polygon updates
-  blindspot_state.gradients_dirty = true;
+  // Update road edges
+  const auto &road_edges = model.getRoadEdges();
+  const auto &edge_stds = model.getRoadEdgeStds();
+  for (int i = 0; i < std::size(road_edge_vertices); i++) {
+    road_edge_stds[i] = edge_stds[i];
+    if (enhanced) {
+      mapLineToPolygonEnhanced(road_edges[i], line_width_multiplier, 0,
+                               &road_edge_vertices[i], max_idx);
+    } else {
+      mapLineToPolygon(road_edges[i], line_width_multiplier, 0,
+                      &road_edge_vertices[i], max_idx);
+    }
+  }
 }
 
-
-void ModelRendererBP::drawBluePilotLaneLines(QPainter &painter) {
-  // Check if transform is initialized
-  if (car_space_transform.isZero()) {
-    static int warn_count = 0;
-    if (warn_count++ < 5) {  // Only warn first 5 times
-      std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
-    }
-    return;
-  }
-
-
+// ================ Enhanced Drawing Methods ================
+void ModelRendererBP::drawEnhancedLaneLines(QPainter &painter) {
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setPen(Qt::NoPen);
 
-  // Draw lane lines with BluePilot enhanced visibility
+  // Draw wide lane line polygons with enhanced visibility
   for (int i = 0; i < std::size(lane_line_vertices); ++i) {
-    if (lane_line_vertices[i].isEmpty()) continue;
+    if (lane_line_vertices[i].isEmpty() || lane_line_probs[i] < 0.4f) continue;
 
-    float probability = lane_line_probs[i];
-    float enhanced_alpha = std::clamp<float>(probability, 0.2, 0.9);
+    float base_alpha = std::clamp<float>(lane_line_probs[i] * 0.8f, 0.3f, 0.8f);
+    bool is_current_lane = (i == 1 || i == 2);
+    if (!is_current_lane) base_alpha *= 0.4f; // Dim outer lanes
 
-    QColor lane_color = QColor::fromRgbF(1.0, 1.0, 1.0, enhanced_alpha);
-    painter.setBrush(lane_color);
+    painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, base_alpha));
     painter.drawPolygon(lane_line_vertices[i]);
   }
 
-  // Draw road edges with simple rendering
+  // Add horizontal glow effects for enhanced visibility
+  drawLaneGlowEffects(painter);
+
+  // Draw road edges with enhanced red warning
   for (int i = 0; i < std::size(road_edge_vertices); ++i) {
     if (road_edge_vertices[i].isEmpty()) continue;
 
-    float edge_confidence = 1.0 - road_edge_stds[i];
-    float enhanced_alpha = std::clamp<float>(edge_confidence, 0.3, 1.0);
-
-    QColor edge_color = QColor::fromRgbF(1.0, 0.2, 0.2, enhanced_alpha);
-    painter.setBrush(edge_color);
+    float edge_alpha = std::clamp<float>(1.0 - road_edge_stds[i], 0.0, 1.0);
+    painter.setBrush(QColor::fromRgbF(1.0, 0.0, 0.0, edge_alpha * 0.6f));
     painter.drawPolygon(road_edge_vertices[i]);
   }
+
+  // Add road edge glow effects
+  drawRoadEdgeGlowEffects(painter);
 
   painter.restore();
 }
 
-void ModelRendererBP::drawBluePilotPath(QPainter &painter, const QRect &surface_rect) {
+void ModelRendererBP::drawLaneGlowEffects(QPainter &painter) {
+  QPainterPathStroker stroker;
+  stroker.setCapStyle(Qt::RoundCap);
+  stroker.setJoinStyle(Qt::RoundJoin);
+
+  // Cache glow paths if needed
+  if (glow_cache.needs_update) {
+    for (int i = 0; i < std::size(lane_line_vertices); ++i) {
+      if (!lane_line_vertices[i].isEmpty() && lane_line_probs[i] >= 0.4f) {
+        QPainterPath path;
+        path.addPolygon(lane_line_vertices[i]);
+        glow_cache.lane_glow_paths[i] = path;
+      } else {
+        glow_cache.lane_glow_paths[i] = QPainterPath();
+      }
+    }
+    glow_cache.needs_update = false;
+  }
+
+  // Draw cached glow layers
+  for (int i = 0; i < std::size(glow_cache.lane_glow_paths); ++i) {
+    if (glow_cache.lane_glow_paths[i].isEmpty()) continue;
+
+    float base_alpha = std::clamp<float>(lane_line_probs[i] * 0.8f, 0.3f, 0.8f);
+    bool is_current_lane = (i == 1 || i == 2);
+    if (!is_current_lane) base_alpha *= 0.4f;
+
+    // Three-layer glow for smooth falloff
+    const float glow_widths[] = {24.0f, 16.0f, 8.0f};
+    const float glow_alphas[] = {0.08f, 0.15f, 0.3f};
+
+    for (int layer = 0; layer < 3; ++layer) {
+      stroker.setWidth(glow_widths[layer]);
+      QPainterPath glow = stroker.createStroke(glow_cache.lane_glow_paths[i]);
+      painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, base_alpha * glow_alphas[layer]));
+      painter.drawPath(glow);
+    }
+  }
+}
+
+void ModelRendererBP::drawRoadEdgeGlowEffects(QPainter &painter) {
+  QPainterPathStroker stroker;
+  stroker.setCapStyle(Qt::RoundCap);
+  stroker.setJoinStyle(Qt::RoundJoin);
+
+  for (int i = 0; i < std::size(road_edge_vertices); ++i) {
+    if (road_edge_vertices[i].isEmpty()) continue;
+
+    float edge_alpha = std::clamp<float>(1.0 - road_edge_stds[i], 0.0, 1.0);
+    if (edge_alpha < 0.3f) continue;
+
+    QPainterPath edge_path;
+    edge_path.addPolygon(road_edge_vertices[i]);
+
+    // Red warning glow with three layers
+    const float glow_widths[] = {36.0f, 24.0f, 12.0f};
+    const float glow_alphas[] = {0.05f, 0.1f, 0.2f};
+
+    for (int layer = 0; layer < 3; ++layer) {
+      stroker.setWidth(glow_widths[layer]);
+      QPainterPath glow = stroker.createStroke(edge_path);
+      painter.setBrush(QColor::fromRgbF(1.0, 0.0, 0.0, edge_alpha * glow_alphas[layer]));
+      painter.drawPath(glow);
+    }
+  }
+}
+
+void ModelRendererBP::drawEnhancedPath(QPainter &painter, const cereal::ModelDataV2::Reader &model,
+                                       const QRect &surface_rect) {
   if (track_vertices.isEmpty()) return;
 
+  // Build gradient (stock or custom color)
+  QLinearGradient bg(0, surface_rect.height(), 0, 0);
+  QColor border_color;
+
+  QString pathColor = QString::fromStdString(Params().get("CustomModelPathColor"));
+  bool hasCustomPath = !pathColor.isEmpty() && pathColor != "Stock";
+
+  if (hasCustomPath) {
+    applyCustomPathGradient(bg, border_color, pathColor, surface_rect);
+  } else {
+    applyStockPathGradient(bg, border_color, model, surface_rect);
+  }
+
+  // Draw enhanced path with glow and border
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  // Multi-layer glow effect - wider spread with subtle transparency
+  const float glow_widths[] = {40.0f, 28.0f, 18.0f, 10.0f, 4.0f};
+  const float glow_alphas[] = {0.03f, 0.06f, 0.10f, 0.18f, 0.30f};
+
+  for (int i = 0; i < 5; ++i) {
+    border_color.setAlphaF(glow_alphas[i]);
+    painter.setPen(QPen(border_color, glow_widths[i], Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolygon(track_vertices);
+  }
+
+  // Draw filled path
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(bg);
+  painter.drawPolygon(track_vertices);
+
+  painter.restore();
+}
+
+void ModelRendererBP::applyCustomPathGradient(QLinearGradient &bg, QColor &border_color,
+                                              const QString &pathColor, const QRect &surface_rect) {
   auto *s = uiState();
   auto &sm = *(s->sm);
 
-  // Use the base ModelRenderer gradient logic but apply to our smoothed track_vertices
-  QLinearGradient bg(0, surface_rect.height(), 0, 0);
+  if (pathColor == "Rainbow") {
+    float v_ego = sm["carState"].getCarState().getVEgo();
+    float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
 
+    for (int i = 0; i < 10; ++i) {
+      float position = i / 10.0f;
+      float eased_point = pow(position, 1.5f);
+      float hue = fmod(eased_point * 360.0 + (v_ego * 20.0) + (time_offset * 100.0), 360.0);
+      float alpha = 0.8f - (eased_point * 0.8f);
+      bg.setColorAt(eased_point, QColor::fromHslF(hue / 360.0, 1.0f, 0.55f, alpha));
+    }
+    float hue = fmod((v_ego * 20.0) + (time_offset * 100.0), 360.0);
+    border_color = QColor::fromHslF(hue / 360.0, 1.0f, 0.6f, 1.0f);
+  } else {
+    // Define color presets
+    struct ColorPreset {
+      QColor stops[3];
+      QColor border;
+    };
+
+    std::map<QString, ColorPreset> presets = {
+      {"Blue", {{QColor(0, 102, 204, 102), QColor(51, 153, 255, 89), QColor(51, 153, 255, 0)},
+                QColor(51, 153, 255, 255)}},
+      {"Green", {{QColor(0, 204, 102, 102), QColor(51, 255, 153, 89), QColor(51, 255, 153, 0)},
+                 QColor(51, 255, 153, 255)}},
+      {"Purple", {{QColor(153, 51, 204, 102), QColor(178, 102, 255, 89), QColor(178, 102, 255, 0)},
+                  QColor(178, 102, 255, 255)}},
+      {"Orange", {{QColor(255, 128, 0, 102), QColor(255, 153, 51, 89), QColor(255, 153, 51, 0)},
+                  QColor(255, 153, 51, 255)}},
+      {"Red", {{QColor(204, 0, 0, 102), QColor(255, 51, 51, 89), QColor(255, 51, 51, 0)},
+               QColor(255, 51, 51, 255)}},
+      {"Cyan", {{QColor(0, 204, 204, 102), QColor(51, 255, 255, 89), QColor(51, 255, 255, 0)},
+                QColor(51, 255, 255, 255)}},
+      {"Yellow", {{QColor(204, 204, 0, 102), QColor(255, 255, 51, 89), QColor(255, 255, 51, 0)},
+                  QColor(255, 255, 51, 255)}}
+    };
+
+    if (presets.find(pathColor) != presets.end()) {
+      const auto &preset = presets[pathColor];
+      bg.setColorAt(0.0, preset.stops[0]);
+      bg.setColorAt(0.5, preset.stops[1]);
+      bg.setColorAt(1.0, preset.stops[2]);
+      border_color = preset.border;
+    }
+  }
+}
+
+void ModelRendererBP::applyStockPathGradient(QLinearGradient &bg, QColor &border_color,
+                                             const cereal::ModelDataV2::Reader &model,
+                                             const QRect &surface_rect) {
   if (experimental_mode) {
-    // Use experimental mode coloring from ModelRenderer
-    const auto model = sm["modelV2"].getModelV2();
     const auto &acceleration = model.getAcceleration().getX();
     const int max_len = std::min<int>(track_vertices.length() / 2, acceleration.size());
 
@@ -403,179 +410,154 @@ void ModelRendererBP::drawBluePilotPath(QPainter &painter, const QRect &surface_
 
       i += (i + 2) < max_len ? 1 : 0;
     }
+    border_color = QColor::fromHslF(90.0 / 360., 0.94, 0.51, 1.0);
   } else {
-    // Use standard gradient coloring (from ModelRenderer::updatePathGradient)
-    static const QColor throttle_colors[] = {
-        QColor::fromHslF(148. / 360., 0.94, 0.51, 0.4),
-        QColor::fromHslF(112. / 360., 1.0, 0.68, 0.35),
-        QColor::fromHslF(112. / 360., 1.0, 0.68, 0.0)};
-
-    static const QColor no_throttle_colors[] = {
-        QColor::fromHslF(148. / 360., 0.0, 0.95, 0.4),
-        QColor::fromHslF(112. / 360., 0.0, 0.95, 0.35),
-        QColor::fromHslF(112. / 360., 0.0, 0.95, 0.0),
-    };
-
-    const QColor *colors = longitudinal_control ? throttle_colors : no_throttle_colors;
-    bg.setColorAt(0.0, colors[0]);
-    bg.setColorAt(0.5, colors[1]);
-    bg.setColorAt(1.0, colors[2]);
+    updatePathGradient(bg);
+    border_color = getCurrentPathBorderColor();
   }
-
-  painter.setBrush(bg);
-  painter.drawPolygon(track_vertices);
 }
 
-void ModelRendererBP::drawCustomPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, const QRect &surface_rect) {
-  auto *s = uiState();
-  auto &sm = *(s->sm);
+// ================ Blindspot Methods ================
+void ModelRendererBP::createBlindspotPolygons(const cereal::ModelDataV2::Reader &model) {
+  const auto &model_position = model.getPosition();
+  const auto &lane_lines = model.getLaneLines();
 
-  // Check for custom path color FIRST - before any other drawing
-  QString pathColor = QString::fromStdString(Params().get("CustomModelPathColor"));
-  bool hasCustomPath = !pathColor.isEmpty() && pathColor != "Stock" && pathColor != "";
-
-  if (hasCustomPath) {
-    // Draw custom path and return early to prevent standard path drawing
-    QLinearGradient bg(0, surface_rect.height(), 0, 0);
-
-    if (pathColor == "Rainbow") {
-      float v_ego = sm["carState"].getCarState().getVEgo();
-      float time_offset = std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.0f;
-
-      for (int i = 0; i < 10; ++i) {
-        float position = i / 10.0f;
-        float eased_point = pow(position, 1.5f);
-        float hue = fmod(eased_point * 360.0 + (v_ego * 20.0) + (time_offset * 100.0), 360.0);
-        float alpha = 0.8f - (eased_point * 0.8f);
-
-        bg.setColorAt(eased_point, QColor::fromHslF(hue / 360.0, 1.0f, 0.55f, alpha));
-      }
-    } else if (pathColor == "Blue") {
-      bg.setColorAt(0.0, QColor(0, 102, 204, 102));
-      bg.setColorAt(0.5, QColor(51, 153, 255, 89));
-      bg.setColorAt(1.0, QColor(51, 153, 255, 0));
-    } else if (pathColor == "Green") {
-      bg.setColorAt(0.0, QColor(0, 204, 102, 102));
-      bg.setColorAt(0.5, QColor(51, 255, 153, 89));
-      bg.setColorAt(1.0, QColor(51, 255, 153, 0));
-    } else if (pathColor == "Purple") {
-      bg.setColorAt(0.0, QColor(153, 51, 204, 102));
-      bg.setColorAt(0.5, QColor(178, 102, 255, 89));
-      bg.setColorAt(1.0, QColor(178, 102, 255, 0));
-    } else if (pathColor == "Orange") {
-      bg.setColorAt(0.0, QColor(255, 128, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 153, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 153, 51, 0));
-    } else if (pathColor == "Red") {
-      bg.setColorAt(0.0, QColor(204, 0, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 51, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 51, 51, 0));
-    } else if (pathColor == "Cyan") {
-      bg.setColorAt(0.0, QColor(0, 204, 204, 102));
-      bg.setColorAt(0.5, QColor(51, 255, 255, 89));
-      bg.setColorAt(1.0, QColor(51, 255, 255, 0));
-    } else if (pathColor == "Yellow") {
-      bg.setColorAt(0.0, QColor(204, 204, 0, 102));
-      bg.setColorAt(0.5, QColor(255, 255, 51, 89));
-      bg.setColorAt(1.0, QColor(255, 255, 51, 0));
-    }
-
-    painter.setBrush(bg);
-    painter.setPen(Qt::NoPen);
-    painter.drawPolygon(track_vertices);
-
-    // Draw blindspot overlays on top of custom path
-    drawBlindspotOverlays(painter);
-
-    // Draw lead status after path rendering
-    drawLeadStatus(painter, surface_rect.height(), surface_rect.width());
+  if (car_space_transform.isZero() || lane_lines.size() < 4) {
+    left_blindspot_vertices.clear();
+    right_blindspot_vertices.clear();
+    return;
   }
+
+  float max_distance = std::clamp(*(model_position.getX().end() - 1), MIN_DRAW_DISTANCE, MAX_DRAW_DISTANCE);
+  int max_idx = std::min(get_path_length_idx(lane_lines[0], max_distance), 50);
+  const int MAX_VERTICES = 40;
+
+  const auto &left_lane = lane_lines[1];
+  const auto &right_lane = lane_lines[2];
+
+  if (left_lane.getX().size() == 0 || right_lane.getX().size() == 0) {
+    left_blindspot_vertices.clear();
+    right_blindspot_vertices.clear();
+    return;
+  }
+
+  // Build left blindspot polygon
+  left_blindspot_vertices.clear();
+  int vertex_count = 0;
+
+  for (int i = 0; i <= max_idx && i < static_cast<int>(left_lane.getX().size()) && vertex_count < MAX_VERTICES; i++) {
+    QPointF offset_pt;
+    if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i] - BLINDSPOT_WIDTH, left_lane.getZ()[i], &offset_pt)) {
+      left_blindspot_vertices.append(offset_pt);
+      vertex_count++;
+    }
+  }
+
+  for (int i = max_idx; i >= 0 && i < static_cast<int>(left_lane.getX().size()) && vertex_count < MAX_VERTICES; i--) {
+    QPointF lane_pt;
+    if (mapToScreen(left_lane.getX()[i], left_lane.getY()[i], left_lane.getZ()[i], &lane_pt)) {
+      left_blindspot_vertices.append(lane_pt);
+      vertex_count++;
+    }
+  }
+
+  // Build right blindspot polygon
+  right_blindspot_vertices.clear();
+  vertex_count = 0;
+
+  for (int i = 0; i <= max_idx && i < static_cast<int>(right_lane.getX().size()) && vertex_count < MAX_VERTICES; i++) {
+    QPointF lane_pt;
+    if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i], right_lane.getZ()[i], &lane_pt)) {
+      right_blindspot_vertices.append(lane_pt);
+      vertex_count++;
+    }
+  }
+
+  for (int i = max_idx; i >= 0 && i < static_cast<int>(right_lane.getX().size()) && vertex_count < MAX_VERTICES; i--) {
+    QPointF offset_pt;
+    if (mapToScreen(right_lane.getX()[i], right_lane.getY()[i] + BLINDSPOT_WIDTH, right_lane.getZ()[i], &offset_pt)) {
+      right_blindspot_vertices.append(offset_pt);
+      vertex_count++;
+    }
+  }
+
+  blindspot_state.gradients_dirty = true;
 }
 
 void ModelRendererBP::drawBlindspotOverlays(QPainter &painter) {
   auto *s = uiState();
   auto &sm = *(s->sm);
 
-  // Update blindspot state and animation
+  if (!Params().getBool("BlindSpot")) return;
+
   const auto car_state = sm["carState"].getCarState();
   blindspot_state.left_blindspot = car_state.getLeftBlindspot();
   blindspot_state.right_blindspot = car_state.getRightBlindspot();
 
-  // Update blink animation - using UI_FREQ which is 20
-  blindspot_state.blink_counter = (blindspot_state.blink_counter + 1) % (20 * 2);
+  // Update animation
+  blindspot_state.blink_counter = (blindspot_state.blink_counter + 1) % 40;
   float pulse = 0.1 * sin(blindspot_state.blink_counter * M_PI / 20) + 0.25;
   blindspot_state.opacity = pulse;
 
-  // Enhanced BluePilot blindspot drawing - overrides SunnyPilot version
-  bool blindspot = Params().getBool("BlindSpot");
-  if (blindspot) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setRenderHint(QPainter::Antialiasing, true);
 
-    // Left blindspot with animated red gradient
-    if (blindspot_state.left_blindspot && !left_blindspot_vertices.isEmpty()) {
-      QRectF leftBounds = left_blindspot_vertices.boundingRect();
-      if (leftBounds != blindspot_state.last_left_bounds || blindspot_state.gradients_dirty) {
-        blindspot_state.cached_gradient_left = QLinearGradient(leftBounds.center().x(), leftBounds.top(),
-                                                               leftBounds.center().x(), leftBounds.bottom());
-        // Enhanced gradient with multiple color stops and animation
-        blindspot_state.cached_gradient_left.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
-        blindspot_state.cached_gradient_left.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
-        blindspot_state.cached_gradient_left.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
-        blindspot_state.cached_gradient_left.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
-        blindspot_state.cached_gradient_left.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
-        blindspot_state.last_left_bounds = leftBounds;
-      }
-      painter.setBrush(blindspot_state.cached_gradient_left);
-      painter.setPen(Qt::NoPen);
-      painter.drawPolygon(left_blindspot_vertices);
+  // Draw left blindspot
+  if (blindspot_state.left_blindspot && !left_blindspot_vertices.isEmpty()) {
+    QRectF bounds = left_blindspot_vertices.boundingRect();
+    if (bounds != blindspot_state.last_left_bounds || blindspot_state.gradients_dirty) {
+      blindspot_state.cached_gradient_left = QLinearGradient(bounds.center().x(), bounds.top(),
+                                                             bounds.center().x(), bounds.bottom());
+      blindspot_state.cached_gradient_left.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+      blindspot_state.cached_gradient_left.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
+      blindspot_state.cached_gradient_left.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
+      blindspot_state.cached_gradient_left.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
+      blindspot_state.cached_gradient_left.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
+      blindspot_state.last_left_bounds = bounds;
     }
-
-    // Right blindspot with animated red gradient
-    if (blindspot_state.right_blindspot && !right_blindspot_vertices.isEmpty()) {
-      QRectF rightBounds = right_blindspot_vertices.boundingRect();
-      if (rightBounds != blindspot_state.last_right_bounds || blindspot_state.gradients_dirty) {
-        blindspot_state.cached_gradient_right = QLinearGradient(rightBounds.center().x(), rightBounds.top(),
-                                                                rightBounds.center().x(), rightBounds.bottom());
-        // Enhanced gradient with multiple color stops and animation
-        blindspot_state.cached_gradient_right.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
-        blindspot_state.cached_gradient_right.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
-        blindspot_state.cached_gradient_right.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
-        blindspot_state.cached_gradient_right.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
-        blindspot_state.cached_gradient_right.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
-        blindspot_state.last_right_bounds = rightBounds;
-      }
-      painter.setBrush(blindspot_state.cached_gradient_right);
-      painter.setPen(Qt::NoPen);
-      painter.drawPolygon(right_blindspot_vertices);
-    }
-    blindspot_state.gradients_dirty = false;
+    painter.setBrush(blindspot_state.cached_gradient_left);
+    painter.setPen(Qt::NoPen);
+    painter.drawPolygon(left_blindspot_vertices);
   }
+
+  // Draw right blindspot
+  if (blindspot_state.right_blindspot && !right_blindspot_vertices.isEmpty()) {
+    QRectF bounds = right_blindspot_vertices.boundingRect();
+    if (bounds != blindspot_state.last_right_bounds || blindspot_state.gradients_dirty) {
+      blindspot_state.cached_gradient_right = QLinearGradient(bounds.center().x(), bounds.top(),
+                                                              bounds.center().x(), bounds.bottom());
+      blindspot_state.cached_gradient_right.setColorAt(0.0, QColor::fromRgbF(1.0, 0.0, 0.0, 0.0));
+      blindspot_state.cached_gradient_right.setColorAt(0.2, QColor::fromRgbF(1.0, 0.0, 0.0, 0.2));
+      blindspot_state.cached_gradient_right.setColorAt(0.4, QColor::fromRgbF(1.0, 0.0, 0.0, blindspot_state.opacity));
+      blindspot_state.cached_gradient_right.setColorAt(0.7, QColor::fromRgbF(1.0, 0.0, 0.0, 0.9));
+      blindspot_state.cached_gradient_right.setColorAt(1.0, QColor::fromRgbF(1.0, 0.0, 0.0, 1.0));
+      blindspot_state.last_right_bounds = bounds;
+    }
+    painter.setBrush(blindspot_state.cached_gradient_right);
+    painter.setPen(Qt::NoPen);
+    painter.drawPolygon(right_blindspot_vertices);
+  }
+
+  blindspot_state.gradients_dirty = false;
 }
 
+// ================ Lead Display Methods ================
 void ModelRendererBP::drawLeadStatus(QPainter &painter, int height, int width) {
   auto *s = uiState();
   auto &sm = *(s->sm);
 
-  // Original BluePilot enhancement: Early exit if BluePilot radar overlay is active
-  if (s->scene.show_bp_radar_overlay) return;
-
-  if (!sm.alive("radarState")) return;
+  if (s->scene.show_bp_radar_overlay || !sm.alive("radarState")) return;
 
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
   const auto &lead_two = radar_state.getLeadTwo();
 
-  // Check if we have any active leads
   bool has_lead_one = lead_one.getStatus();
   bool has_lead_two = lead_two.getStatus();
 
   if (!has_lead_one && !has_lead_two) {
-    // Fade out status display
     lead_status_alpha = std::max(0.0f, lead_status_alpha - 0.05f);
     if (lead_status_alpha <= 0.0f) return;
   } else {
-    // Fade in status display
     lead_status_alpha = std::min(1.0f, lead_status_alpha + 0.1f);
   }
 
@@ -600,215 +582,87 @@ void ModelRendererBP::drawLeadStatusAtPosition(QPainter &painter,
   float v_ego = sm["carState"].getCarState().getVEgo();
 
   int chevron_data = std::atoi(Params().get("ChevronInfo").c_str());
-
-  // Calculate chevron size (same logic as drawLead)
   float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 2.35;
 
   QFont content_font = painter.font();
-  content_font.setPixelSize(42);  // Updated font size from new SP version
+  content_font.setPixelSize(42);
   content_font.setBold(true);
   painter.setFont(content_font);
 
-  QFontMetrics fm(content_font);
   bool is_metric = s->scene.is_metric;
-
   QStringList text_lines;
 
-  const int chevron_types = 3;
-  const int chevron_all = chevron_types + 1;  // All metrics (value 4)
-  QStringList chevron_text[chevron_types];
-  int position;
-  float val;
+  const int chevron_all = 4;
+  QStringList chevron_text[3];
 
-  // Distance display (chevron_data == 1 or all)
+  // Distance
   if (chevron_data == 1 || chevron_data == chevron_all) {
-    position = 0;
-    val = std::max(0.0f, d_rel);
-    QString distance_unit = is_metric ? "m" : "ft";
-    if (!is_metric) {
-      val *= 3.28084f; // Convert meters to feet
-    }
-    chevron_text[position].append(QString::number(val, 'f', 0) + " " + distance_unit);
+    float val = std::max(0.0f, d_rel);
+    if (!is_metric) val *= 3.28084f;
+    chevron_text[0].append(QString::number(val, 'f', 0) + " " + (is_metric ? "m" : "ft"));
   }
 
-  // Absolute velocity display (chevron_data == 2 or all)
+  // Velocity
   if (chevron_data == 2 || chevron_data == chevron_all) {
-    position = (chevron_data == 2) ? 0 : 1;
-    val = std::max(0.0f, (v_rel + v_ego) * (is_metric ? static_cast<float>(MS_TO_KPH) : static_cast<float>(MS_TO_MPH)));
-    chevron_text[position].append(QString::number(val, 'f', 0) + " " + (is_metric ? "km/h" : "mph"));
+    int pos = (chevron_data == 2) ? 0 : 1;
+    float val = std::max(0.0f, (v_rel + v_ego) * (is_metric ? static_cast<float>(MS_TO_KPH) : static_cast<float>(MS_TO_MPH)));
+    chevron_text[pos].append(QString::number(val, 'f', 0) + " " + (is_metric ? "km/h" : "mph"));
   }
 
-  // Time-to-contact display (chevron_data == 3 or all)
+  // Time to contact
   if (chevron_data == 3 || chevron_data == chevron_all) {
-    position = (chevron_data == 3) ? 0 : 2;
-    val = (d_rel > 0 && v_ego > 0) ? std::max(0.0f, d_rel / v_ego) : 0.0f;
-    QString ttc_str = (val > 0 && val < 200) ? QString::number(val, 'f', 1) + "s" : "---";
-    chevron_text[position].append(ttc_str);
+    int pos = (chevron_data == 3) ? 0 : 2;
+    float val = (d_rel > 0 && v_ego > 0) ? std::max(0.0f, d_rel / v_ego) : 0.0f;
+    QString ttc = (val > 0 && val < 200) ? QString::number(val, 'f', 1) + "s" : "---";
+    chevron_text[pos].append(ttc);
   }
 
-  // Collect all non-empty text lines
-  for (int i = 0; i < chevron_types; ++i) {
-    if (!chevron_text[i].isEmpty()) {
-      text_lines.append(chevron_text[i]);
-    }
+  for (int i = 0; i < 3; ++i) {
+    if (!chevron_text[i].isEmpty()) text_lines.append(chevron_text[i]);
   }
 
-  // If no text to display, return early
-  if (text_lines.isEmpty()) {
-    return;
-  }
+  if (text_lines.isEmpty()) return;
 
-  // Text box dimensions
-  float str_w = 150;  // Width of text area
-  float str_h = 45;   // Height per line
-
-  // Position text below chevron, centered horizontally
-  float text_x = chevron_pos.x() - str_w / 2;
+  float str_w = 150;
+  float str_h = 45;
+  float text_x = std::clamp(static_cast<float>(chevron_pos.x()) - str_w / 2, 10.0f, (float)width - str_w - 10);
   float text_y = chevron_pos.y() + sz + 15;
 
-  // Clamp to screen bounds
-  text_x = std::clamp(text_x, 10.0f, (float)width - str_w - 10);
-
-  // Shadow offset
-  QPoint shadow_offset(2, 2);
-
-  // Draw each line of text with shadow
   for (int i = 0; i < text_lines.size(); ++i) {
-    if (!text_lines[i].isEmpty()) {
-      QRect textRect(text_x, text_y + (i * str_h), str_w, str_h);
+    QRect textRect(text_x, text_y + (i * str_h), str_w, str_h);
 
-      // Draw shadow
-      painter.setPen(QColor(0x0, 0x0, 0x0, (int)(200 * lead_status_alpha)));
-      painter.drawText(textRect.translated(shadow_offset.x(), shadow_offset.y()),
-                     Qt::AlignBottom | Qt::AlignHCenter, text_lines[i]);
+    // Shadow
+    painter.setPen(QColor(0, 0, 0, (int)(200 * lead_status_alpha)));
+    painter.drawText(textRect.translated(2, 2), Qt::AlignBottom | Qt::AlignHCenter, text_lines[i]);
 
-      // Determine text color based on content and danger level
-      QColor text_color;
+    // Determine color based on content
+    QColor text_color = QColor(0xff, 0xff, 0xff, (int)(255 * lead_status_alpha));
 
-      // Check if this is a distance line (contains 'm' or 'ft')
-      if (text_lines[i].contains("m") || text_lines[i].contains("ft")) {
-        if (d_rel < 20.0f) {
-          text_color = QColor(255, 80, 80, (int)(255 * lead_status_alpha)); // Red - danger
-        } else if (d_rel < 40.0f) {
-          text_color = QColor(255, 200, 80, (int)(255 * lead_status_alpha)); // Yellow - caution
-        } else {
-          text_color = QColor(80, 255, 120, (int)(255 * lead_status_alpha)); // Green - safe
-        }
+    if (text_lines[i].contains("m") || text_lines[i].contains("ft")) {
+      if (d_rel < 20.0f) {
+        text_color = QColor(255, 80, 80, (int)(255 * lead_status_alpha));
+      } else if (d_rel < 40.0f) {
+        text_color = QColor(255, 200, 80, (int)(255 * lead_status_alpha));
+      } else {
+        text_color = QColor(80, 255, 120, (int)(255 * lead_status_alpha));
       }
-      // Enhanced color coding for time-to-contact
-      else if (text_lines[i].contains("s") && !text_lines[i].contains("---")) {
-        float ttc_val = text_lines[i].left(text_lines[i].length() - 1).toFloat();
-        if (ttc_val < 3.0f) {
-          text_color = QColor(255, 80, 80, (int)(255 * lead_status_alpha)); // Red - urgent
-        } else if (ttc_val < 6.0f) {
-          text_color = QColor(255, 200, 80, (int)(255 * lead_status_alpha)); // Yellow - caution
-        } else {
-          text_color = QColor(0xff, 0xff, 0xff, (int)(255 * lead_status_alpha)); // White - safe
-        }
+    } else if (text_lines[i].contains("s") && !text_lines[i].contains("---")) {
+      float ttc_val = text_lines[i].left(text_lines[i].length() - 1).toFloat();
+      if (ttc_val < 3.0f) {
+        text_color = QColor(255, 80, 80, (int)(255 * lead_status_alpha));
+      } else if (ttc_val < 6.0f) {
+        text_color = QColor(255, 200, 80, (int)(255 * lead_status_alpha));
       }
-      else {
-        text_color = QColor(0xff, 0xff, 0xff, (int)(255 * lead_status_alpha)); // White for other lines
-      }
-
-      // Draw main text
-      painter.setPen(text_color);
-      painter.drawText(textRect, Qt::AlignBottom | Qt::AlignHCenter, text_lines[i]);
     }
+
+    painter.setPen(text_color);
+    painter.drawText(textRect, Qt::AlignBottom | Qt::AlignHCenter, text_lines[i]);
   }
 
-  // Reset pen
   painter.setPen(Qt::NoPen);
 }
 
-void ModelRendererBP::applySmoothPath() {
-  // BluePilot path smoothing to reduce jitter (based on lead position smoothing pattern)
-  // DISABLED: Return early to disable smoothing
-  return;
-
-  if (track_vertices.isEmpty()) {
-    // No current path data, reset smoothing state
-    path_smoothing_initialized = false;
-    previous_track_vertices.clear();
-    smoothed_track_vertices.clear();
-    return;
-  }
-
-  if (!path_smoothing_initialized) {
-    // First frame, initialize with current path
-    previous_track_vertices = track_vertices;
-    smoothed_track_vertices = track_vertices;
-    path_smoothing_initialized = true;
-    return;
-  }
-
-  // Check for dramatic path changes - reset smoothing if path changes significantly
-  if (track_vertices.size() != previous_track_vertices.size() ||
-      track_vertices.size() < 2 || previous_track_vertices.size() < 2) {
-    // Vertex count changed or insufficient data, reset smoothing
-    previous_track_vertices = track_vertices;
-    smoothed_track_vertices = track_vertices;
-    return;
-  }
-
-  // Check if path has changed dramatically by comparing key points
-  float max_deviation = 0.0f;
-  int check_points = std::min(5, track_vertices.size() / 4); // Check 5 points or 25% of path
-  for (int i = 0; i < check_points; ++i) {
-    int idx = i * track_vertices.size() / check_points;
-    if (idx < track_vertices.size() && idx < previous_track_vertices.size()) {
-      QPointF current = track_vertices[idx];
-      QPointF previous = previous_track_vertices[idx];
-      float deviation = std::sqrt(std::pow(current.x() - previous.x(), 2) +
-                                  std::pow(current.y() - previous.y(), 2));
-      max_deviation = std::max(max_deviation, deviation);
-    }
-  }
-
-  // If path changed dramatically (>50 pixels), reset smoothing to prevent artifacts
-  if (max_deviation > 50.0f) {
-    previous_track_vertices = track_vertices;
-    smoothed_track_vertices = track_vertices;
-    return;
-  }
-
-  // Store current unsmoothed path as previous for next frame (CRITICAL: before smoothing)
-  QPolygonF current_unsmoothed = track_vertices;
-
-  // Apply exponential smoothing similar to BluePilot lead position smoothing
-  smoothed_track_vertices.clear();
-
-  // Handle case where vertex count has changed between frames
-  int min_count = std::min(track_vertices.size(), previous_track_vertices.size());
-
-  // Smooth the common vertices using exponential smoothing
-  for (int i = 0; i < min_count; ++i) {
-    QPointF current_pt = track_vertices[i];
-    QPointF previous_pt = previous_track_vertices[i];
-
-    // Exponential smoothing: smoothed = alpha * current + (1 - alpha) * previous
-    QPointF smoothed_pt;
-    smoothed_pt.setX(PATH_SMOOTHING_ALPHA * current_pt.x() + (1.0f - PATH_SMOOTHING_ALPHA) * previous_pt.x());
-    smoothed_pt.setY(PATH_SMOOTHING_ALPHA * current_pt.y() + (1.0f - PATH_SMOOTHING_ALPHA) * previous_pt.y());
-
-    smoothed_track_vertices.append(smoothed_pt);
-  }
-
-  // Handle additional vertices if current path is longer
-  if (track_vertices.size() > min_count) {
-    for (int i = min_count; i < track_vertices.size(); ++i) {
-      smoothed_track_vertices.append(track_vertices[i]);
-    }
-  }
-
-  // Update track_vertices with smoothed path
-  track_vertices = smoothed_track_vertices;
-
-  // Store original unsmoothed path as previous for next frame
-  previous_track_vertices = current_unsmoothed;
-}
-
-// Note: mapToScreen is now inherited from base ModelRenderer class
-
+// ================ Utility Methods ================
 int ModelRendererBP::get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height) {
   const auto &line_x = line.getX();
   int max_idx = 0;
@@ -818,17 +672,104 @@ int ModelRendererBP::get_path_length_idx(const cereal::XYZTData::Reader &line, f
   return max_idx;
 }
 
-// Lead tracking and stop detection (moved from bluepilot_renderer)
+void ModelRendererBP::mapLineToPolygonEnhanced(const cereal::XYZTData::Reader &line, float width, float z_off,
+                                               QPolygonF *pvd, int max_idx) {
+  const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
+  pvd->clear();
+
+  // Collect raw points first
+  QVector<QPointF> left_points, right_points;
+
+  for (int i = 0; i <= max_idx; i++) {
+    if (line_x[i] < 0) continue;
+
+    QPointF l, r;
+    bool l_ok = mapToScreen(line_x[i], line_y[i] - width, line_z[i] + z_off, &l);
+    bool r_ok = mapToScreen(line_x[i], line_y[i] + width, line_z[i] + z_off, &r);
+
+    if (l_ok && r_ok) {
+      left_points.append(l);
+      right_points.append(r);
+    }
+  }
+
+  // Apply smoothing for curves - add interpolated points where needed
+  for (int i = 0; i < left_points.size(); i++) {
+    if (i > 0) {
+      // Check angle change between segments
+      QPointF prev_left = left_points[i-1];
+      QPointF curr_left = left_points[i];
+      QPointF prev_right = right_points[i-1];
+      QPointF curr_right = right_points[i];
+
+      float dist = QLineF(prev_left, curr_left).length();
+
+      // Add interpolated points for smoother curves (if segment is long enough)
+      if (dist > 15.0f) {
+        int num_interp = std::min(3, static_cast<int>(dist / 10.0f));
+        for (int j = 1; j < num_interp; j++) {
+          float t = j / float(num_interp);
+          // Cubic interpolation for smoother curves
+          float t2 = t * t;
+          float t3 = t2 * t;
+          float blend = t3 * (t3 - 2.0f * t2 + t) + t2 * (3.0f - 2.0f * t);
+
+          QPointF interp_left(
+            prev_left.x() + (curr_left.x() - prev_left.x()) * blend,
+            prev_left.y() + (curr_left.y() - prev_left.y()) * blend
+          );
+          QPointF interp_right(
+            prev_right.x() + (curr_right.x() - prev_right.x()) * blend,
+            prev_right.y() + (curr_right.y() - prev_right.y()) * blend
+          );
+
+          if (pvd->isEmpty() || interp_left.y() <= pvd->back().y()) {
+            pvd->push_back(interp_left);
+            pvd->push_front(interp_right);
+          }
+        }
+      }
+    }
+
+    // Add the actual point
+    if (pvd->isEmpty() || left_points[i].y() <= pvd->back().y()) {
+      pvd->push_back(left_points[i]);
+      pvd->push_front(right_points[i]);
+    }
+  }
+}
+
+QColor ModelRendererBP::getCurrentPathBorderColor() {
+  static const QColor throttle_colors[] = {
+      QColor::fromHslF(148. / 360., 0.94, 0.51, 1.0),
+      QColor::fromHslF(112. / 360., 1.0, 0.68, 1.0),
+      QColor::fromHslF(112. / 360., 1.0, 0.68, 1.0)};
+
+  static const QColor no_throttle_colors[] = {
+      QColor::fromHslF(148. / 360., 0.0, 0.95, 1.0),
+      QColor::fromHslF(112. / 360., 0.0, 0.95, 1.0),
+      QColor::fromHslF(112. / 360., 0.0, 0.95, 1.0)};
+
+  auto *s = uiState();
+  auto &sm = *(s->sm);
+  bool allow_throttle = sm["longitudinalPlan"].getLongitudinalPlan().getAllowThrottle() || !longitudinal_control;
+
+  if (allow_throttle) {
+    return blend_factor < 1.0f ?
+           blendColors(no_throttle_colors[0], throttle_colors[0], blend_factor) :
+           throttle_colors[0];
+  } else {
+    return blend_factor < 1.0f ?
+           blendColors(throttle_colors[0], no_throttle_colors[0], blend_factor) :
+           no_throttle_colors[0];
+  }
+}
+
+// ================ Lead Tracking (from bluepilot_renderer) ================
 void ModelRendererBP::updateLeadTracking(const UIState &s) {
   const SubMaster &sm = *(s.sm);
 
-  // Validate required messages before accessing
   if (!sm.valid("radarState") || !sm.valid("modelV2")) {
-    static int error_counter = 0;
-    if (error_counter++ % 50 == 0) {
-      std::cerr << "WARNING: BluePilot radarState or modelV2 not valid in updateLeadTracking" << std::endl;
-    }
-    // Set all leads to inactive
     for (int i = 0; i < 2; ++i) {
       lead_state.virtual_active[i] = false;
       lead_state.stable[i] = false;
@@ -848,7 +789,6 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
       float raw_yRel = lead_data.getYRel();
       bool is_radar_assisted = lead_data.getRadar();
 
-      // Get path position at lead distance
       const auto &position = model.getPosition();
       const auto &line_x = position.getX();
       const auto &line_y = position.getY();
@@ -867,18 +807,14 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
 
       float path_y = line_y[idx];
       float path_z = line_z[idx];
-
-      // Use the same curvature calculation as model_old.cc
       float path_curvature = (idx > 1) ? fabs(line_y[idx] - line_y[idx - 1]) : 0.0f;
 
-      // Stricter stability requirements for visual-only detections
       int required_stability = is_radar_assisted ? 2 : 8;
       int max_stability = is_radar_assisted ? 10 : 15;
 
       bool should_track = true;
 
       if (!is_radar_assisted) {
-        // For visual-only detections, apply stricter criteria
         if (d_rel < 3.0f || d_rel > 80.0f) should_track = false;
         if (lead_state.prev_status[i] && fabs(raw_yRel - lead_state.smoothed_yRel[i]) > 0.5) {
           should_track = false;
@@ -886,7 +822,6 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
         if (fabs(raw_yRel - path_y) > 2.0f) should_track = false;
       }
 
-      // Update stability counter based on tracking decision
       if (should_track && lead_state.prev_status[i]) {
         lead_state.active_counter[i] = std::min(lead_state.active_counter[i] + 1, max_stability);
       } else if (should_track) {
@@ -903,45 +838,28 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
         if (!lead_state.prev_status[i]) {
           lead_state.smoothed_yRel[i] = raw_yRel;
         } else {
-          // Use exact approach from model_old.cc for better curve handling
-          // More path influence for curves
           float path_weight = std::min(0.6f + path_curvature * 5.0f, 0.9f);
-
-          // Adaptive alpha based on distance - smoother for close objects, less for distant ones
           float alpha = is_radar_assisted ?
-                        0.05f + 0.15f * (d_rel / 25.0f) : // Radar: 0.05 to 0.2
-                        0.025f + 0.125f * (d_rel / 25.0f); // Vision: 0.025 to 0.15
-
-          // Clamp alpha to reasonable range
+                        0.05f + 0.15f * (d_rel / 25.0f) :
+                        0.025f + 0.125f * (d_rel / 25.0f);
           alpha = std::clamp(alpha, 0.025f, 0.25f);
 
-          // Add distance-based jitter suppression
           float max_lateral_change = (d_rel < 8.0) ? 0.08f : 0.2f;
           float lateral_diff = raw_yRel - lead_state.smoothed_yRel[i];
           if (fabs(lateral_diff) > max_lateral_change) {
-            // Limit lateral movement rate for stability
             raw_yRel = lead_state.smoothed_yRel[i] + ((lateral_diff > 0) ? max_lateral_change : -max_lateral_change);
           }
 
-          // First smooth the raw radar reading
           float smoothed_raw = alpha * raw_yRel + (1.0f - alpha) * lead_state.smoothed_yRel[i];
-
-          // Then blend with the path position using dynamic path weight
           lead_state.smoothed_yRel[i] = path_weight * path_y + (1.0f - path_weight) * smoothed_raw;
         }
 
-        // Use exact same approach as model_old.cc - no Y sign flip, use path_offset_z
         float path_offset_z = 0.0f;
         if (sm.valid("liveCalibration")) {
           const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
           const auto &height_list = live_calib.getHeight();
           if (height_list.size() > 0) {
             path_offset_z = height_list[0];
-          }
-        } else {
-          static int warn_count = 0;
-          if (warn_count++ % 100 == 0) {  // Warn every 100 frames
-            std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
           }
         }
 
@@ -950,7 +868,6 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
           bool reasonable_position = true;
 
           if (is_radar_assisted) {
-            // Check if radar detection is reasonable
             QRectF screen_bounds = clip_region;
             float margin = 100.0f;
             QRectF extended_bounds = screen_bounds.adjusted(-margin, -margin, margin, margin);
@@ -981,7 +898,6 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
         lead_state.stable[i] = false;
       }
     } else {
-      // Improved decay logic to prevent rapid flickering
       if (lead_state.active_counter[i] > 0) {
         int decay_rate = lead_state.radar_assisted[i] ? 1 : 2;
         lead_state.active_counter[i] = std::max(lead_state.active_counter[i] - decay_rate, 0);
@@ -998,11 +914,9 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
       }
     }
 
-    // Store lead data for time-to-lead calculation
     lead_state.d_rel[i] = lead_data.getDRel();
     lead_state.v_lead[i] = lead_data.getVLead();
     lead_state.v_rel[i] = lead_data.getVRel();
-
     lead_state.prev_status[i] = current_status;
   }
 }
@@ -1010,11 +924,9 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
 void ModelRendererBP::updateStopDetection(const UIState &s) {
   const SubMaster &sm = *(s.sm);
 
-  // Get vehicle speed from carState
   float v_ego = 0.0f;
   if (sm.valid("carState")) {
-    const auto car_state = sm["carState"].getCarState();
-    v_ego = car_state.getVEgo();
+    v_ego = sm["carState"].getCarState().getVEgo();
   }
 
   bool vehicle_stopped = v_ego < 0.5f;
@@ -1029,12 +941,7 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
     return;
   }
 
-  // Validate required messages before accessing
   if (!sm.valid("modelV2") || !sm.valid("radarState") || !sm.valid("carState")) {
-    static int error_counter = 0;
-    if (error_counter++ % 50 == 0) {
-      std::cerr << "WARNING: ModelRendererBP required messages not valid in updateStopDetection" << std::endl;
-    }
     stop_state.active = false;
     stop_state.stability_counter = 0;
     stop_state.fade_alpha = std::max(0.0f, stop_state.fade_alpha - 0.1f);
@@ -1048,18 +955,12 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
   bool brake_pressed = car_state.getBrakePressed();
   float brake_value = car_state.getBrake();
 
-  // Get path offset for z calculations
   float path_offset_z = 0.0f;
   if (sm.valid("liveCalibration")) {
     const auto &live_calib = sm["liveCalibration"].getLiveCalibration();
     const auto &height_list = live_calib.getHeight();
     if (height_list.size() > 0) {
       path_offset_z = height_list[0];
-    }
-  } else {
-    static int warn_count = 0;
-    if (warn_count++ % 100 == 0) {  // Warn every 100 frames
-      std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
     }
   }
 
@@ -1070,10 +971,8 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
 
   size_t vel_size = velocity.size();
   size_t pos_x_size = position_x.size();
-  const size_t MAX_ARRAY_SIZE = 1000;
-  const size_t MIN_ARRAY_SIZE = 2;
 
-  bool data_valid = (vel_size >= MIN_ARRAY_SIZE && vel_size <= MAX_ARRAY_SIZE &&
+  bool data_valid = (vel_size >= 2 && vel_size <= 1000 &&
                      pos_x_size == vel_size && position_y.size() == vel_size &&
                      position_z.size() == vel_size);
 
@@ -1104,7 +1003,6 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
     stopping_distance = std::min(stopping_distance, 50.0f);
     stop_state.display_distance = std::max(0.1f, stopping_distance - 4.5f);
 
-    // Use radar data for more accurate distance when lead is present
     if (lead_one.getStatus() && lead_one.getDRel() < stopping_distance + 5.0f) {
       float radar_distance = lead_one.getDRel();
       if (radar_distance > 3.0f && radar_distance < 50.0f) {
@@ -1116,7 +1014,6 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
     }
 
     if (stopping_distance >= 5.0f && stopping_distance <= 50.0f) {
-      // Increase stability based on braking
       if (brake_pressed || brake_value > 0.1f) {
         stop_state.stability_counter = std::min(stop_state.stability_counter + 2, 20);
       } else {
@@ -1126,30 +1023,25 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
       if (stop_state.stability_counter >= 3) {
         stop_state.active = true;
 
-        if (stop_state.stopping_distance > 0) {
-          stop_state.stopping_distance = stop_state.stopping_distance * 0.8f + stopping_distance * 0.2f;
-        } else {
-          stop_state.stopping_distance = stopping_distance;
-        }
+        stop_state.stopping_distance = stop_state.stopping_distance > 0 ?
+                                       stop_state.stopping_distance * 0.8f + stopping_distance * 0.2f :
+                                       stopping_distance;
 
         float x = position_x[stop_idx];
         float y = position_y[stop_idx];
         float z = position_z[stop_idx];
 
-        // Use path_offset_z like in model_old.cc
         QPointF screen_point;
         if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
           stop_state.last_valid_position = screen_point;
         }
 
-        // Update smoothed size based on distance
         float target_size = 120.0f * (1.0 - std::min(0.7f, (stopping_distance - 5.0f) / 45.0f));
         stop_state.smoothed_size = stop_state.smoothed_size * 0.9f + target_size * 0.1f;
       }
     } else {
       stop_state.stability_counter = std::max(0, stop_state.stability_counter - 1);
 
-      // Keep sign visible longer if braking
       if ((brake_pressed || brake_value > 0.1f) && stop_state.active) {
         stop_state.stability_counter = std::max(stop_state.stability_counter, 5);
       }
@@ -1172,18 +1064,16 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
   }
 }
 
-// Drawing utilities (moved from bluepilot_renderer)
+// ================ Drawing Utilities (from bluepilot_renderer) ================
 void ModelRendererBP::drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  QColor circle_color, arrow_color;
-  if (blindspot) {
-    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
-  } else {
-    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
-  }
+  QColor circle_color = blindspot ?
+    (state ? QColor(204, 0, 1) : QColor(164, 0, 1)) :
+    (state ? QColor(30, 215, 96) : QColor(22, 156, 69));
+  QColor arrow_color = blindspot ?
+    (state ? QColor(255, 255, 255) : QColor(72, 1, 1)) :
+    (state ? QColor(255, 255, 255) : QColor(9, 56, 27));
 
   painter.setPen(Qt::NoPen);
   painter.setBrush(circle_color);
@@ -1212,14 +1102,12 @@ void ModelRendererBP::drawLeftTurnSignal(QPainter &painter, int x, int y, int si
 void ModelRendererBP::drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
   painter.setRenderHint(QPainter::Antialiasing, true);
 
-  QColor circle_color, arrow_color;
-  if (blindspot) {
-    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
-  } else {
-    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
-  }
+  QColor circle_color = blindspot ?
+    (state ? QColor(204, 0, 1) : QColor(164, 0, 1)) :
+    (state ? QColor(30, 215, 96) : QColor(22, 156, 69));
+  QColor arrow_color = blindspot ?
+    (state ? QColor(255, 255, 255) : QColor(72, 1, 1)) :
+    (state ? QColor(255, 255, 255) : QColor(9, 56, 27));
 
   painter.setPen(Qt::NoPen);
   painter.setBrush(circle_color);
@@ -1252,3 +1140,63 @@ void ModelRendererBP::drawColoredText(QPainter &painter, int x, int y, const QSt
   painter.drawText(real_rect.x(), real_rect.bottom(), text);
 }
 
+// Path smoothing using Catmull-Rom splines - no frame delay
+void ModelRendererBP::applySmoothPath() {
+  if (track_vertices.size() < 4) return;
+
+  // Single-frame smoothing using Catmull-Rom splines
+  QPolygonF smoothed;
+  int n = track_vertices.size() / 2; // Half are left side, half are right
+
+  // Process each side separately
+  for (int side = 0; side < 2; side++) {
+    QVector<QPointF> points;
+
+    // Extract points for this side
+    if (side == 0) {
+      for (int i = 0; i < n; i++) {
+        points.append(track_vertices[i]);
+      }
+    } else {
+      for (int i = n; i < track_vertices.size(); i++) {
+        points.append(track_vertices[i]);
+      }
+    }
+
+    // Apply Catmull-Rom smoothing with tension 0.5
+    QVector<QPointF> smooth_side;
+    for (int i = 0; i < points.size(); i++) {
+      if (i == 0 || i == points.size() - 1) {
+        smooth_side.append(points[i]);
+        continue;
+      }
+
+      // Get neighboring points for smoothing
+      QPointF p0 = (i > 0) ? points[i-1] : points[i];
+      QPointF p1 = points[i];
+      QPointF p2 = (i < points.size()-1) ? points[i+1] : points[i];
+
+      // Simple weighted average for smoothing
+      float w = 0.7f; // Original point weight
+      QPointF smoothed_pt(
+        w * p1.x() + (1-w) * 0.5f * (p0.x() + p2.x()),
+        w * p1.y() + (1-w) * 0.5f * (p0.y() + p2.y())
+      );
+
+      smooth_side.append(smoothed_pt);
+    }
+
+    // Add back to result
+    if (side == 0) {
+      for (const auto& pt : smooth_side) {
+        smoothed.append(pt);
+      }
+    } else {
+      for (const auto& pt : smooth_side) {
+        smoothed.append(pt);
+      }
+    }
+  }
+
+  track_vertices = smoothed;
+}

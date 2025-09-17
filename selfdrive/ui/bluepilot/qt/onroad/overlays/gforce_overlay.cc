@@ -234,7 +234,7 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
     } else if (gauge_scale == 2) {
       gauge_width = rect.width() * 0.345;
     } else if (gauge_scale == 3) {
-      gauge_width = rect.width() * 0.39;
+      gauge_width = rect.width() * 0.35;
     }
 
     int bottom_margin = 30;

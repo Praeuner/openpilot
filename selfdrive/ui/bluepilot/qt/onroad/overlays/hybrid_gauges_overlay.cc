@@ -36,7 +36,7 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
     gauge_width = rect.width() * 0.345;
     gauge_height = 115;
   } else if (gauge_scale == 3) {
-    gauge_width = rect.width() * 0.39;
+    gauge_width = rect.width() * 0.345;
     gauge_height = 130;
   } else {
     gauge_width = rect.width() * 0.30;
@@ -88,8 +88,8 @@ void HybridGaugesOverlay::drawHybridDriveGauge(QPainter &p, QRect rect, float he
 
   // Prepare fonts with better scaling
   QFont font("Inter");
-  int maxWidth = rect.width() - 40; // More margin for text
-  int fontSize = int(rect.width() * 0.06);
+  int maxWidth = rect.width() - 20; // Reduced margin for tighter fit
+  int fontSize = int(rect.width() * 0.05); // Reduced initial font size
   font.setPixelSize(fontSize);
 
   // Prepare text strings
@@ -100,8 +100,8 @@ void HybridGaugesOverlay::drawHybridDriveGauge(QPainter &p, QRect rect, float he
   // PERFORMANCE: Scale text down with iteration limit to prevent runaway loops
   QFontMetrics fm(font);
   int textWidth = fm.horizontalAdvance(combinedText);
-  int iteration_limit = 8; // Prevent excessive iterations
-  while (textWidth > maxWidth && fontSize > 8 && iteration_limit-- > 0) {
+  int iteration_limit = 15; // Increased iterations for more aggressive scaling
+  while (textWidth > maxWidth && fontSize > 6 && iteration_limit-- > 0) { // Lower minimum font size
     fontSize--;
     font.setPixelSize(fontSize);
     fm = QFontMetrics(font);
@@ -115,8 +115,8 @@ void HybridGaugesOverlay::drawHybridDriveGauge(QPainter &p, QRect rect, float he
     textWidth = fm.horizontalAdvance(combinedText);
 
     // PERFORMANCE: Scale reason text with iteration limit
-    iteration_limit = 8; // Reset limit
-    while (textWidth > maxWidth && fontSize > 8 && iteration_limit-- > 0) {
+    iteration_limit = 15; // Increased iterations for more aggressive scaling
+    while (textWidth > maxWidth && fontSize > 6 && iteration_limit-- > 0) { // Lower minimum font size
       fontSize--;
       font.setPixelSize(fontSize);
       fm = QFontMetrics(font);
@@ -645,9 +645,10 @@ void HybridGaugesOverlay::drawHybridBatteryGauge(QPainter &p, QRect rect, float 
   QRect mainArea = rect;
   mainArea.setHeight(int(rect.height() * powerBarRatio));
 
-  // Draw battery icon
-  const int batteryWidth = int(rect.width() * 0.5);
-  const int batteryHeight = int(mainArea.height() * 0.6);
+  // Draw battery icon with additional scaling for sidebar visibility
+  const float batteryScale = 0.9f; // Slightly smaller when sidebar is visible
+  const int batteryWidth = int(rect.width() * 0.5 * batteryScale);
+  const int batteryHeight = int(mainArea.height() * 0.6 * batteryScale);
   QRect batteryRect(0, 0, batteryWidth, batteryHeight);
   batteryRect.moveCenter(mainArea.center());
   batteryRect.moveLeft(mainArea.left() + qRound(20 * scaleFactor));
