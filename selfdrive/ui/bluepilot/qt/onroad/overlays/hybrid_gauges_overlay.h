@@ -10,6 +10,7 @@
 #include <QRadialGradient>
 #include <QPropertyAnimation>
 #include <QWidget>
+#include <QTimer>
 #include "selfdrive/ui/ui.h"
 
 class HybridGaugesOverlay {
@@ -62,4 +63,15 @@ private:
   // Static variables for battery gauge
   static float lastDisplayedAmps;
   static double lastAmpsUpdateTime;
+
+  // Static variables for bracket animation
+  static float bracketScale;
+  static bool wasNearBracket;
+  static QPropertyAnimation* bracketAnimation;
+  static QWidget* animationWidget; // Dummy widget for animation
+
+  // Animation methods
+  static void setupAnimation();
+  static void checkBracketProximity(float currentValue, float threshold);
+  static void cleanupAnimation();
 };

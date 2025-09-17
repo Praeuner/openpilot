@@ -14,6 +14,12 @@
 float HybridGaugesOverlay::lastDisplayedAmps = 0.0f;
 double HybridGaugesOverlay::lastAmpsUpdateTime = 0.0;
 
+// Animation state variables
+float HybridGaugesOverlay::bracketScale = 1.0f;
+bool HybridGaugesOverlay::wasNearBracket = false;
+QPropertyAnimation* HybridGaugesOverlay::bracketAnimation = nullptr;
+QWidget* HybridGaugesOverlay::animationWidget = nullptr;
+
 void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIState &s, const HybridState &hybrid_state) {
   if (!s.scene.show_hybrid_drive_overlay || !hybrid_state.hybrid_available) {
     return;
@@ -65,6 +71,12 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
 
 void HybridGaugesOverlay::drawHybridDriveGauge(QPainter &p, QRect rect, float hevThrottleDemandPercent,
                                               float hevThrottleThresholdPercent, QString hevPowerFlowMode, QString hevEngineOnReason) {
+  // Setup animation if not already done
+  setupAnimation();
+
+  // Check if the bracket should be animated
+  checkBracketProximity(hevThrottleDemandPercent, hevThrottleThresholdPercent);
+
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
 
@@ -412,6 +424,13 @@ void HybridGaugesOverlay::drawThresholdBrackets(QPainter &p, QRect rect, float t
   for (int side = -1; side <= 1; side += 2) {
     int x = centerX + side * (rect.width() * halfThreshold / 100.0);
 
+    // Apply scaling transformation for dynamic bracket animation
+    p.save();
+    QPointF center(x, rect.center().y());
+    p.translate(center);
+    p.scale(bracketScale, bracketScale);  // Dynamic scaling based on animation
+    p.translate(-center);
+
     int bracketWidth = 12;  // Slightly wider for automotive look
     int bracketDepth = 8;   // Deeper for more prominence
     int curveSize = 4;      // Larger curve for smoother appearance
@@ -451,6 +470,8 @@ void HybridGaugesOverlay::drawThresholdBrackets(QPainter &p, QRect rect, float t
       p.drawPath(bottomPath);
       p.setOpacity(1.0);
     }
+
+    p.restore(); // Restore transformation
   }
 }
 
@@ -716,4 +737,67 @@ QColor HybridGaugesOverlay::getVoltageColor(float voltage, float lowLimit, float
   if (voltage >= highLimit - 10)
     return QColor(241, 196, 15, 255);  // Yellow
   return QColor(236, 240, 241, 255);   // White
+}
+
+// ============================================================================
+// ANIMATION IMPLEMENTATION
+// ============================================================================
+
+void HybridGaugesOverlay::setupAnimation() {
+  if (bracketAnimation == nullptr) {
+    // Create a dummy widget for the animation
+    animationWidget = new QWidget();
+    animationWidget->setObjectName("HybridGaugesAnimationWidget");
+
+    // Create the animation - animate a custom property
+    bracketAnimation = new QPropertyAnimation(animationWidget, "geometry");
+    bracketAnimation->setDuration(200); // 200ms animation
+    bracketAnimation->setEasingCurve(QEasingCurve::OutElastic);
+
+    // Connect animation to update bracket scale
+    QObject::connect(bracketAnimation, &QPropertyAnimation::valueChanged, [](const QVariant &value) {
+      QRect rect = value.toRect();
+      // Use the width change to determine scale (1.0 to 1.3)
+      bracketScale = 1.0f + (rect.width() - 100) * 0.003f; // Scale from 1.0 to 1.3
+      bracketScale = std::clamp(bracketScale, 1.0f, 1.3f);
+    });
+  }
+}
+
+void HybridGaugesOverlay::checkBracketProximity(float currentValue, float threshold) {
+  bool isNearBracket = std::abs(std::abs(currentValue) - threshold) < 5.0f; // Within 5% of threshold
+
+  if (isNearBracket != wasNearBracket) {
+    wasNearBracket = isNearBracket;
+
+    if (bracketAnimation) {
+      if (isNearBracket) {
+        // Scale up animation
+        QRect startRect(0, 0, 100, 100);
+        QRect endRect(0, 0, 130, 100); // 30% wider for 1.3x scale
+        bracketAnimation->setStartValue(startRect);
+        bracketAnimation->setEndValue(endRect);
+      } else {
+        // Scale down animation
+        QRect startRect(0, 0, 130, 100);
+        QRect endRect(0, 0, 100, 100); // Back to normal size
+        bracketAnimation->setStartValue(startRect);
+        bracketAnimation->setEndValue(endRect);
+      }
+
+      bracketAnimation->start();
+    }
+  }
+}
+
+void HybridGaugesOverlay::cleanupAnimation() {
+  if (bracketAnimation) {
+    bracketAnimation->stop();
+    delete bracketAnimation;
+    bracketAnimation = nullptr;
+  }
+  if (animationWidget) {
+    delete animationWidget;
+    animationWidget = nullptr;
+  }
 }
