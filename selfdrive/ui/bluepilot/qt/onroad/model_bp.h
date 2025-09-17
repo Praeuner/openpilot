@@ -35,6 +35,14 @@ public:
   const Eigen::Matrix3f& getTransform() const { return car_space_transform; }
   const QRectF& getClipRegion() const { return clip_region; }
 
+  // Lead tracking and stop detection (public for BluepilotRenderer access)
+  void updateLeadTracking(const UIState &s);
+  void updateStopDetection(const UIState &s);
+
+  // Getters for lead and stop state
+  const auto& getLeadState() const { return lead_state; }
+  const auto& getStopState() const { return stop_state; }
+
 protected:
   // Override the virtual methods that are available
 #ifndef SUNNYPILOT
@@ -69,12 +77,8 @@ private:
   void applySmoothPath();  // BluePilot path smoothing to reduce jitter
 
   // Core geometry utilities (moved from bluepilot_renderer)
-  bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
+  // Note: mapToScreen is inherited from base class ModelRenderer
   int get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height);
-
-  // Lead tracking and stop detection (moved from bluepilot_renderer)
-  void updateLeadTracking(const UIState &s);
-  void updateStopDetection(const UIState &s);
 
   // Drawing utilities (moved from bluepilot_renderer)
   void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
@@ -124,4 +128,5 @@ private:
     float fade_alpha = 0.0f;
     QPointF last_valid_position;
   } stop_state;
+
 };

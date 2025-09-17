@@ -54,12 +54,21 @@ void ModelRendererBP::draw(QPainter &painter, const QRect &surface_rect) {
   const auto &radar_state = sm["radarState"].getRadarState();
   const auto &lead_one = radar_state.getLeadOne();
 
-  // Update model data using base ModelRenderer (since SunnyPilot methods are private)
-  ModelRenderer::update_model(model, lead_one);
-  updateBluePilotState(model);
+  // Check if transform is initialized before processing
+  if (!car_space_transform.isZero()) {
+    // Update model data using base ModelRenderer (since SunnyPilot methods are private)
+    ModelRenderer::update_model(model, lead_one);
+    updateBluePilotState(model);
 
-  // Apply BluePilot path smoothing to ALL paths for better visual quality
-  applySmoothPath();
+    // Apply BluePilot path smoothing to ALL paths for better visual quality
+    applySmoothPath();
+  } else {
+    static int warn_count = 0;
+    if (warn_count++ < 5) {  // Only warn first 5 times
+      std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
+    }
+    return;
+  }
 
   painter.save();
 
@@ -241,6 +250,18 @@ void ModelRendererBP::updateBluePilotState(const cereal::ModelDataV2::Reader &mo
 void ModelRendererBP::createBlindspotPolygons(const cereal::ModelDataV2::Reader &model) {
   const auto &model_position = model.getPosition();
   const auto &lane_lines = model.getLaneLines();
+
+  // Check if transform is initialized
+  if (car_space_transform.isZero()) {
+    static int warn_count = 0;
+    if (warn_count++ < 5 && lane_lines.size() >= 4) {  // Only warn if we have lane lines
+      std::cerr << "WARNING: BluePilot skipping lane line mapping - transform zero: 1 lane_lines size: " << lane_lines.size() << std::endl;
+    }
+    left_blindspot_vertices.clear();
+    right_blindspot_vertices.clear();
+    return;
+  }
+
   float max_distance = std::clamp(*(model_position.getX().end() - 1), MIN_DRAW_DISTANCE, MAX_DRAW_DISTANCE);
   int max_idx = get_path_length_idx(lane_lines[0], max_distance);
 
@@ -311,6 +332,16 @@ void ModelRendererBP::createBlindspotPolygons(const cereal::ModelDataV2::Reader 
 
 
 void ModelRendererBP::drawBluePilotLaneLines(QPainter &painter) {
+  // Check if transform is initialized
+  if (car_space_transform.isZero()) {
+    static int warn_count = 0;
+    if (warn_count++ < 5) {  // Only warn first 5 times
+      std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
+    }
+    return;
+  }
+
+
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setPen(Qt::NoPen);
@@ -327,7 +358,7 @@ void ModelRendererBP::drawBluePilotLaneLines(QPainter &painter) {
     painter.drawPolygon(lane_line_vertices[i]);
   }
 
-  // Draw road edges with BluePilot enhanced visibility
+  // Draw road edges with simple rendering
   for (int i = 0; i < std::size(road_edge_vertices); ++i) {
     if (road_edge_vertices[i].isEmpty()) continue;
 
@@ -776,36 +807,7 @@ void ModelRendererBP::applySmoothPath() {
   previous_track_vertices = current_unsmoothed;
 }
 
-// Core geometry utilities (moved from bluepilot_renderer)
-bool ModelRendererBP::mapToScreen(float in_x, float in_y, float in_z, QPointF *out) {
-  if (car_space_transform.isZero()) {
-    static int error_counter = 0;
-    if (error_counter++ % 200 == 0) {
-      std::cerr << "ModelRendererBP: Transform is zero, cannot map to screen" << std::endl;
-    }
-    return false;
-  }
-
-  if (!std::isfinite(in_x) || !std::isfinite(in_y) || !std::isfinite(in_z)) {
-    return false;
-  }
-
-  Eigen::Vector3f input(in_x, in_y, in_z);
-  auto pt = car_space_transform * input;
-
-  if (std::abs(pt.z()) < 0.001f) {
-    return false;
-  }
-
-  QPointF screen_point(pt.x() / pt.z(), pt.y() / pt.z());
-
-  if (!std::isfinite(screen_point.x()) || !std::isfinite(screen_point.y())) {
-    return false;
-  }
-
-  *out = screen_point;
-  return clip_region.contains(*out);
-}
+// Note: mapToScreen is now inherited from base ModelRenderer class
 
 int ModelRendererBP::get_path_length_idx(const cereal::XYZTData::Reader &line, float path_height) {
   const auto &line_x = line.getX();
@@ -824,7 +826,7 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
   if (!sm.valid("radarState") || !sm.valid("modelV2")) {
     static int error_counter = 0;
     if (error_counter++ % 50 == 0) {
-      std::cerr << "WARNING: ModelRendererBP radarState or modelV2 not valid in updateLeadTracking" << std::endl;
+      std::cerr << "WARNING: BluePilot radarState or modelV2 not valid in updateLeadTracking" << std::endl;
     }
     // Set all leads to inactive
     for (int i = 0; i < 2; ++i) {
@@ -935,6 +937,11 @@ void ModelRendererBP::updateLeadTracking(const UIState &s) {
           const auto &height_list = live_calib.getHeight();
           if (height_list.size() > 0) {
             path_offset_z = height_list[0];
+          }
+        } else {
+          static int warn_count = 0;
+          if (warn_count++ % 100 == 0) {  // Warn every 100 frames
+            std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
           }
         }
 
@@ -1048,6 +1055,11 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
     const auto &height_list = live_calib.getHeight();
     if (height_list.size() > 0) {
       path_offset_z = height_list[0];
+    }
+  } else {
+    static int warn_count = 0;
+    if (warn_count++ % 100 == 0) {  // Warn every 100 frames
+      std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
     }
   }
 
