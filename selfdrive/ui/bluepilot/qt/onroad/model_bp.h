@@ -72,7 +72,7 @@ protected:
 #ifndef SUNNYPILOT
   // Override base class virtual methods when not using SunnyPilot
   void drawPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, const QRect &surface_rect) override;
-  void update_model(const cereal::ModelDataV2::Reader &model, 
+  void update_model(const cereal::ModelDataV2::Reader &model,
                    const cereal::RadarState::LeadData::Reader &lead) override;
 #endif
 
@@ -84,12 +84,12 @@ protected:
   void drawEnhancedLaneLines(QPainter &painter);
   void drawLaneGlowEffects(QPainter &painter);
   void drawRoadEdgeGlowEffects(QPainter &painter);
-  void drawEnhancedPath(QPainter &painter, const cereal::ModelDataV2::Reader &model, 
+  void drawEnhancedPath(QPainter &painter, const cereal::ModelDataV2::Reader &model,
                         const QRect &surface_rect);
-  void applyCustomPathGradient(QLinearGradient &bg, QColor &border_color, 
+  void applyCustomPathGradient(QLinearGradient &bg, QColor &border_color,
                                const QString &pathColor, const QRect &surface_rect);
   void applyStockPathGradient(QLinearGradient &bg, QColor &border_color,
-                              const cereal::ModelDataV2::Reader &model, 
+                              const cereal::ModelDataV2::Reader &model,
                               const QRect &surface_rect);
 
   // Blindspot methods
@@ -141,4 +141,7 @@ private:
   // State member variables
   LeadState lead_state;
   StopState stop_state;
+
+  // Path smoothing state
+  QPolygonF previous_track_vertices;
 };
