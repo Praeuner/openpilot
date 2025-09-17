@@ -546,6 +546,9 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
   const int cardHeight = 140;
   const QRect rect = {30, cardY, 280, cardHeight};
 
+  // Initialize network card button rectangle for touch handling
+  network_card_btn = rect;
+
   // Create card background with rounded corners
   QPainterPath path;
   path.addRoundedRect(rect, 12, 12);
@@ -555,8 +558,9 @@ void SidebarBP::drawNetworkCard(QPainter &p) {
   p.setBrush(QColor(0, 0, 0, 40));
   p.drawRoundedRect(rect.adjusted(2, 2, 2, 2), 12, 12);
 
-  // Draw card background
-  p.setBrush(card_background);
+  // Draw card background with pressed state feedback
+  QColor bg_color = network_card_pressed ? card_background.darker(110) : card_background;
+  p.setBrush(bg_color);
   p.drawPath(path);
 
   // Draw status indicator bar on left side
@@ -770,6 +774,9 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   } else if (onroad && bp_debug_btn.isValid() && bp_debug_btn.contains(event->pos())) {
     debug_pressed = true;
     needs_update = true;
+  } else if (network_card_btn.isValid() && network_card_btn.contains(event->pos())) {
+    network_card_pressed = true;
+    needs_update = true;
   }
 
   if (needs_update) {
@@ -784,9 +791,15 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
     return;
   }
 
-  if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed) {
-    flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = false;
+  if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed || network_card_pressed) {
+    flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = network_card_pressed = false;
     repaint(); // Use repaint() for immediate visual feedback
+  }
+
+  // Handle network card click - navigate to network settings
+  if (network_card_btn.isValid() && network_card_btn.contains(event->pos())) {
+    emit openSettings(1); // Network panel is at index 1
+    return;
   }
 
   // Handle debug button (new location)
@@ -815,6 +828,13 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
       msg.initEvent().initBookmarkButton();
       pm->send("bookmarkButton", msg);
     }
+    return;
+  }
+
+  // Prevent stock sidebar settings button from working when SidebarBP is used
+  // Check if the click was on the stock settings button area and ignore it
+  if (settings_btn.contains(event->pos())) {
+    // Do nothing - prevent stock sidebar settings button from working
     return;
   }
 
@@ -1066,6 +1086,7 @@ void SidebarBP::offroadTransitionBP(bool offroad) {
   settings_pressed = false;
   mic_indicator_pressed = false;
   debug_pressed = false;
+  network_card_pressed = false;
 
   // Trigger UI update
   update();

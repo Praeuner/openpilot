@@ -88,6 +88,12 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   BPNavBarView *bpNavBarView = new BPNavBarView(this);
   bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_4_menu.json");
 
+  BPBaseView *bpLateralView = new BPBaseView(this);
+  bpLateralView->initialize("/selfdrive/ui/bluepilot/menus/bp_lateral_menu.json");
+
+  BPBaseView *bpVisualsView = new BPBaseView(this);
+  bpVisualsView->initialize("/selfdrive/ui/bluepilot/menus/bp_visuals_menu.json");
+
   // Check if prebuilt file exists in root directory
   QString rootPath = qApp->applicationDirPath() + "/../..";
   QString prebuiltPath = rootPath + "/prebuilt";
@@ -99,6 +105,8 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     PanelInfo("   " + tr("sunnylink"), new SunnylinkPanel(this), "../assets/icons/wifi_strength_full.svg"),
     PanelInfo("   " + tr("Toggles"), toggles, "../../sunnypilot/selfdrive/assets/offroad/icon_toggle.png"),
     PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"),
+    PanelInfo("   " + tr("BP Lateral"), bpLateralView, "../assets/offroad/icon_ford.png"),
+    PanelInfo("   " + tr("BP Visuals"), bpVisualsView, "../assets/offroad/icon_ford.png"),
     PanelInfo("   " + tr("Software"), new SoftwarePanelSP(this), "../../sunnypilot/selfdrive/assets/offroad/icon_software.png"),
     PanelInfo("   " + tr("Models"), new ModelsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_models.png"),
     PanelInfo("   " + tr("Steering"), new LateralPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_lateral.png"),

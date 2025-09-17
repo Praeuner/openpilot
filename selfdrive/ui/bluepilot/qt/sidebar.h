@@ -129,5 +129,7 @@ private:
   QRect bp_settings_btn;
   QRect bp_home_btn;
   QRect bp_debug_btn; // Added debug button rect
+  QRect network_card_btn; // Network card touch area
   bool debug_pressed = false; // Added debug button pressed state
+  bool network_card_pressed = false; // Network card pressed state
 };
