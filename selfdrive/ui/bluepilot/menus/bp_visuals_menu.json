@@ -16,7 +16,7 @@
           "type": "toggle",
           "param": "BluepilotShowEnhancedOnroadUI",
           "title": "Enhanced Onroad UI",
-          "desc": "Enable enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing. Sets default path color to blue.",
+          "desc": "Enable enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing.",
           "hidden": false,
           "conditions": {
             "git_remote": ["any"],
