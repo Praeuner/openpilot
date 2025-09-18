@@ -1,7 +1,8 @@
 import json
 Import('env', 'qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
 
-base_libs = [common, messaging, visionipc, transformations,
+logger_lib = File('#system/loggerd/liblogger.a')
+base_libs = [logger_lib, common, messaging, visionipc, transformations,
              'm', 'OpenCL', 'ssl', 'crypto', 'pthread', 'avformat', 'avcodec', 'avutil', 'x264', 'yuv'] + qt_env["LIBS"]
 
 if arch == 'larch64':
@@ -32,8 +33,6 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_nested_view.cc",
   "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
   "bluepilot/qt/offroad/panels/bp_routes_panel.cc",
-  "bluepilot/qt/offroad/panels/bp_hardware_video_decoder.cc",
-  "bluepilot/qt/offroad/panels/bp_ffmpeg_decoder.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",

@@ -4,9 +4,11 @@ libs = [common, messaging, visionipc,
         'avformat', 'avcodec', 'avutil',
         'yuv', 'OpenCL', 'pthread', 'zstd']
 
-src = ['logger.cc', 'zstd_writer.cc', 'video_writer.cc', 'encoder/encoder.cc', 'encoder/v4l_encoder.cc', 'encoder/jpeg_encoder.cc']
+src = ['logger.cc', 'zstd_writer.cc', 'video_writer.cc', 'encoder/encoder.cc', 'encoder/v4l_encoder.cc', 'encoder/jpeg_encoder.cc', 'decoder/decoder.cc']
 if arch != "larch64":
-  src += ['encoder/ffmpeg_encoder.cc']
+  src += ['encoder/ffmpeg_encoder.cc', 'decoder/ffmpeg_decoder.cc']
+if arch != "Darwin":
+  src += ['decoder/v4l_decoder.cc']
 
 if arch == "Darwin":
   # fix OpenCL
