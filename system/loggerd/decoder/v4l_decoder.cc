@@ -1,11 +1,13 @@
+#include "system/loggerd/decoder/v4l_decoder.h"
+
 #include <cassert>
+#include <cstring>  // Added for memcpy
 #include <string>
 #include <sys/ioctl.h>
 #include <poll.h>
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "system/loggerd/decoder/v4l_decoder.h"
 #include "common/util.h"
 #include "common/timing.h"
 #include "common/swaglog.h"
@@ -18,8 +20,8 @@
 #define V4L2_QCOM_BUF_FLAG_CODECCONFIG 0x00020000
 #define V4L2_QCOM_BUF_FLAG_EOS 0x02000000
 
-static void dequeue_buffer(int fd, v4l2_buf_type buf_type, unsigned int *index=NULL, 
-                          unsigned int *bytesused=NULL, unsigned int *flags=NULL, 
+static void dequeue_buffer(int fd, v4l2_buf_type buf_type, unsigned int *index=NULL,
+                          unsigned int *bytesused=NULL, unsigned int *flags=NULL,
                           struct timeval *timestamp=NULL) {
   v4l2_plane plane = {0};
   v4l2_buffer v4l_buf = {
@@ -37,7 +39,7 @@ static void dequeue_buffer(int fd, v4l2_buf_type buf_type, unsigned int *index=N
   assert(v4l_buf.m.planes[0].data_offset == 0);
 }
 
-static void queue_buffer(int fd, v4l2_buf_type buf_type, unsigned int index, 
+static void queue_buffer(int fd, v4l2_buf_type buf_type, unsigned int index,
                         uint8_t *data, int len, struct timeval timestamp={}) {
   v4l2_plane plane = {
     .length = (unsigned int)len,
@@ -90,25 +92,25 @@ void V4LDecoder::decode_handler(V4LDecoder *d) {
     if (pfd.revents & POLLIN) {
       unsigned int bytesused, flags, index;
       struct timeval timestamp;
-      dequeue_buffer(d->fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &index, 
+      dequeue_buffer(d->fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &index,
                      &bytesused, &flags, &timestamp);
-      
+
       d->buf_out[index].sync(VISIONBUF_SYNC_FROM_DEVICE);
-      
+
       // Process decoded frame if not EOS
       if (!(flags & V4L2_QCOM_BUF_FLAG_EOS)) {
         if (bytesused > 0 && d->frame_callback) {
           // Convert NV12 to YUV420P for callback
           uint8_t *nv12_y = (uint8_t*)d->buf_out[index].addr;
           uint8_t *nv12_uv = nv12_y + d->stride * d->out_height;
-          
+
           // Get timestamp from queue
           uint64_t frame_ts = 0;
           if (!d->timestamp_queue.empty()) {
             frame_ts = d->timestamp_queue.front();
             d->timestamp_queue.pop();
           }
-          
+
           DecodedFrame frame = {
             .y = nv12_y,
             .u = nv12_uv,  // Note: NV12 interleaved UV
@@ -121,13 +123,13 @@ void V4LDecoder::decode_handler(V4LDecoder *d) {
             .frame_id = d->frame_count++,
             .keyframe = (flags & V4L2_BUF_FLAG_KEYFRAME) != 0
           };
-          
+
           d->frame_callback(frame);
         }
       } else {
         exit = true;
       }
-      
+
       // Requeue buffer
       queue_buffer(d->fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, index,
                    (uint8_t*)d->buf_out[index].addr, d->buf_out[index].len);
@@ -144,7 +146,7 @@ void V4LDecoder::decode_handler(V4LDecoder *d) {
 
 V4LDecoder::V4LDecoder(int width, int height, FrameCallback callback, bool is_h265)
     : VideoDecoder(width, height, callback), is_hevc(is_h265) {
-  
+
   fd = HANDLE_EINTR(open("/dev/v4l/by-path/platform-aa00000.qcom_vidc-video-index0", O_RDWR|O_NONBLOCK));
   if (fd < 0) {
     LOGE("Failed to open video decode device");
@@ -154,7 +156,7 @@ V4LDecoder::V4LDecoder(int width, int height, FrameCallback callback, bool is_h2
   struct v4l2_capability cap;
   util::safe_ioctl(fd, VIDIOC_QUERYCAP, &cap, "VIDIOC_QUERYCAP failed");
   LOGD("opened decoder device %s %s = %d", cap.driver, cap.card, fd);
-  
+
   // Set output format (compressed stream)
   struct v4l2_format fmt_in = {
     .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
@@ -185,11 +187,11 @@ V4LDecoder::V4LDecoder(int width, int height, FrameCallback callback, bool is_h2
     }
   };
   util::safe_ioctl(fd, VIDIOC_S_FMT, &fmt_out, "VIDIOC_S_FMT output failed");
-  
+
   stride = fmt_out.fmt.pix_mp.plane_fmt[0].bytesperline;
   int frame_size = fmt_out.fmt.pix_mp.plane_fmt[0].sizeimage;
 
-  LOGD("Decoder buffers - compressed: %d, decoded frame: %d, stride: %d", 
+  LOGD("Decoder buffers - compressed: %d, decoded frame: %d, stride: %d",
        compressed_buf_size, frame_size, stride);
 
   // Request buffers
@@ -214,7 +216,7 @@ void V4LDecoder::decoder_open() {
   // Start streaming
   v4l2_buf_type buf_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   util::safe_ioctl(fd, VIDIOC_STREAMON, &buf_type, "VIDIOC_STREAMON input failed");
-  
+
   buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
   util::safe_ioctl(fd, VIDIOC_STREAMON, &buf_type, "VIDIOC_STREAMON output failed");
 
@@ -226,7 +228,7 @@ void V4LDecoder::decoder_open() {
 
   is_open = true;
   frame_count = 0;
-  
+
   // Start decode thread
   decode_thread = std::thread(V4LDecoder::decode_handler, this);
 }
@@ -243,7 +245,7 @@ int V4LDecoder::decode_frame(uint8_t* data, int len, uint64_t timestamp_us, bool
 
   // Copy compressed data to buffer
   int copy_len = std::min(len, compressed_buf_size);
-  memcpy(buf_in[buf_idx].addr, data, copy_len);
+  memcpy(buf_in[buf_idx].addr, data, copy_len);  // This line needs cstring
   buf_in[buf_idx].sync(VISIONBUF_SYNC_TO_DEVICE);
 
   // Store timestamp for later association
@@ -254,16 +256,16 @@ int V4LDecoder::decode_frame(uint8_t* data, int len, uint64_t timestamp_us, bool
     .tv_sec = (long)(timestamp_us / 1000000),
     .tv_usec = (long)(timestamp_us % 1000000)
   };
-  
+
   queue_buffer(fd, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, buf_idx,
                (uint8_t*)buf_in[buf_idx].addr, copy_len, tv);
-  
+
   return 0;
 }
 
 void V4LDecoder::flush() {
   if (!is_open) return;
-  
+
   // Send EOS to flush decoder
   struct v4l2_decoder_cmd cmd = { .cmd = V4L2_DEC_CMD_STOP };
   util::safe_ioctl(fd, VIDIOC_DECODER_CMD, &cmd, "VIDIOC_DECODER_CMD stop failed");
@@ -271,10 +273,10 @@ void V4LDecoder::flush() {
 
 void V4LDecoder::decoder_close() {
   if (!is_open) return;
-  
+
   is_open = false;
   flush();
-  
+
   // Wait for thread to finish
   if (decode_thread.joinable()) {
     decode_thread.join();
@@ -283,7 +285,7 @@ void V4LDecoder::decoder_close() {
   // Stop streaming
   v4l2_buf_type buf_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   util::safe_ioctl(fd, VIDIOC_STREAMOFF, &buf_type, "VIDIOC_STREAMOFF input");
-  
+
   buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
   util::safe_ioctl(fd, VIDIOC_STREAMOFF, &buf_type, "VIDIOC_STREAMOFF output");
 
@@ -294,7 +296,7 @@ void V4LDecoder::decoder_close() {
 
 V4LDecoder::~V4LDecoder() {
   decoder_close();
-  
+
   if (fd >= 0) {
     request_buffers(fd, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, 0);
     request_buffers(fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 0);

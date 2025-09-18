@@ -15,8 +15,6 @@
 #include <QFutureWatcher>
 #include <QTimer>
 #include <QProcess>
-#include <QFile>
-#include <QImage>
 #include <QSet>
 #include <QMap>
 #include <memory>
@@ -27,10 +25,6 @@ class QMediaPlayer;
 class QVideoWidget;
 class QSlider;
 class QTimer;
-
-// Forward declare decoder classes
-class VideoDecoder;
-struct DecodedFrame;
 
 // Route information structure
 struct RouteInfo {
@@ -58,47 +52,43 @@ enum class VideoType {
   QCamera     // Low-resolution preview
 };
 
-// Enhanced video modal for full-screen playback using custom decoders
+// Enhanced video modal for full-screen playback
 class BPEnhancedVideoModal : public QDialog {
   Q_OBJECT
 
 public:
   explicit BPEnhancedVideoModal(QWidget *parent = nullptr);
   ~BPEnhancedVideoModal();
-  
+
   void setRoute(const RouteInfo &route);
   void play();
   void pause();
-  
+
 signals:
   void cameraChanged(VideoType type);
-  
+
 protected:
   void keyPressEvent(QKeyEvent *event) override;
   void mousePressEvent(QMouseEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
-  void paintEvent(QPaintEvent *event) override;
-  
+
 private slots:
   void onPlayPauseClicked();
   void onCameraButtonClicked();
   void onSeekSliderMoved(int value);
-  void onDecodingTimer();
-  
+  void onPositionChanged(qint64 position);
+  void onDurationChanged(qint64 duration);
+
 private:
   void setupUI();
   void loadVideo(VideoType type);
   QString getVideoPath(VideoType type) const;
   void updateControlsVisibility();
   void concatenateSegments(const QString &outputPath);
-  void startDecoding();
-  void stopDecoding();
-  void onFrameDecoded(const uint8_t *y, const uint8_t *u, const uint8_t *v, 
-                      int width, int height, int stride_y, int stride_uv,
-                      uint64_t timestamp_us);
-  
+
   // UI Components
-  QWidget *videoWidget;
+  QVideoWidget *videoWidget;
+  QMediaPlayer *mediaPlayer;
   QWidget *controlsWidget;
   QPushButton *playPauseBtn;
   QPushButton *fcameraBtn;
@@ -108,16 +98,7 @@ private:
   QSlider *seekSlider;
   QLabel *timeLabel;
   QLabel *durationLabel;
-  
-  // Video decoding
-  std::unique_ptr<VideoDecoder> decoder;
-  QImage currentFrame;
-  QTimer *decodingTimer;
-  QFile *videoFile;
-  uint8_t *decodeBuffer;
-  int64_t currentPosition;
-  int64_t totalDuration;
-  
+
   // State
   RouteInfo currentRoute;
   VideoType currentVideoType;
@@ -129,26 +110,26 @@ private:
 // Route card widget
 class RouteCardWidget : public QWidget {
   Q_OBJECT
-  
+
 public:
   explicit RouteCardWidget(const RouteInfo &route, QWidget *parent = nullptr);
-  
+
   void setThumbnail(const QPixmap &pixmap);
   RouteInfo getRoute() const { return route; }
-  
+
 signals:
   void clicked(const RouteInfo &route);
-  
+
 protected:
   void mousePressEvent(QMouseEvent *event) override;
   void mouseReleaseEvent(QMouseEvent *event) override;
   void enterEvent(QEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void paintEvent(QPaintEvent *event) override;
-  
+
 private:
   void setupUI();
-  
+
   RouteInfo route;
   QLabel *thumbnailLabel;
   QLabel *timestampLabel;
@@ -156,7 +137,7 @@ private:
   QLabel *sizeLabel;
   QLabel *segmentsLabel;
   QLabel *distanceLabel;
-  
+
   bool isPressed;
   bool isHovered;
 };
@@ -164,28 +145,28 @@ private:
 // Main routes panel
 class BPRoutesPanel : public QWidget {
   Q_OBJECT
-  
+
 public:
   explicit BPRoutesPanel(QWidget *parent = nullptr);
   ~BPRoutesPanel();
-  
+
 public slots:
   void refresh();
   void clearCache();
-  
+
 signals:
   void backPressed();
-  
+
 protected:
   void showEvent(QShowEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
   bool eventFilter(QObject *obj, QEvent *event) override;
-  
+
 private slots:
   void onRouteCardClicked(const RouteInfo &route);
   void onScrollPositionChanged();
   void loadMoreRoutes();
-  
+
 private:
   void setupUI();
   void applyStyles();
@@ -205,7 +186,7 @@ private:
   double calculateTripDistance(const QString &routePath);
   bool hasVideoFiles(const QString &routePath);
   QString findFFmpegPath() const;
-  
+
   // UI Components
   QScrollArea *scrollArea;
   QWidget *scrollContent;
@@ -214,25 +195,25 @@ private:
   QPushButton *clearCacheBtn;
   QLabel *statusLabel;
   std::unique_ptr<BPEnhancedVideoModal> videoModal;
-  
+
   // Data
   std::vector<RouteInfo> allRoutes;
   std::vector<RouteInfo> displayedRoutes;
   QMap<QDate, QWidget*> dateSections;
   QSet<QString> loadedDates;
-  
+
   // Pagination
   int currentPage;
   int routesPerPage;
   bool isLoading;
   bool allRoutesLoaded;
-  
+
   // Thumbnail generation
   QMap<QString, QFutureWatcher<QString>*> thumbnailWatchers;
   QProcess *ffmpegProcess;
   QString ffmpegPath;
   QString thumbnailCachePath;
-  
+
   // Platform detection
   bool isQCOM2;
   QString routesPath;
