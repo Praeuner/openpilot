@@ -28,6 +28,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -37,6 +38,7 @@
 #include <QVBoxLayout>
 #include <QVideoWidget>
 #include <QWidget>
+#include <QDate>
 
 // Qt Multimedia
 #include <QMediaPlayer>
@@ -66,6 +68,8 @@ public:
     bool hasVideo;
     bool hasRLog;
     bool hasQLog;
+    QDate date; // Date for grouping
+    QString thumbnailPath; // Path to thumbnail image
   };
 
   struct SyncConfig {
@@ -82,10 +86,12 @@ public:
 protected:
   void showEvent(QShowEvent *event) override;
   void hideEvent(QHideEvent *event) override;
+  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
   Params params;
   QTimer *activityTimer = nullptr;
+  QTimer *scrollCheckTimer = nullptr;
   QMutex fileMutex;
   int routeIndex = 0;
 
@@ -151,6 +157,18 @@ private:
   void playRouteVideoConcatenated(const QString &routeBase, const QString &videoFile);
   void continueRouteProcessing();
 
+  // Modern UI methods
+  void groupRoutesByDate();
+  void createModernRouteWidget(const RouteInfo &route);
+  void createDateGroupHeader(const QDate &date, int routeCount);
+  void setupModernStyles();
+  void loadMoreRoutes();
+  void updatePaginationInfo();
+  void checkScrollPosition();
+  void createRouteCard(const RouteInfo &route, QWidget *parent);
+  void setupRouteCardActions(QWidget *card, const RouteInfo &route);
+  void showVideoSelectionMenu(const RouteInfo &route);
+
   // Activity Simulation
   void simulateActivity();
   void stopActivitySimulation();
@@ -173,11 +191,19 @@ private:
 
   // State
   QVector<RouteInfo> routes;
+  QHash<QDate, QVector<RouteInfo>> routesByDate; // Routes grouped by date
   bool isLoading;
   bool isSyncing;
   SyncConfig syncConfig;
   SyncStatus syncStatus;
   QTimer *syncTimer;
+
+  // Pagination
+  int currentPage = 0;
+  int routesPerPage = 10;
+  int totalPages = 0;
+  QPushButton *loadMoreButton = nullptr;
+  QLabel *paginationLabel = nullptr;
 
   // UI Overlays
   QWidget *loadingOverlay = nullptr;
@@ -486,3 +512,5 @@ private:
   QSlider *slider;
   QLabel *timeLabel;
 };
+
+Q_DECLARE_METATYPE(BPRoutesPanel::RouteInfo)

@@ -112,3 +112,4 @@ Pipfile
 !.run/*
 
 selfdrive/assets/*.backup
+third_party/ffmpeg/src

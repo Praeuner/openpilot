@@ -164,6 +164,11 @@ private slots:
 private:
   void setupUI();
   void updateTimeLabel();
+  void centerOnScreen();
+
+protected:
+  void keyPressEvent(QKeyEvent *event) override;
+  bool event(QEvent *event) override;
 
   BPHardwareVideoDecoder *m_decoder = nullptr;
   BPHardwareVideoWidget *m_videoWidget = nullptr;

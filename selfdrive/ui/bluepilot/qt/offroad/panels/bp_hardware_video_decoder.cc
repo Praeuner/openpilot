@@ -410,6 +410,17 @@ BPHardwareVideoDialog::BPHardwareVideoDialog(const QString &videoPath, QWidget *
     : QDialog(parent) {
   setupUI();
 
+  // Center the modal dialog on screen
+  centerOnScreen();
+
+  // Set modal properties
+  setModal(true);
+  setWindowModality(Qt::ApplicationModal);
+
+  // Enable keyboard focus
+  setFocusPolicy(Qt::StrongFocus);
+  setFocus();
+
   // Initialize decoder
   m_decoder = new BPHardwareVideoDecoder(this);
   if (!m_decoder->initialize(videoPath)) {
@@ -438,116 +449,282 @@ BPHardwareVideoDialog::~BPHardwareVideoDialog() {
 void BPHardwareVideoDialog::setupUI() {
   setWindowTitle("Hardware Video Playback");
   setModal(true);
-  resize(1200, 800);
+  setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
 
-  // Main layout
-  QVBoxLayout *mainLayout = new QVBoxLayout(this);
+  // Optimize for QCOM2 device (portrait 1080x2160)
+  // Use most of the screen but leave some margin for touch interaction
+  resize(1000, 1800);
+
+  // SidebarBP-inspired styling
+  setStyleSheet(R"(
+    BPHardwareVideoDialog {
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a1a1a, stop:1 #0f0f0f);
+      border: 3px solid #404040;
+      border-radius: 20px;
+    }
+  )");
+
+  // Main layout with horizontal split for video and camera stack
+  QHBoxLayout *mainLayout = new QHBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
 
-  // Header
+  // Header with SidebarBP card styling
   m_headerWidget = new QWidget;
-  m_headerWidget->setFixedHeight(100);
-  m_headerWidget->setStyleSheet("background-color: #202020;");
-
-  QHBoxLayout *headerLayout = new QHBoxLayout(m_headerWidget);
-  headerLayout->setContentsMargins(30, 20, 30, 20);
-
-  QPushButton *backBtn = new QPushButton("← Back");
-  backBtn->setStyleSheet(R"(
-    QPushButton {
-      background-color: #404040;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      font-size: 16px;
-    }
-    QPushButton:hover {
-      background-color: #505050;
+  m_headerWidget->setFixedHeight(120); // Larger for touch
+  m_headerWidget->setStyleSheet(R"(
+    QWidget {
+      background-color: #242424;
+      border-bottom: 3px solid #404040;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
     }
   )");
-  QObject::connect(backBtn, &QPushButton::clicked, this, &QDialog::reject);
 
-  QLabel *titleLabel = new QLabel("Hardware Video Playback");
-  titleLabel->setStyleSheet("font-size: 24px; font-weight: 600; color: white;");
-  titleLabel->setAlignment(Qt::AlignCenter);
+  QHBoxLayout *headerLayout = new QHBoxLayout(m_headerWidget);
+  headerLayout->setContentsMargins(30, 20, 30, 20); // SidebarBP spacing
 
-  headerLayout->addWidget(backBtn);
-  headerLayout->addWidget(titleLabel, 1);
-  headerLayout->addSpacing(backBtn->width());
-
-  // Video widget
-  m_videoWidget = new BPHardwareVideoWidget;
-
-  // Controls
-  m_controlsWidget = new QWidget;
-  m_controlsWidget->setFixedHeight(100);
-  m_controlsWidget->setStyleSheet("background-color: #333333;");
-
-  QHBoxLayout *controlsLayout = new QHBoxLayout(m_controlsWidget);
-  controlsLayout->setContentsMargins(20, 10, 20, 10);
-
-  m_playPauseButton = new QPushButton("Pause");
-  m_playPauseButton->setFixedSize(100, 80);
-  m_playPauseButton->setStyleSheet(R"(
+  // Close button with SidebarBP danger button styling
+  QPushButton *closeBtn = new QPushButton("✕");
+  closeBtn->setFixedSize(80, 80); // Much larger for touch
+  closeBtn->setStyleSheet(R"(
     QPushButton {
-      background-color: #009688;
+      background-color: #F44336;
       color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      font-size: 36px;
       font-weight: bold;
     }
     QPushButton:hover {
-      background-color: #00796B;
+      background-color: #D32F2F;
+      border-color: #FFCDD2;
+    }
+    QPushButton:pressed {
+      background-color: #C62828;
+    }
+  )");
+  QObject::connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
+
+  // Title with SidebarBP font styling
+  QLabel *titleLabel = new QLabel("Route Video Playback");
+  titleLabel->setStyleSheet("font-size: 48px; font-weight: 600; color: white;"); // SidebarBP font weight
+  titleLabel->setAlignment(Qt::AlignCenter);
+
+  // Minimize button with SidebarBP action button styling
+  QPushButton *minimizeBtn = new QPushButton("−");
+  minimizeBtn->setFixedSize(80, 80);
+  minimizeBtn->setStyleSheet(R"(
+    QPushButton {
+      background-color: #2196F3;
+      color: white;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      font-size: 36px;
+      font-weight: bold;
+    }
+    QPushButton:hover {
+      background-color: #1976D2;
+      border-color: #64B5F6;
+    }
+    QPushButton:pressed {
+      background-color: #1565C0;
+    }
+  )");
+  QObject::connect(minimizeBtn, &QPushButton::clicked, this, &QWidget::showMinimized);
+
+  headerLayout->addWidget(closeBtn);
+  headerLayout->addWidget(titleLabel, 1);
+  headerLayout->addWidget(minimizeBtn);
+
+  // Left side: Video player with header and controls
+  QWidget *leftSide = new QWidget;
+  QVBoxLayout *leftLayout = new QVBoxLayout(leftSide);
+  leftLayout->setContentsMargins(0, 0, 0, 0);
+  leftLayout->setSpacing(0);
+
+  leftLayout->addWidget(m_headerWidget);
+
+  // Video widget optimized for QCOM2 portrait mode
+  m_videoWidget = new BPHardwareVideoWidget;
+  m_videoWidget->setMinimumHeight(1200); // Larger for portrait mode
+
+  // Controls with SidebarBP card styling
+  m_controlsWidget = new QWidget;
+  m_controlsWidget->setFixedHeight(180); // Much larger for touch
+  m_controlsWidget->setStyleSheet(R"(
+    QWidget {
+      background-color: #242424;
+      border-top: 3px solid #404040;
+      border-bottom-left-radius: 20px;
+      border-bottom-right-radius: 20px;
+    }
+  )");
+
+  QHBoxLayout *controlsLayout = new QHBoxLayout(m_controlsWidget);
+  controlsLayout->setContentsMargins(30, 30, 30, 30); // SidebarBP spacing
+
+  // Play/Pause button with SidebarBP action button styling
+  m_playPauseButton = new QPushButton("⏸ Pause");
+  m_playPauseButton->setFixedSize(200, 120); // Much larger for touch
+  m_playPauseButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #2196F3;
+      color: white;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      font-size: 36px;
+      font-weight: 600;
+    }
+    QPushButton:hover {
+      background-color: #1976D2;
+      border-color: #64B5F6;
+    }
+    QPushButton:pressed {
+      background-color: #1565C0;
     }
   )");
   QObject::connect(m_playPauseButton, &QPushButton::clicked, this, &BPHardwareVideoDialog::togglePlayback);
 
+  // Touch-friendly position slider with SidebarBP colors
   m_positionSlider = new QSlider(Qt::Horizontal);
+  m_positionSlider->setMinimumHeight(60); // Larger touch area
   m_positionSlider->setStyleSheet(R"(
     QSlider::groove:horizontal {
-      border: 1px solid #999999;
-      height: 8px;
-      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B1B1B1, stop:1 #c4c4c4);
-      margin: 2px 0;
-      border-radius: 4px;
+      border: none;
+      height: 20px;
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #404040, stop:1 #2a2a2a);
+      margin: 10px 0;
+      border-radius: 10px;
     }
     QSlider::handle:horizontal {
-      background: #009688;
-      border: 1px solid #5c5c5c;
-      width: 18px;
-      margin: -2px 0;
-      border-radius: 9px;
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2196F3, stop:1 #1976D2);
+      border: 3px solid #64B5F6;
+      width: 40px;
+      margin: -10px 0;
+      border-radius: 20px;
     }
     QSlider::handle:horizontal:hover {
-      background: #00796B;
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #42A5F5, stop:1 #2196F3);
+      border-color: #90CAF9;
+    }
+    QSlider::handle:horizontal:pressed {
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1565C0, stop:1 #0D47A1);
     }
   )");
   QObject::connect(m_positionSlider, &QSlider::sliderMoved, this, &BPHardwareVideoDialog::onSliderMoved);
 
+  // Time label with SidebarBP card styling
   m_timeLabel = new QLabel("00:00 / 00:00");
-  m_timeLabel->setStyleSheet("color: white; font-size: 16px;");
-  m_timeLabel->setMinimumWidth(150);
+  m_timeLabel->setStyleSheet(R"(
+    QLabel {
+      color: white;
+      font-size: 32px;
+      font-weight: 600;
+      background-color: #242424;
+      padding: 15px 25px;
+      border-radius: 12px;
+      border: 2px solid #404040;
+    }
+  )");
+  m_timeLabel->setMinimumWidth(250);
+  m_timeLabel->setMinimumHeight(80);
+  m_timeLabel->setAlignment(Qt::AlignCenter);
 
   controlsLayout->addWidget(m_playPauseButton);
   controlsLayout->addWidget(m_positionSlider, 1);
   controlsLayout->addWidget(m_timeLabel);
 
-  // Add to main layout
-  mainLayout->addWidget(m_headerWidget);
-  mainLayout->addWidget(m_videoWidget, 1);
-  mainLayout->addWidget(m_controlsWidget);
+  leftLayout->addWidget(m_videoWidget, 1);
+  leftLayout->addWidget(m_controlsWidget);
+
+  // Right side: Camera stack panel
+  QWidget *cameraStackPanel = new QWidget;
+  cameraStackPanel->setFixedWidth(200); // Fixed width for camera stack
+  cameraStackPanel->setStyleSheet(R"(
+    QWidget {
+      background-color: #242424;
+      border-left: 3px solid #404040;
+    }
+  )");
+
+  QVBoxLayout *cameraLayout = new QVBoxLayout(cameraStackPanel);
+  cameraLayout->setContentsMargins(20, 20, 20, 20);
+  cameraLayout->setSpacing(15);
+
+  // Camera selection buttons
+  QLabel *cameraLabel = new QLabel("Camera Views");
+  cameraLabel->setStyleSheet("font-size: 24px; font-weight: 600; color: white; margin-bottom: 10px;");
+  cameraLayout->addWidget(cameraLabel);
+
+  // Camera buttons
+  QPushButton *fcameraBtn = new QPushButton("Front Camera");
+  QPushButton *dcameraBtn = new QPushButton("Driver Camera");
+  QPushButton *ecameraBtn = new QPushButton("Wide Camera");
+
+  // Style camera buttons
+  QString cameraButtonStyle = R"(
+    QPushButton {
+      background-color: #2196F3;
+      color: white;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      padding: 15px 10px;
+    }
+    QPushButton:hover {
+      background-color: #1976D2;
+      border-color: #64B5F6;
+    }
+    QPushButton:pressed {
+      background-color: #1565C0;
+    }
+  )";
+
+  fcameraBtn->setStyleSheet(cameraButtonStyle);
+  dcameraBtn->setStyleSheet(cameraButtonStyle);
+  ecameraBtn->setStyleSheet(cameraButtonStyle);
+
+  cameraLayout->addWidget(fcameraBtn);
+  cameraLayout->addWidget(dcameraBtn);
+  cameraLayout->addWidget(ecameraBtn);
+  cameraLayout->addStretch();
+
+  // Delete button at bottom of camera stack
+  QPushButton *deleteBtn = new QPushButton("🗑 Delete Route");
+  deleteBtn->setStyleSheet(R"(
+    QPushButton {
+      background-color: #F44336;
+      color: white;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      padding: 15px 10px;
+    }
+    QPushButton:hover {
+      background-color: #D32F2F;
+      border-color: #FFCDD2;
+    }
+    QPushButton:pressed {
+      background-color: #C62828;
+    }
+  )");
+  cameraLayout->addWidget(deleteBtn);
+
+  // Add both sides to main layout
+  mainLayout->addWidget(leftSide, 1); // Video side takes most space
+  mainLayout->addWidget(cameraStackPanel); // Camera stack on right
 }
 
 void BPHardwareVideoDialog::togglePlayback() {
   if (m_decoder->isPlaying()) {
     m_decoder->pause();
-    m_playPauseButton->setText("Play");
+    m_playPauseButton->setText("▶ Play");
   } else {
     m_decoder->play();
-    m_playPauseButton->setText("Pause");
+    m_playPauseButton->setText("⏸ Pause");
   }
 }
 
@@ -562,7 +739,7 @@ void BPHardwareVideoDialog::onDurationChanged(qint64 duration) {
 }
 
 void BPHardwareVideoDialog::onPlaybackFinished() {
-  m_playPauseButton->setText("Play");
+  m_playPauseButton->setText("▶ Play");
   m_positionSlider->setValue(0);
   updateTimeLabel();
 }
@@ -601,4 +778,129 @@ void BPHardwareVideoDialog::updateTimeLabel() {
   int positionSecs = position / 1000;
 
   m_timeLabel->setText(formatTime(positionSecs) + " / " + formatTime(durationSecs));
+}
+
+void BPHardwareVideoDialog::centerOnScreen() {
+  // Optimize for QCOM2 device (portrait 1080x2160)
+  // Center the modal with appropriate margins for touch interaction
+
+  // For QCOM2 portrait 1080x2160 resolution, center with margins
+  int screenWidth = 1080;
+  int screenHeight = 2160;
+
+  // Calculate center position with margins
+  int marginX = 40;  // 40px margin on each side (smaller for portrait)
+  int marginY = 80;  // 80px margin top/bottom
+
+  int x = marginX;
+  int y = marginY;
+
+  // Ensure the dialog fits within screen bounds
+  int maxWidth = screenWidth - (2 * marginX);
+  int maxHeight = screenHeight - (2 * marginY);
+
+  if (width() > maxWidth) {
+    resize(maxWidth, height());
+  }
+  if (height() > maxHeight) {
+    resize(width(), maxHeight);
+  }
+
+  // Move to position
+  move(x, y);
+}
+
+void BPHardwareVideoDialog::keyPressEvent(QKeyEvent *event) {
+  switch (event->key()) {
+    case Qt::Key_Space:
+      // Spacebar toggles play/pause
+      togglePlayback();
+      event->accept();
+      break;
+
+    case Qt::Key_Escape:
+      // Escape closes the dialog
+      reject();
+      event->accept();
+      break;
+
+    case Qt::Key_Left:
+      // Left arrow seeks backward 10 seconds
+      if (m_decoder) {
+        qint64 currentPos = m_decoder->position();
+        qint64 newPos = qMax(0LL, currentPos - 10000);
+        m_decoder->seek(newPos);
+      }
+      event->accept();
+      break;
+
+    case Qt::Key_Right:
+      // Right arrow seeks forward 10 seconds
+      if (m_decoder) {
+        qint64 currentPos = m_decoder->position();
+        qint64 duration = m_decoder->duration();
+        qint64 newPos = qMin(duration, currentPos + 10000);
+        m_decoder->seek(newPos);
+      }
+      event->accept();
+      break;
+
+    case Qt::Key_F:
+      // F key toggles fullscreen (if supported)
+      if (isFullScreen()) {
+        showNormal();
+      } else {
+        showFullScreen();
+      }
+      event->accept();
+      break;
+
+    default:
+      QDialog::keyPressEvent(event);
+      break;
+  }
+}
+
+bool BPHardwareVideoDialog::event(QEvent *event) {
+  // Handle touch events for better touch screen support
+  if (event->type() == QEvent::TouchBegin ||
+      event->type() == QEvent::TouchUpdate ||
+      event->type() == QEvent::TouchEnd) {
+    // Convert touch events to mouse events for better compatibility
+    QTouchEvent *touchEvent = static_cast<QTouchEvent*>(event);
+    if (!touchEvent->touchPoints().isEmpty()) {
+      const QTouchEvent::TouchPoint &touchPoint = touchEvent->touchPoints().first();
+
+      // Create corresponding mouse event
+      QMouseEvent *mouseEvent = nullptr;
+      switch (event->type()) {
+        case QEvent::TouchBegin:
+          mouseEvent = new QMouseEvent(QEvent::MouseButtonPress,
+                                     touchPoint.pos().toPoint(),
+                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+          break;
+        case QEvent::TouchUpdate:
+          mouseEvent = new QMouseEvent(QEvent::MouseMove,
+                                     touchPoint.pos().toPoint(),
+                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+          break;
+        case QEvent::TouchEnd:
+          mouseEvent = new QMouseEvent(QEvent::MouseButtonRelease,
+                                     touchPoint.pos().toPoint(),
+                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+          break;
+        default:
+          break;
+      }
+
+      if (mouseEvent) {
+        QCoreApplication::postEvent(this, mouseEvent);
+        event->accept();
+        return true;
+      }
+    }
+  }
+
+  // Handle other events normally
+  return QDialog::event(event);
 }
