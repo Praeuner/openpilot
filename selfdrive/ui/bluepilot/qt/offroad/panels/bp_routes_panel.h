@@ -44,6 +44,7 @@
 // Custom includes
 #include "bp_panel_controls.h"
 #include "bp_panel_dialogs.h"
+#include "bp_hardware_video_decoder.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 
 class BPRoutesPanel : public QWidget {
@@ -212,6 +213,9 @@ private:
   void handleCleanup();
   void handleRefresh();
   void viewSyncLog();
+
+  // Platform-specific ffmpeg detection
+  QString findFFmpegExecutable();
 
   void updateButtonStates();
 

@@ -23,6 +23,10 @@
 
 #include "common/params.h"
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 BPRoutesPanel::BPRoutesPanel(QWidget *parent) : QWidget(parent), isLoading(false), isSyncing(false), syncProgressDialog(nullptr), syncTimer(nullptr) {
   setObjectName("routesPanel");
 
@@ -54,6 +58,37 @@ BPRoutesPanel::~BPRoutesPanel() {
     watcher->deleteLater();
   }
   thumbnailWatchers.clear();
+}
+
+QString BPRoutesPanel::findFFmpegExecutable() {
+  QStringList possiblePaths;
+
+#ifdef __APPLE__
+  // macOS-specific ffmpeg paths
+  possiblePaths << "/opt/homebrew/bin/ffmpeg"  // Homebrew on Apple Silicon
+               << "/usr/local/bin/ffmpeg"      // Homebrew on Intel
+               << "/opt/local/bin/ffmpeg"      // MacPorts
+               << "ffmpeg";                    // System PATH
+#else
+  // Linux/other platforms
+  possiblePaths << "/usr/bin/ffmpeg"           // System installation
+               << "/usr/local/bin/ffmpeg"      // Local installation
+               << "ffmpeg";                    // System PATH
+#endif
+
+  for (const QString &path : possiblePaths) {
+    QProcess testProcess;
+    testProcess.start(path, QStringList() << "-version");
+    testProcess.waitForFinished(3000); // 3 second timeout
+
+    if (testProcess.exitCode() == 0) {
+      std::cout << "Found ffmpeg at: " << path.toStdString() << std::endl;
+      return path;
+    }
+  }
+
+  std::cout << "ffmpeg not found in any expected locations" << std::endl;
+  return QString();
 }
 
 void BPRoutesPanel::simulateActivity() {
@@ -962,11 +997,9 @@ bool BPRoutesPanel::concatQLog(const QString &routeBase, const QString &outputDi
 }
 
 bool BPRoutesPanel::concatVideos(const QString &routeBase, const QString &outputDir) {
-  // Check for ffmpeg
-  QProcess ffmpeg;
-  ffmpeg.start("which ffmpeg");
-  ffmpeg.waitForFinished();
-  if (ffmpeg.exitCode() != 0) {
+  // Check for ffmpeg using platform-specific detection
+  QString ffmpegPath = findFFmpegExecutable();
+  if (ffmpegPath.isEmpty()) {
     BPConfirmationDialog::ConfirmConfig config;
     config.title = tr("Error");
     config.prompt = tr("ffmpeg not found. Cannot concatenate video files.");
@@ -1023,7 +1056,7 @@ bool BPRoutesPanel::concatVideos(const QString &routeBase, const QString &output
     QProcess ffmpegProcess;
     ffmpegProcess.setProcessChannelMode(QProcess::MergedChannels);
 
-    QString cmd = QString("ffmpeg -y -f concat -safe 0 -i %1 -c copy -fflags +genpts %2").arg(concatList, outputFile);
+    QString cmd = QString("%1 -y -f concat -safe 0 -i %2 -c copy -fflags +genpts %3").arg(ffmpegPath, concatList, outputFile);
 
     ffmpegProcess.start(cmd);
 
@@ -1314,8 +1347,14 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
 
   showLoadingOverlay(tr("Loading routes..."));
 
+  // Reset loading state to ensure routes can be loaded
+  isLoading = false;
+
   // Load routes in background with delay
-  QTimer::singleShot(100, this, [this]() { loadRoutes(); });
+  QTimer::singleShot(100, this, [this]() {
+    std::cout << "Starting route loading from showEvent..." << std::endl;
+    loadRoutes();
+  });
 }
 
 void BPRoutesPanel::hideEvent(QHideEvent *event) {
@@ -1756,11 +1795,9 @@ QString BPRoutesPanel::generateThumbnailAsync(const QString &routeBase) {
     return QString();
   }
 
-  // Check ffmpeg availability
-  QProcess which;
-  which.start("which", QStringList() << "ffmpeg");
-  which.waitForFinished();
-  if (which.exitCode() != 0) {
+  // Check ffmpeg availability using platform-specific detection
+  QString ffmpegPath = findFFmpegExecutable();
+  if (ffmpegPath.isEmpty()) {
     return QString();
   }
 
@@ -1794,7 +1831,7 @@ QString BPRoutesPanel::generateThumbnailAsync(const QString &routeBase) {
        << "-pix_fmt" << "yuvj420p"                                                   // Use full-range YUV
        << thumbnailPath;                                                             // Output file
 
-  ffmpeg.start("ffmpeg", args);
+  ffmpeg.start(ffmpegPath, args);
 
   if (!ffmpeg.waitForStarted(5000)) {
     return QString();
@@ -1914,14 +1951,14 @@ void BPRoutesPanel::playRouteVideoConcatenated(const QString &routeBase, const Q
         [=]() {
           hideStatusOverlay();
 
-          auto videoDialog = new BPVideoDialog(pipePath, this);
+          auto videoDialog = new BPHardwareVideoDialog(pipePath, this);
 
           // Start ffmpeg process
           QProcess *ffmpegProcess = new QProcess(this);
           ffmpegProcess->setProcessChannelMode(QProcess::MergedChannels);
 
           // Setup cleanup
-          connect(videoDialog, &BPVideoDialog::finished, [=]() {
+          connect(videoDialog, &BPHardwareVideoDialog::finished, [=]() {
             ffmpegProcess->kill();
             ffmpegProcess->waitForFinished();
             QFile::remove(pipePath);
@@ -1929,13 +1966,26 @@ void BPRoutesPanel::playRouteVideoConcatenated(const QString &routeBase, const Q
             ffmpegProcess->deleteLater();
           });
 
+          // Find ffmpeg executable
+          QString ffmpegPath = findFFmpegExecutable();
+          if (ffmpegPath.isEmpty()) {
+            hideStatusOverlay();
+            BPConfirmationDialog::ConfirmConfig config;
+            config.title = tr("Error");
+            config.prompt = tr("ffmpeg not found. Cannot play video.");
+            config.confirmText = tr("OK");
+            config.confirmColor = "#FF0000";
+            BPConfirmationDialog::showMessage(config, this);
+            return;
+          }
+
           // Prepare and start ffmpeg
           QStringList args;
           args << "-y" << "-f" << "concat" << "-safe" << "0"
                << "-i" << tempListPath << "-c" << "copy"
                << "-f" << "hevc" << pipePath;
 
-          ffmpegProcess->start("ffmpeg", args);
+          ffmpegProcess->start(ffmpegPath, args);
 
           // Small delay for pipe setup
           QTimer::singleShot(100, [=]() { videoDialog->exec(); });
