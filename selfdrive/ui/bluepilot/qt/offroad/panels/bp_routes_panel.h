@@ -18,6 +18,10 @@
 // Qt GUI
 #include <QGuiApplication>
 #include <QScreen>
+#ifdef QCOM2
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#endif
 
 // Qt Widgets
 #include <QCheckBox>
@@ -165,7 +169,6 @@ private:
   void createDateGroupHeader(const QDate &date, int routeCount);
   void setupModernStyles();
   void loadMoreRoutes();
-  void updatePaginationInfo();
   void checkScrollPosition();
   void createRouteCard(const RouteInfo &route, QWidget *parent);
   void setupRouteCardActions(QWidget *card, const RouteInfo &route);
@@ -204,8 +207,6 @@ private:
   int currentPage = 0;
   int routesPerPage = 10;
   int totalPages = 0;
-  QPushButton *loadMoreButton = nullptr;
-  QLabel *paginationLabel = nullptr;
 
   // UI Overlays
   QWidget *loadingOverlay = nullptr;
@@ -378,7 +379,7 @@ private:
 class BPEnhancedVideoModal : public QDialog {
   Q_OBJECT
 public:
-  explicit BPEnhancedVideoModal(const QString &routeBase, const RouteInfo &route, QWidget *parent = nullptr);
+  explicit BPEnhancedVideoModal(const QString &routeBase, const BPRoutesPanel::RouteInfo &route, QWidget *parent = nullptr);
   ~BPEnhancedVideoModal();
 
 private slots:
@@ -415,7 +416,7 @@ private:
 
   // Route information
   QString m_routeBase;
-  RouteInfo m_route;
+  BPRoutesPanel::RouteInfo m_route;
   QString m_currentCamera;
 
   // UI Elements

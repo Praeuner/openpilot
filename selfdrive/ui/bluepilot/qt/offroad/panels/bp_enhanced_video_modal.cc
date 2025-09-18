@@ -6,7 +6,6 @@
 #include <QResizeEvent>
 #include <QGuiApplication>
 #include <QScreen>
-#include <QPlatformNativeInterface>
 #include <QProcess>
 #include <QDir>
 #include <QFile>
@@ -21,7 +20,7 @@
 #endif
 
 // Enhanced Video Modal Implementation
-BPEnhancedVideoModal::BPEnhancedVideoModal(const QString &routeBase, const RouteInfo &route, QWidget *parent)
+BPEnhancedVideoModal::BPEnhancedVideoModal(const QString &routeBase, const BPRoutesPanel::RouteInfo &route, QWidget *parent)
     : QDialog(parent), m_routeBase(routeBase), m_route(route), m_currentCamera("fcamera.hevc") {
 
   // Set fullscreen window flags

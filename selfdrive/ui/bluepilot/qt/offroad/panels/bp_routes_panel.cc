@@ -737,36 +737,8 @@ void BPRoutesPanel::updateRouteList() {
     scrollCheckTimer->start();
   }
 
-  // Add pagination controls
-  auto paginationWidget = new QWidget(routesContainer);
-  auto paginationLayout = new QHBoxLayout(paginationWidget);
-  paginationLayout->setContentsMargins(0, 20, 0, 0);
-
-  paginationLabel = new QLabel();
-  paginationLabel->setStyleSheet("color: #AAAAAA; font-size: 28px;");
-  paginationLayout->addWidget(paginationLabel);
-  paginationLayout->addStretch();
-
-  loadMoreButton = new QPushButton(tr("Load More Routes"));
-  loadMoreButton->setProperty("class", "routes-panel-action-button");
-  loadMoreButton->setStyleSheet(R"(
-    QPushButton {
-      background-color: #009688;
-      color: white;
-      font-size: 28px;
-      padding: 15px 30px;
-    }
-    QPushButton:hover {
-      background-color: #00796B;
-    }
-  )");
-  connect(loadMoreButton, &QPushButton::clicked, this, &BPRoutesPanel::loadMoreRoutes);
-  paginationLayout->addWidget(loadMoreButton);
-
-  routesLayout->addWidget(paginationWidget);
+  // No manual pagination controls - routes load automatically on scroll
   routesLayout->addStretch();
-
-  updatePaginationInfo();
 }
 
 void BPRoutesPanel::continueRouteProcessing() {
@@ -2035,158 +2007,32 @@ void BPRoutesPanel::cleanupThumbnailCache() {
 }
 
 void BPRoutesPanel::playRouteVideoConcatenated(const QString &routeBase, const QString &videoFileName) {
-  int totalSegments = getTotalSegments(routeBase);
-  if (totalSegments == 0)
-    return;
+  // Find the route info for this routeBase
+  BPRoutesPanel::RouteInfo routeInfo;
+  bool foundRoute = false;
+  for (const BPRoutesPanel::RouteInfo &route : routes) {
+    if (route.baseName == routeBase) {
+      routeInfo = route;
+      foundRoute = true;
+      break;
+    }
+  }
 
-  // Check if ffmpeg is available first
-  QString ffmpegPath = findFFmpegExecutable();
-  if (ffmpegPath.isEmpty()) {
+  if (!foundRoute) {
     BPConfirmationDialog::ConfirmConfig config;
     config.title = tr("Error");
-    config.prompt = tr("ffmpeg not found. Cannot play video.");
+    config.prompt = tr("Route information not found.");
     config.confirmText = tr("OK");
     config.confirmColor = "#FF0000";
     BPConfirmationDialog::showMessage(config, this);
     return;
   }
 
-  // Show status overlay immediately
-  showStatusOverlay(tr("Preparing video playback..."));
+  // Create and show the enhanced video modal with hardware acceleration
+  auto videoModal = new BPEnhancedVideoModal(routeBase, routeInfo, this);
+  videoModal->exec();
+  delete videoModal;
 
-  // Create temporary files in background
-  QtConcurrent::run([=]() {
-    // Create temp files in background thread
-    QString tempListPath = QDir::tempPath() + "/" + routeBase + "_" + videoFileName + "_list.txt";
-    QFile listFile(tempListPath);
-    if (!listFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-      QMetaObject::invokeMethod(
-          this,
-          [=]() {
-            hideStatusOverlay();
-            BPConfirmationDialog::ConfirmConfig config;
-            config.title = tr("Error");
-            config.prompt = tr("Failed to create temporary files");
-            config.confirmText = tr("OK");
-            config.confirmColor = "#FF0000";
-            BPConfirmationDialog::showMessage(config, this);
-          },
-          Qt::QueuedConnection);
-      return;
-    }
-
-    // Write file list
-    QTextStream out(&listFile);
-    int validSegments = 0;
-    for (int i = 0; i < totalSegments; i++) {
-      QString segmentPath = getRouteSegmentPath(routeBase, i);
-      QString videoPath = segmentPath + "/" + videoFileName;
-      if (QFile::exists(videoPath)) {
-        out << "file '" << videoPath << "'\n";
-        validSegments++;
-      }
-    }
-    listFile.close();
-
-    if (validSegments == 0) {
-      QMetaObject::invokeMethod(
-          this,
-          [=]() {
-            hideStatusOverlay();
-            BPConfirmationDialog::ConfirmConfig config;
-            config.title = tr("Error");
-            config.prompt = tr("No video files found for this route");
-            config.confirmText = tr("OK");
-            config.confirmColor = "#FF0000";
-            BPConfirmationDialog::showMessage(config, this);
-          },
-          Qt::QueuedConnection);
-      return;
-    }
-
-    // Create named pipe asynchronously
-    QString pipePath = QDir::tempPath() + "/ffmpeg_pipe_" + routeBase + "_" + videoFileName + ".hevc";
-
-    // Use QProcess instead of QProcess::execute to avoid blocking
-    QProcess mkfifoProcess;
-    mkfifoProcess.start("mkfifo", {pipePath});
-
-    if (!mkfifoProcess.waitForFinished(3000)) { // Reduced timeout
-      QMetaObject::invokeMethod(
-          this,
-          [=]() {
-            hideStatusOverlay();
-            BPConfirmationDialog::ConfirmConfig config;
-            config.title = tr("Error");
-            config.prompt = tr("Failed to create video pipe");
-            config.confirmText = tr("OK");
-            config.confirmColor = "#FF0000";
-            BPConfirmationDialog::showMessage(config, this);
-          },
-          Qt::QueuedConnection);
-      return;
-    }
-
-    if (mkfifoProcess.exitCode() != 0) {
-      QString errorMessage = QString::fromUtf8(mkfifoProcess.readAllStandardError());
-      QMetaObject::invokeMethod(
-          this,
-          [=]() {
-            hideStatusOverlay();
-            BPConfirmationDialog::ConfirmConfig config;
-            config.title = tr("Error");
-            config.prompt = tr("Failed to create video pipe: %1").arg(errorMessage);
-            config.confirmText = tr("OK");
-            config.confirmColor = "#FF0000";
-            BPConfirmationDialog::showMessage(config, this);
-          },
-          Qt::QueuedConnection);
-      return;
-    }
-
-    // Back to main thread to create dialog and start playback
-    QMetaObject::invokeMethod(
-        this,
-        [=]() {
-          hideStatusOverlay();
-
-          auto videoDialog = new BPHardwareVideoDialog(pipePath, this);
-
-          // Start ffmpeg process
-          QProcess *ffmpegProcess = new QProcess(this);
-          ffmpegProcess->setProcessChannelMode(QProcess::MergedChannels);
-
-          // Setup cleanup - make it non-blocking
-          connect(videoDialog, &BPHardwareVideoDialog::finished, [=]() {
-            ffmpegProcess->kill();
-            // Use QTimer to avoid blocking the UI thread
-            QTimer::singleShot(0, [=]() {
-              if (ffmpegProcess->state() != QProcess::NotRunning) {
-                ffmpegProcess->waitForFinished(1000); // 1 second timeout
-              }
-              QFile::remove(pipePath);
-              QFile::remove(tempListPath);
-              ffmpegProcess->deleteLater();
-            });
-          });
-
-          // Prepare and start ffmpeg
-          QStringList args;
-          args << "-y" << "-f" << "concat" << "-safe" << "0"
-               << "-i" << tempListPath << "-c" << "copy"
-               << "-f" << "hevc" << pipePath;
-
-          ffmpegProcess->start(ffmpegPath, args);
-
-          // Show dialog without blocking - use show() instead of exec()
-          QTimer::singleShot(50, [=]() { // Reduced delay
-            videoDialog->show();
-            videoDialog->raise();
-            videoDialog->activateWindow();
-          });
-        },
-        Qt::QueuedConnection);
-  });
 }
 
 BPRouteSyncSettingsDialog::BPRouteSyncSettingsDialog(const BPRoutesPanel::SyncConfig &config, QWidget *parent) : BPDialogBase(parent), currentConfig(config) {
@@ -2795,87 +2641,9 @@ void BPRoutesPanel::createModernRouteWidget(const RouteInfo &route) {
 
   infoLayout->addStretch();
 
-  // Right side: Action buttons with modern styling
-  auto actionsContainer = new QWidget();
-  actionsContainer->setStyleSheet("background: transparent;");
-  auto actionsLayout = new QVBoxLayout(actionsContainer);
-  actionsLayout->setContentsMargins(0, 0, 0, 0);
-  actionsLayout->setSpacing(15);
-
-  // Play button (primary action with gradient)
-  auto playButton = new QPushButton(tr("▶  Play Video"));
-  playButton->setProperty("class", "route-card-button");
-  playButton->setFixedHeight(50);
-  playButton->setStyleSheet(R"(
-    QPushButton {
-      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2196F3, stop:1 #1976D2);
-      color: white;
-      font-size: 30px;
-      font-weight: 700;
-      border-radius: 10px;
-      padding: 0 20px;
-      border: none;
-    }
-    QPushButton:hover {
-      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #42A5F5, stop:1 #2196F3);
-    }
-    QPushButton:pressed {
-      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1565C0, stop:1 #0D47A1);
-    }
-  )");
-
-  // Video selection menu with icon
-  auto videoMenuButton = new QPushButton(tr("📹 Cameras"));
-  videoMenuButton->setProperty("class", "route-card-button");
-  videoMenuButton->setFixedHeight(45);
-  videoMenuButton->setStyleSheet(R"(
-    QPushButton {
-      background-color: #424242;
-      color: white;
-      font-size: 28px;
-      font-weight: 600;
-      border-radius: 8px;
-      padding: 0 15px;
-      border: 1px solid #555555;
-    }
-    QPushButton:hover {
-      background-color: #4a4a4a;
-      border-color: #2196F3;
-    }
-  )");
-
-  // Delete button with warning style
-  auto deleteButton = new QPushButton(tr("🗑 Delete"));
-  deleteButton->setProperty("class", "route-card-button");
-  deleteButton->setFixedHeight(45);
-  deleteButton->setStyleSheet(R"(
-    QPushButton {
-      background-color: rgba(244, 67, 54, 0.8);
-      color: white;
-      font-size: 28px;
-      font-weight: 600;
-      border-radius: 8px;
-      padding: 0 15px;
-      border: 1px solid #D32F2F;
-    }
-    QPushButton:hover {
-      background-color: rgba(244, 67, 54, 1.0);
-      border-color: #FF5252;
-    }
-    QPushButton:pressed {
-      background-color: #C62828;
-    }
-  )");
-
-  actionsLayout->addWidget(playButton);
-  actionsLayout->addWidget(videoMenuButton);
-  actionsLayout->addWidget(deleteButton);
-  actionsLayout->addStretch();
-
-  // Add to card layout
+  // Add to card layout (no action buttons - entire card is clickable)
   cardLayout->addWidget(thumbnailContainer);
   cardLayout->addWidget(infoContainer, 1);
-  cardLayout->addWidget(actionsContainer);
 
   // Make entire route card clickable to open modal with fcamera by default
   routeCard->setCursor(Qt::PointingHandCursor);
@@ -2884,20 +2652,6 @@ void BPRoutesPanel::createModernRouteWidget(const RouteInfo &route) {
   // Store route info in the card for event filtering
   routeCard->setProperty("routeBaseName", route.baseName);
   routeCard->setProperty("routeInfo", QVariant::fromValue(route));
-
-  // Connect signals
-  connect(playButton, &QPushButton::clicked, [this, route]() {
-    playRouteVideoConcatenated(route.baseName, "fcamera.hevc");
-  });
-
-  connect(videoMenuButton, &QPushButton::clicked, [this, route]() {
-    // Show video selection menu
-    showVideoSelectionMenu(route);
-  });
-
-  connect(deleteButton, &QPushButton::clicked, [this, route]() {
-    handleRouteRemoval(route.baseName);
-  });
 
   routesLayout->addWidget(routeCard);
 }
@@ -2971,20 +2725,6 @@ void BPRoutesPanel::loadMoreRoutes() {
     }
   }
 
-  updatePaginationInfo();
-}
-
-void BPRoutesPanel::updatePaginationInfo() {
-  if (!paginationLabel) return;
-
-  int totalRoutes = routes.size();
-  int loadedRoutes = qMin((currentPage + 1) * routesPerPage, totalRoutes);
-
-  paginationLabel->setText(tr("Showing %1 of %2 routes").arg(loadedRoutes).arg(totalRoutes));
-
-  if (loadMoreButton) {
-    loadMoreButton->setVisible(loadedRoutes < totalRoutes);
-  }
 }
 
 bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
@@ -3067,21 +2807,7 @@ bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
     }
   }
 
-  // Handle scroll area wheel events
-  if (obj == scrollArea->viewport() && event->type() == QEvent::Wheel) {
-    QWheelEvent *wheelEvent = static_cast<QWheelEvent*>(event);
-
-    // Check if scrolling near bottom (within 200px)
-    int scrollBarValue = scrollArea->verticalScrollBar()->value();
-    int scrollBarMaximum = scrollArea->verticalScrollBar()->maximum();
-    int scrollBarPageStep = scrollArea->verticalScrollBar()->pageStep();
-
-    // If scrolling down and near bottom, load more routes
-    if (wheelEvent->angleDelta().y() < 0 &&
-        scrollBarValue >= scrollBarMaximum - scrollBarPageStep - 200) {
-      loadMoreRoutes();
-    }
-  }
+  // Touch screen devices don't use wheel events - scroll detection handled by timer
 
   return QWidget::eventFilter(obj, event);
 }
