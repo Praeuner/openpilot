@@ -354,7 +354,7 @@
             {
               "type": "toggle",
               "param": "FordPrefDisableBP_lat_UI",
-              "title": "Disable BP Lateral Controls",
+              "title": "Disable BluePilot Lateral Controls",
               "desc": "Use stock openpilot lateral controls",
               "hidden": false,
               "conditions": {

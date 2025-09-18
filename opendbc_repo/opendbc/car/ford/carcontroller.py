@@ -642,6 +642,14 @@ class CarController(CarControllerBase):
           self.anti_overshoot_curvature_last = anti_overshoot(desired_curvature, self.anti_overshoot_curvature_last, CS.out.vEgoRaw)
           apply_curvature = self.anti_overshoot_curvature_last
 
+          current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
+
+          self.apply_curvature_last = apply_ford_curvature_limits(apply_curvature, self.apply_curvature_last, current_curvature,
+                                                              CS.out.vEgoRaw, 0., CC.latActive, self.CP)
+
+          #rem bluepilot sends apply_curvature, and at some point openpilot swapped to sending apply_curvature_last.
+          apply_curvature = self.apply_curvature_last
+
         # reset steering by setting all values to 0 and ramp_type to immediate
         if reset_steering == 1:
           apply_curvature = 0
