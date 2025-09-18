@@ -136,41 +136,50 @@ bool BPHardwareVideoDecoder::initCodecContext() {
 }
 
 bool BPHardwareVideoDecoder::initHardwareDecoder() {
-  // Find hardware configuration
-  const AVCodecHWConfig *config = nullptr;
-  for (int i = 0; (config = avcodec_get_hw_config(m_codec, i)) != nullptr; i++) {
-    if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
-        config->device_type == HW_DEVICE_TYPE) {
-      m_hwPixelFormat = config->pix_fmt;
-      break;
+  // Try each hardware device type in order of preference
+  for (const auto& deviceType : HW_DEVICE_TYPES) {
+    if (deviceType == AV_HWDEVICE_TYPE_NONE) {
+      qWarning() << "No hardware acceleration available, using software decoder";
+      return false;
+    }
+
+    // Find hardware configuration for this device type
+    const AVCodecHWConfig *config = nullptr;
+    for (int i = 0; (config = avcodec_get_hw_config(m_codec, i)) != nullptr; i++) {
+      if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
+          config->device_type == deviceType) {
+        m_hwPixelFormat = config->pix_fmt;
+        break;
+      }
+    }
+
+    if (!config) {
+      qWarning() << "Hardware configuration not found for device type" << deviceType;
+      continue;
+    }
+
+    // Try to create hardware device context for this type
+    if (createHardwareDevice(deviceType)) {
+      // Set hardware device context
+      m_codecContext->hw_device_ctx = av_buffer_ref(m_hwDeviceContext);
+      m_codecContext->opaque = this;
+      m_codecContext->get_format = get_hw_format;
+
+      std::cout << "Hardware decoder initialized successfully with device type " << deviceType << std::endl;
+      return true;
     }
   }
 
-  if (!config) {
-    qWarning() << "Hardware configuration not found for device type" << HW_DEVICE_TYPE;
-    return false;
-  }
-
-  // Create hardware device context
-  if (!createHardwareDevice()) {
-    return false;
-  }
-
-  // Set hardware device context
-  m_codecContext->hw_device_ctx = av_buffer_ref(m_hwDeviceContext);
-  m_codecContext->opaque = this;
-  m_codecContext->get_format = get_hw_format;
-
-  std::cout << "Hardware decoder initialized successfully" << std::endl;
-  return true;
+  qWarning() << "Failed to initialize any hardware decoder, using software decoder";
+  return false;
 }
 
-bool BPHardwareVideoDecoder::createHardwareDevice() {
-  int ret = av_hwdevice_ctx_create(&m_hwDeviceContext, HW_DEVICE_TYPE, nullptr, nullptr, 0);
+bool BPHardwareVideoDecoder::createHardwareDevice(AVHWDeviceType deviceType) {
+  int ret = av_hwdevice_ctx_create(&m_hwDeviceContext, deviceType, nullptr, nullptr, 0);
   if (ret < 0) {
     char errorBuf[256];
     av_strerror(ret, errorBuf, sizeof(errorBuf));
-    qWarning() << "Failed to create hardware device context:" << errorBuf;
+    qWarning() << "Failed to create hardware device context for type" << deviceType << ":" << errorBuf;
     return false;
   }
 
@@ -271,10 +280,21 @@ void BPHardwareVideoDecoder::updatePosition() {
 void BPHardwareVideoDecoder::decodeThread() {
   std::cout << "Decode thread started" << std::endl;
 
+  // Frame rate limiting (target ~20 FPS for playback)
+  const int frameDelay = 50; // 50ms = 20 FPS
+  qint64 lastFrameTime = 0;
+
   while (!m_shouldStop.loadAcquire()) {
     if (!m_isPlaying.loadAcquire()) {
       QThread::msleep(10);
       continue;
+    }
+
+    qint64 currentTime = QTime::currentTime().msecsSinceStartOfDay();
+
+    // Frame rate limiting to prevent overwhelming the UI
+    if (lastFrameTime > 0 && (currentTime - lastFrameTime) < frameDelay) {
+      QThread::msleep(frameDelay - (currentTime - lastFrameTime));
     }
 
     if (!decodeFrame()) {
@@ -282,8 +302,10 @@ void BPHardwareVideoDecoder::decodeThread() {
       break;
     }
 
-    // Small delay to prevent excessive CPU usage
-    QThread::msleep(1);
+    lastFrameTime = QTime::currentTime().msecsSinceStartOfDay();
+
+    // Yield to other threads periodically
+    QThread::yieldCurrentThread();
   }
 
   std::cout << "Decode thread finished" << std::endl;
@@ -334,6 +356,58 @@ bool BPHardwareVideoDecoder::decodeFrame() {
   return true;
 }
 
+QImage BPHardwareVideoDecoder::convertYUV420PToRGB(AVFrame *frame) {
+  QImage image(frame->width, frame->height, QImage::Format_RGB888);
+
+  const uint8_t *yPlane = frame->data[0];
+  const uint8_t *uPlane = frame->data[1];
+  const uint8_t *vPlane = frame->data[2];
+
+  const int yStride = frame->linesize[0];
+  const int uStride = frame->linesize[1];
+  const int vStride = frame->linesize[2];
+
+  uint8_t *rgbData = image.bits();
+  const int rgbStride = image.bytesPerLine();
+
+  // Optimized YUV420P to RGB conversion (process rows to reduce cache misses)
+  for (int y = 0; y < frame->height; y++) {
+    const uint8_t *yRow = yPlane + y * yStride;
+    const uint8_t *uRow = uPlane + (y / 2) * uStride;
+    const uint8_t *vRow = vPlane + (y / 2) * vStride;
+    uint8_t *rgbRow = rgbData + y * rgbStride;
+
+    for (int x = 0; x < frame->width; x++) {
+      // Get Y, U, V values
+      int Y = yRow[x];
+      int U = uRow[x / 2] - 128;
+      int V = vRow[x / 2] - 128;
+
+      // Convert to RGB using integer math (faster than floating point)
+      int R = Y + ((1436 * V) >> 10);
+      int G = Y - ((352 * U + 731 * V) >> 10);
+      int B = Y + ((1814 * U) >> 10);
+
+      // Clamp values to 0-255 (branchless)
+      R = (R < 0) ? 0 : (R > 255) ? 255 : R;
+      G = (G < 0) ? 0 : (G > 255) ? 255 : G;
+      B = (B < 0) ? 0 : (B > 255) ? 255 : B;
+
+      // Store RGB values
+      rgbRow[x * 3 + 0] = R;
+      rgbRow[x * 3 + 1] = G;
+      rgbRow[x * 3 + 2] = B;
+    }
+
+    // Yield periodically to prevent blocking too long
+    if ((y & 15) == 0) {  // Every 16 rows
+      QThread::yieldCurrentThread();
+    }
+  }
+
+  return image;
+}
+
 void BPHardwareVideoDecoder::processFrame(AVFrame *frame) {
   AVFrame *outputFrame = frame;
 
@@ -349,15 +423,25 @@ void BPHardwareVideoDecoder::processFrame(AVFrame *frame) {
 
   // Convert frame to QImage and display
   if (m_videoWidget) {
-    QImage image(outputFrame->data[0], outputFrame->width, outputFrame->height,
-                 outputFrame->linesize[0], QImage::Format_RGB888);
+    QImage image;
 
-    // Convert YUV to RGB if needed
+    // Handle different pixel formats
     if (outputFrame->format == AV_PIX_FMT_YUV420P) {
-      // Simple YUV to RGB conversion (this could be optimized)
-      QImage rgbImage(outputFrame->width, outputFrame->height, QImage::Format_RGB888);
-      // TODO: Implement proper YUV to RGB conversion
-      image = rgbImage;
+      // Convert YUV420P to RGB
+      image = convertYUV420PToRGB(outputFrame);
+    } else if (outputFrame->format == AV_PIX_FMT_RGB24) {
+      // Direct RGB24 format
+      image = QImage(outputFrame->data[0], outputFrame->width, outputFrame->height,
+                     outputFrame->linesize[0], QImage::Format_RGB888);
+    } else if (outputFrame->format == AV_PIX_FMT_BGRA) {
+      // BGRA format (common on macOS)
+      image = QImage(outputFrame->data[0], outputFrame->width, outputFrame->height,
+                     outputFrame->linesize[0], QImage::Format_ARGB32);
+    } else {
+      // Fallback: try to interpret as RGB888
+      qWarning() << "Unsupported pixel format:" << outputFrame->format << ", trying RGB888 fallback";
+      image = QImage(outputFrame->width, outputFrame->height, QImage::Format_RGB888);
+      image.fill(Qt::black); // Fill with black for unsupported formats
     }
 
     // Send to video widget
@@ -375,22 +459,33 @@ BPHardwareVideoWidget::~BPHardwareVideoWidget() {
 }
 
 void BPHardwareVideoWidget::setFrame(const QImage &frame) {
-  QMutexLocker locker(&m_frameMutex);
-  m_currentFrame = frame;
-  update(); // Trigger repaint
+  // Use tryLock to avoid blocking if paint is happening
+  if (m_frameMutex.tryLock(5)) { // 5ms timeout
+    m_currentFrame = frame;
+    m_frameMutex.unlock();
+    update(); // Trigger repaint
+  }
 }
 
 void BPHardwareVideoWidget::clearFrame() {
-  QMutexLocker locker(&m_frameMutex);
-  m_currentFrame = QImage();
-  update();
+  if (m_frameMutex.tryLock(5)) { // 5ms timeout
+    m_currentFrame = QImage();
+    m_frameMutex.unlock();
+    update();
+  }
 }
 
 void BPHardwareVideoWidget::paintEvent(QPaintEvent *event) {
   QVideoWidget::paintEvent(event);
 
-  QMutexLocker locker(&m_frameMutex);
-  if (!m_currentFrame.isNull()) {
+  // Try to get the frame without blocking
+  QImage frameToRender;
+  if (m_frameMutex.tryLock(1)) { // 1ms timeout for paint
+    frameToRender = m_currentFrame;
+    m_frameMutex.unlock();
+  }
+
+  if (!frameToRender.isNull()) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 

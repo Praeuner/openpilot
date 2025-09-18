@@ -1,6 +1,6 @@
 // bp_enhanced_video_modal.cc
 #include "bp_routes_panel.h"
-#include "bp_hardware_video_decoder.h"
+#include "bp_ffmpeg_decoder.h"
 #include "bp_panel_dialogs.h"
 #include <QKeyEvent>
 #include <QResizeEvent>
@@ -122,7 +122,7 @@ void BPEnhancedVideoModal::setupUI() {
   videoLayout->setSpacing(0);
 
   // Hardware video widget
-  hwVideoWidget = new BPHardwareVideoWidget;
+  hwVideoWidget = new BPFFmpegVideoWidget;
   hwVideoWidget->setMinimumHeight(400);
   videoLayout->addWidget(hwVideoWidget, 1);
 
@@ -261,12 +261,12 @@ void BPEnhancedVideoModal::setupUI() {
   connect(deleteButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::deleteRoute);
 
   // Setup hardware video decoder
-  hwDecoder = new BPHardwareVideoDecoder(this);
+  hwDecoder = new BPFFmpegDecoder(this);
   hwDecoder->setVideoOutput(hwVideoWidget);
 
-  connect(hwDecoder, &BPHardwareVideoDecoder::positionChanged, this, &BPEnhancedVideoModal::updatePosition);
-  connect(hwDecoder, &BPHardwareVideoDecoder::durationChanged, this, &BPEnhancedVideoModal::updateDuration);
-  connect(hwDecoder, &BPHardwareVideoDecoder::errorOccurred, this, &BPEnhancedVideoModal::onDecoderError);
+  connect(hwDecoder, &BPFFmpegDecoder::positionChanged, this, &BPEnhancedVideoModal::updatePosition);
+  connect(hwDecoder, &BPFFmpegDecoder::durationChanged, this, &BPEnhancedVideoModal::updateDuration);
+  connect(hwDecoder, &BPFFmpegDecoder::errorOccurred, this, &BPEnhancedVideoModal::onDecoderError);
 
   // Custom slider handling for multi-segment seeking
   connect(positionSlider, &QSlider::sliderMoved, this, [this](int value) {
@@ -702,7 +702,7 @@ void BPEnhancedVideoModal::setupStreamingConcatenation(const QString &videoFile)
   }
 
   // Connect to playback finished signal for seamless transitions
-  connect(hwDecoder, &BPHardwareVideoDecoder::playbackFinished, this, &BPEnhancedVideoModal::onSegmentFinished, Qt::UniqueConnection);
+  connect(hwDecoder, &BPFFmpegDecoder::playbackFinished, this, &BPEnhancedVideoModal::onSegmentFinished, Qt::UniqueConnection);
 
   // Start playing the first segment immediately
   playNextSegment();

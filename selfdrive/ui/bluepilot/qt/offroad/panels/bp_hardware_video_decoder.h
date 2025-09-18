@@ -71,9 +71,10 @@ private:
   // Frame decoding
   bool decodeFrame();
   void processFrame(AVFrame *frame);
+  QImage convertYUV420PToRGB(AVFrame *frame);
 
   // Hardware device management
-  bool createHardwareDevice();
+  bool createHardwareDevice(AVHWDeviceType deviceType);
   void cleanupHardwareDevice();
 
   // Thread-safe operations
@@ -118,11 +119,18 @@ public:
   AVFrame *m_hwFrame = nullptr;
   AVPacket *m_packet = nullptr;
 
-  // Platform-specific hardware device type
+  // Platform-specific hardware device types (in order of preference)
 #ifdef __APPLE__
-  static constexpr AVHWDeviceType HW_DEVICE_TYPE = AV_HWDEVICE_TYPE_VIDEOTOOLBOX;
+  static constexpr AVHWDeviceType HW_DEVICE_TYPES[] = {
+    AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
+    AV_HWDEVICE_TYPE_NONE
+  };
 #else
-  static constexpr AVHWDeviceType HW_DEVICE_TYPE = AV_HWDEVICE_TYPE_CUDA;
+  static constexpr AVHWDeviceType HW_DEVICE_TYPES[] = {
+    AV_HWDEVICE_TYPE_VAAPI,     // Intel/AMD GPU acceleration
+    AV_HWDEVICE_TYPE_CUDA,      // NVIDIA GPU acceleration
+    AV_HWDEVICE_TYPE_NONE       // Fallback to software
+  };
 #endif
 };
 
@@ -134,6 +142,7 @@ public:
   explicit BPHardwareVideoWidget(QWidget *parent = nullptr);
   ~BPHardwareVideoWidget();
 
+public slots:
   void setFrame(const QImage &frame);
   void clearFrame();
 

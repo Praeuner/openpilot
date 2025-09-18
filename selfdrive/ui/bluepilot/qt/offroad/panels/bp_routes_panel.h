@@ -52,7 +52,7 @@
 // Custom includes
 #include "bp_panel_controls.h"
 #include "bp_panel_dialogs.h"
-#include "bp_hardware_video_decoder.h"
+#include "bp_ffmpeg_decoder.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 
 class BPRoutesPanel : public QWidget {
@@ -421,7 +421,7 @@ private:
 
   // UI Elements
   QWidget *videoContainer = nullptr;
-  BPHardwareVideoWidget *hwVideoWidget = nullptr;
+  BPFFmpegVideoWidget *hwVideoWidget = nullptr;
   QWidget *cameraPanel = nullptr;
   QVBoxLayout *cameraButtonLayout = nullptr;
   QPushButton *playPauseButton = nullptr;
@@ -433,7 +433,7 @@ private:
   QLabel *routeInfoLabel = nullptr;
 
   // Hardware video decoder
-  BPHardwareVideoDecoder *hwDecoder = nullptr;
+  BPFFmpegDecoder *hwDecoder = nullptr;
 
   // Streaming concatenation
   QVector<QString> m_segmentPaths;
