@@ -42,6 +42,8 @@
 
 // Qt Multimedia
 #include <QMediaPlayer>
+#include <QKeyEvent>
+#include <QResizeEvent>
 
 // Custom includes
 #include "bp_panel_controls.h"
@@ -145,8 +147,8 @@ private:
   const QString getRoutesDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata" : "~/comma_data/media/0/realdata"); }();
   const QString getRoutesDirBackup = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_backup" : "~/comma_data/media/0/realdata_backup"); }();
   const QString getThumbnailCacheDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_thumbnails" : "~/comma_data/media/0/realdata_thumbnails"); }();
-  const int THUMBNAIL_WIDTH = 240;  // Width in pixels
-  const int THUMBNAIL_HEIGHT = 135; // 16:9 ratio
+  const int THUMBNAIL_WIDTH = 320;  // Increased width for modern UI
+  const int THUMBNAIL_HEIGHT = 180; // 16:9 ratio
 
   QHash<QString, QFutureWatcher<QString> *> thumbnailWatchers;
   void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
@@ -371,6 +373,83 @@ private:
   QWidget *credentialsContainer;
 
   BPRoutesPanel::SyncConfig currentConfig;
+};
+
+class BPEnhancedVideoModal : public QDialog {
+  Q_OBJECT
+public:
+  explicit BPEnhancedVideoModal(const QString &routeBase, const RouteInfo &route, QWidget *parent = nullptr);
+  ~BPEnhancedVideoModal();
+
+private slots:
+  void togglePlayback();
+  void updatePosition(qint64 position);
+  void updateDuration(qint64 duration);
+  void updateTimeLabel();
+  void switchCamera(const QString &cameraFile);
+  void deleteRoute();
+  void onCloseClicked();
+  void onFullscreenToggle();
+  void setupFullscreen();
+  void onDecoderError(const QString &error);
+
+protected:
+  void showEvent(QShowEvent *event) override;
+  void keyPressEvent(QKeyEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
+
+private:
+  void setupUI();
+  void createCameraButton(const QString &label, const QString &file, bool isDefault = false);
+  void loadVideoFile(const QString &videoFile);
+  void applyQCOM2Rotation();
+  QString prepareConcatenatedVideo(const QString &videoFile);
+  int getTotalSegments(const QString &routeBase);
+  void cleanupTempFiles();
+  void setupStreamingConcatenation(const QString &videoFile);
+  void playNextSegment();
+  void onSegmentFinished();
+  QVector<QString> getAvailableSegments(const QString &videoFile);
+  void seekRelative(qint64 offsetMs);
+  void seekToSegment(int segmentIndex, qint64 positionMs);
+
+  // Route information
+  QString m_routeBase;
+  RouteInfo m_route;
+  QString m_currentCamera;
+
+  // UI Elements
+  QWidget *videoContainer = nullptr;
+  BPHardwareVideoWidget *hwVideoWidget = nullptr;
+  QWidget *cameraPanel = nullptr;
+  QVBoxLayout *cameraButtonLayout = nullptr;
+  QPushButton *playPauseButton = nullptr;
+  QSlider *positionSlider = nullptr;
+  QLabel *timeLabel = nullptr;
+  QPushButton *closeButton = nullptr;
+  QPushButton *fullscreenButton = nullptr;
+  QPushButton *deleteButton = nullptr;
+  QLabel *routeInfoLabel = nullptr;
+
+  // Hardware video decoder
+  BPHardwareVideoDecoder *hwDecoder = nullptr;
+
+  // Streaming concatenation
+  QVector<QString> m_segmentPaths;
+  int m_currentSegmentIndex = 0;
+  QTimer *m_segmentTimer = nullptr;
+  qint64 m_totalDuration = 0;
+  qint64 m_segmentStartTime = 0;
+
+  // Temp files for cleanup
+  QStringList m_tempFiles;
+
+  // Camera buttons map
+  QHash<QString, QPushButton*> cameraButtons;
+
+  // State
+  bool m_fullscreenApplied = false;
+  bool m_isFullscreen = false;
 };
 
 class BPVideoDialog : public BPDialogBase {

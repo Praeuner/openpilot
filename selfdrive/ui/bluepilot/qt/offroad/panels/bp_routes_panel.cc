@@ -27,6 +27,9 @@
 #include <TargetConditionals.h>
 #endif
 
+// Include the enhanced video modal implementation
+#include "bp_enhanced_video_modal.cc"
+
 BPRoutesPanel::BPRoutesPanel(QWidget *parent) : QWidget(parent), isLoading(false), isSyncing(false), syncProgressDialog(nullptr), syncTimer(nullptr) {
   // Register RouteInfo for QVariant
   qRegisterMetaType<RouteInfo>();
@@ -2684,11 +2687,14 @@ void BPRoutesPanel::createDateGroupHeader(const QDate &date, int routeCount) {
   auto dateLabel = new QLabel();
   dateLabel->setProperty("class", "date-header");
 
-  // Use explicit date formatting to avoid locale issues
-  QString dayName = date.toString("dddd");
-  QString monthName = date.toString("MMMM");
+  // Fixed date formatting - use QLocale for consistent results
+  QLocale locale(QLocale::English, QLocale::UnitedStates);
+  QString dayName = locale.dayName(date.dayOfWeek(), QLocale::LongFormat);
+  QString monthName = locale.monthName(date.month(), QLocale::LongFormat);
   QString dayNumber = QString::number(date.day());
   QString year = QString::number(date.year());
+
+  // Format: "Monday, January 15, 2025"
   QString dateText = QString("%1, %2 %3, %4").arg(dayName, monthName, dayNumber, year);
   QString countText = tr("%1 route%2").arg(routeCount).arg(routeCount == 1 ? "" : "s");
 
@@ -2704,21 +2710,38 @@ void BPRoutesPanel::createModernRouteWidget(const RouteInfo &route) {
   auto routeCard = new QWidget(routesContainer);
   routeCard->setObjectName("routeCard");
   routeCard->setProperty("class", "route-card");
-  routeCard->setMinimumHeight(200);
+  routeCard->setMinimumHeight(220);
+  routeCard->setStyleSheet(R"(
+    QWidget#routeCard {
+      background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #242424, stop:1 #2a2a2a);
+      border-radius: 16px;
+      border: 2px solid transparent;
+    }
+    QWidget#routeCard:hover {
+      border-color: #2196F3;
+      background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2a2a2a, stop:1 #303030);
+    }
+  )");
 
   auto cardLayout = new QHBoxLayout(routeCard);
-  cardLayout->setContentsMargins(25, 20, 25, 20);
-  cardLayout->setSpacing(20);
+  cardLayout->setContentsMargins(30, 25, 30, 25);
+  cardLayout->setSpacing(25);
 
-  // Left side: Thumbnail (larger size)
+  // Left side: Thumbnail (larger size with shadow effect)
   auto thumbnailContainer = new QWidget();
+  thumbnailContainer->setStyleSheet("background: transparent;");
   auto thumbnailLayout = new QVBoxLayout(thumbnailContainer);
   thumbnailLayout->setContentsMargins(0, 0, 0, 0);
 
   auto thumbnailLabel = new QLabel();
-  thumbnailLabel->setFixedSize(320, 180); // Increased thumbnail size
-  thumbnailLabel->setStyleSheet("background-color: #1a1a1a; border-radius: 12px;");
+  thumbnailLabel->setFixedSize(320, 180); // Larger thumbnail size
+  thumbnailLabel->setStyleSheet(R"(
+    background-color: #1a1a1a;
+    border-radius: 12px;
+    border: 1px solid #333333;
+  )");
   thumbnailLabel->setAlignment(Qt::AlignCenter);
+  thumbnailLabel->setScaledContents(false);
 
   // Load thumbnail
   if (QFile::exists(route.thumbnailPath)) {
@@ -2772,40 +2795,75 @@ void BPRoutesPanel::createModernRouteWidget(const RouteInfo &route) {
 
   infoLayout->addStretch();
 
-  // Right side: Action buttons
+  // Right side: Action buttons with modern styling
   auto actionsContainer = new QWidget();
+  actionsContainer->setStyleSheet("background: transparent;");
   auto actionsLayout = new QVBoxLayout(actionsContainer);
   actionsLayout->setContentsMargins(0, 0, 0, 0);
-  actionsLayout->setSpacing(12);
+  actionsLayout->setSpacing(15);
 
-  // Play button (primary action)
-  auto playButton = new QPushButton(tr("▶ Play"));
+  // Play button (primary action with gradient)
+  auto playButton = new QPushButton(tr("▶  Play Video"));
   playButton->setProperty("class", "route-card-button");
+  playButton->setFixedHeight(50);
   playButton->setStyleSheet(R"(
     QPushButton {
-      background-color: #009688;
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2196F3, stop:1 #1976D2);
       color: white;
+      font-size: 30px;
       font-weight: 700;
+      border-radius: 10px;
+      padding: 0 20px;
+      border: none;
     }
     QPushButton:hover {
-      background-color: #00796B;
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #42A5F5, stop:1 #2196F3);
+    }
+    QPushButton:pressed {
+      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1565C0, stop:1 #0D47A1);
     }
   )");
 
-  // Video selection menu
-  auto videoMenuButton = new QPushButton(tr("📹 Videos"));
+  // Video selection menu with icon
+  auto videoMenuButton = new QPushButton(tr("📹 Cameras"));
   videoMenuButton->setProperty("class", "route-card-button");
-
-  // Delete button
-  auto deleteButton = new QPushButton(tr("🗑 Delete"));
-  deleteButton->setProperty("class", "route-card-button");
-  deleteButton->setStyleSheet(R"(
+  videoMenuButton->setFixedHeight(45);
+  videoMenuButton->setStyleSheet(R"(
     QPushButton {
-      background-color: #F44336;
+      background-color: #424242;
       color: white;
+      font-size: 28px;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 0 15px;
+      border: 1px solid #555555;
     }
     QPushButton:hover {
-      background-color: #D32F2F;
+      background-color: #4a4a4a;
+      border-color: #2196F3;
+    }
+  )");
+
+  // Delete button with warning style
+  auto deleteButton = new QPushButton(tr("🗑 Delete"));
+  deleteButton->setProperty("class", "route-card-button");
+  deleteButton->setFixedHeight(45);
+  deleteButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: rgba(244, 67, 54, 0.8);
+      color: white;
+      font-size: 28px;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 0 15px;
+      border: 1px solid #D32F2F;
+    }
+    QPushButton:hover {
+      background-color: rgba(244, 67, 54, 1.0);
+      border-color: #FF5252;
+    }
+    QPushButton:pressed {
+      background-color: #C62828;
     }
   )");
 
@@ -2930,37 +2988,66 @@ void BPRoutesPanel::updatePaginationInfo() {
 }
 
 bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
-  // Handle route card clicks - distinguish between clicks and scroll gestures
-  if (event->type() == QEvent::MouseButtonPress) {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-    if (mouseEvent->button() == Qt::LeftButton) {
-      QWidget *widget = qobject_cast<QWidget*>(obj);
-      if (widget && widget->property("routeBaseName").isValid()) {
-        // Store the press position and time for click detection
-        widget->setProperty("pressPos", mouseEvent->pos());
-        widget->setProperty("pressTime", QDateTime::currentMSecsSinceEpoch());
-        return false; // Don't consume the event, let scrolling work
+  // Handle both mouse and touch events for route cards
+  if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin) {
+    QPoint pressPos;
+    if (event->type() == QEvent::MouseButtonPress) {
+      QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() != Qt::LeftButton) return false;
+      pressPos = mouseEvent->pos();
+    } else {
+      QTouchEvent *touchEvent = static_cast<QTouchEvent*>(event);
+      if (!touchEvent->touchPoints().isEmpty()) {
+        pressPos = touchEvent->touchPoints().first().pos().toPoint();
       }
+    }
+
+    QWidget *widget = qobject_cast<QWidget*>(obj);
+    if (widget && widget->property("routeBaseName").isValid()) {
+      // Store the press position and time for click detection
+      widget->setProperty("pressPos", pressPos);
+      widget->setProperty("pressTime", QDateTime::currentMSecsSinceEpoch());
+      widget->setProperty("isPressed", true);
+
+      // Visual feedback - slight color change
+      widget->setStyleSheet(widget->styleSheet() + "\nbackground-color: #353535;");
+
+      return false; // Don't consume the event, let scrolling work
     }
   }
 
-  // Handle route card clicks - only trigger on release if it was a click (not scroll)
-  if (event->type() == QEvent::MouseButtonRelease) {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-    if (mouseEvent->button() == Qt::LeftButton) {
-      QWidget *widget = qobject_cast<QWidget*>(obj);
-      if (widget && widget->property("routeBaseName").isValid()) {
+  // Handle release events for both mouse and touch
+  if (event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::TouchEnd) {
+    QPoint releasePos;
+    if (event->type() == QEvent::MouseButtonRelease) {
+      QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() != Qt::LeftButton) return false;
+      releasePos = mouseEvent->pos();
+    } else {
+      QTouchEvent *touchEvent = static_cast<QTouchEvent*>(event);
+      if (!touchEvent->touchPoints().isEmpty()) {
+        releasePos = touchEvent->touchPoints().first().pos().toPoint();
+      }
+    }
+
+    QWidget *widget = qobject_cast<QWidget*>(obj);
+    if (widget && widget->property("isPressed").toBool()) {
+      // Reset visual feedback
+      widget->setProperty("isPressed", false);
+
+      if (widget->property("routeBaseName").isValid()) {
         QPoint pressPos = widget->property("pressPos").toPoint();
         qint64 pressTime = widget->property("pressTime").toLongLong();
         qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
 
-        // Only trigger if it was a quick click (not a scroll gesture)
-        // Check if mouse moved less than 10 pixels and time elapsed is less than 200ms
-        QPoint currentPos = mouseEvent->pos();
-        int distance = QLineF(pressPos, currentPos).length();
+        // Check if it was a tap/click (not a scroll gesture)
+        // More forgiving for touch: 20 pixels movement, 500ms time
+        int distance = QLineF(pressPos, releasePos).length();
         qint64 timeElapsed = currentTime - pressTime;
+        int maxDistance = (event->type() == QEvent::TouchEnd) ? 20 : 10;
+        int maxTime = (event->type() == QEvent::TouchEnd) ? 500 : 200;
 
-        if (distance < 10 && timeElapsed < 200) {
+        if (distance < maxDistance && timeElapsed < maxTime) {
           QString routeBaseName = widget->property("routeBaseName").toString();
           RouteInfo route = widget->property("routeInfo").value<RouteInfo>();
 
@@ -2969,6 +3056,14 @@ bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
           return true;
         }
       }
+    }
+  }
+
+  // Handle touch cancel (user scrolled instead of tapped)
+  if (event->type() == QEvent::TouchCancel) {
+    QWidget *widget = qobject_cast<QWidget*>(obj);
+    if (widget && widget->property("isPressed").toBool()) {
+      widget->setProperty("isPressed", false);
     }
   }
 
