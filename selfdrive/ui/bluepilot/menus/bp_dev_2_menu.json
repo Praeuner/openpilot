@@ -353,6 +353,17 @@
           "controls": [
             {
               "type": "toggle",
+              "param": "FordPrefDisableBP_lat_UI",
+              "title": "Disable BP Lateral Controls",
+              "desc": "Use stock openpilot lateral controls",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
               "param": "FordPrefHumanTurnDetectionEnable",
               "title": "Enable Human Turn Detection",
               "desc": "Reset steering so you don't fight the wheel making manual turns.",
