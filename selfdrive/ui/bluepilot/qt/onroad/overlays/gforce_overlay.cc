@@ -234,7 +234,12 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
     } else if (gauge_scale == 2) {
       gauge_width = rect.width() * 0.345;
     } else if (gauge_scale == 3) {
-      gauge_width = rect.width() * 0.35;
+      // Match hybrid gauge sizing logic - use original large size when sidebar is not visible
+      if (s.scene.sidebar_visible) {
+        gauge_width = rect.width() * 0.35;   // Smaller size when sidebar is visible
+      } else {
+        gauge_width = rect.width() * 0.39;   // Original large size when sidebar is hidden
+      }
     }
 
     int bottom_margin = 30;

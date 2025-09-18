@@ -81,6 +81,7 @@ typedef struct UIScene {
   bool show_brake_status;
 
   bool wide_camera_low_speed;
+  bool sidebar_visible;
 
   // BluePilot status text
   QString bp_status_text;

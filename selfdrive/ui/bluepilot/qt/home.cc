@@ -55,6 +55,12 @@ void HomeWindowBP::showDebugPanel() {
 void HomeWindowBP::updateState(const UIState &s) {
   HomeWindow::updateState(s);
 
+  // Update sidebar visibility in UI state for hybrid overlay scaling
+  if (sidebar && sidebar->isVisible() != s.scene.sidebar_visible) {
+    // Update the UI state with current sidebar visibility
+    const_cast<UIState&>(s).scene.sidebar_visible = sidebar->isVisible();
+  }
+
   if (debug_panel && debug_panel->isVisible()) {
     debug_panel->updateState(s);
     // Keep debug panel on top during state updates

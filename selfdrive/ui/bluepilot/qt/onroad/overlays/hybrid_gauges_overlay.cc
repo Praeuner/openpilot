@@ -36,7 +36,12 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
     gauge_width = rect.width() * 0.345;
     gauge_height = 115;
   } else if (gauge_scale == 3) {
-    gauge_width = rect.width() * 0.345;
+    // Use original large size when sidebar is not visible, smaller size when sidebar is visible
+    if (s.scene.sidebar_visible) {
+      gauge_width = rect.width() * 0.345;  // Smaller size when sidebar is visible
+    } else {
+      gauge_width = rect.width() * 0.39;    // Original large size when sidebar is hidden
+    }
     gauge_height = 130;
   } else {
     gauge_width = rect.width() * 0.30;
