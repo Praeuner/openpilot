@@ -90,6 +90,8 @@ public:
   void handleRouteStarToggle(const QString &route);
   void handleRefresh();
   QString formatElapsedTime(const QDateTime &routeTime);
+  QString getThumbnailPath(const QString &routeBase);
+  void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
 
 protected:
   void showEvent(QShowEvent *event) override;
@@ -151,9 +153,7 @@ private:
   const int THUMBNAIL_HEIGHT = 270; // 16:9 ratio
 
   QHash<QString, QFutureWatcher<QString> *> thumbnailWatchers;
-  void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
   QString generateThumbnail(const QString &routeBase);
-  QString getThumbnailPath(const QString &routeBase);
   void cleanupThumbnail(const QString &routeBase);
   void cleanupThumbnailCache();
   void playRouteVideoConcatenated(const QString &routeBase, const QString &videoFile);
@@ -319,8 +319,10 @@ private:
   void setupCameraPanel();
   void setupControls();
   void loadVideoSegments();
+  void loadThumbnail();
   void playCurrentSegment();
   void onFrameDecoded(const DecodedFrame &frame);
+  void updateCameraButtonStates();
   QString getVideoPath(const QString &cameraType, int segment);
 
   // Route data
