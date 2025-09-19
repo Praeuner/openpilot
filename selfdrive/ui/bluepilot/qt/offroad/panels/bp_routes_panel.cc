@@ -26,6 +26,9 @@
 #include <QSpacerItem>
 #include <QSet>
 #include <iostream>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 #include "common/params.h"
 
@@ -216,34 +219,107 @@ void BPRoutesPanel::loadRoutes() {
     delete child;
   }
 
+  // Try to load from cache first
+  bool cacheLoaded = loadRouteCacheFromDisk();
+
+  // If cache is loaded and valid, and no routes need refreshing, use cache
+  if (cacheLoaded && routeCache.isValid() && !shouldRefreshRoutes() && !routeCache.routeInfoCache.isEmpty()) {
+    std::cout << "[ROUTE DEBUG] Loading routes from valid cache" << std::endl;
+
+    // Convert cached data to routes vector
+    QVector<RouteInfo> cachedRoutes;
+    for (const RouteInfo &info : routeCache.routeInfoCache.values()) {
+      cachedRoutes.append(info);
+    }
+
+    // Sort by date/time (newest first)
+    std::sort(cachedRoutes.begin(), cachedRoutes.end(), [](const RouteInfo &a, const RouteInfo &b) {
+      return a.dateTime > b.dateTime;
+    });
+
+    QMetaObject::invokeMethod(this, [this, cachedRoutes]() {
+      routes = cachedRoutes;
+      isLoading = false;
+      hideLoadingOverlay();
+      updateStats();
+      loadMoreRoutes(); // Load first batch
+    }, Qt::QueuedConnection);
+
+    return;
+  }
+
+  // Cache not available or needs updating - load incrementally
+  std::cout << "[ROUTE DEBUG] Loading routes incrementally (cache loaded: " << (cacheLoaded ? "yes" : "no") << ")" << std::endl;
+
   QtConcurrent::run([this]() {
     QDir routesDir(getRoutesDir());
-    QStringList routeDirectories = routesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);
+    QStringList routeDirectories = routesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time | QDir::Reversed);
 
     QVector<RouteInfo> newRoutes;
-    QSet<QString> processedBaseRoutes; // Track which base routes we've already processed
+    QHash<QString, RouteInfo> baseRouteMap; // Map to store the latest segment for each base route
+    QSet<QString> processedRoutes; // Track which base routes we've already processed
 
     for (const QString &routeDir : routeDirectories) {
+      // Skip non-route directories
+      if (routeDir == "boot" || routeDir == "crash" || !routeDir.contains("--")) {
+        continue;
+      }
+
       QString routePath = routesDir.absoluteFilePath(routeDir);
 
       // Extract base route name (remove segment suffix)
       QString baseRouteName = routeDir;
       QRegExp segmentRegex("--\\d+$");
-      baseRouteName.remove(segmentRegex);
+      if (segmentRegex.indexIn(baseRouteName) != -1) {
+        baseRouteName = baseRouteName.left(segmentRegex.pos());
+      }
+
+      // Skip if we've already processed this base route
+      if (processedRoutes.contains(baseRouteName)) {
+        continue;
+      }
+      processedRoutes.insert(baseRouteName);
 
       std::cout << "[ROUTE DEBUG] Processing directory: " << routeDir.toStdString() << " Base: " << baseRouteName.toStdString() << std::endl;
 
-      // Only process each base route once (skip duplicate segments)
-      if (processedBaseRoutes.contains(baseRouteName)) {
-        std::cout << "[ROUTE DEBUG] Skipping duplicate base route: " << baseRouteName.toStdString() << std::endl;
+      // Check if we have valid cached data for this route
+      bool useCache = routeCache.isValid() && routeCache.routeInfoCache.contains(baseRouteName);
+      if (useCache) {
+        // Check if the route on disk is newer than cache
+        QFileInfo routeInfo(routePath);
+        if (routeInfo.lastModified() <= routeCache.lastUpdated) {
+          std::cout << "[ROUTE DEBUG] Using cached info for route: " << baseRouteName.toStdString() << std::endl;
+          baseRouteMap[baseRouteName] = routeCache.routeInfoCache[baseRouteName];
+          continue;
+        } else {
+          std::cout << "[ROUTE DEBUG] Route modified, reprocessing: " << baseRouteName.toStdString() << std::endl;
+        }
+      }
+
+      // Cache miss or route modified - process route info
+      RouteInfo info = getRouteInfo(routePath);
+      if (info.baseName.isEmpty()) {
         continue;
       }
-      processedBaseRoutes.insert(baseRouteName);
 
-      RouteInfo info = getRouteInfo(routePath);
-      if (!info.baseName.isEmpty()) {
-        newRoutes.append(info);
+      // Calculate total size for all segments of this base route
+      QDir routesDirInner(getRoutesDir());
+      QStringList allSegments = routesDirInner.entryList(QStringList() << baseRouteName + "--*", QDir::Dirs | QDir::NoDotAndDotDot);
+      qint64 totalSize = 0;
+      for (const QString &segment : allSegments) {
+        QString segmentPath = routesDirInner.absoluteFilePath(segment);
+        totalSize += calculateDirSize(segmentPath);
       }
+      info.size = formatSize(totalSize);
+      info.segments = allSegments.size();
+      info.duration = getRouteDuration(baseRouteName);
+
+      baseRouteMap[baseRouteName] = info;
+    }
+
+    // Convert map to vector
+    for (const RouteInfo &info : baseRouteMap.values()) {
+      newRoutes.append(info);
     }
 
     // Sort by date/time (newest first)
@@ -253,6 +329,15 @@ void BPRoutesPanel::loadRoutes() {
 
     QMetaObject::invokeMethod(this, [this, newRoutes]() {
       routes = newRoutes;
+
+      // Update cache with new data
+      routeCache.routeInfoCache.clear();
+      for (const RouteInfo &info : newRoutes) {
+        routeCache.routeInfoCache[info.baseName] = info;
+      }
+      routeCache.update();
+      saveRouteCacheToDisk();
+
       isLoading = false;
       hideLoadingOverlay();
       updateStats();
@@ -322,7 +407,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   std::cout << "[ROUTE DEBUG] Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
 
   QWidget *card = new QWidget;
-  card->setFixedHeight(280);  // Increased height for better readability
+  card->setFixedHeight(280);
   card->setStyleSheet(R"(
     QWidget {
       background: #2a2a2a;
@@ -341,7 +426,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
 
   // Video thumbnail (320x180px in spec, scaled to fit card height)
   QLabel *thumbnail = new QLabel;
-  thumbnail->setFixedSize(355, 200);  // 16:9 aspect ratio, larger for 280px height card
+  thumbnail->setFixedSize(355, 200);
   thumbnail->setStyleSheet(R"(
     border: 2px solid #1a1a1a;
     border-radius: 8px;
@@ -357,7 +442,9 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   // Initialize thumbnail loading - extract base route name for thumbnail generation
   QString baseRouteName = route.baseName;
   QRegExp segmentRegex("--\\d+$");
-  baseRouteName.remove(segmentRegex);
+  if (segmentRegex.indexIn(baseRouteName) != -1) {
+    baseRouteName = baseRouteName.left(segmentRegex.pos());
+  }
   initializeThumbnail(thumbnail, baseRouteName);
 
   cardLayout->addWidget(thumbnail);
@@ -570,6 +657,12 @@ void BPRoutesPanel::setRouteStarred(const QString &routeBase, bool starred) {
   } else {
     QFile::remove(starPath);
   }
+
+  // Update cache if route exists
+  if (routeCache.routeInfoCache.contains(routeBase)) {
+    routeCache.routeInfoCache[routeBase].isStarred = starred;
+    saveRouteCacheToDisk();
+  }
 }
 
 QString BPRoutesPanel::formatDisplayDate(const QDateTime &dateTime) {
@@ -586,19 +679,17 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
 
   std::cout << "[ROUTE DEBUG] Processing route: " << info.baseName.toStdString() << std::endl;
 
-  // Parse timestamp from directory name - need to extract base route name without segment
+  // Extract base route name (remove segment suffix)
   QString baseRouteName = info.baseName;
-  // Remove segment suffix if present (e.g., 2024-09-18--14-30-00--1 -> 2024-09-18--14-30-00)
   QRegExp segmentRegex("--\\d+$");
-  baseRouteName.remove(segmentRegex);
+  if (segmentRegex.indexIn(baseRouteName) != -1) {
+    baseRouteName = baseRouteName.left(segmentRegex.pos());
+  }
 
   std::cout << "[ROUTE DEBUG] Original name: " << info.baseName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
 
-  QDateTime routeDateTime = QDateTime::fromString(baseRouteName, "yyyy-MM-dd--HH-mm-ss");
-  if (!routeDateTime.isValid()) {
-    return info; // Return empty info if parsing fails
-  }
-
+  // Use directory modification time as the route timestamp
+  QDateTime routeDateTime = routeFileInfo.lastModified();
   info.dateTime = routeDateTime;
   info.timestamp = routeDateTime.toString("h:mm AP");
   info.displayDate = formatDisplayDate(routeDateTime);
@@ -609,14 +700,14 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   std::cout << "[ROUTE DEBUG] DisplayDate: " << info.displayDate.toStdString() << std::endl;
   std::cout << "[ROUTE DEBUG] ElapsedTime: " << info.elapsedTime.toStdString() << std::endl;
 
-  // Check for video files - use correct patterns
+  // Check for video files in this specific segment
   QDir routeDir(routePath);
 
   // Specific video type detection
-  info.hasFrontHQVideo = !routeDir.entryList(QStringList() << "*fcamera.hevc", QDir::Files).isEmpty();
-  info.hasFrontLQVideo = !routeDir.entryList(QStringList() << "*qcamera.ts", QDir::Files).isEmpty();
-  info.hasDriverHQVideo = !routeDir.entryList(QStringList() << "*dcamera.hevc", QDir::Files).isEmpty();
-  info.hasWideVideo = !routeDir.entryList(QStringList() << "*wcamera.hevc", QDir::Files).isEmpty();
+  info.hasFrontHQVideo = QFile::exists(routeDir.absoluteFilePath("fcamera.hevc"));
+  info.hasFrontLQVideo = QFile::exists(routeDir.absoluteFilePath("qcamera.ts"));
+  info.hasDriverHQVideo = QFile::exists(routeDir.absoluteFilePath("dcamera.hevc"));
+  info.hasWideVideo = QFile::exists(routeDir.absoluteFilePath("ecamera.hevc"));
 
   // Legacy flags for compatibility
   info.hasFrontVideo = info.hasFrontHQVideo || info.hasFrontLQVideo;
@@ -625,13 +716,17 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   info.hasVideo = info.hasFrontVideo || info.hasWideVideo || info.hasDriverVideo;
 
   // Check for logs
-  info.hasRLog = !routeDir.entryList(QStringList() << "*--rlog").isEmpty();
-  info.hasQLog = !routeDir.entryList(QStringList() << "*--qlog").isEmpty();
+  info.hasRLog = QFile::exists(routeDir.absoluteFilePath("rlog.zst"));
+  info.hasQLog = QFile::exists(routeDir.absoluteFilePath("qlog.zst"));
 
   // Check if starred
-  info.isStarred = isRouteStarred(info.baseName);
+  info.isStarred = isRouteStarred(baseRouteName);
 
-  // Get file size and segment count using base route name
+  // Get file size of this segment
+  qint64 segmentSize = calculateDirSize(routePath);
+  info.size = formatSize(segmentSize);
+
+  // Get segment count and duration for the entire route
   info.segments = getTotalSegments(baseRouteName);
   info.duration = getRouteDuration(baseRouteName);
 
@@ -642,14 +737,10 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   std::cout << "[ROUTE DEBUG] Found " << allSegments.size() << " segments for base route: " << baseRouteName.toStdString() << std::endl;
   for (const QString &segment : allSegments) {
     QString segmentPath = routesDir.absoluteFilePath(segment);
-    qint64 segmentSize = calculateDirSize(segmentPath);
-    std::cout << "[ROUTE DEBUG] Segment " << segment.toStdString() << " size: " << segmentSize << " bytes" << std::endl;
-    totalSize += segmentSize;
+    totalSize += calculateDirSize(segmentPath);
   }
-  std::cout << "[ROUTE DEBUG] Total size: " << totalSize << " bytes" << std::endl;
-  info.size = formatSize(totalSize);
 
-  std::cout << "[ROUTE DEBUG] Size: " << info.size.toStdString() << std::endl;
+  std::cout << "[ROUTE DEBUG] Segment size: " << segmentSize << " bytes, Total size: " << totalSize << " bytes" << std::endl;
   std::cout << "[ROUTE DEBUG] Segments: " << info.segments << std::endl;
   std::cout << "[ROUTE DEBUG] Duration: " << info.duration.toStdString() << std::endl;
   std::cout << "[ROUTE DEBUG] HasFrontHQVideo: " << (info.hasFrontHQVideo ? "true" : "false") << std::endl;
@@ -664,15 +755,41 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
 QString BPRoutesPanel::formatElapsedTime(const QDateTime &routeTime) {
   qint64 elapsed = routeTime.secsTo(QDateTime::currentDateTime());
 
-  if (elapsed < 3600) { // Less than 1 hour
+  if (elapsed < 60) { // Less than 1 minute
+    return "Just now";
+  } else if (elapsed < 3600) { // Less than 1 hour
     int minutes = elapsed / 60;
     return QString("%1 min ago").arg(minutes);
   } else if (elapsed < 86400) { // Less than 1 day
     int hours = elapsed / 3600;
-    return QString("%1 hr ago").arg(hours);
-  } else { // 1 day or more
+    if (hours == 1) {
+      return "1 hour ago";
+    }
+    return QString("%1 hours ago").arg(hours);
+  } else if (elapsed < 604800) { // Less than 1 week
     int days = elapsed / 86400;
-    return QString("%1 day%2 ago").arg(days).arg(days > 1 ? "s" : "");
+    if (days == 1) {
+      return "Yesterday";
+    }
+    return QString("%1 days ago").arg(days);
+  } else if (elapsed < 2592000) { // Less than 1 month (30 days)
+    int weeks = elapsed / 604800;
+    if (weeks == 1) {
+      return "1 week ago";
+    }
+    return QString("%1 weeks ago").arg(weeks);
+  } else if (elapsed < 31536000) { // Less than 1 year
+    int months = elapsed / 2592000;
+    if (months == 1) {
+      return "1 month ago";
+    }
+    return QString("%1 months ago").arg(months);
+  } else { // 1 year or more
+    int years = elapsed / 31536000;
+    if (years == 1) {
+      return "1 year ago";
+    }
+    return QString("%1 years ago").arg(years);
   }
 }
 
@@ -880,8 +997,8 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
 
     std::cout << "[THUMBNAIL DEBUG] Checking segment: " << firstSegmentPath.toStdString() << std::endl;
 
-    // Look for video files in the segment directory
-    QStringList videoFiles = {"fcamera.hevc", "dcamera.hevc", "ecamera.hevc", "qcamera.ts"};
+    // Look for video files in the segment directory (prioritize front camera)
+    QStringList videoFiles = {"fcamera.hevc", "qcamera.ts", "dcamera.hevc", "ecamera.hevc"};
     for (const QString &videoFile : videoFiles) {
       QString videoPath = segmentDir.absoluteFilePath(videoFile);
       if (QFile::exists(videoPath)) {
@@ -903,15 +1020,22 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
   QProcess ffmpeg;
   QStringList args;
   args << "-i" << inputVideo
-       << "-vf" << QString("thumbnail,scale=%1:%2").arg(THUMBNAIL_WIDTH).arg(THUMBNAIL_HEIGHT)
+       << "-vf" << QString("thumbnail,scale=%1:%2:force_original_aspect_ratio=decrease,pad=%1:%2:(ow-iw)/2:(oh-ih)/2").arg(THUMBNAIL_WIDTH).arg(THUMBNAIL_HEIGHT)
        << "-frames:v" << "1"
+       << "-q:v" << "2"  // High quality
        << "-y" << thumbnailPath;
 
   ffmpeg.start("ffmpeg", args);
-  ffmpeg.waitForFinished(10000); // 10 second timeout
+  bool success = ffmpeg.waitForFinished(15000); // 15 second timeout
 
-  if (ffmpeg.exitCode() == 0 && QFile::exists(thumbnailPath)) {
+  if (success && ffmpeg.exitCode() == 0 && QFile::exists(thumbnailPath)) {
+    std::cout << "[THUMBNAIL DEBUG] Successfully generated thumbnail: " << thumbnailPath.toStdString() << std::endl;
     return thumbnailPath;
+  } else {
+    std::cout << "[THUMBNAIL DEBUG] Failed to generate thumbnail. Exit code: " << ffmpeg.exitCode() << std::endl;
+    if (ffmpeg.exitCode() != 0) {
+      std::cout << "[THUMBNAIL DEBUG] FFmpeg error: " << ffmpeg.readAllStandardError().toStdString() << std::endl;
+    }
   }
 
   return QString();
@@ -967,12 +1091,157 @@ void BPRoutesPanel::handleRouteRemoval(const QString &route) {
       QString routePath = getRoutesDir() + "/" + route;
       QDir routeDir(routePath);
       if (routeDir.removeRecursively()) {
-        // Remove from routes list and refresh
+        // Remove from routes list and cache
         routes.erase(std::remove_if(routes.begin(), routes.end(),
           [route](const RouteInfo &info) {
             return info.baseName == route;
           }), routes.end());
+
+        // Remove from cache
+        routeCache.routeInfoCache.remove(route);
+        saveRouteCacheToDisk();
+
         loadRoutes(); // Refresh display
       }
     });
+}
+
+// Disk caching implementation
+QString BPRoutesPanel::getRouteCacheFile() const {
+  return getRoutesDir() + "/.route_cache.json";
+}
+
+void BPRoutesPanel::saveRouteCacheToDisk() {
+  QString cacheFile = getRouteCacheFile();
+
+  QJsonObject cacheObj;
+  cacheObj["lastUpdated"] = routeCache.lastUpdated.toString(Qt::ISODate);
+
+  QJsonArray routesArray;
+  for (auto it = routeCache.routeInfoCache.begin(); it != routeCache.routeInfoCache.end(); ++it) {
+    const RouteInfo &info = it.value();
+    QJsonObject routeObj;
+    routeObj["baseName"] = info.baseName;
+    routeObj["timestamp"] = info.timestamp;
+    routeObj["endTimestamp"] = info.endTimestamp;
+    routeObj["duration"] = info.duration;
+    routeObj["elapsedTime"] = info.elapsedTime;
+    routeObj["displayDate"] = info.displayDate;
+    routeObj["segments"] = info.segments;
+    routeObj["size"] = info.size;
+    routeObj["tripMiles"] = info.tripMiles;
+    routeObj["hasVideo"] = info.hasVideo;
+    routeObj["hasRLog"] = info.hasRLog;
+    routeObj["hasQLog"] = info.hasQLog;
+    routeObj["hasFrontVideo"] = info.hasFrontVideo;
+    routeObj["hasWideVideo"] = info.hasWideVideo;
+    routeObj["hasDriverVideo"] = info.hasDriverVideo;
+    routeObj["hasLQVideo"] = info.hasLQVideo;
+    routeObj["hasFrontHQVideo"] = info.hasFrontHQVideo;
+    routeObj["hasFrontLQVideo"] = info.hasFrontLQVideo;
+    routeObj["hasDriverHQVideo"] = info.hasDriverHQVideo;
+    routeObj["isStarred"] = info.isStarred;
+    routeObj["dateTime"] = info.dateTime.toString(Qt::ISODate);
+    routesArray.append(routeObj);
+  }
+
+  cacheObj["routes"] = routesArray;
+
+  QJsonDocument doc(cacheObj);
+  QFile file(cacheFile);
+  if (file.open(QIODevice::WriteOnly)) {
+    file.write(doc.toJson());
+    file.close();
+  }
+}
+
+bool BPRoutesPanel::loadRouteCacheFromDisk() {
+  QString cacheFile = getRouteCacheFile();
+
+  if (!QFile::exists(cacheFile)) {
+    return false;
+  }
+
+  QFile file(cacheFile);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+
+  QByteArray data = file.readAll();
+  file.close();
+
+  QJsonDocument doc = QJsonDocument::fromJson(data);
+  if (doc.isNull()) {
+    return false;
+  }
+
+  QJsonObject cacheObj = doc.object();
+
+  // Check if cache is valid (not too old)
+  QString lastUpdatedStr = cacheObj["lastUpdated"].toString();
+  routeCache.lastUpdated = QDateTime::fromString(lastUpdatedStr, Qt::ISODate);
+
+  if (!routeCache.isValid()) {
+    return false;
+  }
+
+  // Load routes
+  QJsonArray routesArray = cacheObj["routes"].toArray();
+  routeCache.routeInfoCache.clear();
+
+  for (const QJsonValue &value : routesArray) {
+    QJsonObject routeObj = value.toObject();
+    RouteInfo info;
+    info.baseName = routeObj["baseName"].toString();
+    info.timestamp = routeObj["timestamp"].toString();
+    info.endTimestamp = routeObj["endTimestamp"].toString();
+    info.duration = routeObj["duration"].toString();
+    info.elapsedTime = routeObj["elapsedTime"].toString();
+    info.displayDate = routeObj["displayDate"].toString();
+    info.segments = routeObj["segments"].toInt();
+    info.size = routeObj["size"].toString();
+    info.tripMiles = routeObj["tripMiles"].toDouble();
+    info.hasVideo = routeObj["hasVideo"].toBool();
+    info.hasRLog = routeObj["hasRLog"].toBool();
+    info.hasQLog = routeObj["hasQLog"].toBool();
+    info.hasFrontVideo = routeObj["hasFrontVideo"].toBool();
+    info.hasWideVideo = routeObj["hasWideVideo"].toBool();
+    info.hasDriverVideo = routeObj["hasDriverVideo"].toBool();
+    info.hasLQVideo = routeObj["hasLQVideo"].toBool();
+    info.hasFrontHQVideo = routeObj["hasFrontHQVideo"].toBool();
+    info.hasFrontLQVideo = routeObj["hasFrontLQVideo"].toBool();
+    info.hasDriverHQVideo = routeObj["hasDriverHQVideo"].toBool();
+    info.isStarred = routeObj["isStarred"].toBool();
+    info.dateTime = QDateTime::fromString(routeObj["dateTime"].toString(), Qt::ISODate);
+
+    routeCache.routeInfoCache[info.baseName] = info;
+  }
+
+  return true;
+}
+
+bool BPRoutesPanel::shouldRefreshRoutes() const {
+  // Check if routes directory has been modified since last cache
+  QString routesDir = getRoutesDir();
+  QDir dir(routesDir);
+
+  if (!dir.exists()) {
+    return true;
+  }
+
+  // Check if any route directories are newer than cache
+  QStringList routeDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+  for (const QString &routeDir : routeDirs) {
+    if (routeDir == "boot" || routeDir == "crash" || !routeDir.contains("--")) {
+      continue;
+    }
+
+    QString routePath = dir.absoluteFilePath(routeDir);
+    QFileInfo routeInfo(routePath);
+    if (routeInfo.lastModified() > routeCache.lastUpdated) {
+      return true;
+    }
+  }
+
+  return false;
 }

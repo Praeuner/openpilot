@@ -40,6 +40,7 @@
 
 // Qt Multimedia
 #include <QMediaPlayer>
+#include <QVideoWidget>
 #include <QKeyEvent>
 
 // Custom includes
@@ -116,6 +117,12 @@ private:
   };
 
   RouteCache routeCache;
+
+  // Disk caching methods
+  QString getRouteCacheFile() const;
+  void saveRouteCacheToDisk();
+  bool loadRouteCacheFromDisk();
+  bool shouldRefreshRoutes() const;
 
   bool isCommaDevice() const {
 #ifdef QCOM2
@@ -349,4 +356,7 @@ private:
   QPushButton *playPauseButton;
   QSlider *positionSlider;
   QLabel *timeLabel;
+
+  // Override for video dialog rotation (QCOM2 needs different transform)
+  void setupFullscreen();
 };

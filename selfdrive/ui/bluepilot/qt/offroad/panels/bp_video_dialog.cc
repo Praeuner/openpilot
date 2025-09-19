@@ -1,5 +1,6 @@
 // bp_video_dialog.cc - Route Video Playback Dialog Implementation
 #include "bp_routes_panel.h"
+#include "bp_utils.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -12,6 +13,7 @@
 #include <QPixmap>
 #include <QImage>
 #include <QButtonGroup>
+#include <qpa/qplatformnativeinterface.h>
 #include <iostream>
 
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
@@ -41,15 +43,23 @@ BPRouteVideoDialog::~BPRouteVideoDialog() {
 }
 
 void BPRouteVideoDialog::setupUI() {
-  QHBoxLayout *mainLayout = new QHBoxLayout(this);
+  // Use vertical layout on QCOM2 devices for better portrait orientation support
+  bool useVerticalLayout = CommaTools::isCommaDevice();
+
+  QBoxLayout *mainLayout;
+  if (useVerticalLayout) {
+    mainLayout = new QVBoxLayout(this);
+  } else {
+    mainLayout = new QHBoxLayout(this);
+  }
   mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
 
-  // Left side - Video display (70%)
+  // Top/Left side - Video display (main content)
   setupVideoDisplay();
   mainLayout->addWidget(videoContainer, 7);
 
-  // Right side - Camera panel (30%)
+  // Bottom/Right side - Camera panel (controls)
   setupCameraPanel();
   mainLayout->addWidget(cameraPanel, 3);
 }
@@ -193,8 +203,14 @@ void BPRouteVideoDialog::setupControls() {
 
 void BPRouteVideoDialog::setupCameraPanel() {
   cameraPanel = new QWidget;
-  cameraPanel->setFixedWidth(250);
-  cameraPanel->setStyleSheet("background: #2a2a2a; border-left: 1px solid #444444;");
+  bool isQCOM2 = CommaTools::isCommaDevice();
+  if (isQCOM2) {
+    cameraPanel->setFixedHeight(200); // Fixed height for vertical layout
+    cameraPanel->setStyleSheet("background: #2a2a2a; border-top: 1px solid #444444;");
+  } else {
+    cameraPanel->setFixedWidth(250);
+    cameraPanel->setStyleSheet("background: #2a2a2a; border-left: 1px solid #444444;");
+  }
 
   QVBoxLayout *panelLayout = new QVBoxLayout(cameraPanel);
   panelLayout->setContentsMargins(15, 20, 15, 20);
@@ -536,6 +552,28 @@ void BPRouteVideoDialog::keyPressEvent(QKeyEvent *event) {
     default:
       BPDialogBase::keyPressEvent(event);
   }
+}
+
+void BPRouteVideoDialog::setupFullscreen() {
+  // Video dialogs need different rotation transform than regular dialogs on QCOM2
+  if (m_fullscreenApplied)
+    return;
+  m_fullscreenApplied = true;
+
+  setFixedSize(2160, 1080);
+  show();
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);  // Video dialogs need 270°
+      wl_surface_commit(s);
+    }
+    setWindowState(Qt::WindowFullScreen);
+    layout()->activate();
+  }
+#endif
 }
 
 void BPRouteVideoDialog::showEvent(QShowEvent *event) {
