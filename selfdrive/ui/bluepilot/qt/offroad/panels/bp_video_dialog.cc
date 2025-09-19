@@ -31,6 +31,7 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
 
   connect(positionTimer, &QTimer::timeout, this, &BPRouteVideoDialog::updatePlaybackPosition);
 
+
   setupUI();
   loadVideoSegments();
 }
@@ -42,25 +43,18 @@ BPRouteVideoDialog::~BPRouteVideoDialog() {
 }
 
 void BPRouteVideoDialog::setupUI() {
-  // Use vertical layout on QCOM2 devices for better portrait orientation support
-  bool useVerticalLayout = CommaTools::isCommaDevice();
-
-  QBoxLayout *mainLayout;
-  if (useVerticalLayout) {
-    mainLayout = new QVBoxLayout(this);
-  } else {
-    mainLayout = new QHBoxLayout(this);
-  }
+  // Main container for the modal (80/20 split)
+  QHBoxLayout *mainLayout = new QHBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
 
-  // Top/Left side - Video display (main content)
+  // Left side - Video display (80%)
   setupVideoDisplay();
-  mainLayout->addWidget(videoContainer, 7);
+  mainLayout->addWidget(videoContainer, 8);
 
-  // Bottom/Right side - Camera panel (controls)
+  // Right side - Camera panel (20%)
   setupCameraPanel();
-  mainLayout->addWidget(cameraPanel, 3);
+  mainLayout->addWidget(cameraPanel, 2);
 }
 
 void BPRouteVideoDialog::setupVideoDisplay() {
@@ -71,62 +65,84 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   videoLayout->setContentsMargins(0, 0, 0, 0);
   videoLayout->setSpacing(0);
 
-  // Header
+  // Header - much larger for 6" display
   QWidget *headerWidget = new QWidget;
-  headerWidget->setFixedHeight(80);
+  headerWidget->setFixedHeight(160);
   headerWidget->setStyleSheet("background: #202020;");
 
   QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
-  headerLayout->setContentsMargins(20, 10, 20, 10);
+  headerLayout->setContentsMargins(40, 20, 40, 20);
+  headerLayout->setSpacing(30);
 
-  // Route title
+  // Close button - moved to far left and much larger
+  closeButton = new QPushButton("✕");
+  closeButton->setFixedSize(120, 120);
+  closeButton->setStyleSheet(R"(
+    QPushButton {
+      background: #444444;
+      border: 2px solid #666666;
+      border-radius: 60px;
+      font-size: 60px;
+      color: #FFD700;
+      font-weight: bold;
+    }
+    QPushButton:hover {
+      background: #555555;
+      border: 2px solid #FFD700;
+    }
+    QPushButton:pressed {
+      background: #333333;
+    }
+  )");
+  connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
+
+  // Route title - much larger
   routeTitle = new QLabel(QString("Route: %1").arg(routeBaseName));
-  routeTitle->setStyleSheet("font-size: 24px; font-weight: 600; color: white;");
+  routeTitle->setStyleSheet("font-size: 52px; font-weight: 600; color: white; margin-left: 30px;");
 
-  // Star button
+  // Star button - much larger
   starButton = new QPushButton;
-  starButton->setFixedSize(50, 50);
+  starButton->setFixedSize(120, 120);
   starButton->setText(routeInfo.isStarred ? "★" : "☆");
   starButton->setStyleSheet(R"(
     QPushButton {
-      background: transparent;
-      border: none;
-      font-size: 28px;
+      background: #444444;
+      border: 2px solid #666666;
+      border-radius: 60px;
+      font-size: 60px;
       color: #FFD700;
+      font-weight: bold;
     }
     QPushButton:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 25px;
+      background: #555555;
+      border: 2px solid #FFD700;
+    }
+    QPushButton:pressed {
+      background: #333333;
     }
   )");
   connect(starButton, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleStar);
 
-  // Fullscreen button
+  // Fullscreen button - much larger
   fullscreenButton = new QPushButton("⛶");
-  fullscreenButton->setFixedSize(50, 50);
+  fullscreenButton->setFixedSize(120, 120);
   fullscreenButton->setStyleSheet(starButton->styleSheet());
   connect(fullscreenButton, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleFullscreen);
 
-  // Close button
-  closeButton = new QPushButton("✕");
-  closeButton->setFixedSize(50, 50);
-  closeButton->setStyleSheet(starButton->styleSheet());
-  connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
-
+  headerLayout->addWidget(closeButton);
   headerLayout->addWidget(routeTitle, 1);
   headerLayout->addWidget(starButton);
   headerLayout->addWidget(fullscreenButton);
-  headerLayout->addWidget(closeButton);
 
   videoLayout->addWidget(headerWidget);
 
-  // Video display area
+  // Video display area - much larger
   videoDisplay = new QLabel;
-  videoDisplay->setStyleSheet("background: #000000; border: none;");
+  videoDisplay->setStyleSheet("background: #000000; border: none; color: white; font-size: 48px;");
   videoDisplay->setAlignment(Qt::AlignCenter);
   videoDisplay->setText("Loading video...");
   videoDisplay->setScaledContents(true);
-  videoDisplay->setMinimumSize(800, 450);
+  videoDisplay->setMinimumSize(1400, 800);
 
   videoLayout->addWidget(videoDisplay, 1);
 
@@ -137,46 +153,56 @@ void BPRouteVideoDialog::setupVideoDisplay() {
 
 void BPRouteVideoDialog::setupControls() {
   controlsWidget = new QWidget;
-  controlsWidget->setFixedHeight(80);
+  controlsWidget->setFixedHeight(180);
   controlsWidget->setStyleSheet("background: #333333;");
 
   QHBoxLayout *controlsLayout = new QHBoxLayout(controlsWidget);
-  controlsLayout->setContentsMargins(20, 10, 20, 10);
-  controlsLayout->setSpacing(15);
+  controlsLayout->setContentsMargins(50, 25, 50, 25);
+  controlsLayout->setSpacing(40);
 
-  // Play/Pause button
+  // Play/Pause button - much larger for touch
   playPauseButton = new QPushButton("▶");
-  playPauseButton->setFixedSize(60, 60);
+  playPauseButton->setFixedSize(130, 130);
   playPauseButton->setStyleSheet(R"(
     QPushButton {
       background: #2196F3;
       color: white;
-      font-size: 24px;
-      border: none;
-      border-radius: 30px;
+      font-size: 60px;
+      border: 3px solid #1976D2;
+      border-radius: 65px;
+      font-weight: bold;
     }
     QPushButton:pressed {
       background: #1976D2;
     }
+    QPushButton:hover {
+      background: #1E88E5;
+      border: 3px solid #FFD700;
+    }
   )");
   connect(playPauseButton, &QPushButton::clicked, this, &BPRouteVideoDialog::togglePlayback);
 
-  // Position slider
+  // Position slider - much larger for touch
   positionSlider = new QSlider(Qt::Horizontal);
+  positionSlider->setFixedHeight(60);
   positionSlider->setStyleSheet(R"(
     QSlider::groove:horizontal {
-      border: 1px solid #999999;
-      height: 8px;
+      border: 2px solid #999999;
+      height: 20px;
       background: #555555;
-      border-radius: 4px;
+      border-radius: 10px;
     }
     QSlider::handle:horizontal {
       background: #2196F3;
-      border: 1px solid #1976D2;
-      width: 18px;
-      height: 18px;
-      border-radius: 9px;
-      margin: -5px 0;
+      border: 3px solid #1976D2;
+      width: 40px;
+      height: 40px;
+      border-radius: 20px;
+      margin: -10px 0;
+    }
+    QSlider::handle:horizontal:hover {
+      background: #FFD700;
+      border: 3px solid #FFC107;
     }
   )");
   connect(positionSlider, &QSlider::sliderPressed, [this]() {
@@ -190,10 +216,10 @@ void BPRouteVideoDialog::setupControls() {
     }
   });
 
-  // Time label
+  // Time label - much larger
   timeLabel = new QLabel("00:00 / 00:00");
-  timeLabel->setStyleSheet("color: white; font-size: 18px; font-family: monospace;");
-  timeLabel->setMinimumWidth(120);
+  timeLabel->setStyleSheet("color: white; font-size: 42px; font-family: monospace; font-weight: bold;");
+  timeLabel->setMinimumWidth(280);
 
   controlsLayout->addWidget(playPauseButton);
   controlsLayout->addWidget(positionSlider, 1);
@@ -202,130 +228,142 @@ void BPRouteVideoDialog::setupControls() {
 
 void BPRouteVideoDialog::setupCameraPanel() {
   cameraPanel = new QWidget;
-  bool isQCOM2 = CommaTools::isCommaDevice();
-  if (isQCOM2) {
-    cameraPanel->setFixedHeight(200); // Fixed height for vertical layout
-    cameraPanel->setStyleSheet("background: #2a2a2a; border-top: 1px solid #444444;");
-  } else {
-    cameraPanel->setFixedWidth(250);
-    cameraPanel->setStyleSheet("background: #2a2a2a; border-left: 1px solid #444444;");
-  }
+  // Optimized for 20% split with large touch targets
+  cameraPanel->setStyleSheet("background: #2a2a2a; border-left: 1px solid #444444;");
 
   QVBoxLayout *panelLayout = new QVBoxLayout(cameraPanel);
-  panelLayout->setContentsMargins(15, 20, 15, 20);
-  panelLayout->setSpacing(15);
+  panelLayout->setContentsMargins(30, 40, 30, 40);
+  panelLayout->setSpacing(25);
 
-  // Camera selection title
+  // Camera selection title - much larger font for 6" display
   QLabel *cameraTitle = new QLabel("Camera Views");
-  cameraTitle->setStyleSheet("font-size: 20px; font-weight: 600; color: white; margin-bottom: 10px;");
+  cameraTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white; margin-bottom: 20px;");
   panelLayout->addWidget(cameraTitle);
 
   // Camera buttons
   QButtonGroup *cameraGroup = new QButtonGroup(this);
 
-  frontCamButton = new QPushButton("Front Camera");
-  wideCamButton = new QPushButton("Wide Camera");
-  driverCamButton = new QPushButton("Driver Camera");
-  lqCamButton = new QPushButton("LQ Camera");
+  // Initialize button pointers to nullptr
+  frontCamButton = nullptr;
+  wideCamButton = nullptr;
+  driverCamButton = nullptr;
+  lqCamButton = nullptr;
 
-  QList<QPushButton*> camButtons = {frontCamButton, wideCamButton, driverCamButton, lqCamButton};
-  QStringList camTypes = {"front", "wide", "driver", "lq"};
-
-  for (int i = 0; i < camButtons.size(); i++) {
-    QPushButton *btn = camButtons[i];
-    QString camType = camTypes[i];
-
-    btn->setFixedHeight(50);
-    btn->setCheckable(true);
-    cameraGroup->addButton(btn);
-
-    // Check if camera is available
-    bool available = false;
-    if (camType == "front") available = routeInfo.hasFrontVideo;
-    else if (camType == "wide") available = routeInfo.hasWideVideo;
-    else if (camType == "driver") available = routeInfo.hasDriverVideo;
-    else if (camType == "lq") available = routeInfo.hasLQVideo;
-
-    if (available) {
-      btn->setStyleSheet(R"(
-        QPushButton {
-          background: #404040;
-          color: white;
-          font-size: 16px;
-          border: 1px solid #555555;
-          border-radius: 8px;
-          text-align: left;
-          padding-left: 15px;
-        }
-        QPushButton:checked {
-          background: #2196F3;
-          border: 1px solid #1976D2;
-        }
-        QPushButton:hover {
-          background: #505050;
-        }
-        QPushButton:checked:hover {
-          background: #1976D2;
-        }
-      )");
-
-      connect(btn, &QPushButton::clicked, [this, camType]() {
-        switchCamera(camType);
-      });
-    } else {
-      btn->setEnabled(false);
-      btn->setStyleSheet(R"(
-        QPushButton {
-          background: #2a2a2a;
-          color: #666666;
-          font-size: 16px;
-          border: 1px solid #333333;
-          border-radius: 8px;
-          text-align: left;
-          padding-left: 15px;
-        }
-      )");
+  // Common button style for all available cameras
+  QString buttonStyle = R"(
+    QPushButton {
+      background: #404040;
+      color: white;
+      font-size: 32px;
+      border: 3px solid #555555;
+      border-radius: 15px;
+      text-align: center;
+      font-weight: bold;
     }
+    QPushButton:checked {
+      background: #2196F3;
+      border: 3px solid #1976D2;
+      color: white;
+    }
+    QPushButton:hover {
+      background: #505050;
+      border: 3px solid #FFD700;
+    }
+    QPushButton:checked:hover {
+      background: #1976D2;
+      border: 3px solid #FFD700;
+    }
+  )";
 
-    panelLayout->addWidget(btn);
+  // Only create and add buttons for available cameras
+  if (routeInfo.hasFrontVideo) {
+    frontCamButton = new QPushButton("Front Camera");
+    frontCamButton->setFixedHeight(90);
+    frontCamButton->setCheckable(true);
+    frontCamButton->setStyleSheet(buttonStyle);
+    cameraGroup->addButton(frontCamButton);
+    connect(frontCamButton, &QPushButton::clicked, [this]() { switchCamera("front"); });
+    panelLayout->addWidget(frontCamButton);
+  }
+
+  if (routeInfo.hasWideVideo) {
+    wideCamButton = new QPushButton("Wide Camera");
+    wideCamButton->setFixedHeight(90);
+    wideCamButton->setCheckable(true);
+    wideCamButton->setStyleSheet(buttonStyle);
+    cameraGroup->addButton(wideCamButton);
+    connect(wideCamButton, &QPushButton::clicked, [this]() { switchCamera("wide"); });
+    panelLayout->addWidget(wideCamButton);
+  }
+
+  if (routeInfo.hasDriverVideo) {
+    driverCamButton = new QPushButton("Driver Camera");
+    driverCamButton->setFixedHeight(90);
+    driverCamButton->setCheckable(true);
+    driverCamButton->setStyleSheet(buttonStyle);
+    cameraGroup->addButton(driverCamButton);
+    connect(driverCamButton, &QPushButton::clicked, [this]() { switchCamera("driver"); });
+    panelLayout->addWidget(driverCamButton);
+  }
+
+  if (routeInfo.hasLQVideo) {
+    lqCamButton = new QPushButton("LQ Camera");
+    lqCamButton->setFixedHeight(90);
+    lqCamButton->setCheckable(true);
+    lqCamButton->setStyleSheet(buttonStyle);
+    cameraGroup->addButton(lqCamButton);
+    connect(lqCamButton, &QPushButton::clicked, [this]() { switchCamera("lq"); });
+    panelLayout->addWidget(lqCamButton);
   }
 
   // Set default camera
-  if (routeInfo.hasFrontVideo) {
+  if (routeInfo.hasFrontVideo && frontCamButton) {
     frontCamButton->setChecked(true);
     currentCameraType = "front";
-  } else if (routeInfo.hasWideVideo) {
+  } else if (routeInfo.hasWideVideo && wideCamButton) {
     wideCamButton->setChecked(true);
     currentCameraType = "wide";
-  } else if (routeInfo.hasDriverVideo) {
+  } else if (routeInfo.hasDriverVideo && driverCamButton) {
     driverCamButton->setChecked(true);
     currentCameraType = "driver";
-  } else if (routeInfo.hasLQVideo) {
+  } else if (routeInfo.hasLQVideo && lqCamButton) {
     lqCamButton->setChecked(true);
     currentCameraType = "lq";
   }
 
   panelLayout->addStretch();
 
-  // Delete route button
-  deleteButton = new QPushButton("Delete Route");
-  deleteButton->setFixedHeight(50);
+  // Actions section
+  QLabel *actionsTitle = new QLabel("Actions");
+  actionsTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white; margin-bottom: 20px; margin-top: 30px;");
+  panelLayout->addWidget(actionsTitle);
+
+  // Delete route button - much larger
+  deleteButton = new QPushButton("🗑 Delete Route");
+  deleteButton->setFixedHeight(90);
   deleteButton->setStyleSheet(R"(
     QPushButton {
       background: #d32f2f;
       color: white;
-      font-size: 16px;
-      font-weight: 500;
-      border: none;
-      border-radius: 8px;
+      font-size: 32px;
+      font-weight: bold;
+      border: 3px solid #b71c1c;
+      border-radius: 15px;
+      text-align: center;
     }
     QPushButton:pressed {
       background: #b71c1c;
     }
+    QPushButton:hover {
+      background: #c62828;
+      border: 3px solid #FFD700;
+    }
   )");
   connect(deleteButton, &QPushButton::clicked, this, &BPRouteVideoDialog::deleteRoute);
-
   panelLayout->addWidget(deleteButton);
+
+  // Future action buttons can be added here
+  panelLayout->addStretch();
 }
 
 void BPRouteVideoDialog::loadVideoSegments() {
@@ -395,7 +433,7 @@ void BPRouteVideoDialog::playCurrentSegment() {
 
   // TODO: Load and feed video data to decoder
   // This would require reading the HEVC/TS file and feeding it frame by frame
-  // For now, show placeholder
+  // For now, show placeholder with larger text
   videoDisplay->setText(QString("Playing: %1\\nSegment %2/%3")
     .arg(currentCameraType.toUpper())
     .arg(currentSegment + 1)
@@ -471,7 +509,7 @@ void BPRouteVideoDialog::deleteRoute() {
   // Show confirmation dialog
   BPConfirmationDialog::ConfirmConfig config;
   config.title = "Delete Route";
-  config.prompt = QString("Are you sure you want to delete route %1?\\n\\nThis action cannot be undone.").arg(routeBaseName);
+  config.prompt = QString("Are you sure you want to delete route %1?\n\nThis action cannot be undone.").arg(routeBaseName);
   config.confirmText = "Delete";
   config.cancelText = "Cancel";
   config.confirmColor = "#d32f2f";
@@ -496,8 +534,11 @@ void BPRouteVideoDialog::deleteRoute() {
 void BPRouteVideoDialog::toggleStar() {
   BPRoutesPanel *parent = static_cast<BPRoutesPanel*>(this->parent());
   bool currentlyStarred = parent->isRouteStarred(routeBaseName);
-  parent->setRouteStarred(routeBaseName, !currentlyStarred);
 
+  // Use the main panel's star toggle method to ensure UI synchronization
+  parent->handleRouteStarToggle(routeBaseName);
+
+  // Update the modal's star button and route info
   starButton->setText(!currentlyStarred ? "★" : "☆");
   routeInfo.isStarred = !currentlyStarred;
 }

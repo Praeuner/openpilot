@@ -87,6 +87,7 @@ public:
   RouteInfo getRouteInfo(const QString &routePath);
   bool isRouteStarred(const QString &routeBase);
   void setRouteStarred(const QString &routeBase, bool starred);
+  void handleRouteStarToggle(const QString &route);
   void handleRefresh();
   QString formatElapsedTime(const QDateTime &routeTime);
 
@@ -212,7 +213,6 @@ private:
   void handleRouteDetails(const QString &route);
   void handleRouteConcatenation(const QString &route);
   void handleRouteRemoval(const QString &route);
-  void handleRouteStarToggle(const QString &route);
   void handleRouteVideoPlayback(const QString &route, const QString &cameraType = "front");
   void loadMoreRoutes();
   void showSettingsDialog();
