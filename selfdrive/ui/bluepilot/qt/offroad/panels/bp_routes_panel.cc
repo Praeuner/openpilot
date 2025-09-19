@@ -1,4 +1,8 @@
 #include "bp_routes_panel.h"
+#include "system/loggerd/decoder/decoder.h"
+#include "system/loggerd/decoder/ffmpeg_decoder.h"
+#include "system/loggerd/decoder/v4l_decoder.h"
+#include "bp_panel_dialogs.h"
 
 #include <QDir>
 #include <QFile>
@@ -12,7 +16,6 @@
 #include <QGraphicsDropShadowEffect>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
-#include <QSlider>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGridLayout>
@@ -23,14 +26,21 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QMediaPlaylist>
 #include <QTemporaryFile>
 #include <QTextStream>
 #include <QStandardPaths>
-#include <QTextStream>
+#include <QScreen>
+#include <QGuiApplication>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
+
+#ifdef QCOM2
+#include <wayland-client.h>
+#include <wayland-util.h>
+#include <qpa/qplatformnativeinterface.h>
+#endif
 
 // Platform-specific paths
 #ifdef QCOM2
@@ -45,352 +55,686 @@
 static const int THUMBNAIL_WIDTH = 320;
 static const int THUMBNAIL_HEIGHT = 180;
 static const int ROUTES_PER_PAGE = 10;
-static const int CARD_HEIGHT = 280;
-static const int CARD_SPACING = 20;
+static const int CARD_HEIGHT = 360;
+static const int CARD_SPACING = 30;
 
 // ====================== BPEnhancedVideoModal ======================
 
-BPEnhancedVideoModal::BPEnhancedVideoModal(QWidget *parent)
-    : QDialog(parent),
-      currentVideoType(VideoType::FCamera),
-      isPlaying(false) {
+BPEnhancedVideoModal::BPEnhancedVideoModal(const QString &routeBase, const RouteInfo &route, QWidget *parent)
+    : QDialog(parent), m_routeBase(routeBase), m_route(route), m_currentCamera("fcamera.hevc") {
+
+  setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+  setAttribute(Qt::WA_TranslucentBackground, false);
+  setAttribute(Qt::WA_AcceptTouchEvents, true);
+
   setupUI();
-
-  // Setup media player
-  mediaPlayer = new QMediaPlayer(this);
-  mediaPlayer->setVideoOutput(videoWidget);
-
-  // Connect signals
-  connect(mediaPlayer, &QMediaPlayer::positionChanged, this, &BPEnhancedVideoModal::onPositionChanged);
-  connect(mediaPlayer, &QMediaPlayer::durationChanged, this, &BPEnhancedVideoModal::onDurationChanged);
-
-  // Hide controls timer
-  hideControlsTimer = new QTimer(this);
-  hideControlsTimer->setSingleShot(true);
-  hideControlsTimer->setInterval(3000);
-  connect(hideControlsTimer, &QTimer::timeout, this, [this]() {
-    if (isPlaying) {
-      controlsWidget->hide();
-    }
-  });
+  setupDecoder();
+  loadVideo(m_currentCamera);
 }
 
 BPEnhancedVideoModal::~BPEnhancedVideoModal() {
-  if (!tempVideoPath.isEmpty() && QFile::exists(tempVideoPath)) {
-    QFile::remove(tempVideoPath);
-  }
+  stopPlayback();
+}
+
+void BPEnhancedVideoModal::setRoute(const RouteInfo &route) {
+  m_route = route;
+  m_routeBase = route.baseName;
+
+  routeInfoLabel->setText(QString("Route: %1 • %2").arg(m_route.timestamp, m_route.duration));
+  updateStarButton();
+
+  loadVideo(m_currentCamera);
+}
+
+void BPEnhancedVideoModal::updateStarButton() {
+  starButton->setText(m_route.isStarred ? "★" : "☆");
+  starButton->setStyleSheet(starButton->styleSheet() +
+    QString("QPushButton { color: %1; }").arg(m_route.isStarred ? "#FFD700" : "white"));
 }
 
 void BPEnhancedVideoModal::setupUI() {
-  setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-  setModal(true);
-
-  // Full screen on QCOM2
-#ifdef QCOM2
-  showFullScreen();
-#else
-  resize(1280, 720);
-#endif
-
-  // Main layout
   QVBoxLayout *mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
 
-  // Video widget
-  videoWidget = new QVideoWidget(this);
-  videoWidget->setStyleSheet("background: black;");
-  mainLayout->addWidget(videoWidget);
+  setStyleSheet("background-color: #0f0f0f;");
 
-  // Controls overlay
-  controlsWidget = new QWidget(this);
-  controlsWidget->setStyleSheet(R"(
-    QWidget {
-      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 transparent,
-        stop: 0.7 transparent,
-        stop: 1 rgba(0, 0, 0, 200));
-    }
+  // Header
+  header = new QWidget;
+  header->setFixedHeight(100);
+  header->setStyleSheet("background-color: #1a1a1a; border-bottom: 2px solid #2196F3;");
+
+  QHBoxLayout *headerLayout = new QHBoxLayout(header);
+  headerLayout->setContentsMargins(30, 15, 30, 15);
+
+  routeInfoLabel = new QLabel(QString("Route: %1 • %2").arg(m_route.timestamp, m_route.duration));
+  routeInfoLabel->setStyleSheet("color: #2196F3; font-size: 48px; font-weight: 600;");
+
+  starButton = new QPushButton();
+  starButton->setFixedSize(80, 80);
+  starButton->setStyleSheet(R"(
     QPushButton {
-      background: rgba(33, 150, 243, 180);
+      background: transparent;
       border: none;
-      border-radius: 8px;
+      font-size: 48px;
+    }
+    QPushButton:hover {
+      color: #FFD700;
+    }
+  )");
+  connect(starButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::onStarClicked);
+  updateStarButton();
+
+  closeButton = new QPushButton("✕");
+  closeButton->setFixedSize(100, 100);
+  closeButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #363636;
       color: white;
-      font-size: 18px;
+      font-size: 52px;
       font-weight: bold;
-      padding: 15px 25px;
-      min-width: 100px;
-      min-height: 50px;
+      border-radius: 50px;
+      border: none;
+    }
+    QPushButton:hover {
+      background-color: #F44336;
     }
     QPushButton:pressed {
-      background: rgba(25, 118, 210, 200);
+      background-color: #D32F2F;
     }
-    QPushButton:checked {
-      background: rgba(25, 118, 210, 255);
-      border: 2px solid white;
+  )");
+
+  fullscreenButton = new QPushButton("⛶");
+  fullscreenButton->setFixedSize(100, 100);
+  fullscreenButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #363636;
+      color: white;
+      font-size: 48px;
+      border-radius: 50px;
+      border: none;
     }
+    QPushButton:hover {
+      background-color: #404040;
+    }
+    QPushButton:pressed {
+      background-color: #505050;
+    }
+  )");
+
+  headerLayout->addWidget(routeInfoLabel);
+  headerLayout->addWidget(starButton);
+  headerLayout->addStretch();
+  headerLayout->addWidget(fullscreenButton);
+  headerLayout->addSpacing(20);
+  headerLayout->addWidget(closeButton);
+
+  // Content area
+  QWidget *contentArea = new QWidget;
+  QHBoxLayout *contentLayout = new QHBoxLayout(contentArea);
+  contentLayout->setContentsMargins(20, 20, 20, 20);
+  contentLayout->setSpacing(20);
+
+  // Left side: Video player
+  videoContainer = new QWidget;
+  videoContainer->setStyleSheet("background-color: #000000; border-radius: 12px;");
+  QVBoxLayout *videoLayout = new QVBoxLayout(videoContainer);
+  videoLayout->setContentsMargins(0, 0, 0, 0);
+  videoLayout->setSpacing(0);
+
+  // Video display
+  videoDisplay = new QLabel;
+  videoDisplay->setAlignment(Qt::AlignCenter);
+  videoDisplay->setStyleSheet("background: black; color: white; font-size: 36px;");
+  videoDisplay->setText("Loading video...");
+  videoDisplay->setScaledContents(true);
+  videoLayout->addWidget(videoDisplay, 1);
+
+  // Video controls
+  controlsWidget = new QWidget;
+  controlsWidget->setFixedHeight(120);
+  controlsWidget->setStyleSheet("background-color: #1a1a1a; border-top: 1px solid #333;");
+
+  QHBoxLayout *controlsLayout = new QHBoxLayout(controlsWidget);
+  controlsLayout->setContentsMargins(20, 10, 20, 10);
+
+  playPauseButton = new QPushButton("▶");
+  playPauseButton->setFixedSize(120, 120);
+  playPauseButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #2196F3;
+      color: white;
+      font-size: 60px;
+      border-radius: 60px;
+      border: none;
+    }
+    QPushButton:hover {
+      background-color: #1E88E5;
+    }
+    QPushButton:pressed {
+      background-color: #1976D2;
+    }
+    QPushButton:disabled {
+      background-color: #202020;
+      color: #666666;
+    }
+  )");
+
+  positionSlider = new QSlider(Qt::Horizontal);
+  positionSlider->setStyleSheet(R"(
     QSlider::groove:horizontal {
-      background: rgba(255, 255, 255, 30);
       height: 8px;
+      background: #333;
       border-radius: 4px;
     }
     QSlider::handle:horizontal {
-      background: #2196F3;
       width: 20px;
       height: 20px;
+      background: #2196F3;
       border-radius: 10px;
-      margin: -6px 0;
+      margin-top: -6px;
+      margin-bottom: -6px;
     }
     QSlider::sub-page:horizontal {
       background: #2196F3;
       border-radius: 4px;
     }
-    QLabel {
-      color: white;
-      font-size: 16px;
-      font-weight: 500;
-    }
   )");
 
-  QVBoxLayout *controlsLayout = new QVBoxLayout(controlsWidget);
-  controlsLayout->setContentsMargins(30, 0, 30, 30);
+  timeLabel = new QLabel("00:00 / 00:00");
+  timeLabel->setStyleSheet("color: white; font-size: 40px; min-width: 280px;");
+  timeLabel->setAlignment(Qt::AlignCenter);
 
-  // Top controls - Camera selection
-  QHBoxLayout *topLayout = new QHBoxLayout();
-  topLayout->addStretch();
+  controlsLayout->addWidget(playPauseButton);
+  controlsLayout->addSpacing(20);
+  controlsLayout->addWidget(positionSlider, 1);
+  controlsLayout->addSpacing(20);
+  controlsLayout->addWidget(timeLabel);
 
-  fcameraBtn = new QPushButton("Front", this);
-  fcameraBtn->setCheckable(true);
-  fcameraBtn->setChecked(true);
-  connect(fcameraBtn, &QPushButton::clicked, this, &BPEnhancedVideoModal::onCameraButtonClicked);
-  topLayout->addWidget(fcameraBtn);
+  videoLayout->addWidget(controlsWidget);
 
-  dcameraBtn = new QPushButton("Driver", this);
-  dcameraBtn->setCheckable(true);
-  connect(dcameraBtn, &QPushButton::clicked, this, &BPEnhancedVideoModal::onCameraButtonClicked);
-  topLayout->addWidget(dcameraBtn);
+  // Right side: Camera panel
+  cameraPanel = new QWidget;
+  cameraPanel->setFixedWidth(320);
+  cameraPanel->setStyleSheet("background-color: #1a1a1a; border-radius: 12px; padding: 20px;");
 
-  ecameraBtn = new QPushButton("Wide", this);
-  ecameraBtn->setCheckable(true);
-  connect(ecameraBtn, &QPushButton::clicked, this, &BPEnhancedVideoModal::onCameraButtonClicked);
-  topLayout->addWidget(ecameraBtn);
+  QVBoxLayout *cameraPanelLayout = new QVBoxLayout(cameraPanel);
+  cameraPanelLayout->setContentsMargins(20, 20, 20, 20);
+  cameraPanelLayout->setSpacing(15);
 
-  qcameraBtn = new QPushButton("Preview", this);
-  qcameraBtn->setCheckable(true);
-  connect(qcameraBtn, &QPushButton::clicked, this, &BPEnhancedVideoModal::onCameraButtonClicked);
-  topLayout->addWidget(qcameraBtn);
+  QLabel *cameraHeader = new QLabel(tr("Camera View"));
+  cameraHeader->setStyleSheet("color: #2196F3; font-size: 44px; font-weight: 600; padding-bottom: 10px;");
+  cameraHeader->setAlignment(Qt::AlignCenter);
+  cameraPanelLayout->addWidget(cameraHeader);
 
-  QPushButton *closeBtn = new QPushButton("✕", this);
-  closeBtn->setStyleSheet("min-width: 50px; font-size: 24px; padding: 10px;");
-  connect(closeBtn, &QPushButton::clicked, this, &QDialog::close);
-  topLayout->addWidget(closeBtn);
+  cameraButtonLayout = new QVBoxLayout;
+  cameraButtonLayout->setSpacing(12);
 
-  controlsLayout->addLayout(topLayout);
-  controlsLayout->addStretch();
+  // Create camera buttons based on available cameras
+  if (m_route.hasFCamera) {
+    createCameraButton(tr("Front Camera"), "fcamera.hevc", true);
+  }
+  if (m_route.hasECamera) {
+    createCameraButton(tr("Wide Camera"), "ecamera.hevc", false);
+  }
+  if (m_route.hasDCamera) {
+    createCameraButton(tr("Driver Camera"), "dcamera.hevc", false);
+  }
+  if (m_route.hasQCamera) {
+    createCameraButton(tr("Low Quality"), "qcamera.ts", !m_route.hasFCamera);
+  }
 
-  // Bottom controls - Playback
-  QHBoxLayout *bottomLayout = new QHBoxLayout();
+  cameraPanelLayout->addLayout(cameraButtonLayout);
+  cameraPanelLayout->addStretch();
 
-  playPauseBtn = new QPushButton("▶", this);
-  connect(playPauseBtn, &QPushButton::clicked, this, &BPEnhancedVideoModal::onPlayPauseClicked);
-  bottomLayout->addWidget(playPauseBtn);
+  deleteButton = new QPushButton(tr("🗑 Delete Route"));
+  deleteButton->setMinimumHeight(100);
+  deleteButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #F44336;
+      color: white;
+      font-size: 44px;
+      font-weight: 600;
+      border-radius: 40px;
+      border: none;
+      padding: 15px 30px;
+    }
+    QPushButton:hover {
+      background-color: #D32F2F;
+    }
+    QPushButton:pressed {
+      background-color: #B71C1C;
+    }
+  )");
+  cameraPanelLayout->addWidget(deleteButton);
 
-  timeLabel = new QLabel("00:00", this);
-  bottomLayout->addWidget(timeLabel);
+  contentLayout->addWidget(videoContainer, 7);
+  contentLayout->addWidget(cameraPanel, 3);
 
-  seekSlider = new QSlider(Qt::Horizontal, this);
-  connect(seekSlider, &QSlider::sliderMoved, this, &BPEnhancedVideoModal::onSeekSliderMoved);
-  bottomLayout->addWidget(seekSlider, 1);
+  mainLayout->addWidget(header);
+  mainLayout->addWidget(contentArea, 1);
 
-  durationLabel = new QLabel("00:00", this);
-  bottomLayout->addWidget(durationLabel);
+  // Connect signals
+  connect(closeButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::onCloseClicked);
+  connect(fullscreenButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::onFullscreenToggle);
+  connect(playPauseButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::togglePlayback);
+  connect(deleteButton, &QPushButton::clicked, this, &BPEnhancedVideoModal::deleteRoute);
 
-  controlsLayout->addLayout(bottomLayout);
+  // Setup timers
+  playbackTimer = new QTimer(this);
+  playbackTimer->setInterval(33); // ~30 FPS
+  connect(playbackTimer, &QTimer::timeout, this, &BPEnhancedVideoModal::onPlaybackTimer);
 
-  // Position controls as overlay
-  controlsWidget->setParent(this);
-  controlsWidget->raise();
+  decodeTimer = new QTimer(this);
+  decodeTimer->setInterval(10);
+  connect(decodeTimer, &QTimer::timeout, this, &BPEnhancedVideoModal::onDecodeChunk);
+
+  // Slider handling
+  connect(positionSlider, &QSlider::sliderMoved, this, [this](int value) {
+    m_currentPosition = value;
+    updateTimeLabel();
+  });
 }
 
-void BPEnhancedVideoModal::setRoute(const RouteInfo &route) {
-  currentRoute = route;
-  loadVideo(currentVideoType);
-}
+void BPEnhancedVideoModal::createCameraButton(const QString &label, const QString &file, bool isDefault) {
+  QPushButton *btn = new QPushButton(label);
+  btn->setMinimumHeight(100);
 
-void BPEnhancedVideoModal::loadVideo(VideoType type) {
-  currentVideoType = type;
+  QString baseStyle = R"(
+    QPushButton {
+      background-color: %1;
+      color: white;
+      font-size: 44px;
+      font-weight: 500;
+      border-radius: 40px;
+      border: none;
+      text-align: center;
+      padding: 15px 30px;
+    }
+    QPushButton:hover {
+      background-color: %2;
+    }
+    QPushButton:pressed {
+      background-color: %3;
+    }
+  )";
 
-  // Update button states
-  fcameraBtn->setChecked(type == VideoType::FCamera);
-  dcameraBtn->setChecked(type == VideoType::DCamera);
-  ecameraBtn->setChecked(type == VideoType::ECamera);
-  qcameraBtn->setChecked(type == VideoType::QCamera);
-
-  // Get video path
-  QString videoPath = getVideoPath(type);
-
-  if (currentRoute.segments > 1) {
-    // Concatenate segments for continuous playback
-    tempVideoPath = QDir::temp().absoluteFilePath(QString("bp_route_%1.mp4").arg(currentRoute.baseName));
-    concatenateSegments(tempVideoPath);
-    mediaPlayer->setMedia(QUrl::fromLocalFile(tempVideoPath));
+  if (isDefault) {
+    btn->setStyleSheet(baseStyle.arg("#2196F3", "#1E88E5", "#1976D2"));
+    m_currentCamera = file;
   } else {
-    mediaPlayer->setMedia(QUrl::fromLocalFile(videoPath));
+    btn->setStyleSheet(baseStyle.arg("#363636", "#404040", "#505050"));
   }
 
-  if (isPlaying) {
-    mediaPlayer->play();
-  }
+  cameraButtons[file] = btn;
+  cameraButtonLayout->addWidget(btn);
+
+  connect(btn, &QPushButton::clicked, [this, file]() {
+    switchCamera(file);
+  });
 }
 
-QString BPEnhancedVideoModal::getVideoPath(VideoType type) const {
-  QString videoFile;
-  switch (type) {
-    case VideoType::FCamera:
-      videoFile = "fcamera.hevc";
-      break;
-    case VideoType::DCamera:
-      videoFile = "dcamera.hevc";
-      break;
-    case VideoType::ECamera:
-      videoFile = "ecamera.hevc";
-      break;
-    case VideoType::QCamera:
-      videoFile = "qcamera.ts";
-      break;
+void BPEnhancedVideoModal::switchCamera(const QString &cameraFile) {
+  for (auto it = cameraButtons.begin(); it != cameraButtons.end(); ++it) {
+    QString baseStyle = R"(
+      QPushButton {
+        background-color: %1;
+        color: white;
+        font-size: 32px;
+        font-weight: 500;
+        border-radius: 40px;
+        border: none;
+        text-align: center;
+        padding: 15px 30px;
+      }
+      QPushButton:hover {
+        background-color: %2;
+      }
+      QPushButton:pressed {
+        background-color: %3;
+      }
+    )";
+
+    if (it.key() == cameraFile) {
+      it.value()->setStyleSheet(baseStyle.arg("#2196F3", "#1E88E5", "#1976D2"));
+    } else {
+      it.value()->setStyleSheet(baseStyle.arg("#363636", "#404040", "#505050"));
+    }
   }
 
-  // Return path to first segment
-  return currentRoute.fullPath + "/" + currentRoute.baseName + "--0/" + videoFile;
+  m_currentCamera = cameraFile;
+  loadVideo(cameraFile);
 }
 
-void BPEnhancedVideoModal::concatenateSegments(const QString &outputPath) {
-  // Create file list for FFmpeg concat
-  QTemporaryFile listFile;
-  if (!listFile.open()) return;
+void BPEnhancedVideoModal::setupDecoder() {
+  // Frame callback
+  auto frameCallback = [this](const DecodedFrame& frame) {
+    QMetaObject::invokeMethod(this, [this, frame]() {
+      onFrameDecoded(frame);
+    }, Qt::QueuedConnection);
+  };
 
-  QTextStream stream(&listFile);
-  for (int i = 0; i < currentRoute.segments; i++) {
-    QString segmentPath = currentRoute.fullPath + "/" + currentRoute.baseName +
-                         QString("--%1/").arg(i) +
-                         (currentVideoType == VideoType::QCamera ? "qcamera.ts" : "fcamera.hevc");
-    stream << "file '" << segmentPath << "'\n";
+  // Create appropriate decoder for platform
+#ifdef QCOM2
+  decoder = std::make_unique<V4LDecoder>(1280, 720, frameCallback, false);
+#else
+  decoder = std::make_unique<FfmpegDecoder>(1280, 720, frameCallback, false);
+#endif
+}
+
+void BPEnhancedVideoModal::loadVideo(const QString &videoFile) {
+  stopPlayback();
+
+  m_currentCamera = videoFile;
+  videoDisplay->setText("Loading segments...");
+
+  // Get all segments for this video type
+  m_segmentPaths = getAvailableSegments(videoFile);
+
+  if (m_segmentPaths.isEmpty()) {
+    videoDisplay->setText("No video files found");
+    playPauseButton->setEnabled(false);
+    return;
   }
-  stream.flush();
 
-  // Run FFmpeg concat
-  QProcess ffmpeg;
-  QStringList args;
-  args << "-f" << "concat" << "-safe" << "0" << "-i" << listFile.fileName()
-       << "-c" << "copy" << outputPath;
+  // Setup slider
+  m_totalDuration = m_segmentPaths.size() * 60000; // Estimate 60 seconds per segment
+  positionSlider->setMaximum(m_totalDuration);
+  positionSlider->setValue(0);
+  m_currentPosition = 0;
+  m_currentSegmentIndex = 0;
 
-  ffmpeg.start("ffmpeg", args);
-  ffmpeg.waitForFinished();
+  // Initialize decoder
+  decoder->decoder_open();
+
+  videoDisplay->setText(QString("Ready - %1 segments").arg(m_segmentPaths.size()));
+  playPauseButton->setEnabled(true);
+
+  updateTimeLabel();
 }
 
-void BPEnhancedVideoModal::onPlayPauseClicked() {
-  if (isPlaying) {
-    pause();
-  } else {
-    play();
+QVector<QString> BPEnhancedVideoModal::getAvailableSegments(const QString &videoFile) {
+  QString routesDir;
+#ifdef QCOM2
+  routesDir = "/data/media/0/realdata";
+#else
+  routesDir = QDir::homePath() + "/comma_data/media/0/realdata";
+#endif
+
+  QVector<QString> segments;
+  QDir baseDir(routesDir);
+  QStringList segmentDirs = baseDir.entryList(QStringList() << m_routeBase + "--*", QDir::Dirs);
+
+  std::sort(segmentDirs.begin(), segmentDirs.end());
+
+  for (const QString &segmentDir : segmentDirs) {
+    QString videoPath = QString("%1/%2/%3").arg(routesDir, segmentDir, videoFile);
+    if (QFile::exists(videoPath)) {
+      segments.append(videoPath);
+    }
   }
+
+  return segments;
 }
 
-void BPEnhancedVideoModal::play() {
-  mediaPlayer->play();
+void BPEnhancedVideoModal::startPlayback() {
+  if (m_segmentPaths.isEmpty()) return;
+
   isPlaying = true;
-  playPauseBtn->setText("⏸");
-  hideControlsTimer->start();
+  isDecoding = true;
+  playPauseButton->setText("⏸");
+
+  playbackTimer->start();
+  decodeTimer->start();
+
+  qDebug() << "Started playback";
 }
 
-void BPEnhancedVideoModal::pause() {
-  mediaPlayer->pause();
+void BPEnhancedVideoModal::stopPlayback() {
   isPlaying = false;
-  playPauseBtn->setText("▶");
-  hideControlsTimer->stop();
-  controlsWidget->show();
-}
+  isDecoding = false;
+  playPauseButton->setText("▶");
 
-void BPEnhancedVideoModal::onCameraButtonClicked() {
-  QPushButton *btn = qobject_cast<QPushButton*>(sender());
-  if (!btn) return;
+  if (playbackTimer) playbackTimer->stop();
+  if (decodeTimer) decodeTimer->stop();
 
-  VideoType newType = currentVideoType;
-  if (btn == fcameraBtn) newType = VideoType::FCamera;
-  else if (btn == dcameraBtn) newType = VideoType::DCamera;
-  else if (btn == ecameraBtn) newType = VideoType::ECamera;
-  else if (btn == qcameraBtn) newType = VideoType::QCamera;
-
-  if (newType != currentVideoType) {
-    loadVideo(newType);
-    emit cameraChanged(newType);
+  if (decoder) {
+    decoder->flush();
+    decoder->decoder_close();
   }
 }
 
-void BPEnhancedVideoModal::onSeekSliderMoved(int value) {
-  mediaPlayer->setPosition(value);
+void BPEnhancedVideoModal::togglePlayback() {
+  if (isPlaying) {
+    stopPlayback();
+  } else {
+    startPlayback();
+  }
 }
 
-void BPEnhancedVideoModal::onPositionChanged(qint64 position) {
-  if (!seekSlider->isSliderDown()) {
-    seekSlider->setValue(position);
+void BPEnhancedVideoModal::onPlaybackTimer() {
+  if (isPlaying) {
+    m_currentPosition += 33; // ~30 FPS increment
+
+    if (m_currentPosition <= m_totalDuration) {
+      positionSlider->setValue(m_currentPosition);
+      updateTimeLabel();
+    } else {
+      stopPlayback();
+    }
+  }
+}
+
+void BPEnhancedVideoModal::onDecodeChunk() {
+  if (!isDecoding || m_segmentPaths.isEmpty()) return;
+
+  if (m_currentSegmentIndex >= m_segmentPaths.size()) {
+    stopPlayback();
+    videoDisplay->setText("Playback finished");
+    return;
   }
 
-  int seconds = position / 1000;
-  int minutes = seconds / 60;
-  seconds %= 60;
-  timeLabel->setText(QString("%1:%2").arg(minutes, 2, 10, QChar('0')).arg(seconds, 2, 10, QChar('0')));
+  // Read chunk from current segment file and decode
+  // This is simplified - real implementation would read actual video data
+  // For now just advance through segments based on time
+
+  qint64 segmentDuration = 60000; // 60 seconds per segment
+  int targetSegment = m_currentPosition / segmentDuration;
+
+  if (targetSegment != m_currentSegmentIndex) {
+    m_currentSegmentIndex = targetSegment;
+    qDebug() << "Moving to segment" << m_currentSegmentIndex;
+  }
 }
 
-void BPEnhancedVideoModal::onDurationChanged(qint64 duration) {
-  seekSlider->setMaximum(duration);
+void BPEnhancedVideoModal::onFrameDecoded(const DecodedFrame &frame) {
+  convertYUVToRGB(frame);
 
-  int seconds = duration / 1000;
-  int minutes = seconds / 60;
-  seconds %= 60;
-  durationLabel->setText(QString("%1:%2").arg(minutes, 2, 10, QChar('0')).arg(seconds, 2, 10, QChar('0')));
+  if (!currentPixmap.isNull()) {
+    QSize displaySize = videoDisplay->size();
+    videoDisplay->setPixmap(currentPixmap.scaled(displaySize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  }
+}
+
+void BPEnhancedVideoModal::convertYUVToRGB(const DecodedFrame &frame) {
+  int width = frame.width;
+  int height = frame.height;
+  int rgbSize = width * height * 3;
+
+  if (rgbBuffer.size() != rgbSize) {
+    rgbBuffer.resize(rgbSize);
+  }
+
+  // Simple YUV420 to RGB conversion
+  uint8_t *y = frame.y;
+  uint8_t *u = frame.u;
+  uint8_t *v = frame.v;
+  uint8_t *rgb = rgbBuffer.data();
+
+  for (int row = 0; row < height; row++) {
+    for (int col = 0; col < width; col++) {
+      int yVal = y[row * frame.stride_y + col];
+      int uVal = u[(row / 2) * frame.stride_uv + (col / 2)] - 128;
+      int vVal = v[(row / 2) * frame.stride_uv + (col / 2)] - 128;
+
+      int r = yVal + (int)(1.402 * vVal);
+      int g = yVal - (int)(0.344 * uVal + 0.714 * vVal);
+      int b = yVal + (int)(1.772 * uVal);
+
+      int idx = (row * width + col) * 3;
+      rgb[idx] = std::clamp(r, 0, 255);
+      rgb[idx + 1] = std::clamp(g, 0, 255);
+      rgb[idx + 2] = std::clamp(b, 0, 255);
+    }
+  }
+
+  QImage image(rgb, width, height, QImage::Format_RGB888);
+  currentPixmap = QPixmap::fromImage(image);
+}
+
+void BPEnhancedVideoModal::updateTimeLabel() {
+  int totalMs = m_totalDuration;
+  int currentMs = m_currentPosition;
+
+  int totalSec = totalMs / 1000;
+  int currentSec = currentMs / 1000;
+
+  QString timeText = QString("%1:%2 / %3:%4")
+    .arg(currentSec / 60, 2, 10, QChar('0'))
+    .arg(currentSec % 60, 2, 10, QChar('0'))
+    .arg(totalSec / 60, 2, 10, QChar('0'))
+    .arg(totalSec % 60, 2, 10, QChar('0'));
+
+  timeLabel->setText(timeText);
+}
+
+void BPEnhancedVideoModal::deleteRoute() {
+  BPConfirmationDialog::ConfirmConfig config;
+  config.title = tr("Delete Route");
+  config.prompt = tr("Are you sure you want to delete this route?\n\nRoute: %1\nThis action cannot be undone.").arg(m_route.baseName);
+  config.confirmText = tr("Delete");
+  config.cancelText = tr("Cancel");
+  config.confirmColor = "#F44336";
+
+  auto confirmDialog = new BPConfirmationDialog(config, this);
+  if (confirmDialog->exec() == QDialog::Accepted) {
+    QString routesDir;
+#ifdef QCOM2
+    routesDir = "/data/media/0/realdata";
+#else
+    routesDir = QDir::homePath() + "/comma_data/media/0/realdata";
+#endif
+
+    QDir baseDir(routesDir);
+    QStringList segments = baseDir.entryList(QStringList() << m_routeBase + "--*", QDir::Dirs);
+
+    bool success = true;
+    for (const QString &segment : segments) {
+      QDir segmentDir(baseDir.filePath(segment));
+      if (!segmentDir.removeRecursively()) {
+        success = false;
+      }
+    }
+
+    if (success) {
+      emit routeDeleted(m_routeBase);
+      accept();
+    } else {
+      BPConfirmationDialog::ConfirmConfig errorConfig;
+      errorConfig.title = tr("Error");
+      errorConfig.prompt = tr("Failed to delete route completely. Some files may remain.");
+      errorConfig.confirmText = tr("OK");
+      errorConfig.confirmColor = "#FF0000";
+      BPConfirmationDialog::showMessage(errorConfig, this);
+    }
+  }
+  delete confirmDialog;
+}
+
+void BPEnhancedVideoModal::onStarClicked() {
+  m_route.isStarred = !m_route.isStarred;
+  updateStarButton();
+  emit routeStarredChanged(m_routeBase, m_route.isStarred);
+}
+
+void BPEnhancedVideoModal::onCloseClicked() {
+  stopPlayback();
+  reject();
+}
+
+void BPEnhancedVideoModal::onFullscreenToggle() {
+  m_isFullscreen = !m_isFullscreen;
+  if (m_isFullscreen) {
+    showFullScreen();
+  } else {
+    showNormal();
+  }
+}
+
+void BPEnhancedVideoModal::setupFullscreen() {
+  if (m_fullscreenApplied) return;
+  m_fullscreenApplied = true;
+
+#ifdef QCOM2
+  setFixedSize(2160, 1080);
+  show();
+  applyQCOM2Rotation();
+#else
+  QScreen *screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    QRect screenGeometry = screen->geometry();
+    setGeometry(screenGeometry);
+  }
+#endif
+
+  showFullScreen();
+}
+
+void BPEnhancedVideoModal::applyQCOM2Rotation() {
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+  }
+#endif
+}
+
+void BPEnhancedVideoModal::showEvent(QShowEvent *event) {
+  QDialog::showEvent(event);
+  setupFullscreen();
 }
 
 void BPEnhancedVideoModal::keyPressEvent(QKeyEvent *event) {
   switch (event->key()) {
-    case Qt::Key_Space:
-      onPlayPauseClicked();
-      break;
     case Qt::Key_Escape:
-      close();
+      onCloseClicked();
+      break;
+    case Qt::Key_Space:
+      togglePlayback();
       break;
     case Qt::Key_F:
-      if (isFullScreen()) {
-        showNormal();
-      } else {
-        showFullScreen();
-      }
+    case Qt::Key_F11:
+      onFullscreenToggle();
       break;
     default:
       QDialog::keyPressEvent(event);
   }
 }
 
-void BPEnhancedVideoModal::mousePressEvent(QMouseEvent *event) {
-  updateControlsVisibility();
-  QDialog::mousePressEvent(event);
-}
-
-void BPEnhancedVideoModal::updateControlsVisibility() {
-  if (controlsWidget->isHidden()) {
-    controlsWidget->show();
-    if (isPlaying) {
-      hideControlsTimer->start();
-    }
-  } else {
-    controlsWidget->hide();
-  }
-}
-
 void BPEnhancedVideoModal::resizeEvent(QResizeEvent *event) {
   QDialog::resizeEvent(event);
-  if (controlsWidget) {
-    controlsWidget->resize(size());
+  if (event->size().width() < 1400) {
+    if (cameraPanel) {
+      cameraPanel->setFixedWidth(200);
+    }
+  } else {
+    if (cameraPanel) {
+      cameraPanel->setFixedWidth(250);
+    }
   }
 }
 
@@ -405,6 +749,7 @@ void RouteCardWidget::setupUI() {
   setFixedHeight(CARD_HEIGHT);
   setCursor(Qt::PointingHandCursor);
 
+  // Main layout
   QHBoxLayout *layout = new QHBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(20);
@@ -415,97 +760,189 @@ void RouteCardWidget::setupUI() {
   thumbnailContainer->setStyleSheet("background: #1a1a1a; border-radius: 8px;");
 
   thumbnailLabel = new QLabel(thumbnailContainer);
+  thumbnailLabel->setObjectName("thumbnailLabel");
   thumbnailLabel->setAlignment(Qt::AlignCenter);
   thumbnailLabel->setFixedSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
   thumbnailLabel->setScaledContents(true);
   thumbnailLabel->setText("Loading...");
-  thumbnailLabel->setStyleSheet("color: #666; font-size: 18px;");
+  thumbnailLabel->setStyleSheet("color: #666; font-size: 28px;");
 
   layout->addWidget(thumbnailContainer);
 
   // Info section
   QVBoxLayout *infoLayout = new QVBoxLayout();
-  infoLayout->setSpacing(8);
+  infoLayout->setSpacing(12);
 
   // Timestamp
   timestampLabel = new QLabel(route.timestamp, this);
-  timestampLabel->setStyleSheet("color: white; font-size: 22px; font-weight: bold;");
+  timestampLabel->setStyleSheet("color: white; font-size: 32px; font-weight: bold;");
   infoLayout->addWidget(timestampLabel);
 
-  // Duration and distance row
+  // Duration row
   QHBoxLayout *statsRow = new QHBoxLayout();
-  statsRow->setSpacing(20);
+  statsRow->setSpacing(30);
 
   durationLabel = new QLabel(QString("⏱ %1").arg(route.duration), this);
-  durationLabel->setStyleSheet("color: #2196F3; font-size: 18px; font-weight: 500;");
+  durationLabel->setStyleSheet("color: #2196F3; font-size: 26px; font-weight: 500;");
   statsRow->addWidget(durationLabel);
-
-  distanceLabel = new QLabel(QString("📍 %1 mi").arg(route.tripMiles, 0, 'f', 1), this);
-  distanceLabel->setStyleSheet("color: #4CAF50; font-size: 18px; font-weight: 500;");
-  statsRow->addWidget(distanceLabel);
 
   statsRow->addStretch();
   infoLayout->addLayout(statsRow);
 
   // Metadata row
   QHBoxLayout *metaRow = new QHBoxLayout();
-  metaRow->setSpacing(20);
+  metaRow->setSpacing(30);
 
   segmentsLabel = new QLabel(QString("%1 segments").arg(route.segments), this);
-  segmentsLabel->setStyleSheet("color: #999; font-size: 16px;");
+  segmentsLabel->setStyleSheet("color: #999; font-size: 22px;");
   metaRow->addWidget(segmentsLabel);
 
   sizeLabel = new QLabel(route.size, this);
-  sizeLabel->setStyleSheet("color: #999; font-size: 16px;");
+  sizeLabel->setStyleSheet("color: #999; font-size: 22px;");
   metaRow->addWidget(sizeLabel);
-
-  // Badges for available data
-  if (route.hasVideo) {
-    QLabel *videoBadge = new QLabel("VIDEO", this);
-    videoBadge->setStyleSheet(R"(
-      background: #4CAF50;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: bold;
-    )");
-    metaRow->addWidget(videoBadge);
-  }
-
-  if (route.hasRLog) {
-    QLabel *logBadge = new QLabel("LOGS", this);
-    logBadge->setStyleSheet(R"(
-      background: #FF9800;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: bold;
-    )");
-    metaRow->addWidget(logBadge);
-  }
 
   metaRow->addStretch();
   infoLayout->addLayout(metaRow);
+
+  // Badges row for camera types and logs
+  QHBoxLayout *badgeRow = new QHBoxLayout();
+  badgeRow->setSpacing(15);
+
+  if (route.hasFCamera) {
+    QLabel *badge = new QLabel("Front - HQ", this);
+    badge->setStyleSheet(R"(
+      background: #2196F3;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    )");
+    badgeRow->addWidget(badge);
+  }
+
+  if (route.hasQCamera) {
+    QLabel *badge = new QLabel("Front - LQ", this);
+    badge->setStyleSheet(R"(
+      background: #2196F3;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    )");
+    badgeRow->addWidget(badge);
+  }
+
+  if (route.hasECamera) {
+    QLabel *badge = new QLabel("Wide", this);
+    badge->setStyleSheet(R"(
+      background: #2196F3;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    )");
+    badgeRow->addWidget(badge);
+  }
+
+  if (route.hasDCamera) {
+    QLabel *badge = new QLabel("Driver", this);
+    badge->setStyleSheet(R"(
+      background: #2196F3;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    )");
+    badgeRow->addWidget(badge);
+  }
+
+  if (route.hasRLog || route.hasQLog) {
+    QLabel *logBadge = new QLabel("Logs", this);
+    logBadge->setStyleSheet(R"(
+      background: #FF9800;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+    )");
+    badgeRow->addWidget(logBadge);
+  }
+
+  badgeRow->addStretch();
+  infoLayout->addLayout(badgeRow);
 
   infoLayout->addStretch();
   layout->addLayout(infoLayout, 1);
 
   // Elapsed time on right
   QLabel *elapsedLabel = new QLabel(route.elapsedTime, this);
-  elapsedLabel->setStyleSheet("color: #666; font-size: 16px;");
+  elapsedLabel->setStyleSheet("color: #666; font-size: 24px;");
   layout->addWidget(elapsedLabel);
+
+  // Star button - positioned absolute top-right
+  starButton = new QPushButton(this);
+  starButton->setFixedSize(60, 60);
+  starButton->setStyleSheet(R"(
+    QPushButton {
+      background: transparent;
+      border: none;
+      font-size: 40px;
+      color: #666;
+    }
+    QPushButton:hover {
+      color: #FFD700;
+    }
+    QPushButton:pressed {
+      color: #FFA500;
+    }
+  )");
+  connect(starButton, &QPushButton::clicked, this, &RouteCardWidget::onStarButtonClicked);
+
+  // Position star button absolutely
+  starButton->move(width() - 60, 20);
+  starButton->raise();
+
+  updateStarButton();
+}
+
+void RouteCardWidget::setStarred(bool starred) {
+  route.isStarred = starred;
+  updateStarButton();
+}
+
+void RouteCardWidget::updateStarButton() {
+  if (route.isStarred) {
+    starButton->setText("★");
+    starButton->setStyleSheet(starButton->styleSheet() + "QPushButton { color: #FFD700; }");
+  } else {
+    starButton->setText("☆");
+    starButton->setStyleSheet(starButton->styleSheet().replace("color: #FFD700;", "color: #666;"));
+  }
+}
+
+void RouteCardWidget::onStarButtonClicked() {
+  route.isStarred = !route.isStarred;
+  updateStarButton();
+  emit starToggled(route.baseName, route.isStarred);
 }
 
 void RouteCardWidget::setThumbnail(const QPixmap &pixmap) {
-  thumbnailLabel->setPixmap(pixmap.scaled(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                                          Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  if (thumbnailLabel) {
+    thumbnailLabel->setPixmap(pixmap.scaled(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                                            Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  }
 }
 
 void RouteCardWidget::mousePressEvent(QMouseEvent *event) {
-  isPressed = true;
-  update();
+  if (event->button() == Qt::LeftButton && !starButton->geometry().contains(event->pos())) {
+    isPressed = true;
+    update();
+  }
   QWidget::mousePressEvent(event);
 }
 
@@ -566,13 +1003,6 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
       allRoutesLoaded(false),
       ffmpegProcess(nullptr) {
 
-  // Platform detection
-#ifdef QCOM2
-  isQCOM2 = true;
-#else
-  isQCOM2 = false;
-#endif
-
   routesPath = ROUTES_PATH;
   thumbnailCachePath = THUMBNAIL_CACHE_PATH;
 
@@ -584,9 +1014,6 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
 
   setupUI();
   applyStyles();
-
-  // Create video modal
-  videoModal = std::make_unique<BPEnhancedVideoModal>(this);
 }
 
 BPRoutesPanel::~BPRoutesPanel() {
@@ -613,13 +1040,18 @@ void BPRoutesPanel::setupUI() {
 
   // Header
   QWidget *header = new QWidget(this);
-  header->setFixedHeight(80);
+  header->setFixedHeight(100);
   QHBoxLayout *headerLayout = new QHBoxLayout(header);
-  headerLayout->setContentsMargins(30, 0, 30, 0);
+  headerLayout->setContentsMargins(30, 10, 30, 10);
 
   QLabel *titleLabel = new QLabel("Driving Routes", this);
-  titleLabel->setStyleSheet("color: white; font-size: 32px; font-weight: bold;");
+  titleLabel->setStyleSheet("color: white; font-size: 48px; font-weight: bold;");
   headerLayout->addWidget(titleLabel);
+
+  // Stats label (route count and disk space)
+  statsLabel = new QLabel(this);
+  statsLabel->setStyleSheet("color: #666; font-size: 32px; margin-left: 20px;");
+  headerLayout->addWidget(statsLabel);
 
   headerLayout->addStretch();
 
@@ -650,7 +1082,7 @@ void BPRoutesPanel::setupUI() {
   // Status label
   statusLabel = new QLabel("Loading routes...", this);
   statusLabel->setAlignment(Qt::AlignCenter);
-  statusLabel->setStyleSheet("color: #666; font-size: 20px; padding: 50px;");
+  statusLabel->setStyleSheet("color: #666; font-size: 48px; padding: 50px;");
   contentLayout->addWidget(statusLabel);
 
   // Connect scroll detection
@@ -685,12 +1117,13 @@ void BPRoutesPanel::applyStyles() {
     QPushButton {
       background: #2196F3;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       color: white;
-      font-size: 18px;
+      font-size: 32px;
       font-weight: bold;
-      padding: 12px 24px;
-      min-width: 120px;
+      padding: 15px 30px;
+      min-width: 140px;
+      min-height: 60px;
     }
     QPushButton:pressed {
       background: #1976D2;
@@ -723,6 +1156,7 @@ void BPRoutesPanel::loadRoutes() {
 
     if (allRoutes.empty()) {
       statusLabel->setText("No routes found");
+      updateStats();
     } else {
       statusLabel->hide();
 
@@ -732,6 +1166,7 @@ void BPRoutesPanel::loadRoutes() {
                   return a.date > b.date || (a.date == b.date && a.timestamp > b.timestamp);
                 });
 
+      updateStats();
       // Load first page
       loadMoreRoutes();
     }
@@ -814,16 +1249,35 @@ RouteInfo BPRoutesPanel::parseRoute(const QString &routePath) {
   }
 
   // Check for video files
-  route.hasVideo = hasVideoFiles(fullPath);
+  route.hasFCamera = QFile::exists(fullPath + "/fcamera.hevc");
+  route.hasDCamera = QFile::exists(fullPath + "/dcamera.hevc");
+  route.hasECamera = QFile::exists(fullPath + "/ecamera.hevc");
+  route.hasQCamera = QFile::exists(fullPath + "/qcamera.ts");
+  route.hasVideo = route.hasFCamera || route.hasDCamera || route.hasECamera || route.hasQCamera;
 
   // Check for log files
   route.hasRLog = QFile::exists(fullPath + "/rlog.bz2");
   route.hasQLog = QFile::exists(fullPath + "/qlog.bz2");
 
-  // Get duration and size (simplified for now)
-  route.duration = formatDuration(300); // Placeholder
-  route.size = formatSize(1024 * 1024 * 100); // Placeholder
-  route.tripMiles = 5.2; // Placeholder
+  // Load star status
+  route.isStarred = loadRouteStarStatus(route.baseName);
+
+  // Get actual duration and size
+  route.duration = getDurationFromRoute(fullPath);
+
+  // Calculate total size across all segments
+  qint64 totalBytes = 0;
+  for (int i = 0; i < 100; i++) { // Max 100 segments
+    QString segmentPath = routesPath + routePath + QString("--%1").arg(i);
+    QDir segmentDir(segmentPath);
+    if (!segmentDir.exists()) break;
+
+    for (const QFileInfo &fileInfo : segmentDir.entryInfoList(QDir::Files)) {
+      totalBytes += fileInfo.size();
+    }
+  }
+  route.totalBytes = totalBytes;
+  route.size = formatSize(totalBytes);
 
   // Get thumbnail path
   route.thumbnailPath = getThumbnailPath(route.baseName);
@@ -831,8 +1285,50 @@ RouteInfo BPRoutesPanel::parseRoute(const QString &routePath) {
   return route;
 }
 
+QString BPRoutesPanel::getDurationFromRoute(const QString &routePath) const {
+  // Try to estimate duration from segment count or file timestamps
+  // Each segment is typically 60 seconds
+  QDir routeDir(routePath);
+  if (routeDir.exists()) {
+    // Count segments for this route
+    QString baseName = QFileInfo(routePath).fileName();
+    baseName = baseName.left(baseName.lastIndexOf("--"));
+
+    int segmentCount = 1;
+    for (int i = 1; i < 100; i++) {
+      if (!QDir(routesPath + baseName + QString("--%1").arg(i)).exists()) {
+        segmentCount = i;
+        break;
+      }
+    }
+
+    int totalSeconds = segmentCount * 60; // Approximate 60 seconds per segment
+    return formatDuration(totalSeconds);
+  }
+
+  return "0:00";
+}
+
+void BPRoutesPanel::updateStats() {
+  if (allRoutes.empty()) {
+    statsLabel->setText("0 routes • 0 GB");
+    return;
+  }
+
+  // Calculate total disk space
+  qint64 totalBytes = 0;
+  for (const RouteInfo &route : allRoutes) {
+    totalBytes += route.totalBytes;
+  }
+
+  QString sizeStr = formatSize(totalBytes);
+  statsLabel->setText(QString("%1 routes • %2").arg(allRoutes.size()).arg(sizeStr));
+}
+
 bool BPRoutesPanel::hasVideoFiles(const QString &routePath) {
   return QFile::exists(routePath + "/fcamera.hevc") ||
+         QFile::exists(routePath + "/dcamera.hevc") ||
+         QFile::exists(routePath + "/ecamera.hevc") ||
          QFile::exists(routePath + "/qcamera.ts");
 }
 
@@ -845,8 +1341,11 @@ void BPRoutesPanel::addDateSection(const QDate &date) {
   QVBoxLayout *sectionLayout = new QVBoxLayout(sectionWidget);
   sectionLayout->setContentsMargins(0, 20, 0, 10);
 
-  QLabel *dateLabel = new QLabel(date.toString("MMMM d, yyyy"), this);
-  dateLabel->setStyleSheet("color: #999; font-size: 24px; font-weight: bold;");
+  // Format date with day name
+  QString dayName = date.toString("dddd");
+  QString dateStr = date.toString("MMMM d, yyyy");
+  QLabel *dateLabel = new QLabel(QString("%1 - %2").arg(dayName, dateStr), this);
+  dateLabel->setStyleSheet("color: #999; font-size: 36px; font-weight: bold;");
   sectionLayout->addWidget(dateLabel);
 
   contentLayout->addWidget(sectionWidget);
@@ -861,11 +1360,13 @@ void BPRoutesPanel::addRouteCard(const RouteInfo &route) {
   // Create route card
   RouteCardWidget *card = new RouteCardWidget(route, this);
   connect(card, &RouteCardWidget::clicked, this, &BPRoutesPanel::onRouteCardClicked);
+  connect(card, &RouteCardWidget::starToggled, this, &BPRoutesPanel::onCardStarToggled);
 
   contentLayout->addWidget(card);
+  routeCards[route.baseName] = card;
 
   // Initialize thumbnail
-  QLabel *thumbnailLabel = card->findChild<QLabel*>();
+  QLabel *thumbnailLabel = card->findChild<QLabel*>("thumbnailLabel");
   if (thumbnailLabel) {
     initializeThumbnail(thumbnailLabel, route.baseName);
   }
@@ -940,12 +1441,20 @@ QString BPRoutesPanel::generateThumbnailAsync(const QString &routeBase) {
     return QString();
   }
 
-  QString videoPath = routesPath + routeBase + "--0/fcamera.hevc";
-  if (!QFile::exists(videoPath)) {
-    videoPath = routesPath + routeBase + "--0/qcamera.ts";
-    if (!QFile::exists(videoPath)) {
-      return QString();
+  // Try different video files in order of preference
+  QStringList videoFiles = {"fcamera.hevc", "ecamera.hevc", "dcamera.hevc", "qcamera.ts"};
+  QString videoPath;
+
+  for (const QString &videoFile : videoFiles) {
+    QString testPath = routesPath + routeBase + "--0/" + videoFile;
+    if (QFile::exists(testPath)) {
+      videoPath = testPath;
+      break;
     }
+  }
+
+  if (videoPath.isEmpty()) {
+    return QString();
   }
 
   QString thumbnailPath = getThumbnailPath(routeBase);
@@ -955,20 +1464,22 @@ QString BPRoutesPanel::generateThumbnailAsync(const QString &routeBase) {
   args << "-y"                           // Overwrite output
        << "-nostdin"                      // Non-interactive
        << "-i" << videoPath               // Input video
+       << "-ss" << "00:00:01"            // Seek to 1 second
        << "-vframes" << "1"               // Extract single frame
        << "-an"                           // Disable audio
        << "-vf" << QString("scale=%1:%2").arg(THUMBNAIL_WIDTH).arg(THUMBNAIL_HEIGHT)
-       << "-strict" << "unofficial"      // Allow non-standard YUV
-       << "-pix_fmt" << "yuvj420p"       // Full-range YUV
        << thumbnailPath;                 // Output
 
   ffmpeg.start(ffmpegPath, args);
   if (ffmpeg.waitForFinished(5000)) {  // 5 second timeout
     if (ffmpeg.exitCode() == 0) {
       return thumbnailPath;
+    } else {
+      qWarning() << "FFmpeg failed:" << ffmpeg.readAllStandardError();
     }
   } else {
     ffmpeg.kill();
+    qWarning() << "FFmpeg timeout";
   }
 
   return QString();
@@ -996,9 +1507,80 @@ QString BPRoutesPanel::findFFmpegPath() const {
 }
 
 void BPRoutesPanel::onRouteCardClicked(const RouteInfo &route) {
-  if (videoModal) {
+  if (!videoModal) {
+    videoModal = std::make_unique<BPEnhancedVideoModal>(route.baseName, route, this);
+    connect(videoModal.get(), &BPEnhancedVideoModal::routeDeleted,
+            this, &BPRoutesPanel::onRouteDeleted);
+    connect(videoModal.get(), &BPEnhancedVideoModal::routeStarredChanged,
+            this, &BPRoutesPanel::onRouteStarredChanged);
+  } else {
+    // Update modal with new route
     videoModal->setRoute(route);
-    videoModal->exec();
+  }
+
+  videoModal->exec();
+}
+
+void BPRoutesPanel::saveRouteStarStatus(const QString &routeBaseName, bool starred) {
+  QString starFile = QString("%1%2.star").arg(thumbnailCachePath).arg(routeBaseName);
+  if (starred) {
+    QFile(starFile).open(QIODevice::WriteOnly);
+  } else {
+    QFile::remove(starFile);
+  }
+}
+
+bool BPRoutesPanel::loadRouteStarStatus(const QString &routeBaseName) {
+  return QFile::exists(QString("%1%2.star").arg(thumbnailCachePath).arg(routeBaseName));
+}
+
+void BPRoutesPanel::onRouteDeleted(const QString &routeBaseName) {
+  removeRouteCard(routeBaseName);
+
+  // Remove from allRoutes
+  allRoutes.erase(std::remove_if(allRoutes.begin(), allRoutes.end(),
+                                 [&routeBaseName](const RouteInfo &r) {
+                                   return r.baseName == routeBaseName;
+                                 }),
+                  allRoutes.end());
+
+  // Update stats
+  updateStats();
+}
+
+void BPRoutesPanel::onRouteStarredChanged(const QString &routeBaseName, bool starred) {
+  saveRouteStarStatus(routeBaseName, starred);
+
+  // Update card if visible
+  if (routeCards.contains(routeBaseName)) {
+    routeCards[routeBaseName]->setStarred(starred);
+  }
+
+  // Update in allRoutes
+  for (auto &route : allRoutes) {
+    if (route.baseName == routeBaseName) {
+      route.isStarred = starred;
+      break;
+    }
+  }
+}
+
+void BPRoutesPanel::onCardStarToggled(const QString &routeBaseName, bool starred) {
+  saveRouteStarStatus(routeBaseName, starred);
+
+  // Update in allRoutes
+  for (auto &route : allRoutes) {
+    if (route.baseName == routeBaseName) {
+      route.isStarred = starred;
+      break;
+    }
+  }
+}
+
+void BPRoutesPanel::removeRouteCard(const QString &routeBaseName) {
+  if (routeCards.contains(routeBaseName)) {
+    routeCards[routeBaseName]->deleteLater();
+    routeCards.remove(routeBaseName);
   }
 }
 
@@ -1020,6 +1602,23 @@ void BPRoutesPanel::refresh() {
 
   dateSections.clear();
   loadedDates.clear();
+  routeCards.clear();
+
+  // Cancel thumbnail watchers
+  for (auto watcher : thumbnailWatchers.values()) {
+    if (watcher) {
+      watcher->cancel();
+      watcher->waitForFinished();
+      delete watcher;
+    }
+  }
+  thumbnailWatchers.clear();
+
+  // Reset status label
+  statusLabel = new QLabel("Loading routes...", this);
+  statusLabel->setAlignment(Qt::AlignCenter);
+  statusLabel->setStyleSheet("color: #666; font-size: 48px; padding: 50px;");
+  contentLayout->addWidget(statusLabel);
 
   // Reload
   loadRoutes();
@@ -1030,7 +1629,9 @@ void BPRoutesPanel::clearCache() {
   QDir cacheDir(thumbnailCachePath);
   if (cacheDir.exists()) {
     for (const QString &file : cacheDir.entryList(QDir::Files)) {
-      cacheDir.remove(file);
+      if (file.endsWith(".jpg")) { // Only delete thumbnails, keep star files
+        cacheDir.remove(file);
+      }
     }
   }
 
@@ -1096,6 +1697,14 @@ bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
 
 void BPRoutesPanel::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
+
+  // Reposition star buttons on all cards when resizing
+  for (auto card : routeCards.values()) {
+    QPushButton *starBtn = card->findChild<QPushButton*>();
+    if (starBtn) {
+      starBtn->move(card->width() - 60, 20);
+    }
+  }
 
   // Adjust cards per page based on window height
   int visibleHeight = scrollArea->viewport()->height();
