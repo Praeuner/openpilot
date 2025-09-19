@@ -23,6 +23,17 @@
           }
         },
         {
+          "type": "toggle",
+          "param": "FordPrefDisableBP_lat_UI",
+          "title": "Disable BluePilot Lateral Controls",
+          "desc": "Use stock openpilot lateral controls",
+          "hidden": false,
+          "conditions": {
+            "git_remote": ["any"],
+            "git_branch": []
+          }
+        },
+        {
           "type": "float",
           "param": "FordLatTuningLaneChgFactorHigh",
           "title": "Lane Change Factor High",
