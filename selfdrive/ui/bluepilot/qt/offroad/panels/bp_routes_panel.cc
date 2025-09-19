@@ -104,9 +104,9 @@ void BPRoutesPanel::setupUI() {
   mainLayout->setContentsMargins(30, 30, 30, 30);
   mainLayout->setSpacing(20);
 
-  // Header (80px)
+  // Header (120px for better visibility on 6" display)
   QWidget *headerWidget = new QWidget;
-  headerWidget->setFixedHeight(80);
+  headerWidget->setFixedHeight(120);
   headerWidget->setStyleSheet("background: transparent;");
 
   QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
@@ -118,10 +118,10 @@ void BPRoutesPanel::setupUI() {
   titleStatsLayout->setSpacing(5);
 
   titleLabel = new QLabel("Driving Routes");
-  titleLabel->setStyleSheet("font-size: 36px; font-weight: 600; color: white;");
+  titleLabel->setStyleSheet("font-size: 48px; font-weight: 600; color: white;");
 
   statsLabel = new QLabel;
-  statsLabel->setStyleSheet("font-size: 24px; color: #cccccc;");
+  statsLabel->setStyleSheet("font-size: 32px; color: #cccccc;");
 
   titleStatsLayout->addWidget(titleLabel);
   titleStatsLayout->addWidget(statsLabel);
@@ -130,15 +130,15 @@ void BPRoutesPanel::setupUI() {
 
   // Action buttons
   refreshButton = new QPushButton("Refresh");
-  refreshButton->setFixedSize(120, 60);
+  refreshButton->setFixedSize(180, 80);
   refreshButton->setStyleSheet(R"(
     QPushButton {
       background-color: #2196F3;
       color: white;
-      font-size: 20px;
+      font-size: 28px;
       font-weight: 500;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
     }
     QPushButton:pressed {
       background-color: #1976D2;
@@ -146,7 +146,7 @@ void BPRoutesPanel::setupUI() {
   )");
 
   QPushButton *clearCacheButton = new QPushButton("Clear Cache");
-  clearCacheButton->setFixedSize(120, 60);
+  clearCacheButton->setFixedSize(180, 80);
   clearCacheButton->setStyleSheet(refreshButton->styleSheet());
 
   headerLayout->addWidget(refreshButton);
@@ -366,6 +366,17 @@ void BPRoutesPanel::loadMoreRoutes() {
     QWidget *routeCard = createRouteCard(route);
     routesLayout->addWidget(routeCard);
 
+    // Check if this is the last route in this date group
+    bool isLastInGroup = (i == endIndex - 1) ||
+                         (i + 1 < routes.size() && routes[i + 1].displayDate != route.displayDate);
+    if (isLastInGroup) {
+      // Add extra spacing after the last route in a group
+      QWidget *spacer = new QWidget;
+      spacer->setFixedHeight(30);
+      spacer->setStyleSheet("background: transparent;");
+      routesLayout->addWidget(spacer);
+    }
+
     displayedRoutes.append(route);
   }
 
@@ -379,19 +390,14 @@ QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
   std::cout << "[ROUTE DEBUG] createDateGroup called with text: " << dateText.toStdString() << std::endl;
 
   QWidget *dateGroup = new QWidget;
-  dateGroup->setFixedHeight(60);
-  dateGroup->setStyleSheet(R"(
-    QWidget {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-    }
-  )");
+  dateGroup->setFixedHeight(90);
+  dateGroup->setStyleSheet("background: transparent;");
 
   QHBoxLayout *dateLayout = new QHBoxLayout(dateGroup);
-  dateLayout->setContentsMargins(20, 15, 20, 15);
+  dateLayout->setContentsMargins(10, 20, 10, 20);
 
   QLabel *dateLabel = new QLabel(dateText);
-  dateLabel->setStyleSheet("font-size: 36px; font-weight: 500; color: white;");
+  dateLabel->setStyleSheet("font-size: 56px; font-weight: 600; color: white;");
 
   std::cout << "[ROUTE DEBUG] Created date label with text: " << dateLabel->text().toStdString() << std::endl;
 
@@ -407,12 +413,12 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   std::cout << "[ROUTE DEBUG] Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
 
   QWidget *card = new QWidget;
-  card->setFixedHeight(280);
+  card->setFixedHeight(400);
   card->setStyleSheet(R"(
     QWidget {
       background: #2a2a2a;
       border: 1px solid #333;
-      border-radius: 10px;
+      border-radius: 12px;
     }
     QWidget:hover {
       background: #333;
@@ -421,15 +427,15 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   )");
 
   QHBoxLayout *cardLayout = new QHBoxLayout(card);
-  cardLayout->setContentsMargins(20, 20, 20, 20);
-  cardLayout->setSpacing(25);
+  cardLayout->setContentsMargins(25, 25, 25, 25);
+  cardLayout->setSpacing(20);
 
-  // Video thumbnail (320x180px in spec, scaled to fit card height)
+  // Video thumbnail (scaled for 6" display visibility)
   QLabel *thumbnail = new QLabel;
-  thumbnail->setFixedSize(355, 200);
+  thumbnail->setFixedSize(480, 270);
   thumbnail->setStyleSheet(R"(
     border: 2px solid #1a1a1a;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #000;
   )");
   thumbnail->setAlignment(Qt::AlignCenter);
@@ -437,7 +443,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
 
   // Set placeholder text with better styling
   thumbnail->setText("🎬");
-  thumbnail->setStyleSheet(thumbnail->styleSheet() + "color: #666; font-size: 60px;");
+  thumbnail->setStyleSheet(thumbnail->styleSheet() + "color: #666; font-size: 80px;");
 
   // Initialize thumbnail loading - extract base route name for thumbnail generation
   QString baseRouteName = route.baseName;
@@ -453,19 +459,19 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   QVBoxLayout *infoLayout = new QVBoxLayout;
   infoLayout->setSpacing(12);
 
-  // Top row - Route name and timestamp
+  // Top row - Route date/time display
   QHBoxLayout *topRow = new QHBoxLayout;
   topRow->setSpacing(15);
 
-  QLabel *routeLabel = new QLabel(route.baseName);
-  routeLabel->setStyleSheet("font-size: 40px; font-weight: 600; color: white;");
+  // Format route name as short date and time (e.g., "Sept 17, 9:10am")
+  QString displayName = route.dateTime.toString("MMM d, h:mmap");
+  QLabel *routeLabel = new QLabel(displayName);
+  routeLabel->setStyleSheet("font-size: 52px; font-weight: 600; color: white;");
   topRow->addWidget(routeLabel);
 
   topRow->addStretch();
 
-  QLabel *timestampLabel = new QLabel(route.timestamp);
-  timestampLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
-  topRow->addWidget(timestampLabel);
+  // Blue timestamp removed per request
 
   infoLayout->addLayout(topRow);
 
@@ -474,55 +480,95 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   middleRow->setSpacing(25);
 
   QLabel *durationLabel = new QLabel(QString("⏱ %1").arg(route.duration));
-  durationLabel->setStyleSheet("font-size: 28px; color: #bbb;");
+  durationLabel->setStyleSheet("font-size: 36px; color: #2196F3; font-weight: 500;");
   middleRow->addWidget(durationLabel);
 
   QLabel *segmentsLabel = new QLabel(QString("📦 %1 segments").arg(route.segments));
-  segmentsLabel->setStyleSheet("font-size: 28px; color: #bbb;");
+  segmentsLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(segmentsLabel);
 
   QLabel *sizeLabel = new QLabel(QString("💾 %1").arg(route.size));
-  sizeLabel->setStyleSheet("font-size: 28px; color: #bbb;");
+  sizeLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(sizeLabel);
 
   middleRow->addStretch();
   infoLayout->addLayout(middleRow);
 
-  // Camera badges row
-  QHBoxLayout *badgesLayout = new QHBoxLayout;
-  badgesLayout->setSpacing(10);
+  // Camera badges in 2 rows (max 3 per row)
+  QVBoxLayout *badgesContainer = new QVBoxLayout;
+  badgesContainer->setSpacing(8);
+
+  QHBoxLayout *badgesRow1 = new QHBoxLayout;
+  badgesRow1->setSpacing(8);
+  QHBoxLayout *badgesRow2 = new QHBoxLayout;
+  badgesRow2->setSpacing(8);
 
   auto createBadge = [](const QString &text, const QString &color) {
     QLabel *badge = new QLabel(text);
     badge->setStyleSheet(QString(R"(
       background: %1;
       color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 24px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 28px;
       font-weight: 500;
     )").arg(color));
     return badge;
   };
 
+  int badgeCount = 0;
   if (route.hasFrontHQVideo) {
-    badgesLayout->addWidget(createBadge("Front-HQ", "#2196F3"));
+    if (badgeCount < 3) {
+      badgesRow1->addWidget(createBadge("Front-HQ", "#2196F3"));
+    } else {
+      badgesRow2->addWidget(createBadge("Front-HQ", "#2196F3"));
+    }
+    badgeCount++;
   }
   if (route.hasFrontLQVideo) {
-    badgesLayout->addWidget(createBadge("Front-LQ", "#9C27B0"));
+    if (badgeCount < 3) {
+      badgesRow1->addWidget(createBadge("Front-LQ", "#9C27B0"));
+    } else {
+      badgesRow2->addWidget(createBadge("Front-LQ", "#9C27B0"));
+    }
+    badgeCount++;
   }
   if (route.hasWideVideo) {
-    badgesLayout->addWidget(createBadge("Wide", "#4CAF50"));
+    if (badgeCount < 3) {
+      badgesRow1->addWidget(createBadge("Wide", "#4CAF50"));
+    } else {
+      badgesRow2->addWidget(createBadge("Wide", "#4CAF50"));
+    }
+    badgeCount++;
   }
   if (route.hasDriverHQVideo) {
-    badgesLayout->addWidget(createBadge("Driver", "#FF9800"));
+    if (badgeCount < 3) {
+      badgesRow1->addWidget(createBadge("Driver", "#FF9800"));
+    } else {
+      badgesRow2->addWidget(createBadge("Driver", "#FF9800"));
+    }
+    badgeCount++;
   }
   if (route.hasRLog || route.hasQLog) {
-    badgesLayout->addWidget(createBadge("Logs", "#607D8B"));
+    if (badgeCount < 3) {
+      badgesRow1->addWidget(createBadge("Logs", "#607D8B"));
+    } else {
+      badgesRow2->addWidget(createBadge("Logs", "#607D8B"));
+    }
+    badgeCount++;
   }
 
-  badgesLayout->addStretch();
-  infoLayout->addLayout(badgesLayout);
+  badgesRow1->addStretch();
+  badgesRow2->addStretch();
+
+  if (badgeCount > 0) {
+    badgesContainer->addLayout(badgesRow1);
+  }
+  if (badgeCount > 3) {
+    badgesContainer->addLayout(badgesRow2);
+  }
+
+  infoLayout->addLayout(badgesContainer);
   infoLayout->addStretch();
 
   cardLayout->addLayout(infoLayout, 1);
@@ -534,20 +580,20 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
 
   // Star button
   QPushButton *starButton = new QPushButton;
-  starButton->setFixedSize(50, 50);
+  starButton->setFixedSize(70, 70);
   starButton->setText(route.isStarred ? "★" : "☆");
   starButton->setObjectName("starButton");
   starButton->setStyleSheet(R"(
     QPushButton {
       background: transparent;
       border: none;
-      font-size: 32px;
+      font-size: 44px;
       color: #FFD700;
       padding: 0;
     }
     QPushButton:hover {
       background: rgba(255, 215, 0, 0.2);
-      border-radius: 25px;
+      border-radius: 35px;
     }
     QPushButton:pressed {
       background: rgba(255, 215, 0, 0.3);
@@ -566,7 +612,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
 
   // Elapsed time at bottom
   QLabel *elapsedLabel = new QLabel(route.elapsedTime);
-  elapsedLabel->setStyleSheet("font-size: 24px; color: #888;");
+  elapsedLabel->setStyleSheet("font-size: 32px; color: #888;");
   elapsedLabel->setAlignment(Qt::AlignRight);
   rightLayout->addWidget(elapsedLabel, 0, Qt::AlignRight);
 
@@ -582,24 +628,39 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
 
 // Event filter for route card clicks
 bool BPRoutesPanel::eventFilter(QObject *obj, QEvent *event) {
+  static QHash<QWidget*, QPoint> pressPosMap;
+  static const int CLICK_THRESHOLD = 15; // pixels of movement allowed for a click
+
   if (event->type() == QEvent::MouseButtonPress) {
     QWidget *widget = qobject_cast<QWidget*>(obj);
     if (widget && widget->property("routeBase").isValid()) {
       QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+      pressPosMap[widget] = mouseEvent->pos();
+      return false; // Don't consume the event, let scrolling work
+    }
+  } else if (event->type() == QEvent::MouseButtonRelease) {
+    QWidget *widget = qobject_cast<QWidget*>(obj);
+    if (widget && widget->property("routeBase").isValid() && pressPosMap.contains(widget)) {
+      QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+      QPoint pressPos = pressPosMap[widget];
+      pressPosMap.remove(widget);
 
-      // Check if the click is on a child widget (like the star button)
-      QWidget *childAt = widget->childAt(mouseEvent->pos());
-      if (childAt) {
-        // If it's a button, don't handle it here
-        QPushButton *button = qobject_cast<QPushButton*>(childAt);
-        if (button) {
-          return false; // Let the button handle its own click
+      // Check if the release is close to the press position (actual click, not scroll)
+      if ((mouseEvent->pos() - pressPos).manhattanLength() <= CLICK_THRESHOLD) {
+        // Check if the click is on a child widget (like the star button)
+        QWidget *childAt = widget->childAt(mouseEvent->pos());
+        if (childAt) {
+          // If it's a button, don't handle it here
+          QPushButton *button = qobject_cast<QPushButton*>(childAt);
+          if (button) {
+            return false; // Let the button handle its own click
+          }
         }
-      }
 
-      QString routeBase = widget->property("routeBase").toString();
-      handleRouteVideoPlayback(routeBase);
-      return true;
+        QString routeBase = widget->property("routeBase").toString();
+        handleRouteVideoPlayback(routeBase);
+        return true;
+      }
     }
   }
   return QWidget::eventFilter(obj, event);
@@ -626,8 +687,29 @@ void BPRoutesPanel::handleRouteStarToggle(const QString &route) {
   bool currentlyStarred = isRouteStarred(route);
   setRouteStarred(route, !currentlyStarred);
 
-  // Update the UI
-  loadRoutes(); // Reload to refresh star states
+  // Update the star state in the cache
+  if (routeCache.routeInfoCache.contains(route)) {
+    routeCache.routeInfoCache[route].isStarred = !currentlyStarred;
+  }
+
+  // Update the star state in the routes vector
+  for (RouteInfo &routeInfo : routes) {
+    if (routeInfo.baseName == route) {
+      routeInfo.isStarred = !currentlyStarred;
+      break;
+    }
+  }
+
+  // Find and update the star button directly instead of reloading
+  for (QWidget *widget : routesContainer->findChildren<QWidget*>()) {
+    if (widget->property("routeBase").toString() == route) {
+      QPushButton *starButton = widget->findChild<QPushButton*>("starButton");
+      if (starButton) {
+        starButton->setText(!currentlyStarred ? "★" : "☆");
+      }
+      break;
+    }
+  }
 }
 
 void BPRoutesPanel::updateStats() {
@@ -667,9 +749,20 @@ void BPRoutesPanel::setRouteStarred(const QString &routeBase, bool starred) {
 }
 
 QString BPRoutesPanel::formatDisplayDate(const QDateTime &dateTime) {
-  QString monthDay = dateTime.toString("MMM d, yyyy");
-  QString time = dateTime.toString("h:mmap");
-  return QString("%1 - %2").arg(monthDay, time);
+  // Format: "Thursday - September 17th, 2025"
+  QString dayName = dateTime.toString("dddd");
+  QString monthName = dateTime.toString("MMMM");
+  int day = dateTime.date().day();
+  int year = dateTime.date().year();
+
+  // Add ordinal suffix to day
+  QString suffix;
+  if (day % 10 == 1 && day != 11) suffix = "st";
+  else if (day % 10 == 2 && day != 12) suffix = "nd";
+  else if (day % 10 == 3 && day != 13) suffix = "rd";
+  else suffix = "th";
+
+  return QString("%1 - %2 %3%4, %5").arg(dayName).arg(monthName).arg(day).arg(suffix).arg(year);
 }
 
 // Utility methods (keeping existing implementations but updating RouteInfo structure)
@@ -834,7 +927,7 @@ void BPRoutesPanel::showLoadingOverlay(const QString &message) {
     overlayLayout->setAlignment(Qt::AlignCenter);
 
     loadingLabel = new QLabel;
-    loadingLabel->setStyleSheet("color: white; font-size: 24px;");
+    loadingLabel->setStyleSheet("color: white; font-size: 48px; font-weight: 500;");
     loadingLabel->setAlignment(Qt::AlignCenter);
 
     overlayLayout->addWidget(loadingLabel);

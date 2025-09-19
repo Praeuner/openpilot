@@ -146,8 +146,8 @@ private:
   const QString getConcatDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/tmp/concat_tmp" : "~/comma_data/tmp/concat_tmp"); }();
   const QString getRoutesDirBackup = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_backup" : "~/comma_data/media/0/realdata_backup"); }();
   const QString getThumbnailCacheDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_thumbnails" : "~/comma_data/media/0/realdata_thumbnails"); }();
-  const int THUMBNAIL_WIDTH = 240;  // Width in pixels
-  const int THUMBNAIL_HEIGHT = 135; // 16:9 ratio
+  const int THUMBNAIL_WIDTH = 480;  // Width in pixels (scaled for 6" display)
+  const int THUMBNAIL_HEIGHT = 270; // 16:9 ratio
 
   QHash<QString, QFutureWatcher<QString> *> thumbnailWatchers;
   void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
