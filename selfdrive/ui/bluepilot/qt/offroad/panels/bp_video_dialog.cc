@@ -13,7 +13,6 @@
 #include <QPixmap>
 #include <QImage>
 #include <QButtonGroup>
-#include <qpa/qplatformnativeinterface.h>
 #include <iostream>
 
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
@@ -554,29 +553,7 @@ void BPRouteVideoDialog::keyPressEvent(QKeyEvent *event) {
   }
 }
 
-void BPRouteVideoDialog::setupFullscreen() {
-  // Video dialogs need different rotation transform than regular dialogs on QCOM2
-  if (m_fullscreenApplied)
-    return;
-  m_fullscreenApplied = true;
-
-  setFixedSize(2160, 1080);
-  show();
-#ifdef QCOM2
-  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-  if (native && windowHandle()) {
-    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", windowHandle()));
-    if (s) {
-      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);  // Video dialogs need 270°
-      wl_surface_commit(s);
-    }
-    setWindowState(Qt::WindowFullScreen);
-    layout()->activate();
-  }
-#endif
-}
-
 void BPRouteVideoDialog::showEvent(QShowEvent *event) {
   BPDialogBase::showEvent(event);
-  setupFullscreen();
+  // setupFullscreen() is now called before exec() in bp_routes_panel.cc for proper QCOM2 rotation
 }

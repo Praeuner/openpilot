@@ -356,7 +356,4 @@ private:
   QPushButton *playPauseButton;
   QSlider *positionSlider;
   QLabel *timeLabel;
-
-  // Override for video dialog rotation (QCOM2 needs different transform)
-  void setupFullscreen();
 };

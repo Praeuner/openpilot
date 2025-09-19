@@ -614,6 +614,7 @@ void BPRoutesPanel::handleRouteVideoPlayback(const QString &route, const QString
 
   BPRouteVideoDialog *videoDialog = new BPRouteVideoDialog(route, this);
   if (videoDialog) {
+    videoDialog->setupFullscreen();  // Must call setupFullscreen BEFORE exec() for proper QCOM2 rotation
     videoDialog->exec();
     videoDialog->deleteLater();
   } else {
