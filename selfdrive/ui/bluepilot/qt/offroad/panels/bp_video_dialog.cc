@@ -13,6 +13,8 @@
 #include <QPixmap>
 #include <QImage>
 #include <QButtonGroup>
+#include <QThread>
+#include <QtConcurrent>
 #include <iostream>
 
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
@@ -40,7 +42,6 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   positionTimer->setInterval(100); // Update position every 100ms
 
   connect(positionTimer, &QTimer::timeout, this, &BPRouteVideoDialog::updatePlaybackPosition);
-
 
   setupUI();
   loadVideoSegments();
@@ -304,7 +305,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
   )";
 
   // Only create and add buttons for available cameras
-  if (routeInfo.hasFrontVideo) {
+  if (routeInfo.hasFrontHQVideo) {
     frontCamButton = new QPushButton("Front Camera");
     frontCamButton->setFixedHeight(90);
     frontCamButton->setCheckable(true);
@@ -324,7 +325,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
     panelLayout->addWidget(wideCamButton);
   }
 
-  if (routeInfo.hasDriverVideo) {
+  if (routeInfo.hasDriverHQVideo) {
     driverCamButton = new QPushButton("Driver Camera");
     driverCamButton->setFixedHeight(90);
     driverCamButton->setCheckable(true);
@@ -345,7 +346,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
   }
 
   // Set default camera
-  if (routeInfo.hasFrontVideo && frontCamButton) {
+  if (routeInfo.hasFrontHQVideo && frontCamButton) {
     frontCamButton->setChecked(true);
     currentCameraType = "front";
     std::cout << "[VIDEO DEBUG] Set default camera to front" << std::endl;
@@ -353,7 +354,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
     wideCamButton->setChecked(true);
     currentCameraType = "wide";
     std::cout << "[VIDEO DEBUG] Set default camera to wide" << std::endl;
-  } else if (routeInfo.hasDriverVideo && driverCamButton) {
+  } else if (routeInfo.hasDriverHQVideo && driverCamButton) {
     driverCamButton->setChecked(true);
     currentCameraType = "driver";
     std::cout << "[VIDEO DEBUG] Set default camera to driver" << std::endl;
@@ -409,15 +410,15 @@ void BPRouteVideoDialog::loadVideoSegments() {
   QString routeDir = parent->getRoutesDir() + "/" + routeBaseName;
   std::cout << "[VIDEO DEBUG] Route directory: " << routeDir.toStdString() << std::endl;
 
-  for (int segment = 0; segment < routeInfo.segments; segment++) {
-    QString videoPath = getVideoPath(currentCameraType, segment);
-    std::cout << "[VIDEO DEBUG] Checking segment " << segment << " path: " << videoPath.toStdString() << std::endl;
-    if (QFile::exists(videoPath)) {
-      currentPlaylist.append(videoPath);
-      std::cout << "[VIDEO DEBUG] Added segment " << segment << " to playlist" << std::endl;
-    } else {
-      std::cout << "[VIDEO DEBUG] Segment " << segment << " not found" << std::endl;
-    }
+  // The routeBaseName is already the correct segment directory (e.g., "0000009b--d7712fe77a--0")
+  // Just look for the video file directly in this directory
+  QString videoPath = getVideoPath(currentCameraType, 0);  // segment parameter not used anyway
+  std::cout << "[VIDEO DEBUG] Checking video path: " << videoPath.toStdString() << std::endl;
+  if (QFile::exists(videoPath)) {
+    currentPlaylist.append(videoPath);
+    std::cout << "[VIDEO DEBUG] Added video file to playlist: " << videoPath.toStdString() << std::endl;
+  } else {
+    std::cout << "[VIDEO DEBUG] Video file not found: " << videoPath.toStdString() << std::endl;
   }
 
   std::cout << "[VIDEO DEBUG] Total playlist size: " << currentPlaylist.size() << " segments" << std::endl;
@@ -468,20 +469,23 @@ QString BPRouteVideoDialog::getVideoPath(const QString &cameraType, int segment)
   BPRoutesPanel *parent = static_cast<BPRoutesPanel*>(this->parent());
   QString routeDir = parent->getRoutesDir() + "/" + routeBaseName;
 
-  QString segmentStr = QString::number(segment);
   QString filename;
 
+  // The actual video files are just named fcamera.hevc, dcamera.hevc, etc.
+  // directly in the segment directory
   if (cameraType == "front") {
-    filename = QString("%1--%2--fcamera.hevc").arg(routeBaseName, segmentStr);
+    filename = "fcamera.hevc";
   } else if (cameraType == "wide") {
-    filename = QString("%1--%2--dcamera.hevc").arg(routeBaseName, segmentStr);
+    filename = "dcamera.hevc";  // Wide camera files are actually dcamera.hevc
   } else if (cameraType == "driver") {
-    filename = QString("%1--%2--ecamera.hevc").arg(routeBaseName, segmentStr);
+    filename = "ecamera.hevc";  // Driver camera files are ecamera.hevc
   } else if (cameraType == "lq") {
-    filename = QString("%1--%2--qcamera.ts").arg(routeBaseName, segmentStr);
+    filename = "qcamera.ts";
   }
 
-  return routeDir + "/" + filename;
+  QString videoPath = routeDir + "/" + filename;
+  std::cout << "[VIDEO DEBUG] Generated video path: " << videoPath.toStdString() << std::endl;
+  return videoPath;
 }
 
 void BPRouteVideoDialog::playCurrentSegment() {
@@ -495,73 +499,238 @@ void BPRouteVideoDialog::playCurrentSegment() {
   QString videoPath = currentPlaylist[currentSegment];
   std::cout << "[VIDEO DEBUG] Playing segment " << currentSegment << ": " << videoPath.toStdString() << std::endl;
 
-  // Check if file actually exists
   if (!QFile::exists(videoPath)) {
     std::cout << "[VIDEO DEBUG] ERROR: Video file does not exist: " << videoPath.toStdString() << std::endl;
+    videoDisplay->setText("Video file not found");
     return;
   }
 
   QFileInfo fileInfo(videoPath);
   std::cout << "[VIDEO DEBUG] File size: " << fileInfo.size() << " bytes" << std::endl;
 
-  // Initialize hardware decoder
   bool isH265 = videoPath.endsWith(".hevc");
   std::cout << "[VIDEO DEBUG] Video format: " << (isH265 ? "H.265/HEVC" : "H.264/TS") << std::endl;
 
 #ifdef QCOM2
   std::cout << "[VIDEO DEBUG] Using V4L decoder (QCOM2 platform)" << std::endl;
-  // Use V4L decoder on QCOM2 devices
   decoder = std::make_unique<V4LDecoder>(1920, 1080,
     [this](const DecodedFrame &frame) { onFrameDecoded(frame); }, isH265);
 #else
   std::cout << "[VIDEO DEBUG] Using FFmpeg decoder (non-QCOM2 platform)" << std::endl;
-  // Use FFmpeg decoder on other platforms
   decoder = std::make_unique<FfmpegDecoder>(1920, 1080,
     [this](const DecodedFrame &frame) { onFrameDecoded(frame); }, isH265);
 #endif
 
-  std::cout << "[VIDEO DEBUG] Opening decoder..." << std::endl;
-  decoder->decoder_open();
-  std::cout << "[VIDEO DEBUG] Decoder opened (return is void)" << std::endl;
+  try {
+    decoder->decoder_open();
 
-  // TODO: Load and feed video data to decoder
-  // This would require reading the HEVC/TS file and feeding it frame by frame
-  // For now, show placeholder with larger text
-  videoDisplay->clear(); // Clear thumbnail when starting playback
-  std::cout << "[VIDEO DEBUG] Displaying placeholder text" << std::endl;
-  videoDisplay->setStyleSheet("background: #000000; border: none; color: #00FF00; font-size: 96px; font-weight: bold;");
-  videoDisplay->setText(QString("Playing: %1\\nSegment %2/%3")
-    .arg(currentCameraType.toUpper())
-    .arg(currentSegment + 1)
-    .arg(currentPlaylist.size()));
+#ifdef QCOM2
+    V4LDecoder* v4l_decoder = static_cast<V4LDecoder*>(decoder.get());
+    if (!v4l_decoder->is_decoder_available()) {
+      std::cout << "[VIDEO DEBUG] ERROR: V4L decoder device not available" << std::endl;
+      videoDisplay->setText("Hardware decoder not available.\nPlease check device permissions.");
+
+      // Fall back to FFmpeg decoder
+      std::cout << "[VIDEO DEBUG] Falling back to FFmpeg software decoder" << std::endl;
+      decoder = std::make_unique<FfmpegDecoder>(1920, 1080,
+        [this](const DecodedFrame &frame) { onFrameDecoded(frame); }, isH265);
+      decoder->decoder_open();
+    } else if (!v4l_decoder->is_decoder_open()) {
+      std::cout << "[VIDEO DEBUG] ERROR: V4L decoder failed to open" << std::endl;
+      videoDisplay->setText("Hardware decoder failed to initialize");
+      return;
+    } else {
+      std::cout << "[VIDEO DEBUG] V4L decoder opened successfully" << std::endl;
+    }
+#endif
+
+  } catch (const std::exception& e) {
+    std::cout << "[VIDEO DEBUG] ERROR: Decoder failed to open: " << e.what() << std::endl;
+    videoDisplay->setText("Video decoder failed to initialize");
+    return;
+  }
+
+  // Clear display
+  videoDisplay->clear();
+  videoDisplay->setStyleSheet("background: #000000; border: none;");
+
+  // Start feeding video data in background thread
+  QtConcurrent::run([this, videoPath, isH265]() {
+    feedVideoToDecoder(videoPath, isH265);
+  });
+}
+
+void BPRouteVideoDialog::feedVideoToDecoder(const QString &videoPath, bool isH265) {
+  QFile videoFile(videoPath);
+  if (!videoFile.open(QIODevice::ReadOnly)) {
+    std::cout << "[VIDEO DEBUG] ERROR: Failed to open video file for reading" << std::endl;
+    QMetaObject::invokeMethod(this, [this]() {
+      videoDisplay->setText("Failed to open video file");
+    }, Qt::QueuedConnection);
+    return;
+  }
+
+  // Feed data in chunks appropriate for hardware decoder
+  const int CHUNK_SIZE = isH265 ? (256 * 1024) : (188 * 100);  // 256KB for HEVC, 100 TS packets for H264
+  QByteArray buffer;
+  uint64_t timestamp_us = 0;
+  int totalBytesRead = 0;
+  int frameCount = 0;
+  bool firstChunk = true;
+
+  // For HEVC, we need to accumulate NAL units until we have a complete access unit
+  QByteArray nalBuffer;
+  const uint8_t NAL_START_CODE[] = {0x00, 0x00, 0x00, 0x01};
+
+  // Check if decoder is still valid - V4L decoder stays open internally
+  while (!videoFile.atEnd() && decoder) {
+    buffer = videoFile.read(CHUNK_SIZE);
+    if (buffer.isEmpty()) break;
+
+    totalBytesRead += buffer.size();
+
+    if (isH265) {
+      // For HEVC, we need to handle NAL units properly
+      nalBuffer.append(buffer);
+
+      // Look for NAL unit boundaries
+      int pos = 0;
+      while (pos < nalBuffer.size() - 4) {
+        // Find next NAL start code
+        int nextNal = nalBuffer.indexOf(QByteArray((char*)NAL_START_CODE, 4), pos + 4);
+        if (nextNal == -1) {
+          // No more NAL units in buffer, keep remaining data for next iteration
+          if (pos > 0) {
+            nalBuffer = nalBuffer.mid(pos);
+          }
+          break;
+        }
+
+        // Extract NAL unit
+        QByteArray nalUnit = nalBuffer.mid(pos, nextNal - pos);
+
+        // Check NAL unit type (6th bit of 5th byte)
+        if (nalUnit.size() > 5) {
+          uint8_t nalType = (nalUnit[4] >> 1) & 0x3F;
+
+          // VPS=32, SPS=33, PPS=34, IDR=19-20, CRA=21
+          bool isKeyframe = firstChunk ||
+                           (nalType >= 19 && nalType <= 21) ||
+                           (nalType >= 32 && nalType <= 34);
+
+          // Feed NAL unit to decoder
+          int result = decoder->decode_frame(
+            reinterpret_cast<uint8_t*>(nalUnit.data()),
+            nalUnit.size(),
+            timestamp_us,
+            isKeyframe
+          );
+
+          if (result != 0) {
+            std::cout << "[VIDEO DEBUG] Decode error at byte " << totalBytesRead
+                      << ", NAL type " << (int)nalType << ": " << result << std::endl;
+          }
+
+          firstChunk = false;
+          frameCount++;
+          timestamp_us += 33333;  // ~30fps
+        }
+
+        pos = nextNal;
+      }
+
+    } else {
+      // For TS files, feed chunks directly
+      int result = decoder->decode_frame(
+        reinterpret_cast<uint8_t*>(buffer.data()),
+        buffer.size(),
+        timestamp_us,
+        firstChunk
+      );
+
+      if (result != 0) {
+        std::cout << "[VIDEO DEBUG] TS decode error at byte " << totalBytesRead << ": " << result << std::endl;
+      }
+
+      firstChunk = false;
+      timestamp_us += (buffer.size() / 188) * 1000;  // Approximate timing based on TS packets
+    }
+
+    // Small delay to avoid overwhelming the decoder
+    if (frameCount % 10 == 0) {
+      QThread::msleep(10);
+    }
+
+    // Update progress periodically
+    if (totalBytesRead % (1024 * 1024) == 0) {
+      std::cout << "[VIDEO DEBUG] Fed " << (totalBytesRead / (1024 * 1024)) << " MB to decoder" << std::endl;
+    }
+  }
+
+  videoFile.close();
+  std::cout << "[VIDEO DEBUG] Finished feeding video - " << totalBytesRead << " bytes, " << frameCount << " chunks" << std::endl;
+
+  // Flush decoder
+  if (decoder) {
+    decoder->flush();
+  }
+
+  // Signal completion
+  QMetaObject::invokeMethod(this, &BPRouteVideoDialog::onSegmentFinished, Qt::QueuedConnection);
 }
 
 void BPRouteVideoDialog::onFrameDecoded(const DecodedFrame &frame) {
-  std::cout << "[VIDEO DEBUG] Frame decoded - Size: " << frame.width << "x" << frame.height
-            << " Strides: Y=" << frame.stride_y << " UV=" << frame.stride_uv << std::endl;
+  static int frameNumber = 0;
+  frameNumber++;
 
-  // Convert YUV420 to RGB and display
-  QImage image(frame.width, frame.height, QImage::Format_RGB888);
+  // Only process every Nth frame for display to reduce CPU usage
+  if (frameNumber % 3 != 0) {
+    return;  // Skip 2 out of 3 frames
+  }
 
-  // Simple YUV420 to RGB conversion (this is a simplified version)
-  for (int y = 0; y < frame.height; y++) {
-    for (int x = 0; x < frame.width; x++) {
-      int Y = frame.y[y * frame.stride_y + x];
-      int U = frame.u[(y/2) * frame.stride_uv + (x/2)] - 128;
-      int V = frame.v[(y/2) * frame.stride_uv + (x/2)] - 128;
+  std::cout << "[VIDEO DEBUG] Displaying frame " << frameNumber
+            << " - Size: " << frame.width << "x" << frame.height << std::endl;
 
-      int R = qBound(0, (int)(Y + (1.370705 * V)), 255);
-      int G = qBound(0, (int)(Y - (0.698001 * V) - (0.337633 * U)), 255);
-      int B = qBound(0, (int)(Y + (1.732446 * U)), 255);
+  // Scale for display
+  int display_width = qMin(frame.width, 1280);
+  int display_height = (display_width * frame.height) / frame.width;
+
+  QImage image(display_width, display_height, QImage::Format_RGB888);
+
+  // NV12 to RGB conversion
+  // Frame data is already in NV12 format from V4L decoder
+  for (int y = 0; y < display_height; y++) {
+    for (int x = 0; x < display_width; x++) {
+      int src_x = (x * frame.width) / display_width;
+      int src_y = (y * frame.height) / display_height;
+
+      // Y component
+      int Y = frame.y[src_y * frame.stride_y + src_x];
+
+      // UV components (interleaved in NV12)
+      int uv_x = src_x & ~1;  // Round down to even
+      int uv_y = src_y / 2;
+      int uv_offset = uv_y * frame.stride_uv + uv_x;
+
+      int U = frame.u[uv_offset] - 128;      // U at even positions
+      int V = frame.u[uv_offset + 1] - 128;  // V at odd positions
+
+      // YUV to RGB conversion
+      int R = qBound(0, (int)(Y + 1.402 * V), 255);
+      int G = qBound(0, (int)(Y - 0.344 * U - 0.714 * V), 255);
+      int B = qBound(0, (int)(Y + 1.772 * U), 255);
 
       image.setPixel(x, y, qRgb(R, G, B));
     }
   }
 
-  // Display frame
+  // Update display
   QPixmap pixmap = QPixmap::fromImage(image);
-  videoDisplay->setPixmap(pixmap);
-  std::cout << "[VIDEO DEBUG] Frame displayed successfully" << std::endl;
+  videoDisplay->setPixmap(pixmap.scaled(videoDisplay->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+  // Update timestamp/progress
+  currentPosition = frame.timestamp_us / 1000;  // Convert to ms
+  positionSlider->setValue(currentPosition);
 }
 
 void BPRouteVideoDialog::updateCameraButtonStates() {

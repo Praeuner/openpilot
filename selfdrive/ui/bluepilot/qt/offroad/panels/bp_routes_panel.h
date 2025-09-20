@@ -47,6 +47,7 @@
 #include "bp_panel_controls.h"
 #include "bp_panel_dialogs.h"
 #include "selfdrive/ui/qt/widgets/input.h"
+#include "selfdrive/ui/sunnypilot/ui.h"
 #include "system/loggerd/decoder/decoder.h"
 #include "system/loggerd/decoder/v4l_decoder.h"
 #include "system/loggerd/decoder/ffmpeg_decoder.h"
@@ -98,6 +99,9 @@ protected:
   void hideEvent(QHideEvent *event) override;
   bool eventFilter(QObject *obj, QEvent *event) override;
 
+private slots:
+  void onOffroadTransition();
+
 private:
   Params params;
   QTimer *activityTimer = nullptr;
@@ -148,12 +152,20 @@ private:
   // Constants
   const QString getConcatDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/tmp/concat_tmp" : "~/comma_data/tmp/concat_tmp"); }();
   const QString getRoutesDirBackup = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_backup" : "~/comma_data/media/0/realdata_backup"); }();
-  const QString getThumbnailCacheDir = [this]() { return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata_thumbnails" : "~/comma_data/media/0/realdata_thumbnails"); }();
+  const QString getThumbnailCacheDir = [this]() {
+    QString dir = isCommaDevice() ? "/data/bluepilot/routes/thumbs_cache" : "~/comma_data/bluepilot/routes/thumbs_cache";
+    QDir().mkpath(getAbsolutePath(dir)); // Ensure directory exists
+    return getAbsolutePath(dir);
+  }();
   const int THUMBNAIL_WIDTH = 480;  // Width in pixels (scaled for 6" display)
   const int THUMBNAIL_HEIGHT = 270; // 16:9 ratio
+  const int MAX_CONCURRENT_THUMBNAILS = 20; // Allow many concurrent FFmpeg processes for fast generation
 
   QHash<QString, QFutureWatcher<QString> *> thumbnailWatchers;
+  QSet<QString> permanentlyFailedRoutes;  // Track routes without video files
   QString generateThumbnail(const QString &routeBase);
+  QString generateThumbnailHardware(const QString &routeBase);  // Hardware-accelerated version
+  void generateAllMissingThumbnails(); // Generate all missing thumbnails at once
   void cleanupThumbnail(const QString &routeBase);
   void cleanupThumbnailCache();
   void playRouteVideoConcatenated(const QString &routeBase, const QString &videoFile);
@@ -163,6 +175,10 @@ private:
   void simulateActivity();
   void stopActivitySimulation();
   void resetMaxDurationTimer();
+
+  // Onroad Safety
+  void showOnroadMessage();
+  void clearOnroadMessage();
 
   // UI Elements
   QVBoxLayout *mainLayout;
@@ -176,6 +192,7 @@ private:
   QPushButton *cleanupButton;
   QPushButton *settingsButton;
   QPushButton *viewLogButton;
+  QWidget *onroadMessageWidget = nullptr;
 
   // State
   QVector<RouteInfo> routes;
@@ -321,6 +338,7 @@ private:
   void loadVideoSegments();
   void loadThumbnail();
   void playCurrentSegment();
+  void feedVideoToDecoder(const QString &videoPath, bool isH265);  // NEW METHOD ADDED
   void onFrameDecoded(const DecodedFrame &frame);
   void updateCameraButtonStates();
   QString getVideoPath(const QString &cameraType, int segment);

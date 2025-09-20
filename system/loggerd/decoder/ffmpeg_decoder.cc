@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 
 #include "third_party/libyuv/include/libyuv.h"
 #include "common/swaglog.h"
@@ -191,6 +192,16 @@ void FfmpegDecoder::decode_packet(AVPacket* pkt, uint64_t timestamp_us) {
         }
       }
 
+      // Check for keyframe - use key_frame field for older FFmpeg versions
+      bool is_keyframe = false;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 0, 0)
+      // Older FFmpeg versions use key_frame field
+      is_keyframe = (frame->key_frame == 1);
+#else
+      // Newer FFmpeg versions use pict_type
+      is_keyframe = (frame->pict_type == AV_PICTURE_TYPE_I);
+#endif
+
       DecodedFrame decoded = {
         .y = y_plane,
         .u = u_plane,
@@ -201,7 +212,7 @@ void FfmpegDecoder::decode_packet(AVPacket* pkt, uint64_t timestamp_us) {
         .stride_uv = out_width / 2,
         .timestamp_us = timestamp_us,
         .frame_id = frame_count++,
-        .keyframe = static_cast<bool>(frame->flags & AV_FRAME_FLAG_KEY)
+        .keyframe = is_keyframe
       };
 
       frame_callback(decoded);

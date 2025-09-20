@@ -31,6 +31,9 @@
 #include <QJsonArray>
 
 #include "common/params.h"
+#ifdef QCOM2
+// #include "system/loggerd/decoder/thumbnail_decoder.h"  // Disabled - using FFmpeg for now
+#endif
 
 QString BPRoutesPanel::getRoutesDir() const {
   return getAbsolutePath(isCommaDevice() ? "/data/media/0/realdata" : "~/comma_data/media/0/realdata");
@@ -49,6 +52,9 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent) : QWidget(parent), isLoading(false
   activityTimer = new QTimer(static_cast<QObject *>(this));
   activityTimer->setInterval(9000); // 9 seconds
   connect(activityTimer, &QTimer::timeout, this, &BPRoutesPanel::simulateActivity);
+
+  // Monitor onroad status transitions
+  QObject::connect(uiState(), &UIState::offroadTransition, this, &BPRoutesPanel::onOffroadTransition);
 
   setupStyles();
   setupUI();
@@ -189,6 +195,13 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
   resetMaxDurationTimer();
   activityTimer->start();
 
+  // Check if device is onroad - if so, show message and don't load routes
+  if (uiState()->scene.started) {
+    std::cout << "[ROUTE DEBUG] Device is onroad - showing safety message" << std::endl;
+    showOnroadMessage();
+    return;
+  }
+
   if (routes.isEmpty()) {
     loadRoutes();
   }
@@ -202,6 +215,13 @@ void BPRoutesPanel::hideEvent(QHideEvent *event) {
 void BPRoutesPanel::loadRoutes() {
   std::cout << "[ROUTE DEBUG] loadRoutes() called" << std::endl;
   if (isLoading) return;
+
+  // Safety check: Don't load routes while onroad
+  if (uiState()->scene.started) {
+    std::cout << "[ROUTE DEBUG] Aborting route loading - device is onroad" << std::endl;
+    showOnroadMessage();
+    return;
+  }
 
   isLoading = true;
   showLoadingOverlay("Loading routes...");
@@ -243,6 +263,7 @@ void BPRoutesPanel::loadRoutes() {
       hideLoadingOverlay();
       updateStats();
       loadMoreRoutes(); // Load first batch
+      generateAllMissingThumbnails(); // Generate all missing thumbnails in background
     }, Qt::QueuedConnection);
 
     return;
@@ -342,6 +363,7 @@ void BPRoutesPanel::loadRoutes() {
       hideLoadingOverlay();
       updateStats();
       loadMoreRoutes(); // Load first batch
+      generateAllMissingThumbnails(); // Generate all missing thumbnails in background
     }, Qt::QueuedConnection);
   });
 }
@@ -362,7 +384,7 @@ void BPRoutesPanel::loadMoreRoutes() {
     }
 
     // Create route card
-    std::cout << "[ROUTE DEBUG] About to create route card for: " << route.baseName.toStdString() << std::endl;
+    // std::cout << "[ROUTE DEBUG] About to create route card for: " << route.baseName.toStdString() << std::endl;
     QWidget *routeCard = createRouteCard(route);
     routesLayout->addWidget(routeCard);
 
@@ -387,7 +409,7 @@ void BPRoutesPanel::loadMoreRoutes() {
 }
 
 QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
-  std::cout << "[ROUTE DEBUG] createDateGroup called with text: " << dateText.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] createDateGroup called with text: " << dateText.toStdString() << std::endl;
 
   QWidget *dateGroup = new QWidget;
   dateGroup->setFixedHeight(90);
@@ -399,7 +421,7 @@ QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
   QLabel *dateLabel = new QLabel(dateText);
   dateLabel->setStyleSheet("font-size: 56px; font-weight: 600; color: white;");
 
-  std::cout << "[ROUTE DEBUG] Created date label with text: " << dateLabel->text().toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Created date label with text: " << dateLabel->text().toStdString() << std::endl;
 
   dateLayout->addWidget(dateLabel);
   dateLayout->addStretch();
@@ -408,9 +430,9 @@ QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
 }
 
 QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
-  std::cout << "[ROUTE DEBUG] createRouteCard called for: " << route.baseName.toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] Card data - Timestamp: " << route.timestamp.toStdString() << " ElapsedTime: " << route.elapsedTime.toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] createRouteCard called for: " << route.baseName.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Card data - Timestamp: " << route.timestamp.toStdString() << " ElapsedTime: " << route.elapsedTime.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
 
   QWidget *card = new QWidget;
   card->setFixedHeight(400);
@@ -1041,8 +1063,8 @@ void BPRoutesPanel::initializeThumbnail(QLabel *thumbnailLabel, const QString &r
     }
   }
 
-  // Generate thumbnail in background
-  if (!thumbnailWatchers.contains(routeBase)) {
+  // Generate thumbnail in background with concurrency limit
+  if (!thumbnailWatchers.contains(routeBase) && thumbnailWatchers.size() < MAX_CONCURRENT_THUMBNAILS) {
     QFutureWatcher<QString> *watcher = new QFutureWatcher<QString>(this);
     thumbnailWatchers[routeBase] = watcher;
 
@@ -1062,6 +1084,7 @@ void BPRoutesPanel::initializeThumbnail(QLabel *thumbnailLabel, const QString &r
       watcher->deleteLater();
     });
 
+    // Use FFmpeg for thumbnail generation for now
     QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnail, routeBase);
     watcher->setFuture(future);
   }
@@ -1075,52 +1098,52 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
     return thumbnailPath;
   }
 
-  // Find first video file - search in route segments
-  QString inputVideo;
-  QDir routesDir(getRoutesDir());
-  QStringList segmentDirs = routesDir.entryList(QStringList() << routeBase + "--*", QDir::Dirs | QDir::NoDotAndDotDot);
-
-  std::cout << "[THUMBNAIL DEBUG] Looking for video in base route: " << routeBase.toStdString() << std::endl;
-  std::cout << "[THUMBNAIL DEBUG] Found " << segmentDirs.size() << " segments" << std::endl;
-
-  if (!segmentDirs.isEmpty()) {
-    // Sort segments and use the first one (segment 0)
-    segmentDirs.sort();
-    QString firstSegmentPath = routesDir.absoluteFilePath(segmentDirs.first());
-    QDir segmentDir(firstSegmentPath);
-
-    std::cout << "[THUMBNAIL DEBUG] Checking segment: " << firstSegmentPath.toStdString() << std::endl;
-
-    // Look for video files in the segment directory (prioritize front camera)
-    QStringList videoFiles = {"fcamera.hevc", "qcamera.ts", "dcamera.hevc", "ecamera.hevc"};
-    for (const QString &videoFile : videoFiles) {
-      QString videoPath = segmentDir.absoluteFilePath(videoFile);
-      if (QFile::exists(videoPath)) {
-        inputVideo = videoPath;
-        std::cout << "[THUMBNAIL DEBUG] Found video: " << videoPath.toStdString() << std::endl;
-        break;
-      }
-    }
+  // Find the correct segment directory (using old working approach)
+  // routeBase should be like "0000009b--d7712fe77a" (base route name)
+  QDir dir(getRoutesDir());
+  QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(routeBase), QDir::Dirs | QDir::NoDotAndDotDot);
+  if (segments.isEmpty()) {
+    std::cout << "[THUMBNAIL DEBUG] No segment found for route: " << routeBase.toStdString() << std::endl;
+    return QString();
   }
 
-  if (inputVideo.isEmpty()) {
-    return QString(); // No video found
+  QString inputVideo = getRoutesDir() + "/" + segments.first() + "/fcamera.hevc";
+  if (!QFile::exists(inputVideo)) {
+    std::cout << "[THUMBNAIL DEBUG] Video file not found: " << inputVideo.toStdString() << std::endl;
+    return QString();
   }
+
+  std::cout << "[THUMBNAIL DEBUG] Found video: " << inputVideo.toStdString() << std::endl;
 
   // Create thumbnail directory
   QDir().mkpath(QFileInfo(thumbnailPath).absolutePath());
 
-  // Generate thumbnail using FFmpeg
+  // Generate thumbnail using FFmpeg with better resource management
   QProcess ffmpeg;
+  ffmpeg.setProcessChannelMode(QProcess::MergedChannels);
   QStringList args;
-  args << "-i" << inputVideo
-       << "-vf" << QString("thumbnail,scale=%1:%2:force_original_aspect_ratio=decrease,pad=%1:%2:(ow-iw)/2:(oh-ih)/2").arg(THUMBNAIL_WIDTH).arg(THUMBNAIL_HEIGHT)
-       << "-frames:v" << "1"
-       << "-q:v" << "2"  // High quality
-       << "-y" << thumbnailPath;
+  args << "-y"                                                                       // Overwrite output file
+       << "-nostdin"                                                                 // Disable interaction
+       << "-i" << inputVideo                                                          // Input file
+       << "-vframes" << "1"                                                          // Extract one frame
+       << "-an"                                                                      // Disable audio
+       << "-vf" << QString("scale=%1:%2").arg(THUMBNAIL_WIDTH).arg(THUMBNAIL_HEIGHT) // Scale
+       << "-strict" << "unofficial"                                                  // Allow non-standard YUV
+       << "-pix_fmt" << "yuvj420p"                                                   // Use full-range YUV
+       << thumbnailPath;
 
   ffmpeg.start("ffmpeg", args);
+
+  // Wait with reasonable timeout for single frame extraction
   bool success = ffmpeg.waitForFinished(15000); // 15 second timeout
+
+  if (!success || ffmpeg.state() != QProcess::NotRunning) {
+    std::cout << "[THUMBNAIL DEBUG] FFmpeg timeout or still running, terminating..." << std::endl;
+    ffmpeg.terminate();
+    if (!ffmpeg.waitForFinished(2000)) {
+      ffmpeg.kill();
+    }
+  }
 
   if (success && ffmpeg.exitCode() == 0 && QFile::exists(thumbnailPath)) {
     std::cout << "[THUMBNAIL DEBUG] Successfully generated thumbnail: " << thumbnailPath.toStdString() << std::endl;
@@ -1128,15 +1151,159 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
   } else {
     std::cout << "[THUMBNAIL DEBUG] Failed to generate thumbnail. Exit code: " << ffmpeg.exitCode() << std::endl;
     if (ffmpeg.exitCode() != 0) {
-      std::cout << "[THUMBNAIL DEBUG] FFmpeg error: " << ffmpeg.readAllStandardError().toStdString() << std::endl;
+      QByteArray errorOutput = ffmpeg.readAllStandardError();
+      if (!errorOutput.isEmpty()) {
+        std::cout << "[THUMBNAIL DEBUG] FFmpeg error: " << errorOutput.toStdString() << std::endl;
+      }
     }
+    return QString(); // Return empty for placeholder
   }
 
   return QString();
 }
 
+QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
+  // Hardware thumbnail generation disabled - using FFmpeg for all platforms
+  std::cout << "[THUMBNAIL DEBUG] Hardware decoder disabled, using FFmpeg fallback" << std::endl;
+  return QString();
+}
+
 QString BPRoutesPanel::getThumbnailPath(const QString &routeBase) {
   return getThumbnailCacheDir + "/" + routeBase + ".jpg";
+}
+
+void BPRoutesPanel::generateAllMissingThumbnails() {
+  std::cout << "[THUMBNAIL DEBUG] Starting batch thumbnail generation for all routes..." << std::endl;
+
+  // Count missing thumbnails and currently generating ones
+  int missingCount = 0;
+  int generatingCount = 0;
+  int skippedCount = 0;
+
+  for (const RouteInfo &route : routes) {
+    QString thumbnailPath = getThumbnailPath(route.baseName);
+
+    // Skip if thumbnail already exists
+    if (QFile::exists(thumbnailPath)) {
+      continue;
+    }
+
+    // Skip if permanently failed (no video file)
+    if (permanentlyFailedRoutes.contains(route.baseName)) {
+      skippedCount++;
+      continue;
+    }
+
+    // Count if already being generated
+    if (thumbnailWatchers.contains(route.baseName)) {
+      generatingCount++;
+      continue;
+    }
+
+    missingCount++;
+  }
+
+  // If no missing thumbnails and no generation in progress, we're done
+  if (missingCount == 0 && generatingCount == 0) {
+    if (skippedCount > 0) {
+      std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete! ("
+                << skippedCount << " routes skipped due to missing video files)" << std::endl;
+    } else {
+      std::cout << "[THUMBNAIL DEBUG] All thumbnails have been generated successfully!" << std::endl;
+    }
+    return;
+  }
+
+  std::cout << "[THUMBNAIL DEBUG] Found " << missingCount << " missing thumbnails, "
+            << generatingCount << " currently generating, "
+            << skippedCount << " permanently skipped..." << std::endl;
+
+  // Start generation for missing thumbnails (respecting concurrent limit)
+  int started = 0;
+  for (const RouteInfo &route : routes) {
+    QString thumbnailPath = getThumbnailPath(route.baseName);
+
+    // Skip if thumbnail already exists
+    if (QFile::exists(thumbnailPath)) {
+      continue;
+    }
+
+    // Skip if permanently failed
+    if (permanentlyFailedRoutes.contains(route.baseName)) {
+      continue;
+    }
+
+    // Skip if already being generated
+    if (thumbnailWatchers.contains(route.baseName)) {
+      continue;
+    }
+
+    // Respect concurrent limit
+    if (thumbnailWatchers.size() >= MAX_CONCURRENT_THUMBNAILS) {
+      std::cout << "[THUMBNAIL DEBUG] Reached concurrent limit (" << MAX_CONCURRENT_THUMBNAILS
+                << "), waiting for some to complete..." << std::endl;
+      break;
+    }
+
+    // Start generation for this route
+    QFutureWatcher<QString> *watcher = new QFutureWatcher<QString>(this);
+    thumbnailWatchers[route.baseName] = watcher;
+    started++;
+
+    connect(watcher, &QFutureWatcher<QString>::finished, [this, route, watcher]() {
+      QString result = watcher->result();
+      if (!result.isEmpty()) {
+        std::cout << "[THUMBNAIL DEBUG] Generated thumbnail for: " << route.baseName.toStdString() << std::endl;
+      } else {
+        std::cout << "[THUMBNAIL DEBUG] Failed to generate thumbnail for: " << route.baseName.toStdString()
+                  << " - marking as permanently failed" << std::endl;
+        // Mark this route as permanently failed so we don't retry it
+        permanentlyFailedRoutes.insert(route.baseName);
+      }
+
+      thumbnailWatchers.remove(route.baseName);
+      watcher->deleteLater();
+
+      // Check if we need to continue generating more thumbnails
+      // Only schedule another check after a delay to prevent excessive calls
+      QTimer::singleShot(1000, this, [this]() {
+        // Only continue if there are still missing thumbnails (excluding permanently failed ones)
+        bool hasMissing = false;
+        for (const RouteInfo &route : routes) {
+          QString thumbnailPath = getThumbnailPath(route.baseName);
+          if (!QFile::exists(thumbnailPath) &&
+              !thumbnailWatchers.contains(route.baseName) &&
+              !permanentlyFailedRoutes.contains(route.baseName)) {
+            hasMissing = true;
+            break;
+          }
+        }
+
+        if (hasMissing) {
+          std::cout << "[THUMBNAIL DEBUG] Continuing thumbnail generation for remaining routes..." << std::endl;
+          generateAllMissingThumbnails();
+        } else {
+          int failedCount = permanentlyFailedRoutes.size();
+          if (failedCount > 0) {
+            std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete! ("
+                      << failedCount << " routes had no video files)" << std::endl;
+          } else {
+            std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete!" << std::endl;
+          }
+        }
+      });
+    });
+
+    // Use FFmpeg for thumbnail generation
+    QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnail, route.baseName);
+    watcher->setFuture(future);
+
+    std::cout << "[THUMBNAIL DEBUG] Started generation for: " << route.baseName.toStdString() << std::endl;
+  }
+
+  if (started > 0) {
+    std::cout << "[THUMBNAIL DEBUG] Started " << started << " new thumbnail generations" << std::endl;
+  }
 }
 
 void BPRoutesPanel::cleanupThumbnailCache() {
@@ -1202,7 +1369,12 @@ void BPRoutesPanel::handleRouteRemoval(const QString &route) {
 
 // Disk caching implementation
 QString BPRoutesPanel::getRouteCacheFile() const {
-  return getRoutesDir() + "/.route_cache.json";
+  // Create BluePilot routes directory if it doesn't exist
+  QDir dir("/data/bluepilot/routes");
+  if (!dir.exists()) {
+    dir.mkpath(".");
+  }
+  return "/data/bluepilot/routes/routes_cache.json";
 }
 
 void BPRoutesPanel::saveRouteCacheToDisk() {
@@ -1338,4 +1510,98 @@ bool BPRoutesPanel::shouldRefreshRoutes() const {
   }
 
   return false;
+}
+
+// Onroad Safety Methods
+void BPRoutesPanel::showOnroadMessage() {
+  // Clear existing content
+  if (scrollArea) {
+    scrollArea->setVisible(false);
+  }
+  if (loadingOverlay) {
+    loadingOverlay->setVisible(false);
+  }
+
+  // Create or show onroad message
+  if (!onroadMessageWidget) {
+    onroadMessageWidget = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(onroadMessageWidget);
+    layout->setAlignment(Qt::AlignCenter);
+    layout->setSpacing(40);
+
+    // Icon
+    QLabel *iconLabel = new QLabel("🚗");
+    iconLabel->setAlignment(Qt::AlignCenter);
+    iconLabel->setStyleSheet("font-size: 120px;");
+    layout->addWidget(iconLabel);
+
+    // Main message
+    QLabel *messageLabel = new QLabel("Routes Panel Disabled");
+    messageLabel->setAlignment(Qt::AlignCenter);
+    messageLabel->setStyleSheet(R"(
+      font-size: 72px;
+      font-weight: bold;
+      color: #FFD700;
+      margin: 20px;
+    )");
+    layout->addWidget(messageLabel);
+
+    // Safety message
+    QLabel *safetyLabel = new QLabel("For your safety, route management is disabled while driving.\nThis panel will be available when you park.");
+    safetyLabel->setAlignment(Qt::AlignCenter);
+    safetyLabel->setWordWrap(true);
+    safetyLabel->setStyleSheet(R"(
+      font-size: 48px;
+      color: #CCCCCC;
+      line-height: 1.4;
+      margin: 20px 40px;
+    )");
+    layout->addWidget(safetyLabel);
+
+    onroadMessageWidget->setStyleSheet("background: #000000;");
+    onroadMessageWidget->setGeometry(0, 0, width(), height());
+  }
+
+  onroadMessageWidget->setVisible(true);
+  onroadMessageWidget->raise();
+}
+
+void BPRoutesPanel::clearOnroadMessage() {
+  if (onroadMessageWidget) {
+    onroadMessageWidget->setVisible(false);
+  }
+  if (scrollArea) {
+    scrollArea->setVisible(true);
+  }
+}
+
+void BPRoutesPanel::onOffroadTransition() {
+  std::cout << "[ROUTE DEBUG] Offroad transition detected" << std::endl;
+
+  if (uiState()->scene.started) {
+    // Device went onroad - show safety message and clear routes
+    std::cout << "[ROUTE DEBUG] Device went onroad - disabling routes panel" << std::endl;
+    showOnroadMessage();
+
+    // Close any open video dialogs for safety
+    if (QWidget *topLevel = window()) {
+      QList<QDialog*> dialogs = topLevel->findChildren<QDialog*>();
+      for (QDialog* dialog : dialogs) {
+        if (dialog->isVisible()) {
+          std::cout << "[ROUTE DEBUG] Closing video dialog due to onroad transition" << std::endl;
+          dialog->close();
+        }
+      }
+    }
+  } else {
+    // Device went offroad - clear message and load routes only if panel is visible
+    std::cout << "[ROUTE DEBUG] Device went offroad - enabling routes panel" << std::endl;
+    clearOnroadMessage();
+    if (routes.isEmpty() && isVisible()) {
+      std::cout << "[ROUTE DEBUG] Panel is visible - loading routes" << std::endl;
+      loadRoutes();
+    } else if (routes.isEmpty()) {
+      std::cout << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
+    }
+  }
 }

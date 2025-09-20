@@ -2,9 +2,9 @@
 
 #include <thread>
 #include <queue>
+#include <sys/mman.h>
 
 #include "common/queue.h"
-#include "msgq/visionipc/visionbuf.h"
 #include "system/loggerd/decoder/decoder.h"
 
 #define BUF_IN_COUNT 10
@@ -19,6 +19,8 @@ public:
   void decoder_open() override;
   void decoder_close() override;
   void flush() override;
+  bool is_decoder_open() const { return is_open; }
+  bool is_decoder_available() const { return fd >= 0; }
 
 private:
   static void decode_handler(V4LDecoder *d);
@@ -29,11 +31,15 @@ private:
   
   int stride = 0;
   int compressed_buf_size = 0;
+  int frame_size = 0;
+  int out_width = 0;
+  int out_height = 0;
   
   std::thread decode_thread;
   std::queue<uint64_t> timestamp_queue;
   
-  VisionBuf buf_in[BUF_IN_COUNT];
-  VisionBuf buf_out[BUF_OUT_COUNT];
+  // Use mmap'd buffers instead of VisionBuf
+  void* buf_in[BUF_IN_COUNT];
+  void* buf_out[BUF_OUT_COUNT];
   SafeQueue<int> free_buf_in;
 };
