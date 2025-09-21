@@ -20,8 +20,21 @@ MainWindowSP::MainWindowSP(QWidget *parent)
 
   homeWindow = dynamic_cast<HomeWindowSP *>(MainWindow::homeWindow);
   settingsWindow = dynamic_cast<SettingsWindowSP *>(MainWindow::settingsWindow);
+
+  // Install event filter for brightness control
+  installEventFilter(this);
 }
 
 void MainWindowSP::closeSettings() {
   MainWindow::closeSettings();
+}
+
+bool MainWindowSP::eventFilter(QObject* obj, QEvent* event) {
+  if (event->type() == QEvent::MouseButtonPress
+    and uiStateSP()->scene.started
+    and uiStateSP()->scene.onroadScreenOffControl) {
+
+      uiStateSP()->reset_onroad_sleep_timer();
+  }
+  return false; // pass the event to obj
 }

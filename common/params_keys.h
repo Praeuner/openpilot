@@ -156,6 +156,9 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ModelRunnerTypeCache", {CLEAR_ON_ONROAD_TRANSITION, INT}},
     {"OffroadMode", {CLEAR_ON_MANAGER_START, BOOL}},
     {"Offroad_TiciSupport", {CLEAR_ON_MANAGER_START, JSON}},
+    {"OnroadScreenOffControl", {PERSISTENT | BACKUP, BOOL}},
+    {"OnroadScreenOffTimer", {PERSISTENT | BACKUP, INT, "0"}},
+    {"OnroadScreenOffBrightness", {PERSISTENT | BACKUP, INT, "100"}},
     {"QuickBootToggle", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"QuietMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"RainbowMode", {PERSISTENT | BACKUP, BOOL, "0"}},
@@ -224,9 +227,5 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OsmStateTitle", {PERSISTENT, STRING}},
     {"OsmWayTest", {PERSISTENT, STRING}},
     {"RoadName", {CLEAR_ON_ONROAD_TRANSITION, STRING}},
-
-    // BluePilot display brightness control params
-    {"BpDisplayBrightnessMode", {PERSISTENT | BACKUP, INT, "0"}},
-    {"BpDisplayBrightnessDimLevel", {PERSISTENT | BACKUP, INT, "70"}},
-    {"BpDisplayBrightnessTimeout", {PERSISTENT | BACKUP, INT, "30"}},
+    {"SpeedLimitMode", {PERSISTENT | BACKUP, INT, "0"}},
 };

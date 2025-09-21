@@ -83,8 +83,14 @@ typedef struct UIScene {
   bool wide_camera_low_speed;
   bool sidebar_visible;
 
-  // BluePilot status text
-  QString bp_status_text;
+  // SunnyPilot additional fields
+  int speed_limit_mode = 0;
+  bool road_name = false;
+
+  // SunnyPilot brightness control
+  int onroadScreenOffBrightness, onroadScreenOffTimer = 0;
+  bool onroadScreenOffControl;
+
 } UIScene;
 
 class UIState : public QObject {
@@ -144,34 +150,9 @@ protected:
   FirstOrderFilter brightness_filter;
   QFuture<void> brightness_future;
 
-  // BluePilot display brightness control - Timer-based system
-  enum BpBrightnessState {
-    BP_NORMAL,      // Auto brightness active (stock behavior)
-    BP_COUNTDOWN,   // Timer active, counting down
-    BP_DIMMED,      // Display dimmed to bp_dim_level
-    BP_OFF          // Display powered off
-  };
-
-  BpBrightnessState bp_state = BP_NORMAL;
-  QTimer *bp_brightness_timer = nullptr;
-  int bp_brightness_mode = 0;  // 0=always on, 1=dim, 2=off
-  int bp_dim_level = 70;       // dim brightness percentage
-  int bp_timeout = 30;         // timeout in seconds
-  bool bp_alert_active = false; // whether an alert is currently active
-  int bp_saved_brightness = -1; // saved brightness before dimming/turning off
-  bool bp_auto_brightness_override = false; // whether to override auto brightness
-  QTimer *alert_reset_timer = nullptr; // timer for periodic alert reset
-
   void updateBrightness(const UIState &s);
   void updateWakefulness(const UIState &s);
   void setAwake(bool on);
-  void updateBpBrightnessControl(const UIState &s);
-  void resetBpBrightnessTimeout();
-  void restoreFromBpControl();
-  bool isAlertActive(const UIState &s);
-  void setBrightnessSafe(int brightness);
-  const char* getBpStateString() const;
-  void updateBpStatusText(const UIState &s);
 
 signals:
   void displayPowerChanged(bool on);
@@ -182,10 +163,6 @@ public slots:
   void update(const UIState &s);
   void resetOnroadDisplayTimer();
   void onUserInteraction();
-
-private slots:
-  void onBpBrightnessTimeout();
-  void onAlertReset();
 };
 
 #ifndef SUNNYPILOT

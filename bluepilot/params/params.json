@@ -364,26 +364,6 @@
       "enabled": true
     },
     {
-      "name": "BpDisplayBrightnessMode",
-      "default": 0,
-      "min": 0,
-      "max": 2,
-      "type": "int",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true
-    },
-    {
-      "name": "BpDisplayBrightnessDimLevel",
-      "default": 70,
-      "min": 20,
-      "max": 90,
-      "type": "int",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true
-    },
-    {
       "name": "BpDisplayBrightnessTimeout",
       "default": 30,
       "min": 10,

@@ -1323,14 +1323,4 @@ void SidebarBP::drawSidebar(QPainter &p) {
     }
   }
 
-  // Draw BP status text at very bottom of sidebar with no padding
-  auto *ui_state = uiState();
-  if (ui_state && !ui_state->scene.bp_status_text.isEmpty()) {
-    p.setPen(Qt::white);
-    p.setFont(InterFont(20, QFont::Bold));
-
-    // Position at very bottom edge
-    QRect statusRect(0, height() - 30, width(), 30);
-    p.drawText(statusRect, Qt::AlignCenter, ui_state->scene.bp_status_text);
-  }
 }

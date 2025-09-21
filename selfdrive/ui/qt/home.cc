@@ -78,7 +78,6 @@ void HomeWindow::showDriverView(bool show) {
 void HomeWindow::mousePressEvent(QMouseEvent* e) {
   // Reset onroad display timer on touch
   if (onroad->isVisible()) {
-    std::cout << "[BP_BRIGHTNESS] Resetting onroad display timer | home mousePressEvent" << std::endl;
     device()->resetOnroadDisplayTimer();
   }
 
