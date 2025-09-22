@@ -30,7 +30,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
-// #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
 
 TogglesPanelSP::TogglesPanelSP(SettingsWindowSP *parent) : TogglesPanel(parent) {
   QObject::connect(uiStateSP(), &UIStateSP::uiUpdate, this, &TogglesPanelSP::updateState);
@@ -103,7 +103,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   QList<PanelInfo> panels = {
     PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
     PanelInfo("   " + tr("Network"), networking, "../assets/icons/network.png"),
-    // PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"),
+    PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"),
     PanelInfo("   " + tr("sunnylink"), new SunnylinkPanel(this), "../assets/icons/wifi_strength_full.svg"),
     PanelInfo("   " + tr("Toggles"), toggles, "../../sunnypilot/selfdrive/assets/offroad/icon_toggle.png"),
     PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"),
