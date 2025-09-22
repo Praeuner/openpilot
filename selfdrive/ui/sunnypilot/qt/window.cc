@@ -30,11 +30,25 @@ void MainWindowSP::closeSettings() {
 }
 
 bool MainWindowSP::eventFilter(QObject* obj, QEvent* event) {
-  if (event->type() == QEvent::MouseButtonPress
-    and uiStateSP()->scene.started
-    and uiStateSP()->scene.onroadScreenOffControl) {
+  bool ignore = false;
+  switch (event->type()) {
+    case QEvent::TouchBegin:
+    case QEvent::TouchUpdate:
+    case QEvent::TouchEnd:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseMove: {
+      // Handle onroad screen off control
+      if (uiStateSP()->scene.started && uiStateSP()->scene.onroadScreenOffControl) {
+        uiStateSP()->reset_onroad_sleep_timer();
+      }
 
-      uiStateSP()->reset_onroad_sleep_timer();
+      // Handle standard interactive timeout (essential for keeping display awake)
+      ignore = !device()->isAwake();
+      device()->resetInteractiveTimeout();
+      break;
+    }
+    default:
+      break;
   }
-  return false; // pass the event to obj
+  return ignore;
 }
