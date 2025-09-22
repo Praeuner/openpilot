@@ -27,6 +27,9 @@ OnroadAlertsBP::~OnroadAlertsBP() {
 }
 
 void OnroadAlertsBP::updateState(const UIState &s) {
+  // Store developer UI state for positioning
+  dev_ui_info = s.scene.dev_ui_info;
+
   Alert a = getAlert(*(s.sm), s.scene.started_frame);
   if (!alert.equal(a)) {
     alert = a;
@@ -299,7 +302,14 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
     margin = 0;
     // radius = 0;
   }
-  QRect r = QRect(0 + margin, height() - h + margin, width() - margin*2, h - margin*2);
+
+  // Adjust for developer UI bottom panel (60px height)
+  int bottom_offset = 0;
+  if (dev_ui_info == 2) {  // Bottom panel is visible
+    bottom_offset = 70;  // Move up by 70px to avoid bottom panel collision
+  }
+
+  QRect r = QRect(0 + margin, height() - h + margin - bottom_offset, width() - margin*2, h - margin*2);
 
   QPainter p(this);
   p.setOpacity(alert_opacity);

@@ -62,13 +62,12 @@ protected:
 
 // Forward declarations for conditional compilation
 #ifdef BLUEPILOT
+// Forward declare ModelRendererBP for now, actual include handled in .cc files
 class ModelRendererBP;
 using ModelRendererFinal = ModelRendererBP;
-#else
-#ifdef SUNNYPILOT
-class ModelRendererSP;
+#elif defined(SUNNYPILOT)
+#include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
 using ModelRendererFinal = ModelRendererSP;
 #else
 using ModelRendererFinal = ModelRenderer;
-#endif
 #endif

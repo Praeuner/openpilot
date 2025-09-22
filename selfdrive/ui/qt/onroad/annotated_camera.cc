@@ -133,10 +133,12 @@ void AnnotatedCameraWidget::paintGL() {
   model.draw(painter, rect());
   dmon.draw(painter, rect());
   hud.updateState(*s);
-  hud.draw(painter, rect());
 
 #ifdef BLUEPILOT
-  bluepilot_renderer.renderAll(painter, rect(), *s, model);
+  // Use the enhanced draw method that passes the model to BluePilot renderer
+  hud.drawWithModel(painter, rect(), model);
+#else
+  hud.draw(painter, rect());
 #endif
 
   double cur_draw_t = millis_since_boot();

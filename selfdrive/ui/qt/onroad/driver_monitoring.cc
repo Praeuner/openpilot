@@ -25,6 +25,9 @@ DriverMonitorRenderer::DriverMonitorRenderer() : face_kpts_draw(std::size(DEFAUL
 }
 
 void DriverMonitorRenderer::updateState(const UIState &s) {
+  // Store developer UI state for positioning
+  dev_ui_info = s.scene.dev_ui_info;
+
   auto &sm = *(s.sm);
   is_visible = sm["selfdriveState"].getSelfdriveState().getAlertSize() == cereal::SelfdriveState::AlertSize::NONE &&
                sm.rcv_frame("driverStateV2") > s.scene.started_frame;
@@ -70,7 +73,14 @@ void DriverMonitorRenderer::draw(QPainter &painter, const QRect &surface_rect) {
 
   int offset = UI_BORDER_SIZE + btn_size / 2;
   float x = is_rhd ? surface_rect.width() - offset : offset;
-  float y = surface_rect.height() - offset;
+
+  // Adjust for developer UI bottom panel (60px height)
+  int bottom_offset = 0;
+  if (dev_ui_info == 2) {  // Bottom panel is visible
+    bottom_offset = 70;  // Move up by 70px to avoid bottom panel collision
+  }
+
+  float y = surface_rect.height() - offset - bottom_offset;
   float opacity = is_active ? 0.65f : 0.2f;
 
   drawIcon(painter, QPoint(x, y), dm_img, QColor(0, 0, 0, 70), opacity);

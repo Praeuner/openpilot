@@ -29,6 +29,10 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
   int gauge_width = rect.width() * 0.39;
   int gauge_height = 130;
 
+  // Check for developer UI and adjust positioning accordingly
+  bool dev_ui_right_panel = (s.scene.dev_ui_info != 0);  // Right panel visible
+  bool dev_ui_bottom_panel = (s.scene.dev_ui_info == 2); // Bottom panel also visible
+
   if (gauge_scale == 1) {
     gauge_width = rect.width() * 0.30;
     gauge_height = 100;
@@ -43,9 +47,25 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
     gauge_height = 100;
   }
 
+  // Developer UI adjustments
+  if (dev_ui_right_panel) {
+    gauge_width *= 0.85; // Reduce width by 15% when right panel is visible
+  }
+
   int bottom_margin = 30;
+  if (dev_ui_bottom_panel) {
+    bottom_margin += 70; // Move up by 70px when bottom panel is visible
+  }
+
   int y_position = rect.height() - gauge_height - bottom_margin;
-  QRect gauge_rect((rect.width() - gauge_width) / 2, y_position, gauge_width, gauge_height);
+  int gauge_center_x = rect.width() / 2;
+
+  // Shift left when developer UI right panel is active
+  if (dev_ui_right_panel) {
+    gauge_center_x -= 50; // Move center left by 50px to avoid right panel (184px wide)
+  }
+
+  QRect gauge_rect(gauge_center_x - gauge_width / 2, y_position, gauge_width, gauge_height);
 
   drawHybridDriveGauge(painter, gauge_rect, hybrid_state.throttle_demand, hybrid_state.throttle_threshold,
                       hybrid_state.power_mode, hybrid_state.engine_reason);

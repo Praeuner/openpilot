@@ -88,8 +88,19 @@ void StandstillTimerOverlay::render(QPainter &painter, const QRect &rect, const 
       backgroundWidth = minBackgroundWidth;
     }
 
+    // Adjust positioning for developer UI panels
+    bool dev_ui_right_panel = (s.scene.dev_ui_info != 0);
+    bool dev_ui_bottom_panel = (s.scene.dev_ui_info == 2);
+
     int x = rect.right() - 200;
     int y = rect.center().y() - 45;
+
+    if (dev_ui_right_panel) {
+      x -= 100; // Move left by 100px to avoid right panel collision
+    }
+    if (dev_ui_bottom_panel) {
+      y -= 70; // Move up by 70px to avoid bottom panel collision
+    }
 
     // Center the background rectangle around the timer position
     QRect backgroundRect(x - backgroundWidth/2, y - 70, backgroundWidth, backgroundHeight);

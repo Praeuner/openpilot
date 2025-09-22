@@ -61,6 +61,8 @@ bp_qt_src = [
   "bluepilot/qt/onroad/model_bp.cc",
   "bluepilot/qt/home.cc",
   "bluepilot/qt/sidebar.cc",
+  # BluePilot Developer UI Components
+  "bluepilot/qt/onroad/developer_ui/developer_ui.cc",
 ]
 
 # FIXME: remove this once we're on 5.15 (24.04)

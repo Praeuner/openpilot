@@ -73,4 +73,5 @@ protected:
   qreal alert_opacity = 0.0;
   qreal progress_value = 0.0;
   float target_progress = 0.0;
+  int dev_ui_info = 0;  // Store developer UI state for positioning
 };

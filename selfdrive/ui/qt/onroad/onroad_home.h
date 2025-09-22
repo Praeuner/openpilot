@@ -1,9 +1,7 @@
 #pragma once
 
-// BluePilot override for modern alerts
 #ifdef BLUEPILOT
 #include "selfdrive/ui/bluepilot/qt/onroad/alerts_bp.h"
-#define OnroadAlerts OnroadAlertsBP
 #else
 #include "selfdrive/ui/qt/onroad/alerts.h"
 #endif
@@ -24,7 +22,11 @@ public:
 
 protected:
   void paintEvent(QPaintEvent *event);
+#ifdef BLUEPILOT
+  OnroadAlertsBP *alerts;
+#else
   OnroadAlerts *alerts;
+#endif
   AnnotatedCameraWidget *nvg;
   QColor bg = bg_colors[STATUS_DISENGAGED];
   QHBoxLayout* split;

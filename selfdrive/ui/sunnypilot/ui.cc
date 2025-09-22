@@ -29,6 +29,8 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
     "liveMapDataSP", "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope",
+    // Additional messages for developer UI
+    "gpsLocation", "gpsLocationExternal", "liveTorqueParameters", "liveParameters",
   });
 
   // update timer

@@ -93,6 +93,14 @@ typedef struct UIScene {
 
 } UIScene;
 
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/ui_scene_bp.h"
+#define UIScene UISceneBP
+#elif defined(SUNNYPILOT)
+#include "selfdrive/ui/sunnypilot/ui_scene.h"
+#define UIScene UISceneSP
+#endif
+
 class UIState : public QObject {
   Q_OBJECT
 

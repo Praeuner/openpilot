@@ -4,6 +4,10 @@
 #include <memory>
 #include "selfdrive/ui/qt/onroad/driver_monitoring.h"
 #include "selfdrive/ui/qt/onroad/model.h"
+
+#if defined(SUNNYPILOT) && defined(BLUEPILOT)
+#include "selfdrive/ui/bluepilot/qt/onroad/model_bp.h"
+#endif
 #include "selfdrive/ui/qt/widgets/cameraview.h"
 
 #ifdef SUNNYPILOT
@@ -16,10 +20,6 @@
 #include "selfdrive/ui/qt/onroad/hud.h"
 #endif
 
-#ifdef BLUEPILOT
-#include "selfdrive/ui/bluepilot/qt/onroad/model_bp.h"
-#include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
-#endif
 
 class AnnotatedCameraWidget : public CameraWidget {
   Q_OBJECT
@@ -35,9 +35,6 @@ private:
   DriverMonitorRenderer dmon;
   HudRenderer hud;
   ModelRendererFinal model;
-#ifdef BLUEPILOT
-  BluepilotRenderer bluepilot_renderer;
-#endif
   std::unique_ptr<PubMaster> pm;
 
   int skip_frame_count = 0;

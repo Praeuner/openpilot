@@ -225,6 +225,10 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
 
   int x, y;
 
+  // Check for developer UI and adjust positioning accordingly
+  bool dev_ui_right_panel = (s.scene.dev_ui_info != 0);  // Right panel visible
+  bool dev_ui_bottom_panel = (s.scene.dev_ui_info == 2); // Bottom panel also visible
+
   // Position to match hybrid gauge exactly
   if (s.scene.show_hybrid_drive_overlay) {
     int gauge_width = rect.width() * 0.39;
@@ -242,9 +246,24 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
       }
     }
 
+    // Developer UI adjustments for hybrid gauge positioning
+    if (dev_ui_right_panel) {
+      gauge_width *= 0.85; // Reduce width by 15% when right panel is visible
+    }
+
     int bottom_margin = 30;
+    if (dev_ui_bottom_panel) {
+      bottom_margin += 70; // Move up by 70px when bottom panel is visible
+    }
+
     int gauge_y = rect.height() - meter_height - bottom_margin;
     int gauge_center_x = rect.width() / 2;
+
+    // Shift left when developer UI right panel is active
+    if (dev_ui_right_panel) {
+      gauge_center_x -= 50; // Move center left by 50px to avoid right panel (184px wide)
+    }
+
     int gauge_left = gauge_center_x - gauge_width / 2;
 
     // Position G-force meter to the left of hybrid gauge
@@ -254,6 +273,14 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
     // When no hybrid gauge, position to the right of driver monitor
     x = 250;
     y = rect.height() - meter_height - 60;
+
+    // Developer UI adjustments for standalone positioning
+    if (dev_ui_right_panel) {
+      x -= 100; // Move left by 100px to avoid right panel collision
+    }
+    if (dev_ui_bottom_panel) {
+      y -= 70; // Move up by 70px to avoid bottom panel collision
+    }
   }
 
   // Ensure meter stays within bounds

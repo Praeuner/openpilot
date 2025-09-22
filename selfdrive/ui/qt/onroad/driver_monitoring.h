@@ -21,4 +21,5 @@ private:
   float dm_fade_state = 1.0;
   QPixmap dm_img;
   std::vector<vec3> face_kpts_draw;
+  int dev_ui_info = 0;  // Store developer UI state for positioning
 };

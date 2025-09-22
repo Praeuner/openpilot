@@ -47,23 +47,120 @@ void StopSignOverlay::render(QPainter &painter, const QRect &rect, const UIState
       // Position the stop sign to the right of the closest lane line point
       QPointF stop_point(lane_point.x() + stop_sign_size * 0.75, lane_point.y());
 
-      // Ensure the stop sign stays within the clip region
-      if (clip_region.contains(stop_point)) {
-        drawStopSignOverlay(painter, stop_point, stop_sign_size,
+      // Check for developer UI and hybrid gauge positioning
+      bool dev_ui_right_panel = (s.scene.dev_ui_info != 0);  // Right panel visible
+      bool dev_ui_bottom_panel = (s.scene.dev_ui_info == 2); // Bottom panel also visible
+      bool hybrid_gauge_active = s.scene.show_hybrid_drive_overlay;
+
+      // Calculate hybrid gauge bounds for collision avoidance
+      QRectF hybrid_gauge_area;
+      if (hybrid_gauge_active) {
+        int gauge_scale = s.scene.hybrid_drive_gauge_size;
+        int gauge_width = rect.width() * 0.39;
+        int gauge_height = 130;
+
+        // Adjust gauge dimensions based on scale
+        if (gauge_scale == 1) {
+          gauge_width = rect.width() * 0.30;
+          gauge_height = 100;
+        } else if (gauge_scale == 2) {
+          gauge_width = rect.width() * 0.345;
+          gauge_height = 115;
+        } else if (gauge_scale == 3) {
+          gauge_width = rect.width() * 0.39;
+          gauge_height = 130;
+        }
+
+        // Adjust for developer UI
+        if (dev_ui_right_panel) {
+          gauge_width *= 0.85; // Reduce width by 15%
+        }
+
+        int bottom_margin = 30;
+        if (dev_ui_bottom_panel) {
+          bottom_margin += 70; // Move up by 70px
+        }
+
+        int y_position = rect.height() - gauge_height - bottom_margin;
+        int gauge_center_x = rect.width() / 2;
+
+        if (dev_ui_right_panel) {
+          gauge_center_x -= 50; // Move center left by 50px
+        }
+
+        // Add padding around hybrid gauge
+        int padding = 20;
+        hybrid_gauge_area = QRectF(gauge_center_x - gauge_width / 2 - padding,
+                                   y_position - padding,
+                                   gauge_width + 2 * padding,
+                                   gauge_height + 2 * padding);
+      }
+
+      // Adjust clip region to avoid all UI collisions
+      QRectF adjusted_clip_region = clip_region;
+
+      if (dev_ui_right_panel) {
+        // Reserve space for developer panel (184px wide) plus buffer
+        adjusted_clip_region.setRight(clip_region.right() - 200);
+      }
+
+      if (dev_ui_bottom_panel) {
+        // Reserve space for bottom panel (60px high) plus buffer
+        adjusted_clip_region.setBottom(clip_region.bottom() - 80);
+      }
+
+      // Check for collisions with hybrid gauge and UI elements
+      bool collision_detected = false;
+      QPointF final_stop_point = stop_point;
+
+      // First check if within basic clip region
+      if (!adjusted_clip_region.contains(stop_point)) {
+        collision_detected = true;
+      }
+
+      // Check for hybrid gauge collision
+      if (hybrid_gauge_active && !collision_detected) {
+        QRectF stop_sign_bounds(stop_point.x() - stop_sign_size / 2, stop_point.y() - stop_sign_size / 2,
+                               stop_sign_size, stop_sign_size);
+        if (hybrid_gauge_area.intersects(stop_sign_bounds)) {
+          collision_detected = true;
+        }
+      }
+
+      if (collision_detected) {
+        // Find alternative position that avoids all collisions
+        QPointF candidate_point = stop_point;
+
+        // Try moving left to avoid right panel collision
+        if (dev_ui_right_panel && stop_point.x() > adjusted_clip_region.right()) {
+          candidate_point.setX(adjusted_clip_region.right() - stop_sign_size / 2);
+        }
+
+        // Try moving up to avoid hybrid gauge collision
+        if (hybrid_gauge_active) {
+          QRectF candidate_bounds(candidate_point.x() - stop_sign_size / 2, candidate_point.y() - stop_sign_size / 2,
+                                 stop_sign_size, stop_sign_size);
+          if (hybrid_gauge_area.intersects(candidate_bounds)) {
+            candidate_point.setY(hybrid_gauge_area.top() - stop_sign_size / 2 - 10);
+          }
+        }
+
+        // Ensure candidate point is within adjusted clip region
+        candidate_point.setX(std::clamp(candidate_point.x(),
+                                       adjusted_clip_region.left() + stop_sign_size / 2,
+                                       adjusted_clip_region.right() - stop_sign_size / 2));
+        candidate_point.setY(std::clamp(candidate_point.y(),
+                                       adjusted_clip_region.top() + stop_sign_size / 2,
+                                       adjusted_clip_region.bottom() - stop_sign_size / 2));
+
+        final_stop_point = candidate_point;
+      }
+
+      // Draw the stop sign at the final calculated position
+      if (adjusted_clip_region.contains(final_stop_point)) {
+        drawStopSignOverlay(painter, final_stop_point, stop_sign_size,
                            stop_state.display_distance, v_ego, stop_state.fade_alpha,
                            stop_state, clip_region);
-      } else {
-        // Fallback positioning within clip region
-        QPointF adjusted_point(std::clamp(stop_point.x(),
-                                         clip_region.left() + stop_sign_size / 2,
-                                         clip_region.right() - stop_sign_size / 2),
-                              stop_point.y());
-
-        if (clip_region.contains(adjusted_point)) {
-          drawStopSignOverlay(painter, adjusted_point, stop_sign_size,
-                             stop_state.display_distance, v_ego, stop_state.fade_alpha,
-                             stop_state, clip_region);
-        }
       }
     } else {
       // Fallback to screen point if available
@@ -127,8 +224,17 @@ void StopSignOverlay::drawStopSignOverlay(QPainter &painter, const QPointF &poin
     slideAmount = 1.0f - std::clamp((distance - slideComplete) / (slideThreshold - slideComplete), 0.0f, 1.0f);
   }
 
-  // Calculate target position
-  QPointF cornerPosition(painter.device()->width() - dynamicSize, painter.device()->height() - dynamicSize * 1.5);
+  // Calculate corner position, avoiding UI collisions
+  int corner_x = painter.device()->width() - dynamicSize;
+  int corner_y = painter.device()->height() - dynamicSize * 1.5;
+
+  // Adjust corner position to avoid developer UI
+  // Check if we're in a context where we can access scene data (this is a fallback for safety)
+  // In normal operation, collision avoidance should happen in the render() function above
+  corner_x -= 50; // Move away from right edge to avoid potential UI collisions
+  corner_y -= 50; // Move up to avoid potential bottom UI collisions
+
+  QPointF cornerPosition(corner_x, corner_y);
   QPointF targetPosition;
 
   if (!clip_region.contains(point)) {

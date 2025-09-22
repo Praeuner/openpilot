@@ -57,8 +57,20 @@ public:
   void draw(QPainter &painter, const QRect &surface_rect);
 
   // Getters for BluepilotRenderer compatibility
-  const Eigen::Matrix3f& getTransform() const { return car_space_transform; }
-  const QRectF& getClipRegion() const { return clip_region; }
+  const Eigen::Matrix3f& getTransform() const {
+#ifdef SUNNYPILOT
+    return ModelRendererSP::car_space_transform;
+#else
+    return ModelRenderer::car_space_transform;
+#endif
+  }
+  const QRectF& getClipRegion() const {
+#ifdef SUNNYPILOT
+    return ModelRendererSP::clip_region;
+#else
+    return ModelRenderer::clip_region;
+#endif
+  }
 
   // Lead tracking and stop detection (public for BluepilotRenderer access)
   void updateLeadTracking(const UIState &s);

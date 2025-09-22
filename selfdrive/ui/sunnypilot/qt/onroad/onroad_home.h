@@ -7,6 +7,7 @@
 
 #pragma once
 
+// Include base first, then override
 #include "selfdrive/ui/qt/onroad/onroad_home.h"
 
 class OnroadWindowSP : public OnroadWindow {

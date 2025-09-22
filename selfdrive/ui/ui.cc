@@ -79,6 +79,10 @@ void update_state(UIState *s) {
 void ui_update_params(UIState *s) {
   auto params = Params();
   s->scene.is_metric = params.getBool("IsMetric");
+
+  // Developer UI settings (0=off, 1=right panel only, 2=right+bottom panels)
+  s->scene.dev_ui_info = params.getInt("DevUIInfo");
+
   s->scene.show_hybrid_drive_overlay = params.getBool("FordPrefHybridDriveOverlay"); // && params.getBool("FordPrefHevDataAvailable");
   s->scene.hybrid_drive_gauge_size = params.getInt("FordPrefHybridDriveGaugeSize");
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
