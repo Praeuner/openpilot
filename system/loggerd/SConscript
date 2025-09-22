@@ -4,13 +4,14 @@ libs = [common, messaging, visionipc,
         'avformat', 'avcodec', 'avutil',
         'yuv', 'OpenCL', 'pthread', 'zstd']
 
-src = ['logger.cc', 'zstd_writer.cc', 'video_writer.cc', 'encoder/encoder.cc', 'encoder/v4l_encoder.cc', 'encoder/jpeg_encoder.cc', 'decoder/decoder.cc', 'decoder/ffmpeg_decoder.cc']
+src = ['logger.cc', 'zstd_writer.cc', 'video_writer.cc', 'encoder/encoder.cc', 'encoder/v4l_encoder.cc', 'encoder/jpeg_encoder.cc']
 if arch != "larch64":
   src += ['encoder/ffmpeg_encoder.cc']
-if arch != "Darwin":
-  src += ['decoder/v4l_decoder.cc']
-  if arch == "larch64":
-    src += ['decoder/thumbnail_decoder.cc']  # Only on Comma device
+# Decoder files removed - integrated into UI layer instead
+# if arch != "Darwin":
+#   src += ['decoder/v4l_decoder.cc']
+#   if arch == "larch64":
+#     src += ['decoder/thumbnail_decoder.cc']  # Only on Comma device
 
 if arch == "Darwin":
   # fix OpenCL

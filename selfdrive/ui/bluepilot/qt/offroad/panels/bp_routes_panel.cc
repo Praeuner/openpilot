@@ -28,6 +28,12 @@
 #include <iostream>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "bp_frame_reader.h"
+#include "msgq/visionipc/visionbuf.h"
+#include "third_party/libyuv/include/libyuv.h"
+#include "third_party/libyuv/include/libyuv/scale_argb.h"
+#include <QImage>
+#include <QBuffer>
 #include <QJsonArray>
 
 #include "common/params.h"
@@ -276,13 +282,17 @@ void BPRoutesPanel::loadRoutes() {
     QDir routesDir(getRoutesDir());
     QStringList routeDirectories = routesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time | QDir::Reversed);
 
+    std::cout << "[ROUTE DEBUG] Found " << routeDirectories.size() << " total directories in " << getRoutesDir().toStdString() << std::endl;
+
     QVector<RouteInfo> newRoutes;
     QHash<QString, RouteInfo> baseRouteMap; // Map to store the latest segment for each base route
     QSet<QString> processedRoutes; // Track which base routes we've already processed
 
+    int skippedCount = 0;
     for (const QString &routeDir : routeDirectories) {
       // Skip non-route directories
       if (routeDir == "boot" || routeDir == "crash" || !routeDir.contains("--")) {
+        skippedCount++;
         continue;
       }
 
@@ -338,10 +348,14 @@ void BPRoutesPanel::loadRoutes() {
       baseRouteMap[baseRouteName] = info;
     }
 
+    std::cout << "[ROUTE DEBUG] Skipped " << skippedCount << " directories, processed " << processedRoutes.size() << " unique base routes" << std::endl;
+
     // Convert map to vector
     for (const RouteInfo &info : baseRouteMap.values()) {
       newRoutes.append(info);
     }
+
+    std::cout << "[ROUTE DEBUG] Final route count: " << newRoutes.size() << std::endl;
 
     // Sort by date/time (newest first)
     std::sort(newRoutes.begin(), newRoutes.end(), [](const RouteInfo &a, const RouteInfo &b) {
@@ -791,18 +805,20 @@ QString BPRoutesPanel::formatDisplayDate(const QDateTime &dateTime) {
 BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   RouteInfo info;
   QFileInfo routeFileInfo(routePath);
-  info.baseName = routeFileInfo.fileName();
+  QString originalName = routeFileInfo.fileName();
 
-  std::cout << "[ROUTE DEBUG] Processing route: " << info.baseName.toStdString() << std::endl;
+  std::cout << "[ROUTE DEBUG] Processing route: " << originalName.toStdString() << std::endl;
 
   // Extract base route name (remove segment suffix)
-  QString baseRouteName = info.baseName;
+  QString baseRouteName = originalName;
   QRegExp segmentRegex("--\\d+$");
   if (segmentRegex.indexIn(baseRouteName) != -1) {
     baseRouteName = baseRouteName.left(segmentRegex.pos());
   }
 
-  std::cout << "[ROUTE DEBUG] Original name: " << info.baseName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
+  info.baseName = baseRouteName;
+
+  std::cout << "[ROUTE DEBUG] Original name: " << originalName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
 
   // Use directory modification time as the route timestamp
   QDateTime routeDateTime = routeFileInfo.lastModified();
@@ -1084,8 +1100,8 @@ void BPRoutesPanel::initializeThumbnail(QLabel *thumbnailLabel, const QString &r
       watcher->deleteLater();
     });
 
-    // Use FFmpeg for thumbnail generation for now
-    QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnail, routeBase);
+    // Use auto thumbnail generation (hardware on QCOM, software fallback)
+    QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnailAuto, routeBase);
     watcher->setFuture(future);
   }
 }
@@ -1098,10 +1114,19 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
     return thumbnailPath;
   }
 
-  // Find the correct segment directory (using old working approach)
-  // routeBase should be like "0000009b--d7712fe77a" (base route name)
+  // Find the correct segment directory
+  // routeBase might be like "0000009b--d7712fe77a--0" or "0000009b--d7712fe77a"
+  QString baseRouteSearch = routeBase;
+  if (routeBase.contains("--") && routeBase.count("--") >= 2) {
+    // Extract the base route name (remove the last --N part)
+    QStringList parts = routeBase.split("--");
+    if (parts.size() >= 3) {
+      baseRouteSearch = parts[0] + "--" + parts[1];
+    }
+  }
+
   QDir dir(getRoutesDir());
-  QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(routeBase), QDir::Dirs | QDir::NoDotAndDotDot);
+  QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(baseRouteSearch), QDir::Dirs | QDir::NoDotAndDotDot);
   if (segments.isEmpty()) {
     std::cout << "[THUMBNAIL DEBUG] No segment found for route: " << routeBase.toStdString() << std::endl;
     return QString();
@@ -1163,9 +1188,193 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
 }
 
 QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
-  // Hardware thumbnail generation disabled - using FFmpeg for all platforms
-  std::cout << "[THUMBNAIL DEBUG] Hardware decoder disabled, using FFmpeg fallback" << std::endl;
-  return QString();
+  QString thumbnailPath = getThumbnailPath(routeBase);
+
+  // Check if thumbnail already exists
+  if (QFile::exists(thumbnailPath)) {
+    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail already exists: " << thumbnailPath.toStdString() << std::endl;
+    return thumbnailPath;
+  }
+
+  // Find the correct segment directory
+  // routeBase might be like "0000009b--d7712fe77a--0" or "0000009b--d7712fe77a"
+  QString baseRouteSearch = routeBase;
+  if (routeBase.contains("--") && routeBase.count("--") >= 2) {
+    // Extract the base route name (remove the last --N part)
+    QStringList parts = routeBase.split("--");
+    if (parts.size() >= 3) {
+      baseRouteSearch = parts[0] + "--" + parts[1];
+    }
+  }
+
+  QDir dir(getRoutesDir());
+  QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(baseRouteSearch), QDir::Dirs | QDir::NoDotAndDotDot);
+  if (segments.isEmpty()) {
+    std::cout << "[THUMBNAIL DEBUG] No segment found for route: " << routeBase.toStdString() << std::endl;
+    return QString();
+  }
+
+  QString inputVideo = getRoutesDir() + "/" + segments.first() + "/fcamera.hevc";
+  if (!QFile::exists(inputVideo)) {
+    std::cout << "[THUMBNAIL DEBUG] Video file not found: " << inputVideo.toStdString() << std::endl;
+    return QString();
+  }
+
+  std::cout << "[THUMBNAIL DEBUG] Using hardware decoder for: " << inputVideo.toStdString() << std::endl;
+
+  // Create thumbnail directory
+  QDir().mkpath(QFileInfo(thumbnailPath).absolutePath());
+
+  try {
+    // Use the new QCOM hardware decoder
+    FrameReader frameReader;
+    std::atomic<bool> abort{false};
+
+    if (!frameReader.load(RoadCam, inputVideo.toStdString(), false, &abort)) {
+      std::cout << "[THUMBNAIL DEBUG] Failed to load video with hardware decoder, falling back to FFmpeg" << std::endl;
+      return generateThumbnail(routeBase); // Fallback to software FFmpeg
+    }
+
+    if (frameReader.getFrameCount() == 0) {
+      std::cout << "[THUMBNAIL DEBUG] No frames found in video" << std::endl;
+      return QString();
+    }
+
+    // Create VisionBuf for decoded frame
+    VisionBuf thumbnail_buf = {};
+    size_t frame_size = frameReader.width * frameReader.height * 3 / 2; // YUV420 format
+    thumbnail_buf.allocate(frame_size);
+    thumbnail_buf.init_yuv(frameReader.width, frameReader.height, frameReader.width, frameReader.width * frameReader.height);
+
+    // Decode the first frame (index 0) for thumbnail
+    if (!frameReader.get(0, &thumbnail_buf)) {
+      std::cout << "[THUMBNAIL DEBUG] Failed to decode first frame" << std::endl;
+      thumbnail_buf.free();
+      return QString();
+    }
+
+    // Convert YUV420/NV12 to RGB and save as JPEG
+    if (saveYUVasJPEG(&thumbnail_buf, thumbnailPath, frameReader.width, frameReader.height)) {
+      std::cout << "[THUMBNAIL DEBUG] Successfully generated hardware thumbnail: " << thumbnailPath.toStdString() << std::endl;
+      thumbnail_buf.free();
+      return thumbnailPath;
+    } else {
+      std::cout << "[THUMBNAIL DEBUG] Failed to save thumbnail image" << std::endl;
+      thumbnail_buf.free();
+      return QString();
+    }
+
+  } catch (const std::exception& e) {
+    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail generation failed: " << e.what() << std::endl;
+    return generateThumbnail(routeBase); // Fallback to software FFmpeg
+  } catch (...) {
+    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail generation failed with unknown error" << std::endl;
+    return generateThumbnail(routeBase); // Fallback to software FFmpeg
+  }
+}
+
+QString BPRoutesPanel::generateThumbnailAuto(const QString &routeBase) {
+  // Check if thumbnail already exists
+  QString thumbnailPath = getThumbnailPath(routeBase);
+  if (QFile::exists(thumbnailPath)) {
+    return thumbnailPath;
+  }
+
+  // For now, use FFmpeg directly as it's more reliable
+  // Hardware decoding can be re-enabled once V4L2 issues are resolved
+  /*
+#ifndef __APPLE__
+  // On QCOM devices, try hardware decoding first
+  if (isCommaDevice()) {
+    std::cout << "[THUMBNAIL DEBUG] Attempting hardware thumbnail generation for: " << routeBase.toStdString() << std::endl;
+    QString hardwareResult = generateThumbnailHardware(routeBase);
+    if (!hardwareResult.isEmpty()) {
+      return hardwareResult;
+    }
+    std::cout << "[THUMBNAIL DEBUG] Hardware generation failed, falling back to software" << std::endl;
+  }
+#endif
+  */
+
+  // Use software FFmpeg generation (more reliable)
+  std::cout << "[THUMBNAIL DEBUG] Using software FFmpeg thumbnail generation for: " << routeBase.toStdString() << std::endl;
+  return generateThumbnail(routeBase);
+}
+
+bool BPRoutesPanel::saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int width, int height) {
+  if (!buf || !buf->y || !buf->uv) {
+    std::cout << "[THUMBNAIL DEBUG] Invalid VisionBuf for JPEG conversion" << std::endl;
+    return false;
+  }
+
+  // Scale down to thumbnail size
+  int thumb_width = THUMBNAIL_WIDTH;
+  int thumb_height = THUMBNAIL_HEIGHT;
+
+  // Create RGB buffer for libyuv conversion
+  std::vector<uint8_t> rgb_buffer(thumb_width * thumb_height * 3);
+
+  // Convert NV12 to ARGB with scaling using libyuv
+  std::vector<uint8_t> argb_buffer(thumb_width * thumb_height * 4);
+
+  // First convert NV12 to ARGB
+  int result1 = libyuv::NV12ToARGB(
+    buf->y, buf->stride,           // Y plane
+    buf->uv, buf->stride,          // UV plane (interleaved)
+    argb_buffer.data(), thumb_width * 4,  // ARGB output
+    width, height                  // Source dimensions
+  );
+
+  if (result1 != 0) {
+    std::cout << "[THUMBNAIL DEBUG] Failed to convert NV12 to ARGB, result: " << result1 << std::endl;
+    return false;
+  }
+
+  // Scale if needed
+  if (width != thumb_width || height != thumb_height) {
+    std::vector<uint8_t> scaled_argb(thumb_width * thumb_height * 4);
+    int result2 = libyuv::ARGBScale(
+      argb_buffer.data(), width * 4,
+      width, height,
+      scaled_argb.data(), thumb_width * 4,
+      thumb_width, thumb_height,
+      libyuv::kFilterBilinear
+    );
+
+    if (result2 != 0) {
+      std::cout << "[THUMBNAIL DEBUG] Failed to scale ARGB, result: " << result2 << std::endl;
+      return false;
+    }
+    argb_buffer = std::move(scaled_argb);
+  }
+
+  // Convert ARGB to RGB for QImage
+  rgb_buffer.resize(thumb_width * thumb_height * 3);
+  for (int i = 0; i < thumb_width * thumb_height; i++) {
+    rgb_buffer[i * 3 + 0] = argb_buffer[i * 4 + 2]; // R
+    rgb_buffer[i * 3 + 1] = argb_buffer[i * 4 + 1]; // G
+    rgb_buffer[i * 3 + 2] = argb_buffer[i * 4 + 0]; // B
+  }
+
+
+  // Create QImage from RGB data
+  QImage image(rgb_buffer.data(), thumb_width, thumb_height, thumb_width * 3, QImage::Format_RGB888);
+
+  if (image.isNull()) {
+    std::cout << "[THUMBNAIL DEBUG] Failed to create QImage from RGB data" << std::endl;
+    return false;
+  }
+
+  // Save as JPEG with quality 85
+  bool saved = image.save(outputPath, "JPEG", 85);
+  if (!saved) {
+    std::cout << "[THUMBNAIL DEBUG] Failed to save JPEG image to: " << outputPath.toStdString() << std::endl;
+    return false;
+  }
+
+  std::cout << "[THUMBNAIL DEBUG] Saved JPEG thumbnail: " << outputPath.toStdString()
+            << " (" << thumb_width << "x" << thumb_height << ")" << std::endl;
+  return true;
 }
 
 QString BPRoutesPanel::getThumbnailPath(const QString &routeBase) {
@@ -1294,8 +1503,8 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
       });
     });
 
-    // Use FFmpeg for thumbnail generation
-    QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnail, route.baseName);
+    // Use auto thumbnail generation (hardware on QCOM, software fallback)
+    QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnailAuto, route.baseName);
     watcher->setFuture(future);
 
     std::cout << "[THUMBNAIL DEBUG] Started generation for: " << route.baseName.toStdString() << std::endl;

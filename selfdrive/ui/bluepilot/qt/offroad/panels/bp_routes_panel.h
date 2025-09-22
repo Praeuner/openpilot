@@ -12,6 +12,13 @@
 #include <QTimer>
 #include <QUrl>
 
+// Standard Library
+#include <functional>
+#include <memory>
+
+// Forward declarations
+class FrameReader;
+
 // Qt Concurrent
 #include <QtConcurrent>
 
@@ -48,9 +55,13 @@
 #include "bp_panel_dialogs.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
-#include "system/loggerd/decoder/decoder.h"
-#include "system/loggerd/decoder/v4l_decoder.h"
-#include "system/loggerd/decoder/ffmpeg_decoder.h"
+
+// Video types
+#include "bp_video_types.h"
+
+// Forward declarations for video decoder types
+class VideoDecoder;
+class VisionBuf;
 
 class BPRoutesPanel : public QWidget {
   Q_OBJECT
@@ -165,6 +176,8 @@ private:
   QSet<QString> permanentlyFailedRoutes;  // Track routes without video files
   QString generateThumbnail(const QString &routeBase);
   QString generateThumbnailHardware(const QString &routeBase);  // Hardware-accelerated version
+  QString generateThumbnailAuto(const QString &routeBase);      // Auto-select hardware/software
+  bool saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int width, int height);
   void generateAllMissingThumbnails(); // Generate all missing thumbnails at once
   void cleanupThumbnail(const QString &routeBase);
   void cleanupThumbnailCache();
@@ -338,7 +351,7 @@ private:
   void loadVideoSegments();
   void loadThumbnail();
   void playCurrentSegment();
-  void feedVideoToDecoder(const QString &videoPath, bool isH265);  // NEW METHOD ADDED
+  void playbackVideoFrames();
   void onFrameDecoded(const DecodedFrame &frame);
   void updateCameraButtonStates();
   QString getVideoPath(const QString &cameraType, int segment);
@@ -348,7 +361,7 @@ private:
   BPRoutesPanel::RouteInfo routeInfo;
 
   // Video playback
-  std::unique_ptr<VideoDecoder> decoder;
+  std::unique_ptr<FrameReader> frameReader;
   QStringList currentPlaylist;
   QString currentCameraType = "front";
   int currentSegment = 0;
