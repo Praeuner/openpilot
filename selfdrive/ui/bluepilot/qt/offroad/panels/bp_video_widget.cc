@@ -20,10 +20,10 @@ void main() {
 }
 )";
 
-// Fragment shader for NV12 YUV to RGB conversion (OpenGL ES 3.2)
+// Fixed fragment shader with proper YUV to RGB conversion
 static const char* fragment_shader_source = R"(
 #version 320 es
-precision mediump float;
+precision highp float;
 in vec2 vTexCoord;
 out vec4 FragColor;
 
@@ -32,17 +32,14 @@ uniform sampler2D uUVTexture;
 
 void main() {
     float y = texture(uYTexture, vTexCoord).r;
-    vec2 uv = texture(uUVTexture, vTexCoord).rg;
-
-    // Convert YUV to RGB using BT.709
-    float u = uv.r;
-    float v = uv.g;
-
-    float r = y + 1.402 * (v - 0.5);
-    float g = y - 0.344 * (u - 0.5) - 0.714 * (v - 0.5);
-    float b = y + 1.772 * (u - 0.5);
-
-    FragColor = vec4(r, g, b, 1.0);
+    vec2 uv = texture(uUVTexture, vTexCoord).rg - vec2(0.5, 0.5);
+    
+    // BT.601 YUV to RGB conversion (more compatible)
+    float r = y + 1.370705 * uv.g;
+    float g = y - 0.337633 * uv.r - 0.698001 * uv.g;  
+    float b = y + 1.732446 * uv.r;
+    
+    FragColor = vec4(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), 1.0);
 }
 )";
 
@@ -192,17 +189,26 @@ void BPVideoWidget::updateTextures(VisionBuf* buf, int width, int height) {
                  << "UV addr:" << (void*)buf->uv;
     }
 
-    // Update Y texture (luminance)
+    // Handle stride properly for aligned memory access
+    // CRITICAL: Use GL_UNPACK_ROW_LENGTH to handle stride correctly
+    
+    // Update Y texture (luminance) 
     glBindTexture(GL_TEXTURE_2D, y_texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, buf->stride); // Tell OpenGL about the actual stride
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, buf->y);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); // Reset to default
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Update UV texture (chroma) - NV12 format has interleaved U and V
+    // Update UV texture (chroma) - NV12 has interleaved UV 
     glBindTexture(GL_TEXTURE_2D, uv_texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, buf->stride / 2); // UV plane has same stride but half the pixel width
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width/2, height/2, 0, GL_RG, GL_UNSIGNED_BYTE, buf->uv);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); // Reset to default
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
