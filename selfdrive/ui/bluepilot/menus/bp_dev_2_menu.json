@@ -386,7 +386,12 @@
               "conditions": {
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
-                  { "git_branch": [] }
+                  { "git_branch": [] },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
+                    }
+                  }
                 ]
               }
             },
@@ -399,7 +404,12 @@
               "conditions": {
                 "allConditionsTrue": [
                   { "git_remote": ["any"] },
-                  { "git_branch": [] }
+                  { "git_branch": [] },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
+                    }
+                  }
                 ]
               }
             },
@@ -420,6 +430,11 @@
                   {
                     "paramValueEquals": {
                       "FordLatTuningTuningCustomProfile": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
                     }
                   }
                 ]
@@ -443,6 +458,11 @@
                     "paramValueEquals": {
                       "FordLatTuningTuningCustomProfile": "1"
                     }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
+                    }
                   }
                 ]
               }
@@ -454,8 +474,15 @@
               "desc": "Allows custom lane positioning and lanefull.",
               "hidden": false,
               "conditions": {
-                "git_remote": ["any"],
-                "git_branch": []
+                "allConditionsTrue": [
+                  { "git_remote": ["any"] },
+                  { "git_branch": [] },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
+                    }
+                  }
+                ]
               }
             },
             {
@@ -476,6 +503,11 @@
                     "paramValueEquals": {
                       "FordLatTuningEnableLanePositioning": "1"
                     }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
+                    }
                   }
                 ]
               }
@@ -493,6 +525,11 @@
                   {
                     "paramValueEquals": {
                       "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
                     }
                   }
                 ]
@@ -520,6 +557,11 @@
                   {
                     "paramValueEquals": {
                       "FordLatTuningEnableLanePositioning": "1"
+                    }
+                  },
+                  {
+                    "paramValueEquals": {
+                      "FordPrefDisableBP_lat_UI": "0"
                     }
                   }
                 ]
