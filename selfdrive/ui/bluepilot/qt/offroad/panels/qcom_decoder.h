@@ -1,18 +1,15 @@
 #pragma once
 
-#include <cstddef>  // for size_t
-#include <cstdint>  // for uint64_t
+#ifndef __APPLE__
+#include <linux/videodev2.h>
+#include <poll.h>
+
 #include "msgq/visionipc/visionbuf.h"
 
 extern "C" {
   #include <libavcodec/avcodec.h>
   #include <libavformat/avformat.h>
 }
-
-#ifndef __APPLE__  // QCOM decoder is only for Linux/Android
-
-#include <linux/videodev2.h>
-#include <poll.h>
 
 #define V4L2_EVENT_MSM_VIDC_START (V4L2_EVENT_PRIVATE_START + 0x00001000)
 #define V4L2_EVENT_MSM_VIDC_FLUSH_DONE (V4L2_EVENT_MSM_VIDC_START + 1)
@@ -23,10 +20,7 @@ extern "C" {
 #define V4L2_QCOM_CMD_FLUSH_CAPTURE (1 << 1)
 #define V4L2_QCOM_CMD_FLUSH (4)
 
-// Try multiple video devices for QCOM decoder
-// /dev/video32 is usually the decoder, /dev/video33 might also work
 #define VIDEO_DEVICE "/dev/video32"
-#define VIDEO_DEVICE_ALT "/dev/video33"
 #define OUTPUT_BUFFER_COUNT 	8
 #define CAPTURE_BUFFER_COUNT 	8
 #define FPS 									20
@@ -94,13 +88,4 @@ private:
   bool handleEvent();
 };
 
-#else  // __APPLE__
-
-// Stub class for Mac builds
-class MsmVidc {
-public:
-  bool init(const char* dev, size_t width, size_t height, uint64_t codec) { return false; }
-  VisionBuf* decodeFrame(AVPacket* pkt, VisionBuf* buf) { return nullptr; }
-};
-
-#endif  // !__APPLE__
+#endif

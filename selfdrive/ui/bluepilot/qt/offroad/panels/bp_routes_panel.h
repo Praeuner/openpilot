@@ -331,6 +331,7 @@ public:
 protected:
   void keyPressEvent(QKeyEvent *event) override;
   void showEvent(QShowEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
 
 private slots:
   void togglePlayback();
@@ -347,12 +348,14 @@ private:
   void setupUI();
   void setupVideoDisplay();
   void setupCameraPanel();
-  void setupControls();
+  void setupOverlayControls();
+  QString buttonStyle(const QString &size);
+  void updateOverlayPosition();
   void loadVideoSegments();
   void loadThumbnail();
   void playCurrentSegment();
   void playbackVideoFrames();
-  void onFrameDecoded(const DecodedFrame &frame);
+  void onFrameDecoded(const DecodedFrame &frame, const VisionBuf *buf);
   void updateCameraButtonStates();
   QString getVideoPath(const QString &cameraType, int segment);
 
@@ -374,7 +377,7 @@ private:
 
   // UI Components
   QWidget *videoContainer;
-  QLabel *videoDisplay;
+  class BPVideoWidget *videoDisplay;
   QWidget *cameraPanel;
   QWidget *controlsWidget;
   QLabel *routeTitle;

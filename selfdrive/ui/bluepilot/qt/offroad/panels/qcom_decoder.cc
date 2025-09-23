@@ -1,6 +1,5 @@
+#ifndef __APPLE__
 #include "qcom_decoder.h"
-
-#ifndef __APPLE__  // QCOM decoder is only for Linux/Android
 
 #include <assert.h>
 #include "third_party/linux/include/v4l2-controls.h"
@@ -29,6 +28,10 @@ static void request_buffers(int fd, v4l2_buf_type buf_type, unsigned int count) 
 
 MsmVidc::~MsmVidc() {
   if (fd > 0) {
+    v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+    util::safe_ioctl(fd, VIDIOC_STREAMOFF, &out_type, "VIDIOC_STREAMOFF OUTPUT failed");
+    v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+    util::safe_ioctl(fd, VIDIOC_STREAMOFF, &cap_type, "VIDIOC_STREAMOFF CAPTURE failed");
     close(fd);
   }
 }
@@ -73,6 +76,9 @@ VisionBuf* MsmVidc::decodeFrame(AVPacket *pkt, VisionBuf *buf) {
     }
 
     if (poll(pfd, nfds, -1) < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
       LOGE("poll() error: %d", errno);
       return nullptr;
     }
@@ -239,7 +245,7 @@ bool MsmVidc::queueOutputBuffer(int i, size_t size) {
   buf.m.planes            = planes;
   buf.length              = 1;
   // decoded frame plane
-  planes[0].m.userptr     = (unsigned long)this->out_buf_off[i]; // check this
+  planes[0].m.userptr     = (unsigned long)this->out_buf_off[i];
   planes[0].length        = this->out_buf_size;
   planes[0].reserved[0]   = this->out_buf.fd; // ION fd
   planes[0].reserved[1]   = 0;
@@ -346,4 +352,4 @@ bool MsmVidc::handleEvent() {
   return true;
 }
 
-#endif  // !__APPLE__
+#endif

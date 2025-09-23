@@ -48,7 +48,7 @@ QString BPRoutesPanel::getRoutesDir() const {
 BPRoutesPanel::BPRoutesPanel(QWidget *parent) : QWidget(parent), isLoading(false) {
   setObjectName("routesPanel");
 
-  std::cout << "[ROUTE DEBUG] BPRoutesPanel constructor called" << std::endl;
+  // std::cout << "[ROUTE DEBUG] BPRoutesPanel constructor called" << std::endl;
 
   // Set size constraints
   setMinimumWidth(1000);
@@ -219,7 +219,7 @@ void BPRoutesPanel::hideEvent(QHideEvent *event) {
 }
 
 void BPRoutesPanel::loadRoutes() {
-  std::cout << "[ROUTE DEBUG] loadRoutes() called" << std::endl;
+  // std::cout << "[ROUTE DEBUG] loadRoutes() called" << std::endl;
   if (isLoading) return;
 
   // Safety check: Don't load routes while onroad
@@ -250,7 +250,7 @@ void BPRoutesPanel::loadRoutes() {
 
   // If cache is loaded and valid, and no routes need refreshing, use cache
   if (cacheLoaded && routeCache.isValid() && !shouldRefreshRoutes() && !routeCache.routeInfoCache.isEmpty()) {
-    std::cout << "[ROUTE DEBUG] Loading routes from valid cache" << std::endl;
+    // std::cout << "[ROUTE DEBUG] Loading routes from valid cache" << std::endl;
 
     // Convert cached data to routes vector
     QVector<RouteInfo> cachedRoutes;
@@ -276,13 +276,13 @@ void BPRoutesPanel::loadRoutes() {
   }
 
   // Cache not available or needs updating - load incrementally
-  std::cout << "[ROUTE DEBUG] Loading routes incrementally (cache loaded: " << (cacheLoaded ? "yes" : "no") << ")" << std::endl;
+  // std::cout << "[ROUTE DEBUG] Loading routes incrementally (cache loaded: " << (cacheLoaded ? "yes" : "no") << ")" << std::endl;
 
   QtConcurrent::run([this]() {
     QDir routesDir(getRoutesDir());
     QStringList routeDirectories = routesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time | QDir::Reversed);
 
-    std::cout << "[ROUTE DEBUG] Found " << routeDirectories.size() << " total directories in " << getRoutesDir().toStdString() << std::endl;
+    // std::cout << "[ROUTE DEBUG] Found " << routeDirectories.size() << " total directories in " << getRoutesDir().toStdString() << std::endl;
 
     QVector<RouteInfo> newRoutes;
     QHash<QString, RouteInfo> baseRouteMap; // Map to store the latest segment for each base route
@@ -311,7 +311,7 @@ void BPRoutesPanel::loadRoutes() {
       }
       processedRoutes.insert(baseRouteName);
 
-      std::cout << "[ROUTE DEBUG] Processing directory: " << routeDir.toStdString() << " Base: " << baseRouteName.toStdString() << std::endl;
+      // std::cout << "[ROUTE DEBUG] Processing directory: " << routeDir.toStdString() << " Base: " << baseRouteName.toStdString() << std::endl;
 
       // Check if we have valid cached data for this route
       bool useCache = routeCache.isValid() && routeCache.routeInfoCache.contains(baseRouteName);
@@ -319,11 +319,11 @@ void BPRoutesPanel::loadRoutes() {
         // Check if the route on disk is newer than cache
         QFileInfo routeInfo(routePath);
         if (routeInfo.lastModified() <= routeCache.lastUpdated) {
-          std::cout << "[ROUTE DEBUG] Using cached info for route: " << baseRouteName.toStdString() << std::endl;
+          // std::cout << "[ROUTE DEBUG] Using cached info for route: " << baseRouteName.toStdString() << std::endl;
           baseRouteMap[baseRouteName] = routeCache.routeInfoCache[baseRouteName];
           continue;
         } else {
-          std::cout << "[ROUTE DEBUG] Route modified, reprocessing: " << baseRouteName.toStdString() << std::endl;
+          // std::cout << "[ROUTE DEBUG] Route modified, reprocessing: " << baseRouteName.toStdString() << std::endl;
         }
       }
 
@@ -355,7 +355,7 @@ void BPRoutesPanel::loadRoutes() {
       newRoutes.append(info);
     }
 
-    std::cout << "[ROUTE DEBUG] Final route count: " << newRoutes.size() << std::endl;
+    // std::cout << "[ROUTE DEBUG] Final route count: " << newRoutes.size() << std::endl;
 
     // Sort by date/time (newest first)
     std::sort(newRoutes.begin(), newRoutes.end(), [](const RouteInfo &a, const RouteInfo &b) {
@@ -478,7 +478,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   thumbnail->setScaledContents(true);
 
   // Set placeholder text with better styling
-  thumbnail->setText("🎬");
+  thumbnail->setText("ðŸŽ¬");
   thumbnail->setStyleSheet(thumbnail->styleSheet() + "color: #666; font-size: 80px;");
 
   // Initialize thumbnail loading - extract base route name for thumbnail generation
@@ -515,15 +515,15 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   QHBoxLayout *middleRow = new QHBoxLayout;
   middleRow->setSpacing(25);
 
-  QLabel *durationLabel = new QLabel(QString("⏱ %1").arg(route.duration));
+  QLabel *durationLabel = new QLabel(QString("â± %1").arg(route.duration));
   durationLabel->setStyleSheet("font-size: 36px; color: #2196F3; font-weight: 500;");
   middleRow->addWidget(durationLabel);
 
-  QLabel *segmentsLabel = new QLabel(QString("📦 %1 segments").arg(route.segments));
+  QLabel *segmentsLabel = new QLabel(QString("ðŸ“¦ %1 segments").arg(route.segments));
   segmentsLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(segmentsLabel);
 
-  QLabel *sizeLabel = new QLabel(QString("💾 %1").arg(route.size));
+  QLabel *sizeLabel = new QLabel(QString("ðŸ’¾ %1").arg(route.size));
   sizeLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(sizeLabel);
 
@@ -617,7 +617,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   // Star button
   QPushButton *starButton = new QPushButton;
   starButton->setFixedSize(70, 70);
-  starButton->setText(route.isStarred ? "★" : "☆");
+  starButton->setText(route.isStarred ? "â˜…" : "â˜†");
   starButton->setObjectName("starButton");
   starButton->setStyleSheet(R"(
     QPushButton {
@@ -741,7 +741,7 @@ void BPRoutesPanel::handleRouteStarToggle(const QString &route) {
     if (widget->property("routeBase").toString() == route) {
       QPushButton *starButton = widget->findChild<QPushButton*>("starButton");
       if (starButton) {
-        starButton->setText(!currentlyStarred ? "★" : "☆");
+        starButton->setText(!currentlyStarred ? "â˜…" : "â˜†");
       }
       break;
     }
@@ -754,7 +754,7 @@ void BPRoutesPanel::updateStats() {
     totalSize += QStringToSize(route.size);
   }
 
-  QString statsText = QString("%1 routes • %2").arg(routes.size()).arg(formatSize(totalSize));
+  QString statsText = QString("%1 routes â€¢ %2").arg(routes.size()).arg(formatSize(totalSize));
   statsLabel->setText(statsText);
 }
 
@@ -807,7 +807,7 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   QFileInfo routeFileInfo(routePath);
   QString originalName = routeFileInfo.fileName();
 
-  std::cout << "[ROUTE DEBUG] Processing route: " << originalName.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Processing route: " << originalName.toStdString() << std::endl;
 
   // Extract base route name (remove segment suffix)
   QString baseRouteName = originalName;
@@ -818,7 +818,7 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
 
   info.baseName = baseRouteName;
 
-  std::cout << "[ROUTE DEBUG] Original name: " << originalName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Original name: " << originalName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
 
   // Use directory modification time as the route timestamp
   QDateTime routeDateTime = routeFileInfo.lastModified();
@@ -827,19 +827,51 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   info.displayDate = formatDisplayDate(routeDateTime);
   info.elapsedTime = formatElapsedTime(routeDateTime);
 
-  std::cout << "[ROUTE DEBUG] DateTime: " << routeDateTime.toString().toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] Timestamp: " << info.timestamp.toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] DisplayDate: " << info.displayDate.toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] ElapsedTime: " << info.elapsedTime.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] DateTime: " << routeDateTime.toString().toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Timestamp: " << info.timestamp.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] DisplayDate: " << info.displayDate.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] ElapsedTime: " << info.elapsedTime.toStdString() << std::endl;
 
-  // Check for video files in this specific segment
+  // Check for video files in segment directories
   QDir routeDir(routePath);
 
-  // Specific video type detection
-  info.hasFrontHQVideo = QFile::exists(routeDir.absoluteFilePath("fcamera.hevc"));
-  info.hasFrontLQVideo = QFile::exists(routeDir.absoluteFilePath("qcamera.ts"));
-  info.hasDriverHQVideo = QFile::exists(routeDir.absoluteFilePath("dcamera.hevc"));
-  info.hasWideVideo = QFile::exists(routeDir.absoluteFilePath("ecamera.hevc"));
+  // Initialize video flags
+  info.hasFrontHQVideo = false;
+  info.hasFrontLQVideo = false;
+  info.hasDriverHQVideo = false;
+  info.hasWideVideo = false;
+
+  // Get all segment directories for this base route
+  QStringList segmentFilter;
+  segmentFilter << baseRouteName + "--*";
+  QDir parentDir = routeDir;
+  parentDir.cdUp();
+  QStringList segmentDirs = parentDir.entryList(segmentFilter, QDir::Dirs);
+
+  // std::cout << "[ROUTE DEBUG] Found " << segmentDirs.size() << " segment directories for " << baseRouteName.toStdString() << std::endl;
+
+  // Check each segment directory for video files
+  for (const QString &segmentDir : segmentDirs) {
+    QString segmentPath = parentDir.absoluteFilePath(segmentDir);
+    QDir segment(segmentPath);
+
+    if (QFile::exists(segment.absoluteFilePath("fcamera.hevc"))) {
+      info.hasFrontHQVideo = true;
+      // std::cout << "[ROUTE DEBUG] Found fcamera.hevc in " << segmentDir.toStdString() << std::endl;
+    }
+    if (QFile::exists(segment.absoluteFilePath("qcamera.ts"))) {
+      info.hasFrontLQVideo = true;
+      // std::cout << "[ROUTE DEBUG] Found qcamera.ts in " << segmentDir.toStdString() << std::endl;
+    }
+    if (QFile::exists(segment.absoluteFilePath("dcamera.hevc"))) {
+      info.hasDriverHQVideo = true;
+      // std::cout << "[ROUTE DEBUG] Found dcamera.hevc in " << segmentDir.toStdString() << std::endl;
+    }
+    if (QFile::exists(segment.absoluteFilePath("ecamera.hevc"))) {
+      info.hasWideVideo = true;
+      // std::cout << "[ROUTE DEBUG] Found ecamera.hevc in " << segmentDir.toStdString() << std::endl;
+    }
+  }
 
   // Legacy flags for compatibility
   info.hasFrontVideo = info.hasFrontHQVideo || info.hasFrontLQVideo;
@@ -854,10 +886,6 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   // Check if starred
   info.isStarred = isRouteStarred(baseRouteName);
 
-  // Get file size of this segment
-  qint64 segmentSize = calculateDirSize(routePath);
-  info.size = formatSize(segmentSize);
-
   // Get segment count and duration for the entire route
   info.segments = getTotalSegments(baseRouteName);
   info.duration = getRouteDuration(baseRouteName);
@@ -866,20 +894,21 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   qint64 totalSize = 0;
   QDir routesDir(getRoutesDir());
   QStringList allSegments = routesDir.entryList(QStringList() << baseRouteName + "--*", QDir::Dirs | QDir::NoDotAndDotDot);
-  std::cout << "[ROUTE DEBUG] Found " << allSegments.size() << " segments for base route: " << baseRouteName.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] Found " << allSegments.size() << " segments for base route: " << baseRouteName.toStdString() << std::endl;
   for (const QString &segment : allSegments) {
     QString segmentPath = routesDir.absoluteFilePath(segment);
     totalSize += calculateDirSize(segmentPath);
   }
+  info.size = formatSize(totalSize);
 
-  std::cout << "[ROUTE DEBUG] Segment size: " << segmentSize << " bytes, Total size: " << totalSize << " bytes" << std::endl;
-  std::cout << "[ROUTE DEBUG] Segments: " << info.segments << std::endl;
-  std::cout << "[ROUTE DEBUG] Duration: " << info.duration.toStdString() << std::endl;
-  std::cout << "[ROUTE DEBUG] HasFrontHQVideo: " << (info.hasFrontHQVideo ? "true" : "false") << std::endl;
-  std::cout << "[ROUTE DEBUG] HasFrontLQVideo: " << (info.hasFrontLQVideo ? "true" : "false") << std::endl;
-  std::cout << "[ROUTE DEBUG] HasDriverHQVideo: " << (info.hasDriverHQVideo ? "true" : "false") << std::endl;
-  std::cout << "[ROUTE DEBUG] HasWideVideo: " << (info.hasWideVideo ? "true" : "false") << std::endl;
-  std::cout << "[ROUTE DEBUG] ==================" << std::endl;
+  // std::cout << "[ROUTE DEBUG] Total size: " << totalSize << " bytes" << std::endl;
+  // std::cout << "[ROUTE DEBUG] Segments: " << info.segments << std::endl;
+  // std::cout << "[ROUTE DEBUG] Duration: " << info.duration.toStdString() << std::endl;
+  // std::cout << "[ROUTE DEBUG] HasFrontHQVideo: " << (info.hasFrontHQVideo ? "true" : "false") << std::endl;
+  // std::cout << "[ROUTE DEBUG] HasFrontLQVideo: " << (info.hasFrontLQVideo ? "true" : "false") << std::endl;
+  // std::cout << "[ROUTE DEBUG] HasDriverHQVideo: " << (info.hasDriverHQVideo ? "true" : "false") << std::endl;
+  // std::cout << "[ROUTE DEBUG] HasWideVideo: " << (info.hasWideVideo ? "true" : "false") << std::endl;
+  // std::cout << "[ROUTE DEBUG] ==================" << std::endl;
 
   return info;
 }
@@ -1739,7 +1768,7 @@ void BPRoutesPanel::showOnroadMessage() {
     layout->setSpacing(40);
 
     // Icon
-    QLabel *iconLabel = new QLabel("🚗");
+    QLabel *iconLabel = new QLabel("ðŸš—");
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setStyleSheet("font-size: 120px;");
     layout->addWidget(iconLabel);
@@ -1785,11 +1814,11 @@ void BPRoutesPanel::clearOnroadMessage() {
 }
 
 void BPRoutesPanel::onOffroadTransition() {
-  std::cout << "[ROUTE DEBUG] Offroad transition detected" << std::endl;
+  // std::cout << "[ROUTE DEBUG] Offroad transition detected" << std::endl;
 
   if (uiState()->scene.started) {
     // Device went onroad - show safety message and clear routes
-    std::cout << "[ROUTE DEBUG] Device went onroad - disabling routes panel" << std::endl;
+    // std::cout << "[ROUTE DEBUG] Device went onroad - disabling routes panel" << std::endl;
     showOnroadMessage();
 
     // Close any open video dialogs for safety
@@ -1804,13 +1833,13 @@ void BPRoutesPanel::onOffroadTransition() {
     }
   } else {
     // Device went offroad - clear message and load routes only if panel is visible
-    std::cout << "[ROUTE DEBUG] Device went offroad - enabling routes panel" << std::endl;
+    // std::cout << "[ROUTE DEBUG] Device went offroad - enabling routes panel" << std::endl;
     clearOnroadMessage();
     if (routes.isEmpty() && isVisible()) {
-      std::cout << "[ROUTE DEBUG] Panel is visible - loading routes" << std::endl;
+      // std::cout << "[ROUTE DEBUG] Panel is visible - loading routes" << std::endl;
       loadRoutes();
     } else if (routes.isEmpty()) {
-      std::cout << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
+      // std::cout << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
     }
   }
 }

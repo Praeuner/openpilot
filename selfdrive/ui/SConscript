@@ -35,6 +35,7 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_routes_panel.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
   "bluepilot/qt/offroad/panels/bp_video_dialog.cc",
+  "bluepilot/qt/offroad/panels/bp_video_widget.cc",
   # New decoder infrastructure
   "bluepilot/qt/offroad/panels/bp_frame_reader.cc",
   "bluepilot/qt/offroad/panels/qcom_decoder.cc",

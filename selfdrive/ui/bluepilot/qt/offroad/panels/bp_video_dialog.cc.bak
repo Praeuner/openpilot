@@ -16,28 +16,29 @@
 #include <QButtonGroup>
 #include <QThread>
 #include <QtConcurrent>
+#include <iostream>
 #include <chrono>
 #include "third_party/libyuv/include/libyuv.h"
 
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
     : BPDialogBase(parent), routeBaseName(routeBase) {
 
-  qDebug() << "[VIDEO DEBUG] === BPRouteVideoDialog Constructor ===";
-  qDebug() << "[VIDEO DEBUG] Route: " << routeBase;
+  std::cout << "[VIDEO DEBUG] === BPRouteVideoDialog Constructor ===" << std::endl;
+  std::cout << "[VIDEO DEBUG] Route: " << routeBase.toStdString() << std::endl;
 
   setWindowTitle("Route Video Playback");
 
   // Load route info
   QString routePath = static_cast<BPRoutesPanel*>(parent)->getRoutesDir() + "/" + routeBase;
-  qDebug() << "[VIDEO DEBUG] Route path: " << routePath;
+  std::cout << "[VIDEO DEBUG] Route path: " << routePath.toStdString() << std::endl;
   routeInfo = static_cast<BPRoutesPanel*>(parent)->getRouteInfo(routePath);
 
-  qDebug() << "[VIDEO DEBUG] Route info - Segments: " << routeInfo.segments
+  std::cout << "[VIDEO DEBUG] Route info - Segments: " << routeInfo.segments
             << ", HasFrontHQ: " << routeInfo.hasFrontHQVideo
             << ", HasFrontLQ: " << routeInfo.hasFrontLQVideo
             << ", HasWide: " << routeInfo.hasWideVideo
             << ", HasDriverHQ: " << routeInfo.hasDriverHQVideo
-            << ", HasLQ: " << routeInfo.hasLQVideo;
+            << ", HasLQ: " << routeInfo.hasLQVideo << std::endl;
 
   // Initialize timers
   playbackTimer = new QTimer(this);
@@ -356,10 +357,10 @@ void BPRouteVideoDialog::setupCameraPanel() {
   )";
 
   // Only create and add buttons for available cameras
-  qDebug() << "[VIDEO DEBUG] === Camera Button Creation ===";
-  qDebug() << "[VIDEO DEBUG] Checking hasFrontHQVideo: " << (routeInfo.hasFrontHQVideo ? "true" : "false");
+  std::cout << "[VIDEO DEBUG] === Camera Button Creation ===" << std::endl;
+  std::cout << "[VIDEO DEBUG] Checking hasFrontHQVideo: " << (routeInfo.hasFrontHQVideo ? "true" : "false") << std::endl;
   if (routeInfo.hasFrontHQVideo) {
-    qDebug() << "[VIDEO DEBUG] Creating Front Camera button";
+    std::cout << "[VIDEO DEBUG] Creating Front Camera button" << std::endl;
     frontCamButton = new QPushButton("Front Camera");
     frontCamButton->setFixedHeight(90);
     frontCamButton->setCheckable(true);
@@ -367,14 +368,14 @@ void BPRouteVideoDialog::setupCameraPanel() {
     cameraGroup->addButton(frontCamButton);
     connect(frontCamButton, &QPushButton::clicked, [this]() { switchCamera("front"); });
     panelLayout->addWidget(frontCamButton);
-    qDebug() << "[VIDEO DEBUG] Front Camera button created and added";
+    std::cout << "[VIDEO DEBUG] Front Camera button created and added" << std::endl;
   } else {
-    qDebug() << "[VIDEO DEBUG] Skipping Front Camera button - no HQ video";
+    std::cout << "[VIDEO DEBUG] Skipping Front Camera button - no HQ video" << std::endl;
   }
 
-  qDebug() << "[VIDEO DEBUG] Checking hasWideVideo: " << (routeInfo.hasWideVideo ? "true" : "false");
+  std::cout << "[VIDEO DEBUG] Checking hasWideVideo: " << (routeInfo.hasWideVideo ? "true" : "false") << std::endl;
   if (routeInfo.hasWideVideo) {
-    qDebug() << "[VIDEO DEBUG] Creating Wide Camera button";
+    std::cout << "[VIDEO DEBUG] Creating Wide Camera button" << std::endl;
     wideCamButton = new QPushButton("Wide Camera");
     wideCamButton->setFixedHeight(90);
     wideCamButton->setCheckable(true);
@@ -382,9 +383,9 @@ void BPRouteVideoDialog::setupCameraPanel() {
     cameraGroup->addButton(wideCamButton);
     connect(wideCamButton, &QPushButton::clicked, [this]() { switchCamera("wide"); });
     panelLayout->addWidget(wideCamButton);
-    qDebug() << "[VIDEO DEBUG] Wide Camera button created and added";
+    std::cout << "[VIDEO DEBUG] Wide Camera button created and added" << std::endl;
   } else {
-    qDebug() << "[VIDEO DEBUG] Skipping Wide Camera button - no wide video";
+    std::cout << "[VIDEO DEBUG] Skipping Wide Camera button - no wide video" << std::endl;
   }
 
   if (routeInfo.hasDriverHQVideo) {
@@ -411,22 +412,22 @@ void BPRouteVideoDialog::setupCameraPanel() {
   if (routeInfo.hasFrontHQVideo && frontCamButton) {
     frontCamButton->setChecked(true);
     currentCameraType = "front";
-    qDebug() << "[VIDEO DEBUG] Set default camera to front";
+    std::cout << "[VIDEO DEBUG] Set default camera to front" << std::endl;
   } else if (routeInfo.hasWideVideo && wideCamButton) {
     wideCamButton->setChecked(true);
     currentCameraType = "wide";
-    qDebug() << "[VIDEO DEBUG] Set default camera to wide";
+    std::cout << "[VIDEO DEBUG] Set default camera to wide" << std::endl;
   } else if (routeInfo.hasDriverHQVideo && driverCamButton) {
     driverCamButton->setChecked(true);
     currentCameraType = "driver";
-    qDebug() << "[VIDEO DEBUG] Set default camera to driver";
+    std::cout << "[VIDEO DEBUG] Set default camera to driver" << std::endl;
   } else if (routeInfo.hasLQVideo && lqCamButton) {
     lqCamButton->setChecked(true);
     currentCameraType = "lq";
-    qDebug() << "[VIDEO DEBUG] Set default camera to lq";
+    std::cout << "[VIDEO DEBUG] Set default camera to lq" << std::endl;
   }
 
-  qDebug() << "[VIDEO DEBUG] Final camera selection: " << currentCameraType;
+  std::cout << "[VIDEO DEBUG] Final camera selection: " << currentCameraType.toStdString() << std::endl;
 
   panelLayout->addStretch();
 
@@ -464,13 +465,13 @@ void BPRouteVideoDialog::setupCameraPanel() {
 }
 
 void BPRouteVideoDialog::loadVideoSegments() {
-  qDebug() << "[VIDEO DEBUG] Loading video segments for camera: " << currentCameraType;
+  std::cout << "[VIDEO DEBUG] Loading video segments for camera: " << currentCameraType.toStdString() << std::endl;
   currentPlaylist.clear();
 
   // Build playlist for current camera
   BPRoutesPanel *parent = static_cast<BPRoutesPanel*>(this->parent());
   QString routesDir = parent->getRoutesDir();
-  qDebug() << "[VIDEO DEBUG] Routes directory: " << routesDir;
+  std::cout << "[VIDEO DEBUG] Routes directory: " << routesDir.toStdString() << std::endl;
 
   // Find all segment directories for this route
   QDir dir(routesDir);
@@ -478,42 +479,42 @@ void BPRouteVideoDialog::loadVideoSegments() {
   segmentFilter << routeBaseName + "--*";
   QStringList segmentDirs = dir.entryList(segmentFilter, QDir::Dirs, QDir::Name);
 
-  qDebug() << "[VIDEO DEBUG] Found " << segmentDirs.size() << " segment directories for route " << routeBaseName;
+  std::cout << "[VIDEO DEBUG] Found " << segmentDirs.size() << " segment directories for route " << routeBaseName.toStdString() << std::endl;
 
   // Build ordered playlist by scanning each segment
   for (int i = 0; i < segmentDirs.size(); ++i) {
     QString videoPath = getVideoPath(currentCameraType, i);
-    qDebug() << "[VIDEO DEBUG] Checking segment " << i << " video path: " << videoPath;
+    std::cout << "[VIDEO DEBUG] Checking segment " << i << " video path: " << videoPath.toStdString() << std::endl;
 
     if (QFile::exists(videoPath)) {
       currentPlaylist.append(videoPath);
-      qDebug() << "[VIDEO DEBUG] Added segment " << i << " to playlist: " << videoPath;
+      std::cout << "[VIDEO DEBUG] Added segment " << i << " to playlist: " << videoPath.toStdString() << std::endl;
     } else {
-      qDebug() << "[VIDEO DEBUG] Video file not found for segment " << i << ": " << videoPath;
+      std::cout << "[VIDEO DEBUG] Video file not found for segment " << i << ": " << videoPath.toStdString() << std::endl;
     }
   }
 
-  qDebug() << "[VIDEO DEBUG] Total playlist size: " << currentPlaylist.size() << " segments";
+  std::cout << "[VIDEO DEBUG] Total playlist size: " << currentPlaylist.size() << " segments" << std::endl;
 
   if (!currentPlaylist.isEmpty()) {
     currentSegment = 0;
     // Calculate total duration (rough estimate: 60 seconds per segment)
     totalDuration = currentPlaylist.size() * 60 * 1000; // milliseconds
-    qDebug() << "[VIDEO DEBUG] Total estimated duration: " << totalDuration << " ms";
+    std::cout << "[VIDEO DEBUG] Total estimated duration: " << totalDuration << " ms" << std::endl;
     positionSlider->setRange(0, totalDuration);
     playCurrentSegment();
   } else {
-    qDebug() << "[VIDEO DEBUG] WARNING: No video segments found for " << currentCameraType;
-    qDebug() << "[VIDEO] No " << currentCameraType << " video available";
+    std::cout << "[VIDEO DEBUG] WARNING: No video segments found for " << currentCameraType.toStdString() << std::endl;
+    std::cout << "[VIDEO] No " << currentCameraType.toStdString() << " video available" << std::endl;
   }
 }
 
 void BPRouteVideoDialog::loadThumbnail() {
   // Load and display the first frame as thumbnail
-  qDebug() << "[VIDEO DEBUG] Loading first frame as thumbnail...";
+  std::cout << "[VIDEO DEBUG] Loading first frame as thumbnail..." << std::endl;
 
   if (!frameReader) {
-    qDebug() << "[VIDEO DEBUG] No frameReader available for thumbnail";
+    std::cout << "[VIDEO DEBUG] No frameReader available for thumbnail" << std::endl;
     return;
   }
 
@@ -525,22 +526,22 @@ void BPRouteVideoDialog::loadThumbnail() {
 
   // Decode the first frame (index 0)
   if (frameReader->get(0, &thumbnailBuf)) {
-    qDebug() << "[VIDEO DEBUG] Successfully decoded first frame for thumbnail";
+    std::cout << "[VIDEO DEBUG] Successfully decoded first frame for thumbnail" << std::endl;
     // Display the first frame in the video widget
     videoDisplay->displayFrame(&thumbnailBuf, frameReader->width, frameReader->height);
-    qDebug() << "[VIDEO] First frame loaded and displayed as thumbnail";
+    std::cout << "[VIDEO] First frame loaded and displayed as thumbnail" << std::endl;
   } else {
-    qDebug() << "[VIDEO DEBUG] Failed to decode first frame for thumbnail";
+    std::cout << "[VIDEO DEBUG] Failed to decode first frame for thumbnail" << std::endl;
 
     // Fallback to static thumbnail if first frame fails
     BPRoutesPanel *parent = static_cast<BPRoutesPanel*>(this->parent());
     QString thumbnailPath = parent->getThumbnailPath(routeBaseName);
 
     if (QFile::exists(thumbnailPath)) {
-      qDebug() << "[VIDEO DEBUG] Falling back to static thumbnail";
+      std::cout << "[VIDEO DEBUG] Falling back to static thumbnail" << std::endl;
       // Note: We can't directly display a QPixmap in the OpenGL video widget
       // The static thumbnail would need to be converted to YUV format
-      qDebug() << "[VIDEO] Static thumbnail available but video widget needs YUV data";
+      std::cout << "[VIDEO] Static thumbnail available but video widget needs YUV data" << std::endl;
     }
   }
 
@@ -569,88 +570,88 @@ QString BPRouteVideoDialog::getVideoPath(const QString &cameraType, int segment)
   QString segmentDir = QString("%1--%2").arg(routeBaseName).arg(segment);
   QString videoPath = routesDir + "/" + segmentDir + "/" + filename;
 
-  qDebug() << "[VIDEO DEBUG] Generated video path: " << videoPath;
+  std::cout << "[VIDEO DEBUG] Generated video path: " << videoPath.toStdString() << std::endl;
   return videoPath;
 }
 
 void BPRouteVideoDialog::playCurrentSegment() {
-  qDebug() << "[VIDEO DEBUG] === playCurrentSegment() called ===";
-  qDebug() << "[VIDEO DEBUG] Current playlist size: " << currentPlaylist.size();
-  qDebug() << "[VIDEO DEBUG] Current segment: " << currentSegment;
-  qDebug() << "[VIDEO DEBUG] Current camera type: " << currentCameraType;
+  std::cout << "[VIDEO DEBUG] === playCurrentSegment() called ===" << std::endl;
+  std::cout << "[VIDEO DEBUG] Current playlist size: " << currentPlaylist.size() << std::endl;
+  std::cout << "[VIDEO DEBUG] Current segment: " << currentSegment << std::endl;
+  std::cout << "[VIDEO DEBUG] Current camera type: " << currentCameraType.toStdString() << std::endl;
 
   if (currentSegment >= currentPlaylist.size()) {
-    qDebug() << "[VIDEO DEBUG] ERROR: currentSegment (" << currentSegment << ") >= playlist size (" << currentPlaylist.size() << ")";
+    std::cout << "[VIDEO DEBUG] ERROR: currentSegment (" << currentSegment << ") >= playlist size (" << currentPlaylist.size() << ")" << std::endl;
     return;
   }
 
   QString videoPath = currentPlaylist[currentSegment];
-  qDebug() << "[VIDEO DEBUG] Playing segment " << currentSegment << ": " << videoPath;
+  std::cout << "[VIDEO DEBUG] Playing segment " << currentSegment << ": " << videoPath.toStdString() << std::endl;
 
   if (!QFile::exists(videoPath)) {
-    qDebug() << "[VIDEO DEBUG] ERROR: Video file does not exist: " << videoPath;
-    qDebug() << "[VIDEO] Video file not found";
+    std::cout << "[VIDEO DEBUG] ERROR: Video file does not exist: " << videoPath.toStdString() << std::endl;
+    std::cout << "[VIDEO] Video file not found" << std::endl;
     return;
   }
 
   QFileInfo fileInfo(videoPath);
-  qDebug() << "[VIDEO DEBUG] File size: " << fileInfo.size() << " bytes";
+  std::cout << "[VIDEO DEBUG] File size: " << fileInfo.size() << " bytes" << std::endl;
 
-  qDebug() << "[VIDEO DEBUG] === Loading video with FrameReader ===";
-  qDebug() << "[VIDEO DEBUG] Video path: " << videoPath;
-  qDebug() << "[VIDEO DEBUG] File exists: " << QFile::exists(videoPath);
+  std::cout << "[VIDEO DEBUG] === Loading video with FrameReader ===" << std::endl;
+  std::cout << "[VIDEO DEBUG] Video path: " << videoPath.toStdString() << std::endl;
+  std::cout << "[VIDEO DEBUG] File exists: " << QFile::exists(videoPath) << std::endl;
 
   // Create FrameReader and load video
-  qDebug() << "[VIDEO DEBUG] Creating FrameReader...";
+  std::cout << "[VIDEO DEBUG] Creating FrameReader..." << std::endl;
   frameReader = std::make_unique<FrameReader>();
 
   // Determine camera type based on current selection
   CameraType cameraType = RoadCam;  // Default to front camera
-  qDebug() << "[VIDEO DEBUG] Current camera type string: " << currentCameraType;
+  std::cout << "[VIDEO DEBUG] Current camera type string: " << currentCameraType.toStdString() << std::endl;
   if (currentCameraType == "driver") {
     cameraType = DriverCam;
-    qDebug() << "[VIDEO DEBUG] Using DriverCam type";
+    std::cout << "[VIDEO DEBUG] Using DriverCam type" << std::endl;
   } else if (currentCameraType == "wide") {
     cameraType = WideRoadCam;
-    qDebug() << "[VIDEO DEBUG] Using WideRoadCam type";
+    std::cout << "[VIDEO DEBUG] Using WideRoadCam type" << std::endl;
   } else {
-    qDebug() << "[VIDEO DEBUG] Using RoadCam type (default)";
+    std::cout << "[VIDEO DEBUG] Using RoadCam type (default)" << std::endl;
   }
 
   // Load video with hardware decoding enabled
-  qDebug() << "[VIDEO DEBUG] Calling frameReader->load()...";
+  std::cout << "[VIDEO DEBUG] Calling frameReader->load()..." << std::endl;
   std::atomic<bool> abort{false};
   if (!frameReader->load(cameraType, videoPath.toStdString(), false, &abort)) {
-    qDebug() << "[VIDEO DEBUG] ERROR: Failed to load video with FrameReader";
-    qDebug() << "[VIDEO] Failed to load video file";
+    std::cout << "[VIDEO DEBUG] ERROR: Failed to load video with FrameReader" << std::endl;
+    std::cout << "[VIDEO] Failed to load video file" << std::endl;
     return;
   }
 
-  qDebug() << "[VIDEO DEBUG] FrameReader load successful!";
-  qDebug() << "[VIDEO DEBUG] Video loaded successfully - " << frameReader->getFrameCount()
-            << " frames, " << frameReader->width << "x" << frameReader->height;
+  std::cout << "[VIDEO DEBUG] FrameReader load successful!" << std::endl;
+  std::cout << "[VIDEO DEBUG] Video loaded successfully - " << frameReader->getFrameCount()
+            << " frames, " << frameReader->width << "x" << frameReader->height << std::endl;
 
   // Clear display
-  qDebug() << "[VIDEO] Starting video playback...";
+  std::cout << "[VIDEO] Starting video playback..." << std::endl;
 
   // Start video playback in background thread
-  qDebug() << "[VIDEO DEBUG] Starting playback thread...";
+  std::cout << "[VIDEO DEBUG] Starting playback thread..." << std::endl;
   QtConcurrent::run([this]() {
-    qDebug() << "[VIDEO DEBUG] Playback thread started, calling playbackVideoFrames()...";
+    std::cout << "[VIDEO DEBUG] Playback thread started, calling playbackVideoFrames()..." << std::endl;
     playbackVideoFrames();
   });
 }
 
 void BPRouteVideoDialog::playbackVideoFrames() {
-  qDebug() << "[VIDEO DEBUG] === playbackVideoFrames() called ===";
+  std::cout << "[VIDEO DEBUG] === playbackVideoFrames() called ===" << std::endl;
   if (!frameReader) {
-    qDebug() << "[VIDEO DEBUG] ERROR: No frameReader available";
+    std::cout << "[VIDEO DEBUG] ERROR: No frameReader available" << std::endl;
     return;
   }
 
   size_t totalFrames = frameReader->getFrameCount();
-  qDebug() << "[VIDEO DEBUG] Starting playback of " << totalFrames << " frames";
-  qDebug() << "[VIDEO DEBUG] Frame reader dimensions: " << frameReader->width << "x" << frameReader->height;
+  std::cout << "[VIDEO DEBUG] Starting playback of " << totalFrames << " frames" << std::endl;
+  std::cout << "[VIDEO DEBUG] Frame reader dimensions: " << frameReader->width << "x" << frameReader->height << std::endl;
 
   // Allocate buffer for decoded frames
   VisionBuf frameBuf = {};
@@ -671,7 +672,7 @@ void BPRouteVideoDialog::playbackVideoFrames() {
 
     // Decode frame
     if (frameIdx % 200 == 0) {  // Log every 200th frame only
-      qDebug() << "[VIDEO] Progress: " << frameIdx << "/" << totalFrames;
+      std::cout << "[VIDEO] Progress: " << frameIdx << "/" << totalFrames << std::endl;
     }
 
     bool decode_result = frameReader->get(frameIdx, &frameBuf);
@@ -686,7 +687,7 @@ void BPRouteVideoDialog::playbackVideoFrames() {
       }, Qt::QueuedConnection);
     } else {
       if (frameIdx % 50 == 0) {
-        qDebug() << "[VIDEO] Failed to decode frame " << frameIdx;
+        std::cout << "[VIDEO] Failed to decode frame " << frameIdx << std::endl;
       }
     }
 
@@ -702,7 +703,7 @@ void BPRouteVideoDialog::playbackVideoFrames() {
   }
 
   frameBuf.free();
-  qDebug() << "[VIDEO DEBUG] Finished playback";
+  std::cout << "[VIDEO DEBUG] Finished playback" << std::endl;
 
   // Signal completion
   QMetaObject::invokeMethod(this, &BPRouteVideoDialog::onSegmentFinished, Qt::QueuedConnection);
@@ -714,7 +715,7 @@ void BPRouteVideoDialog::onFrameDecoded(const DecodedFrame &frame, const VisionB
 
   // Minimal logging for performance
   if (frameNumber % 50 == 0) {
-    qDebug() << "[VIDEO] Displaying frame " << frameNumber;
+    std::cout << "[VIDEO] Displaying frame " << frameNumber << std::endl;
   }
 
   // Update display directly with VisionBuf
@@ -729,7 +730,7 @@ void BPRouteVideoDialog::onFrameDecoded(const DecodedFrame &frame, const VisionB
 }
 
 void BPRouteVideoDialog::updateCameraButtonStates() {
-  qDebug() << "[VIDEO DEBUG] Updating camera button states for: " << currentCameraType;
+  std::cout << "[VIDEO DEBUG] Updating camera button states for: " << currentCameraType.toStdString() << std::endl;
 
   // Clear all button selections first
   if (frontCamButton) frontCamButton->setChecked(false);
@@ -740,52 +741,52 @@ void BPRouteVideoDialog::updateCameraButtonStates() {
   // Set the correct button as checked based on current camera type
   if (currentCameraType == "front" && frontCamButton) {
     frontCamButton->setChecked(true);
-    qDebug() << "[VIDEO DEBUG] Set front camera button as selected";
+    std::cout << "[VIDEO DEBUG] Set front camera button as selected" << std::endl;
   } else if (currentCameraType == "wide" && wideCamButton) {
     wideCamButton->setChecked(true);
-    qDebug() << "[VIDEO DEBUG] Set wide camera button as selected";
+    std::cout << "[VIDEO DEBUG] Set wide camera button as selected" << std::endl;
   } else if (currentCameraType == "driver" && driverCamButton) {
     driverCamButton->setChecked(true);
-    qDebug() << "[VIDEO DEBUG] Set driver camera button as selected";
+    std::cout << "[VIDEO DEBUG] Set driver camera button as selected" << std::endl;
   } else if (currentCameraType == "lq" && lqCamButton) {
     lqCamButton->setChecked(true);
-    qDebug() << "[VIDEO DEBUG] Set LQ camera button as selected";
+    std::cout << "[VIDEO DEBUG] Set LQ camera button as selected" << std::endl;
   }
 }
 
 void BPRouteVideoDialog::togglePlayback() {
-  qDebug() << "[VIDEO DEBUG] togglePlayback() called - current state: " << (isPlaying ? "PLAYING" : "STOPPED");
+  std::cout << "[VIDEO DEBUG] togglePlayback() called - current state: " << (isPlaying ? "PLAYING" : "STOPPED") << std::endl;
 
   isPlaying = !isPlaying;
 
   if (isPlaying) {
-    qDebug() << "[VIDEO DEBUG] Starting playback";
+    std::cout << "[VIDEO DEBUG] Starting playback" << std::endl;
     playPauseButton->setText("⏸");
     positionTimer->start();
-    qDebug() << "[VIDEO DEBUG] Position timer started";
+    std::cout << "[VIDEO DEBUG] Position timer started" << std::endl;
   } else {
-    qDebug() << "[VIDEO DEBUG] Stopping playback";
+    std::cout << "[VIDEO DEBUG] Stopping playback" << std::endl;
     playPauseButton->setText("▶");
     positionTimer->stop();
-    qDebug() << "[VIDEO DEBUG] Position timer stopped";
+    std::cout << "[VIDEO DEBUG] Position timer stopped" << std::endl;
     // Show thumbnail when paused
-    qDebug() << "[VIDEO DEBUG] Loading thumbnail for paused state";
+    std::cout << "[VIDEO DEBUG] Loading thumbnail for paused state" << std::endl;
     loadThumbnail();
   }
 }
 
 void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
   if (currentCameraType != cameraType) {
-    qDebug() << "[VIDEO DEBUG] Switching camera from " << currentCameraType
-              << " to " << cameraType;
+    std::cout << "[VIDEO DEBUG] Switching camera from " << currentCameraType.toStdString()
+              << " to " << cameraType.toStdString() << std::endl;
 
     // Store current playback state
     bool wasPlaying = isPlaying;
     qint64 savedPosition = currentPosition;
     int savedSegment = currentSegment;
 
-    qDebug() << "[VIDEO DEBUG] Saved state - Playing: " << wasPlaying
-              << ", Position: " << savedPosition << ", Segment: " << savedSegment;
+    std::cout << "[VIDEO DEBUG] Saved state - Playing: " << wasPlaying
+              << ", Position: " << savedPosition << ", Segment: " << savedSegment << std::endl;
 
     // Stop current playback
     if (isPlaying) {
@@ -810,8 +811,8 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
     currentSegment = savedSegment;
     positionSlider->setValue(currentPosition);
 
-    qDebug() << "[VIDEO DEBUG] Restored position: " << currentPosition
-              << ", segment: " << currentSegment;
+    std::cout << "[VIDEO DEBUG] Restored position: " << currentPosition
+              << ", segment: " << currentSegment << std::endl;
 
     if (wasPlaying) {
       // Resume playback
@@ -819,11 +820,11 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
       playPauseButton->setText("⏸");
       positionTimer->start();
       playCurrentSegment();
-      qDebug() << "[VIDEO DEBUG] Resumed playback";
+      std::cout << "[VIDEO DEBUG] Resumed playback" << std::endl;
     } else {
       // Show thumbnail for new camera
       loadThumbnail();
-      qDebug() << "[VIDEO DEBUG] Loaded thumbnail for stopped playback";
+      std::cout << "[VIDEO DEBUG] Loaded thumbnail for stopped playback" << std::endl;
     }
   }
 }
@@ -922,8 +923,8 @@ void BPRouteVideoDialog::updatePlaybackPosition() {
 
     // Only log every 50th update to reduce noise
     if (updateCount % 50 == 0) {
-      qDebug() << "[VIDEO DEBUG] Position update: " << currentPosition << "/" << totalDuration
-                << " (" << currentTime << "/" << totalTime << ")";
+      std::cout << "[VIDEO DEBUG] Position update: " << currentPosition << "/" << totalDuration
+                << " (" << currentTime.toStdString() << "/" << totalTime.toStdString() << ")" << std::endl;
     }
   }
 }
