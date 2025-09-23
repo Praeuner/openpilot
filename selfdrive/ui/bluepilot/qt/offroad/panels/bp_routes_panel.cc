@@ -478,7 +478,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   thumbnail->setScaledContents(true);
 
   // Set placeholder text with better styling
-  thumbnail->setText("ðŸŽ¬");
+  thumbnail->setText("🎬");
   thumbnail->setStyleSheet(thumbnail->styleSheet() + "color: #666; font-size: 80px;");
 
   // Initialize thumbnail loading - extract base route name for thumbnail generation
@@ -515,15 +515,15 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   QHBoxLayout *middleRow = new QHBoxLayout;
   middleRow->setSpacing(25);
 
-  QLabel *durationLabel = new QLabel(QString("â± %1").arg(route.duration));
+  QLabel *durationLabel = new QLabel(QString("⏱ %1").arg(route.duration));
   durationLabel->setStyleSheet("font-size: 36px; color: #2196F3; font-weight: 500;");
   middleRow->addWidget(durationLabel);
 
-  QLabel *segmentsLabel = new QLabel(QString("ðŸ“¦ %1 segments").arg(route.segments));
+  QLabel *segmentsLabel = new QLabel(QString("📦 %1 segments").arg(route.segments));
   segmentsLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(segmentsLabel);
 
-  QLabel *sizeLabel = new QLabel(QString("ðŸ’¾ %1").arg(route.size));
+  QLabel *sizeLabel = new QLabel(QString("💾 %1").arg(route.size));
   sizeLabel->setStyleSheet("font-size: 36px; color: #bbb;");
   middleRow->addWidget(sizeLabel);
 
@@ -617,7 +617,7 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   // Star button
   QPushButton *starButton = new QPushButton;
   starButton->setFixedSize(70, 70);
-  starButton->setText(route.isStarred ? "â˜…" : "â˜†");
+  starButton->setText(route.isStarred ? "★" : "☆");
   starButton->setObjectName("starButton");
   starButton->setStyleSheet(R"(
     QPushButton {
@@ -741,7 +741,7 @@ void BPRoutesPanel::handleRouteStarToggle(const QString &route) {
     if (widget->property("routeBase").toString() == route) {
       QPushButton *starButton = widget->findChild<QPushButton*>("starButton");
       if (starButton) {
-        starButton->setText(!currentlyStarred ? "â˜…" : "â˜†");
+        starButton->setText(!currentlyStarred ? "★" : "☆");
       }
       break;
     }
@@ -754,7 +754,7 @@ void BPRoutesPanel::updateStats() {
     totalSize += QStringToSize(route.size);
   }
 
-  QString statsText = QString("%1 routes â€¢ %2").arg(routes.size()).arg(formatSize(totalSize));
+  QString statsText = QString("%1 routes • %2").arg(routes.size()).arg(formatSize(totalSize));
   statsLabel->setText(statsText);
 }
 
@@ -1768,7 +1768,7 @@ void BPRoutesPanel::showOnroadMessage() {
     layout->setSpacing(40);
 
     // Icon
-    QLabel *iconLabel = new QLabel("ðŸš—");
+    QLabel *iconLabel = new QLabel("🚗");
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setStyleSheet("font-size: 120px;");
     layout->addWidget(iconLabel);
