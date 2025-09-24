@@ -331,6 +331,7 @@ public:
 protected:
   void keyPressEvent(QKeyEvent *event) override;
   void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
 
 private slots:
@@ -343,12 +344,14 @@ private slots:
   void toggleStar();
   void onSegmentFinished();
   void updatePlaybackPosition();
+  void keepDisplayAwake();
 
 private:
   void setupUI();
   void setupVideoDisplay();
   void setupCameraPanel();
   void setupOverlayControls();
+  void setupActionButtons(QVBoxLayout *parentLayout);
   QString buttonStyle(const QString &size);
   void updateOverlayPosition();
   void loadVideoSegments();
@@ -358,6 +361,8 @@ private:
   void onFrameDecoded(const DecodedFrame &frame, const VisionBuf *buf);
   void updateCameraButtonStates();
   QString getVideoPath(const QString &cameraType, int segment);
+  void seekToPosition(qint64 positionMs);
+  void updateVideoFrame();
 
   // Route data
   QString routeBaseName;
@@ -370,10 +375,17 @@ private:
   int currentSegment = 0;
   bool isPlaying = false;
   bool isFullscreen = false;
+  bool isSeeking = false;
   QTimer *playbackTimer;
   QTimer *positionTimer;
+  QTimer *keepAwakeTimer;
+  QFuture<void> playbackFuture;
   qint64 totalDuration = 0;
   qint64 currentPosition = 0;
+
+  // Timer-based playback state
+  size_t currentFrameIndex = 0;
+  size_t totalFrames = 0;
 
   // UI Components
   QWidget *videoContainer;
@@ -383,6 +395,7 @@ private:
   QLabel *routeTitle;
   QPushButton *starButton;
   QPushButton *fullscreenButton;
+  QPushButton *fullscreenExitButton;
   QPushButton *closeButton;
   QPushButton *frontCamButton;
   QPushButton *wideCamButton;
@@ -392,4 +405,5 @@ private:
   QPushButton *playPauseButton;
   QSlider *positionSlider;
   QLabel *timeLabel;
+  QLabel *segmentLabel;
 };
