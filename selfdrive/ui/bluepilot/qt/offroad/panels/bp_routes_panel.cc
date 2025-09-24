@@ -499,8 +499,8 @@ QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
   QHBoxLayout *topRow = new QHBoxLayout;
   topRow->setSpacing(15);
 
-  // Format route name as short date and time (e.g., "Sept 17, 9:10am")
-  QString displayName = route.dateTime.toString("MMM d, h:mmap");
+  // Format route name as time only (e.g., "9:10am")
+  QString displayName = route.dateTime.toString("h:mmap");
   QLabel *routeLabel = new QLabel(displayName);
   routeLabel->setStyleSheet("font-size: 52px; font-weight: 600; color: white;");
   topRow->addWidget(routeLabel);
