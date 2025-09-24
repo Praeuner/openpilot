@@ -16,9 +16,140 @@
 #include <QButtonGroup>
 #include <QThread>
 #include <QtConcurrent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPolygon>
 #include <chrono>
 #include "third_party/libyuv/include/libyuv.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
+
+// Custom button class for drawing perfect media control icons
+class MediaControlButton : public QPushButton {
+  Q_OBJECT
+
+public:
+  enum IconType {
+    Play,
+    Pause,
+    RewindArrow,
+    ForwardArrow
+  };
+
+  MediaControlButton(IconType type, QWidget *parent = nullptr)
+    : QPushButton(parent), iconType(type) {
+    setStyleSheet(R"(
+      QPushButton {
+        background: rgba(0, 0, 0, 180);
+        border: none;
+        border-radius: 75px;
+      }
+      QPushButton:pressed {
+        background: rgba(0, 0, 0, 240);
+      }
+    )");
+  }
+
+  void setIconType(IconType type) {
+    iconType = type;
+    update(); // Trigger a repaint
+  }
+
+protected:
+  void paintEvent(QPaintEvent *event) override {
+    QPushButton::paintEvent(event);
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(255, 255, 255));
+
+    QRect rect = this->rect();
+    int centerX = rect.width() / 2;
+    int centerY = rect.height() / 2;
+
+    switch (iconType) {
+      case Play: {
+        // Draw perfect centered play triangle
+        int size = rect.width() / 4;
+        QPolygon triangle;
+        triangle << QPoint(centerX - size/2, centerY - size)
+                 << QPoint(centerX - size/2, centerY + size)
+                 << QPoint(centerX + size, centerY);
+        painter.drawPolygon(triangle);
+        break;
+      }
+      case Pause: {
+        // Draw perfect centered pause bars
+        int barWidth = rect.width() / 10;
+        int barHeight = rect.height() / 3;
+        int spacing = barWidth;
+
+        QRect leftBar(centerX - spacing/2 - barWidth, centerY - barHeight/2, barWidth, barHeight);
+        QRect rightBar(centerX + spacing/2, centerY - barHeight/2, barWidth, barHeight);
+
+        painter.drawRect(leftBar);
+        painter.drawRect(rightBar);
+        break;
+      }
+      case RewindArrow: {
+        // Draw circular arrow pointing left with "10" in center
+        painter.setPen(QPen(QColor(255, 255, 255), 6, Qt::SolidLine, Qt::RoundCap));
+        painter.setBrush(Qt::NoBrush);
+
+        // Draw curved arrow
+        int radius = rect.width() / 4;
+        QRect arcRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+        painter.drawArc(arcRect, 45 * 16, 270 * 16); // 270 degree arc
+
+        // Draw arrow head pointing left
+        QPolygon arrowHead;
+        int arrowSize = 12;
+        arrowHead << QPoint(centerX - radius, centerY - radius/4)
+                  << QPoint(centerX - radius - arrowSize, centerY)
+                  << QPoint(centerX - radius, centerY + radius/4);
+        painter.setBrush(QColor(255, 255, 255));
+        painter.drawPolygon(arrowHead);
+
+        // Draw "10" in center
+        painter.setPen(QColor(255, 255, 255));
+        painter.setFont(QFont("Arial", 24, QFont::Bold));
+        painter.drawText(rect, Qt::AlignCenter, "10");
+        break;
+      }
+      case ForwardArrow: {
+        // Draw circular arrow pointing right with "10" in center
+        painter.setPen(QPen(QColor(255, 255, 255), 6, Qt::SolidLine, Qt::RoundCap));
+        painter.setBrush(Qt::NoBrush);
+
+        // Draw curved arrow
+        int radius = rect.width() / 4;
+        QRect arcRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+        painter.drawArc(arcRect, 315 * 16, -270 * 16); // 270 degree arc going other way
+
+        // Draw arrow head pointing right
+        QPolygon arrowHead;
+        int arrowSize = 12;
+        arrowHead << QPoint(centerX + radius, centerY - radius/4)
+                  << QPoint(centerX + radius + arrowSize, centerY)
+                  << QPoint(centerX + radius, centerY + radius/4);
+        painter.setBrush(QColor(255, 255, 255));
+        painter.drawPolygon(arrowHead);
+
+        // Draw "10" in center
+        painter.setPen(QColor(255, 255, 255));
+        painter.setFont(QFont("Arial", 24, QFont::Bold));
+        painter.drawText(rect, Qt::AlignCenter, "10");
+        break;
+      }
+    }
+  }
+
+private:
+  IconType iconType;
+};
+
+// Include the MOC file for Qt's meta-object system
+#include "bp_video_dialog.moc"
 
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
     : BPDialogBase(parent), routeBaseName(routeBase) {
@@ -39,6 +170,11 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
             << ", HasWide: " << routeInfo.hasWideVideo
             << ", HasDriverHQ: " << routeInfo.hasDriverHQVideo
             << ", HasLQ: " << routeInfo.hasLQVideo;
+
+  qDebug() << "[VIDEO DEBUG] Route time info - timestamp:" << routeInfo.timestamp
+           << ", dateTime:" << routeInfo.dateTime
+           << ", displayDate:" << routeInfo.displayDate
+           << ", size:" << routeInfo.size;
 
   // Initialize timers
   playbackTimer = new QTimer(this);
@@ -66,7 +202,7 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
       if (frameReader && totalFrames > 0 && frameReader->width > 0 && frameReader->height > 0) {
         isPlaying = true;
         if (playPauseButton) {
-          playPauseButton->setText("II");  // Pause bars
+          playPauseButton->setIconType(MediaControlButton::Pause);  // Pause icon
         }
         if (positionTimer) {
           positionTimer->start();
@@ -83,7 +219,7 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
         // Just show thumbnail without starting playback
         isPlaying = false;
         if (playPauseButton) {
-          playPauseButton->setText("▶");
+          playPauseButton->setIconType(MediaControlButton::Play);
         }
       }
     }, Qt::QueuedConnection);
@@ -181,21 +317,48 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   if (displayDate.contains("0th") || displayDate == "0, 0" || !routeInfo.dateTime.isValid()) {
     displayDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
   }
-  
-  // Add time to the date
+
+  // Add time to the date - format for header
   QString displayTime = routeInfo.timestamp;
   if (displayTime.isEmpty()) {
-    displayTime = routeInfo.dateTime.toString("h:mmap");
-  }
-  QString fullTitle = QString("%1 • %2").arg(displayDate, displayTime);
-  
-  routeTitle = new QLabel(fullTitle);
-  routeTitle->setStyleSheet("font-size: 48px; font-weight: 600; color: white;");
+    if (routeInfo.dateTime.isValid()) {
+      displayTime = routeInfo.dateTime.toString("h:mm AP");
+    } else {
+      // Try to extract time from route name (format: YYYY-MM-DD--HH-MM-SS)
+      QStringList parts = routeBaseName.split("--");
+      if (parts.size() >= 2) {
+        QString timePart = parts[1];
+        QStringList timeComponents = timePart.split("-");
+        if (timeComponents.size() >= 3) {
+          QString hour = timeComponents[0];
+          QString minute = timeComponents[1];
+          int hourInt = hour.toInt();
+          QString ampm = (hourInt >= 12) ? "PM" : "AM";
+          if (hourInt > 12) hourInt -= 12;
+          if (hourInt == 0) hourInt = 12;
+          displayTime = QString("%1:%2 %3").arg(hourInt).arg(minute, 2, '0').arg(ampm);
+        }
+      }
 
-  // Subtitle - show route ID
-  QString subtitleText = QString("%1 • %2").arg(displayTime, routeBaseName);
-  QLabel *subtitleLabel = new QLabel(subtitleText);
-  subtitleLabel->setStyleSheet("font-size: 32px; color: #cccccc;");
+      if (displayTime.isEmpty()) {
+        displayTime = "Unknown Time";
+      }
+    }
+  }
+
+  // Debug: Check what we have for time
+  qDebug() << "[VIDEO DEBUG] Route timestamp:" << routeInfo.timestamp
+           << "DateTime:" << routeInfo.dateTime
+           << "Final displayTime:" << displayTime;
+
+  QString fullTitle = QString("%1 at %2").arg(displayDate, displayTime);
+
+  routeTitle = new QLabel(fullTitle);
+  routeTitle->setStyleSheet("font-size: 52px; font-weight: 600; color: white;");
+
+  // Subtitle - show only route ID
+  QLabel *subtitleLabel = new QLabel(routeBaseName);
+  subtitleLabel->setStyleSheet("font-size: 38px; color: #cccccc;");
 
   titleLayout->addWidget(routeTitle);
   titleLayout->addWidget(subtitleLabel);
@@ -204,45 +367,22 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   QVBoxLayout *rightInfoLayout = new QVBoxLayout;
   rightInfoLayout->setSpacing(5);
 
-  // Route size
+  // Route size - larger text for 6" display
   QLabel *sizeLabel = new QLabel(routeInfo.size);
-  sizeLabel->setStyleSheet("font-size: 32px; color: #2196F3; font-weight: 500;");
+  sizeLabel->setStyleSheet("font-size: 48px; color: #2196F3; font-weight: 600;");
   sizeLabel->setAlignment(Qt::AlignRight);
 
-  // Segment indicator
+  // Segment indicator - larger text for 6" display
   segmentLabel = new QLabel("Loading segments...");
-  segmentLabel->setStyleSheet("font-size: 28px; color: #888;");
+  segmentLabel->setStyleSheet("font-size: 44px; color: #888; font-weight: 500;");
   segmentLabel->setAlignment(Qt::AlignRight);
 
   rightInfoLayout->addWidget(sizeLabel);
   rightInfoLayout->addWidget(segmentLabel);
 
-  // Fullscreen button - much larger
-  fullscreenButton = new QPushButton("⛶");
-  fullscreenButton->setFixedSize(120, 120);
-  fullscreenButton->setStyleSheet(R"(
-    QPushButton {
-      background: #444444;
-      border: 2px solid #666666;
-      border-radius: 60px;
-      font-size: 60px;
-      color: #FFD700;
-      font-weight: bold;
-    }
-    QPushButton:hover {
-      background: #555555;
-      border: 2px solid #FFD700;
-    }
-    QPushButton:pressed {
-      background: #333333;
-    }
-  )");
-  connect(fullscreenButton, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleFullscreen);
-
   headerLayout->addWidget(closeButton);
   headerLayout->addLayout(titleLayout, 1);
   headerLayout->addLayout(rightInfoLayout);
-  headerLayout->addWidget(fullscreenButton);
 
   videoLayout->addWidget(headerWidget);
 
@@ -287,58 +427,29 @@ void BPRouteVideoDialog::setupOverlayControls() {
   controlsWidget = new QWidget(videoContainer);
   controlsWidget->setObjectName("overlayControls");
   controlsWidget->setStyleSheet("background: transparent;");
-  
+
   QHBoxLayout *controlsLayout = new QHBoxLayout(controlsWidget);
   controlsLayout->setContentsMargins(0, 0, 0, 0);
   controlsLayout->setSpacing(80);  // More spacing for 6" display
   controlsLayout->setAlignment(Qt::AlignCenter);
-  
-  // Rewind 10s button with -10s text
-  QPushButton *rewindButton = new QPushButton("-10s");
+
+  // Rewind 10s button with custom circular arrow icon
+  MediaControlButton *rewindButton = new MediaControlButton(MediaControlButton::RewindArrow);
   rewindButton->setFixedSize(150, 150);  // Larger for 6" touch
-  rewindButton->setStyleSheet(R"(
-    QPushButton {
-      background: rgba(0, 0, 0, 180);
-      color: white;
-      font-size: 42px;
-      font-weight: 600;
-      border: none;
-      border-radius: 75px;
-    }
-    QPushButton:pressed {
-      background: rgba(0, 0, 0, 240);
-    }
-  )");
   connect(rewindButton, &QPushButton::clicked, [this]() {
     currentPosition = qMax(0LL, currentPosition - 10000);
     seekToPosition(currentPosition);
     positionSlider->setValue(currentPosition);
   });
 
-  // Play/Pause button - LARGER central button  
-  playPauseButton = new QPushButton("II");
+  // Play/Pause button - LARGER central button with custom icons
+  playPauseButton = new MediaControlButton(MediaControlButton::Pause);  // Start as pause since video auto-starts
   playPauseButton->setFixedSize(200, 200);  // Much larger for main action
-  playPauseButton->setStyleSheet(R"(
-    QPushButton {
-      background: rgba(0, 0, 0, 180);
-      color: white;
-      font-size: 60px;
-      font-weight: 300;
-      letter-spacing: 15px;
-      padding-left: 15px;
-      border: none;
-      border-radius: 100px;
-    }
-    QPushButton:pressed {
-      background: rgba(0, 0, 0, 240);
-    }
-  )");
   connect(playPauseButton, &QPushButton::clicked, this, &BPRouteVideoDialog::togglePlayback);
 
-  // Forward 10s button with +10s text
-  QPushButton *forwardButton = new QPushButton("+10s");
+  // Forward 10s button with custom circular arrow icon
+  MediaControlButton *forwardButton = new MediaControlButton(MediaControlButton::ForwardArrow);
   forwardButton->setFixedSize(150, 150);  // Larger for 6" touch
-  forwardButton->setStyleSheet(rewindButton->styleSheet());
   connect(forwardButton, &QPushButton::clicked, [this]() {
     currentPosition = qMin(totalDuration, currentPosition + 10000);
     seekToPosition(currentPosition);
@@ -348,47 +459,68 @@ void BPRouteVideoDialog::setupOverlayControls() {
   controlsLayout->addWidget(rewindButton);
   controlsLayout->addWidget(playPauseButton);
   controlsLayout->addWidget(forwardButton);
-  
+
   // Position controls in center
   controlsWidget->setFixedSize(700, 200);
   updateOverlayPosition();
   controlsWidget->show();
-  
-  // Add fullscreen button overlay - top right corner
+
+  // Add fullscreen button overlay - top LEFT corner of VIDEO AREA ONLY
   QPushButton *fullscreenOverlay = new QPushButton("⤢");
-  fullscreenOverlay->setParent(videoContainer);
-  fullscreenOverlay->setFixedSize(100, 100);
-  fullscreenOverlay->move(videoContainer->width() - 120, 20);
+  fullscreenOverlay->setParent(videoDisplay);  // Parent to video display, not container
+  fullscreenOverlay->setFixedSize(120, 120);
+  fullscreenOverlay->move(20, 20);
   fullscreenOverlay->setStyleSheet(R"(
     QPushButton {
-      background: rgba(0, 0, 0, 150);
+      background: rgba(0, 0, 0, 200);
       color: white;
-      font-size: 48px;
+      font-size: 72px;
+      font-weight: bold;
       border: none;
-      border-radius: 50px;
+      border-radius: 60px;
+    }
+    QPushButton:hover {
+      background: rgba(0, 0, 0, 240);
     }
     QPushButton:pressed {
-      background: rgba(0, 0, 0, 220);
+      background: rgba(33, 150, 243, 200);
     }
   )");
   connect(fullscreenOverlay, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleFullscreen);
   fullscreenOverlay->show();
-  
-  // Create bottom slider bar - FULL WIDTH at BOTTOM with time on RIGHT
+  fullscreenOverlay->raise();
+
+  // Create bottom slider bar - UNIFIED pill-shaped background for slider AND time
   QWidget *sliderContainer = new QWidget(videoContainer);
   sliderContainer->setObjectName("sliderContainer");
-  sliderContainer->setStyleSheet("background: transparent;");
-  
+
+  // Create the unified pill background style for BOTH slider and time
+  sliderContainer->setStyleSheet(R"(
+    QWidget#sliderContainer {
+      background: rgba(0, 0, 0, 200);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 45px;
+    }
+    QWidget#sliderContainer:hover {
+      background: rgba(0, 0, 0, 220);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+    }
+  )");
+
   QHBoxLayout *sliderLayout = new QHBoxLayout(sliderContainer);
-  sliderLayout->setContentsMargins(20, 10, 20, 20);
+  sliderLayout->setContentsMargins(30, 15, 30, 15);  // Tighter margins for pill shape
   sliderLayout->setSpacing(20);
-  
-  // Position slider - TOUCH FRIENDLY
+
+  // Position slider - FULL WIDTH for 6" display with cleaner styling
   positionSlider = new QSlider(Qt::Horizontal);
-  positionSlider->setFixedHeight(60);  // Large touch target
+  positionSlider->setFixedHeight(60);  // Proper touch target for pill container
+  positionSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   positionSlider->setStyleSheet(R"(
+    QSlider {
+      background: transparent;
+    }
     QSlider::groove:horizontal {
-      background: rgba(255, 255, 255, 40);
+      background: rgba(255, 255, 255, 30);
       height: 8px;
       border-radius: 4px;
     }
@@ -403,6 +535,7 @@ void BPRouteVideoDialog::setupOverlayControls() {
       height: 36px;
       border-radius: 18px;
       margin: -14px 0;
+      border: 2px solid rgba(0, 0, 0, 0.1);
     }
     QSlider::handle:horizontal:pressed {
       background: #2196F3;
@@ -410,31 +543,47 @@ void BPRouteVideoDialog::setupOverlayControls() {
       height: 42px;
       border-radius: 21px;
       margin: -17px 0;
+      border: 2px solid rgba(0, 0, 0, 0.2);
     }
   )");
-  
-  // Time label on RIGHT of slider
+
+  // Time label integrated into the SAME pill background
   timeLabel = new QLabel("0:00 / 0:00");
-  timeLabel->setFixedWidth(180);
+  timeLabel->setFixedWidth(200);
   timeLabel->setStyleSheet(R"(
-    color: white; 
-    font-size: 28px;
-    font-weight: 500;
-    background: rgba(0, 0, 0, 150); 
-    padding: 10px 15px; 
-    border-radius: 8px;
+    QLabel {
+      color: white;
+      font-size: 32px;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      padding: 0px;
+    }
   )");
   timeLabel->setAlignment(Qt::AlignCenter);
-  
-  sliderLayout->addWidget(positionSlider, 1);  // Slider takes most space
-  sliderLayout->addWidget(timeLabel, 0);       // Time label fixed width
-  
-  // Position at very bottom
-  sliderContainer->resize(videoContainer->width(), 100);
-  sliderContainer->move(0, videoContainer->height() - 100);
+
+  sliderLayout->addWidget(positionSlider, 1);  // Slider expands
+  sliderLayout->addWidget(timeLabel, 0);       // Time fixed width
+
+  // Position at VERY bottom using absolute positioning with proper sizing
+  sliderContainer->setFixedHeight(90);  // Smaller height for pill shape
   sliderContainer->show();
   sliderContainer->raise();
-  
+  sliderContainer->setAttribute(Qt::WA_StyledBackground, true);
+
+  // Position the slider after the layout is established
+  QTimer::singleShot(0, this, [this, sliderContainer]() {
+    if (sliderContainer && videoDisplay) {
+      qDebug() << "[VIDEO DEBUG] Positioning slider - video display size:"
+               << videoDisplay->width() << "x" << videoDisplay->height()
+               << " at position:" << videoDisplay->x() << "," << videoDisplay->y();
+      sliderContainer->resize(videoDisplay->width() - 40, 90);
+      sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 110);
+      qDebug() << "[VIDEO DEBUG] Slider positioned at:" << sliderContainer->x() << "," << sliderContainer->y()
+               << " size:" << sliderContainer->width() << "x" << sliderContainer->height();
+    }
+  });
+
   // Slider connections
   connect(positionSlider, &QSlider::sliderPressed, [this]() {
     if (isPlaying && playbackTimer) {
@@ -443,7 +592,7 @@ void BPRouteVideoDialog::setupOverlayControls() {
     positionTimer->stop();
     isSeeking = true;
   });
-  
+
   connect(positionSlider, &QSlider::sliderReleased, [this]() {
     currentPosition = positionSlider->value();
     isSeeking = false;
@@ -455,7 +604,7 @@ void BPRouteVideoDialog::setupOverlayControls() {
       }
     }
   });
-  
+
   connect(positionSlider, &QSlider::valueChanged, [this](int value) {
     if (timeLabel) {
       int totalSecs = totalDuration / 1000;
@@ -463,7 +612,7 @@ void BPRouteVideoDialog::setupOverlayControls() {
       QString currentTime = QTime(0, 0).addSecs(currentSecs).toString("m:ss");
       QString totalTime = QTime(0, 0).addSecs(totalSecs).toString("m:ss");
       timeLabel->setText(QString("%1 / %2").arg(currentTime, totalTime));
-      
+
       if (isSeeking) {
         static qint64 lastSeekTime = 0;
         qint64 currentTime_ms = QDateTime::currentMSecsSinceEpoch();
@@ -483,6 +632,14 @@ void BPRouteVideoDialog::updateOverlayPosition() {
     int x = (videoContainer->width() - controlsWidget->width()) / 2;
     int y = (videoContainer->height() - controlsWidget->height()) / 2;
     controlsWidget->move(x, y);
+  }
+
+  // Update slider position at bottom of video display area
+  QWidget *sliderContainer = videoContainer->findChild<QWidget*>("sliderContainer");
+  if (sliderContainer && videoDisplay) {
+    // Position relative to video display area, not the entire container
+    sliderContainer->resize(videoDisplay->width() - 40, 90);  // Full width minus margins
+    sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 110);
   }
 }
 
@@ -637,38 +794,38 @@ void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
   gridLayout->setContentsMargins(0, 0, 0, 0);
   gridLayout->setSpacing(20);
 
-  // Star button - larger and touch-friendly
+  // Star button - MUCH larger and more touch-friendly for 6" display
   starButton = new QPushButton;
-  starButton->setFixedSize(100, 100);
+  starButton->setFixedSize(160, 160);
   starButton->setText(routeInfo.isStarred ? "★" : "☆");
   starButton->setStyleSheet(R"(
     QPushButton {
       background: #444444;
-      border: 3px solid #666666;
-      border-radius: 50px;
-      font-size: 56px;
+      border: 4px solid #666666;
+      border-radius: 80px;
+      font-size: 80px;
       color: #FFD700;
       font-weight: bold;
     }
     QPushButton:hover {
       background: #555555;
-      border: 3px solid #FFD700;
+      border: 4px solid #FFD700;
     }
     QPushButton:pressed {
       background: #333333;
     }
   )");
   connect(starButton, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleStar);
-  
-  // Delete button - larger and touch-friendly
+
+  // Delete button - MUCH larger and more touch-friendly for 6" display
   deleteButton = new QPushButton("🗑");
-  deleteButton->setFixedSize(100, 100);
+  deleteButton->setFixedSize(160, 160);
   deleteButton->setStyleSheet(R"(
     QPushButton {
       background: #d32f2f;
-      border: 3px solid #b71c1c;
-      border-radius: 50px;
-      font-size: 48px;
+      border: 4px solid #b71c1c;
+      border-radius: 80px;
+      font-size: 70px;
       color: white;
       font-weight: bold;
     }
@@ -677,7 +834,7 @@ void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
     }
     QPushButton:hover {
       background: #c62828;
-      border: 3px solid #FFD700;
+      border: 4px solid #FFD700;
     }
   )");
   connect(deleteButton, &QPushButton::clicked, this, &BPRouteVideoDialog::deleteRoute);
@@ -685,7 +842,7 @@ void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
   // Add buttons to grid - will wrap automatically
   gridLayout->addWidget(starButton, 0, 0);
   gridLayout->addWidget(deleteButton, 0, 1);
-  
+
   // Add more action buttons here in future (share, export, etc)
   // They will automatically flow to next row when space runs out
 
@@ -729,10 +886,10 @@ void BPRouteVideoDialog::loadVideoSegments() {
     if (segmentLabel) {
       if (currentPlaylist.isEmpty()) {
         segmentLabel->setText("No segments");
-        segmentLabel->setStyleSheet("font-size: 28px; color: #ff4444;");
+        segmentLabel->setStyleSheet("font-size: 44px; color: #ff4444; font-weight: 500;");
       } else {
         segmentLabel->setText(QString("Segment: 1 of %1").arg(currentPlaylist.size()));
-        segmentLabel->setStyleSheet("font-size: 28px; color: #888;");
+        segmentLabel->setStyleSheet("font-size: 44px; color: #888; font-weight: 500;");
       }
     }
   }, Qt::QueuedConnection);
@@ -979,7 +1136,7 @@ void BPRouteVideoDialog::updateVideoFrame() {
     }
     isPlaying = false;
     if (playPauseButton) {
-      playPauseButton->setText("▶");
+      playPauseButton->setIconType(MediaControlButton::Play);
     }
     return;
   }
@@ -1051,7 +1208,7 @@ void BPRouteVideoDialog::togglePlayback() {
   if (isPlaying) {
     qDebug() << "[VIDEO DEBUG] Starting playback";
     if (playPauseButton) {
-      playPauseButton->setText("II");  // Pause bars
+      playPauseButton->setIconType(MediaControlButton::Pause);  // Pause icon
     }
     if (playbackTimer) {
       playbackTimer->start(50); // 20fps
@@ -1063,7 +1220,7 @@ void BPRouteVideoDialog::togglePlayback() {
   } else {
     qDebug() << "[VIDEO DEBUG] Stopping playback";
     if (playPauseButton) {
-      playPauseButton->setText("▶");  // Play triangle
+      playPauseButton->setIconType(MediaControlButton::Play);  // Play icon
     }
     if (playbackTimer) {
       playbackTimer->stop();
@@ -1128,9 +1285,9 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
     if (wasPlaying) {
       // Resume playback - wait for segment to load before starting timer
       isPlaying = true;
-      playPauseButton->setText("II");  // Pause bars
+      playPauseButton->setIconType(MediaControlButton::Pause);  // Pause icon
       positionTimer->start();
-      
+
       // Ensure frameReader is ready before starting playback timer
       QTimer::singleShot(100, this, [this]() {
         if (frameReader && totalFrames > 0 && frameReader->width > 0 && frameReader->height > 0) {
@@ -1141,7 +1298,7 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
         } else {
           qDebug() << "[VIDEO DEBUG] Cannot start playback timer - frameReader not ready";
           isPlaying = false;
-          playPauseButton->setText("▶");
+          playPauseButton->setIconType(MediaControlButton::Play);
         }
       });
       qDebug() << "[VIDEO DEBUG] Resuming playback after camera switch";
@@ -1207,8 +1364,6 @@ void BPRouteVideoDialog::toggleFullscreen() {
 
     // Update overlay position for fullscreen
     updateOverlayPosition();
-
-    fullscreenButton->setText("⛶");
   } else {
     // Exit fullscreen - restore normal layout
     cameraPanel->show();
@@ -1222,8 +1377,6 @@ void BPRouteVideoDialog::toggleFullscreen() {
 
     // Update overlay position for normal view
     updateOverlayPosition();
-
-    fullscreenButton->setText("⛶");
   }
 }
 
@@ -1276,7 +1429,7 @@ void BPRouteVideoDialog::onSegmentFinished() {
   } else {
     // Playback finished
     isPlaying = false;
-    playPauseButton->setText("▶");  // Play triangle
+    playPauseButton->setIconType(MediaControlButton::Play);  // Play icon
     positionTimer->stop();
     // Show thumbnail when playback ends
     loadThumbnail();
@@ -1336,7 +1489,7 @@ void BPRouteVideoDialog::seekToPosition(qint64 positionMs) {
     // Restore playing state if it was playing
     if (wasPlaying && playPauseButton) {
       isPlaying = true;
-      playPauseButton->setText("⏸");
+      playPauseButton->setIconType(MediaControlButton::Pause);
       if (!isSeeking && playbackTimer) {
         playbackTimer->start(50); // Only restart timer if not still seeking
       }

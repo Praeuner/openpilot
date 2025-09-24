@@ -18,6 +18,7 @@
 
 // Forward declarations
 class FrameReader;
+class MediaControlButton;
 
 // Qt Concurrent
 #include <QtConcurrent>
@@ -394,7 +395,6 @@ private:
   QWidget *controlsWidget;
   QLabel *routeTitle;
   QPushButton *starButton;
-  QPushButton *fullscreenButton;
   QPushButton *fullscreenExitButton;
   QPushButton *closeButton;
   QPushButton *frontCamButton;
@@ -402,7 +402,7 @@ private:
   QPushButton *driverCamButton;
   QPushButton *lqCamButton;
   QPushButton *deleteButton;
-  QPushButton *playPauseButton;
+  MediaControlButton *playPauseButton;
   QSlider *positionSlider;
   QLabel *timeLabel;
   QLabel *segmentLabel;
