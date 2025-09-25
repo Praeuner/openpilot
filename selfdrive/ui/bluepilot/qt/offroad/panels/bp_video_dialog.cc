@@ -251,46 +251,51 @@ BPRouteVideoDialog::~BPRouteVideoDialog() {
 }
 
 void BPRouteVideoDialog::setupUI() {
-  // Main container for the modal (80/20 split)
-  QHBoxLayout *mainLayout = new QHBoxLayout(this);
-  mainLayout->setContentsMargins(0, 0, 0, 0);
-  mainLayout->setSpacing(0);
+  // Main vertical layout to allow full-width header
+  QVBoxLayout *mainVerticalLayout = new QVBoxLayout(this);
+  mainVerticalLayout->setContentsMargins(0, 0, 0, 0);
+  mainVerticalLayout->setSpacing(0);
+
+  // Full-width header
+  setupFullWidthHeader();
+  mainVerticalLayout->addWidget(headerWidget);
+
+  // Content area with video and camera panel
+  QWidget *contentWidget = new QWidget;
+  QHBoxLayout *contentLayout = new QHBoxLayout(contentWidget);
+  contentLayout->setContentsMargins(0, 0, 0, 0);
+  contentLayout->setSpacing(0);
 
   // Left side - Video display (85%)
   setupVideoDisplay();
-  mainLayout->addWidget(videoContainer, 85);
+  contentLayout->addWidget(videoContainer, 85);
 
   // Right side - Camera panel (15%) - made narrower
   setupCameraPanel();
-  mainLayout->addWidget(cameraPanel, 15);
+  contentLayout->addWidget(cameraPanel, 15);
+
+  mainVerticalLayout->addWidget(contentWidget, 1);
 }
 
-void BPRouteVideoDialog::setupVideoDisplay() {
-  videoContainer = new QWidget;
-  videoContainer->setStyleSheet("background: #000000;");
-
-  QVBoxLayout *videoLayout = new QVBoxLayout(videoContainer);
-  videoLayout->setContentsMargins(0, 0, 0, 0);
-  videoLayout->setSpacing(0);
-
-  // Header - redesigned for better information display
-  QWidget *headerWidget = new QWidget;
-  headerWidget->setFixedHeight(160);
+void BPRouteVideoDialog::setupFullWidthHeader() {
+  // Full-width header - moved out of video container
+  headerWidget = new QWidget;
+  headerWidget->setFixedHeight(120);  // Reduced height
   headerWidget->setStyleSheet("background: #202020;");
 
   QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
-  headerLayout->setContentsMargins(40, 20, 40, 20);
+  headerLayout->setContentsMargins(40, 15, 40, 15);
   headerLayout->setSpacing(30);
 
-  // Close button - moved to far left and much larger
+  // Close button - adjusted for reduced header height
   closeButton = new QPushButton("✕");
-  closeButton->setFixedSize(120, 120);
+  closeButton->setFixedSize(90, 90);
   closeButton->setStyleSheet(R"(
     QPushButton {
       background: #444444;
       border: 2px solid #666666;
-      border-radius: 60px;
-      font-size: 60px;
+      border-radius: 45px;
+      font-size: 50px;
       color: #FFD700;
       font-weight: bold;
     }
@@ -354,11 +359,11 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   QString fullTitle = QString("%1 at %2").arg(displayDate, displayTime);
 
   routeTitle = new QLabel(fullTitle);
-  routeTitle->setStyleSheet("font-size: 52px; font-weight: 600; color: white;");
+  routeTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white;");
 
   // Subtitle - show only route ID
   QLabel *subtitleLabel = new QLabel(routeBaseName);
-  subtitleLabel->setStyleSheet("font-size: 38px; color: #cccccc;");
+  subtitleLabel->setStyleSheet("font-size: 32px; color: #cccccc;");
 
   titleLayout->addWidget(routeTitle);
   titleLayout->addWidget(subtitleLabel);
@@ -367,14 +372,14 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   QVBoxLayout *rightInfoLayout = new QVBoxLayout;
   rightInfoLayout->setSpacing(5);
 
-  // Route size - larger text for 6" display
+  // Route size - adjusted for reduced header
   QLabel *sizeLabel = new QLabel(routeInfo.size);
-  sizeLabel->setStyleSheet("font-size: 48px; color: #2196F3; font-weight: 600;");
+  sizeLabel->setStyleSheet("font-size: 40px; color: #2196F3; font-weight: 600;");
   sizeLabel->setAlignment(Qt::AlignRight);
 
-  // Segment indicator - larger text for 6" display
+  // Segment indicator - adjusted for reduced header
   segmentLabel = new QLabel("Loading segments...");
-  segmentLabel->setStyleSheet("font-size: 44px; color: #888; font-weight: 500;");
+  segmentLabel->setStyleSheet("font-size: 36px; color: #888; font-weight: 500;");
   segmentLabel->setAlignment(Qt::AlignRight);
 
   rightInfoLayout->addWidget(sizeLabel);
@@ -383,8 +388,15 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   headerLayout->addWidget(closeButton);
   headerLayout->addLayout(titleLayout, 1);
   headerLayout->addLayout(rightInfoLayout);
+}
 
-  videoLayout->addWidget(headerWidget);
+void BPRouteVideoDialog::setupVideoDisplay() {
+  videoContainer = new QWidget;
+  videoContainer->setStyleSheet("background: #000000;");
+
+  QVBoxLayout *videoLayout = new QVBoxLayout(videoContainer);
+  videoLayout->setContentsMargins(0, 0, 0, 0);
+  videoLayout->setSpacing(0);
 
   // Video display area - much larger for iOS style (taller)
   videoDisplay = new BPVideoWidget;
@@ -424,7 +436,7 @@ QString BPRouteVideoDialog::buttonStyle(const QString &size) {
 
 void BPRouteVideoDialog::setupOverlayControls() {
   // Create centered control buttons overlay - scaled for 6" 2160x1080 display
-  controlsWidget = new QWidget(videoContainer);
+  controlsWidget = new QWidget(videoDisplay);  // Parent to video display for proper centering
   controlsWidget->setObjectName("overlayControls");
   controlsWidget->setStyleSheet("background: transparent;");
 
@@ -460,10 +472,18 @@ void BPRouteVideoDialog::setupOverlayControls() {
   controlsLayout->addWidget(playPauseButton);
   controlsLayout->addWidget(forwardButton);
 
-  // Position controls in center
+  // Position controls in center of video display
   controlsWidget->setFixedSize(700, 200);
-  updateOverlayPosition();
-  controlsWidget->show();
+  // Center in parent (videoDisplay) immediately
+  QTimer::singleShot(0, this, [this]() {
+    if (controlsWidget && videoDisplay) {
+      int x = (videoDisplay->width() - controlsWidget->width()) / 2;
+      int y = (videoDisplay->height() - controlsWidget->height()) / 2;
+      controlsWidget->move(x, y);
+      controlsWidget->show();
+      controlsWidget->raise();
+    }
+  });
 
   // Add fullscreen button overlay - top LEFT corner of VIDEO AREA ONLY
   QPushButton *fullscreenOverlay = new QPushButton("⤢");
@@ -627,10 +647,10 @@ void BPRouteVideoDialog::setupOverlayControls() {
 }
 
 void BPRouteVideoDialog::updateOverlayPosition() {
-  if (controlsWidget && videoContainer) {
-    // Center controls in video
-    int x = (videoContainer->width() - controlsWidget->width()) / 2;
-    int y = (videoContainer->height() - controlsWidget->height()) / 2;
+  if (controlsWidget && videoDisplay) {
+    // Center controls in video display widget
+    int x = (videoDisplay->width() - controlsWidget->width()) / 2;
+    int y = (videoDisplay->height() - controlsWidget->height()) / 2;
     controlsWidget->move(x, y);
   }
 
@@ -650,16 +670,16 @@ void BPRouteVideoDialog::resizeEvent(QResizeEvent *event) {
 
 void BPRouteVideoDialog::setupCameraPanel() {
   cameraPanel = new QWidget;
-  // Optimized for 20% split with large touch targets
+  // Reduced height with smaller panel
   cameraPanel->setStyleSheet("background: #2a2a2a; border-left: 1px solid #444444;");
 
   QVBoxLayout *panelLayout = new QVBoxLayout(cameraPanel);
-  panelLayout->setContentsMargins(30, 40, 30, 40);
-  panelLayout->setSpacing(25);
+  panelLayout->setContentsMargins(20, 20, 20, 20);
+  panelLayout->setSpacing(15);
 
-  // Camera selection title - much larger font for 6" display
+  // Camera selection title - adjusted for smaller panel
   QLabel *cameraTitle = new QLabel("Camera Views");
-  cameraTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white; margin-bottom: 20px;");
+  cameraTitle->setStyleSheet("font-size: 36px; font-weight: 600; color: white; margin-bottom: 10px;");
   panelLayout->addWidget(cameraTitle);
 
   // Camera buttons
@@ -671,17 +691,17 @@ void BPRouteVideoDialog::setupCameraPanel() {
   driverCamButton = nullptr;
   lqCamButton = nullptr;
 
-  // Common button style for all available cameras - LARGER for 6" display
+  // Common button style for all available cameras - adjusted for smaller panel
   QString buttonStyle = R"(
     QPushButton {
       background: #404040;
       color: white;
-      font-size: 42px;
+      font-size: 34px;
       border: 3px solid #555555;
       border-radius: 20px;
       text-align: center;
       font-weight: bold;
-      padding: 15px;
+      padding: 10px;
     }
     QPushButton:checked {
       background: #2196F3;
@@ -705,7 +725,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
   if (routeInfo.hasFrontHQVideo) {
     qDebug() << "[VIDEO DEBUG] Creating Front Camera button";
     frontCamButton = new QPushButton("Front Camera");
-    frontCamButton->setFixedHeight(120);  // Larger for 6" touch display
+    frontCamButton->setFixedHeight(80);  // Adjusted for smaller panel
     frontCamButton->setCheckable(true);
     frontCamButton->setStyleSheet(buttonStyle);
     cameraGroup->addButton(frontCamButton);
@@ -716,7 +736,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
     // Only show LQ if HQ is not available
     qDebug() << "[VIDEO DEBUG] Creating Front LQ Camera button (HQ not available)";
     frontCamButton = new QPushButton("Front Camera (LQ)");
-    frontCamButton->setFixedHeight(120);  // Larger for 6" touch display
+    frontCamButton->setFixedHeight(80);  // Adjusted for smaller panel
     frontCamButton->setCheckable(true);
     frontCamButton->setStyleSheet(buttonStyle);
     cameraGroup->addButton(frontCamButton);
@@ -731,7 +751,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
   if (routeInfo.hasWideVideo) {
     qDebug() << "[VIDEO DEBUG] Creating Wide Camera button";
     wideCamButton = new QPushButton("Wide Camera");
-    wideCamButton->setFixedHeight(120);  // Larger for 6" touch display
+    wideCamButton->setFixedHeight(80);  // Adjusted for smaller panel
     wideCamButton->setCheckable(true);
     wideCamButton->setStyleSheet(buttonStyle);
     cameraGroup->addButton(wideCamButton);
@@ -744,7 +764,7 @@ void BPRouteVideoDialog::setupCameraPanel() {
 
   if (routeInfo.hasDriverHQVideo) {
     driverCamButton = new QPushButton("Driver Camera");
-    driverCamButton->setFixedHeight(120);  // Larger for 6" touch display
+    driverCamButton->setFixedHeight(80);  // Adjusted for smaller panel
     driverCamButton->setCheckable(true);
     driverCamButton->setStyleSheet(buttonStyle);
     cameraGroup->addButton(driverCamButton);
@@ -774,42 +794,42 @@ void BPRouteVideoDialog::setupCameraPanel() {
 
   qDebug() << "[VIDEO DEBUG] Final camera selection: " << currentCameraType;
 
-  panelLayout->addStretch();
+  // Add spacer to push actions to bottom
+  panelLayout->addStretch(1);
 
-  // Actions section - fixed
+  // Actions section - at bottom
   setupActionButtons(panelLayout);
-
-  panelLayout->addStretch();
 }
 
 void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
   // Actions section title
   QLabel *actionsTitle = new QLabel("Actions");
-  actionsTitle->setStyleSheet("font-size: 48px; font-weight: 600; color: white; margin-bottom: 20px; margin-top: 30px;");
+  actionsTitle->setStyleSheet("font-size: 36px; font-weight: 600; color: white; margin-bottom: 15px; margin-top: 20px;");
   parentLayout->addWidget(actionsTitle);
 
   // Create horizontal flow layout container
   QWidget *actionButtonsContainer = new QWidget;
-  QGridLayout *gridLayout = new QGridLayout(actionButtonsContainer);
-  gridLayout->setContentsMargins(0, 0, 0, 0);
-  gridLayout->setSpacing(20);
+  QHBoxLayout *buttonLayout = new QHBoxLayout(actionButtonsContainer);
+  buttonLayout->setContentsMargins(0, 0, 0, 0);
+  buttonLayout->setSpacing(15);
+  buttonLayout->setAlignment(Qt::AlignCenter);
 
-  // Star button - MUCH larger and more touch-friendly for 6" display
+  // Star button - adjusted for smaller panel
   starButton = new QPushButton;
-  starButton->setFixedSize(160, 160);
+  starButton->setFixedSize(100, 100);
   starButton->setText(routeInfo.isStarred ? "★" : "☆");
   starButton->setStyleSheet(R"(
     QPushButton {
       background: #444444;
-      border: 4px solid #666666;
-      border-radius: 80px;
-      font-size: 80px;
+      border: 3px solid #666666;
+      border-radius: 50px;
+      font-size: 60px;
       color: #FFD700;
       font-weight: bold;
     }
     QPushButton:hover {
       background: #555555;
-      border: 4px solid #FFD700;
+      border: 3px solid #FFD700;
     }
     QPushButton:pressed {
       background: #333333;
@@ -817,15 +837,15 @@ void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
   )");
   connect(starButton, &QPushButton::clicked, this, &BPRouteVideoDialog::toggleStar);
 
-  // Delete button - MUCH larger and more touch-friendly for 6" display
+  // Delete button - adjusted for smaller panel
   deleteButton = new QPushButton("🗑");
-  deleteButton->setFixedSize(160, 160);
+  deleteButton->setFixedSize(100, 100);
   deleteButton->setStyleSheet(R"(
     QPushButton {
       background: #d32f2f;
-      border: 4px solid #b71c1c;
-      border-radius: 80px;
-      font-size: 70px;
+      border: 3px solid #b71c1c;
+      border-radius: 50px;
+      font-size: 50px;
       color: white;
       font-weight: bold;
     }
@@ -834,14 +854,14 @@ void BPRouteVideoDialog::setupActionButtons(QVBoxLayout *parentLayout) {
     }
     QPushButton:hover {
       background: #c62828;
-      border: 4px solid #FFD700;
+      border: 3px solid #FFD700;
     }
   )");
   connect(deleteButton, &QPushButton::clicked, this, &BPRouteVideoDialog::deleteRoute);
 
-  // Add buttons to grid - will wrap automatically
-  gridLayout->addWidget(starButton, 0, 0);
-  gridLayout->addWidget(deleteButton, 0, 1);
+  // Add buttons to horizontal layout
+  buttonLayout->addWidget(starButton);
+  buttonLayout->addWidget(deleteButton);
 
   // Add more action buttons here in future (share, export, etc)
   // They will automatically flow to next row when space runs out
@@ -1372,8 +1392,8 @@ void BPRouteVideoDialog::toggleFullscreen() {
       fullscreenExitButton->hide();
     }
 
-    // Restore normal video size
-    videoDisplay->setGeometry(0, 160, videoContainer->width(), videoContainer->height() - 160);
+    // Restore normal video size (no header offset since header is now separate)
+    videoDisplay->setGeometry(0, 0, videoContainer->width(), videoContainer->height());
 
     // Update overlay position for normal view
     updateOverlayPosition();

@@ -349,6 +349,7 @@ private slots:
 
 private:
   void setupUI();
+  void setupFullWidthHeader();
   void setupVideoDisplay();
   void setupCameraPanel();
   void setupOverlayControls();
@@ -389,6 +390,7 @@ private:
   size_t totalFrames = 0;
 
   // UI Components
+  QWidget *headerWidget;
   QWidget *videoContainer;
   class BPVideoWidget *videoDisplay;
   QWidget *cameraPanel;
