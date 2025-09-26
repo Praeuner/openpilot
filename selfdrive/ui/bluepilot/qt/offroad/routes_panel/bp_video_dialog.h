@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <memory>
 #include <QFuture>
+#include <QPixmap>
 
 // Custom includes
 #include "../panels/bp_panel_dialogs.h"
@@ -125,7 +126,7 @@ private:
   QWidget *controlsWidget;
   QLabel *routeTitle;
   QPushButton *starButton;
-  QPushButton *fullscreenExitButton;
+  QPushButton *fullscreenToggleButton;
   QPushButton *closeButton;
   QPushButton *frontCamButton;
   QPushButton *wideCamButton;
@@ -136,4 +137,8 @@ private:
   QSlider *positionSlider;
   QLabel *timeLabel;
   QLabel *segmentLabel;
+
+  // Fullscreen SVG icons
+  QPixmap fullscreenIcon;
+  QPixmap minimizeIcon;
 };

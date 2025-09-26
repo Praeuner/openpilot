@@ -19,7 +19,7 @@
 #include <QScroller>
 #include <QDialog>
 #include <QVBoxLayout>
-#include <QDebug>
+
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QScrollBar>
@@ -707,8 +707,8 @@ void BPRoutesPanel::handleRouteVideoPlayback(const QString &route, const QString
   currentSelectedRoute = route;
 
   // Debug info
-  qDebug() << "Opening video dialog for route:" << route;
-  qDebug() << "Route path:" << getRoutesDir() + "/" + route;
+  showDebugPlayerOutput(QString("Opening video dialog for route: %1").arg(route));
+  showDebugPlayerOutput(QString("Route path: %1").arg(getRoutesDir() + "/" + route));
 
   BPRouteVideoDialog *videoDialog = new BPRouteVideoDialog(route, this);
   if (videoDialog) {
@@ -716,7 +716,7 @@ void BPRoutesPanel::handleRouteVideoPlayback(const QString &route, const QString
     videoDialog->exec();
     videoDialog->deleteLater();
   } else {
-    qDebug() << "Failed to create video dialog";
+    showDebugPlayerOutput("Failed to create video dialog");
   }
 }
 

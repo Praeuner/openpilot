@@ -33,12 +33,12 @@ uniform sampler2D uUVTexture;
 void main() {
     float y = texture(uYTexture, vTexCoord).r;
     vec2 uv = texture(uUVTexture, vTexCoord).rg - vec2(0.5, 0.5);
-    
+
     // BT.601 YUV to RGB conversion (more compatible)
     float r = y + 1.370705 * uv.g;
-    float g = y - 0.337633 * uv.r - 0.698001 * uv.g;  
+    float g = y - 0.337633 * uv.r - 0.698001 * uv.g;
     float b = y + 1.732446 * uv.r;
-    
+
     FragColor = vec4(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), 1.0);
 }
 )";
@@ -191,8 +191,8 @@ void BPVideoWidget::updateTextures(VisionBuf* buf, int width, int height) {
 
     // Handle stride properly for aligned memory access
     // CRITICAL: Use GL_UNPACK_ROW_LENGTH to handle stride correctly
-    
-    // Update Y texture (luminance) 
+
+    // Update Y texture (luminance)
     glBindTexture(GL_TEXTURE_2D, y_texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, buf->stride); // Tell OpenGL about the actual stride
@@ -203,7 +203,7 @@ void BPVideoWidget::updateTextures(VisionBuf* buf, int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Update UV texture (chroma) - NV12 has interleaved UV 
+    // Update UV texture (chroma) - NV12 has interleaved UV
     glBindTexture(GL_TEXTURE_2D, uv_texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, buf->stride / 2); // UV plane has same stride but half the pixel width
