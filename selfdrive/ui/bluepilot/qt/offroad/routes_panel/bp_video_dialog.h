@@ -14,9 +14,19 @@
 #include <memory>
 #include <QFuture>
 #include <QPixmap>
+#include <QFutureWatcher>
+#include <QProgressBar>
+#include <QCache>
+#include <QThreadPool>
+#include <QMutex>
+#include <QPointer>
+#include <atomic>
+#include <queue>
+#include <thread>
 
 // Custom includes
 #include "../panels/bp_panel_dialogs.h"
+#include "bp_frame_reader.h"
 
 // Forward declarations
 class FrameReader;
@@ -25,6 +35,61 @@ class BPVideoWidget;
 class BPRoutesPanel;
 
 struct DecodedFrame;
+
+// Player state enumeration for UI feedback
+enum class PlayerState {
+    Idle,
+    Playing,
+    Paused,
+    Buffering,
+    Seeking,
+    Loading
+};
+
+// Playback state for precise pause/resume
+struct PlaybackState {
+    int frameIndex = 0;
+    int segment = 0;
+    qint64 position = 0;
+    bool wasPlaying = false;
+    QString cameraType;
+};
+
+// Frame buffer pool for memory optimization
+class FrameBufferPool {
+public:
+    FrameBufferPool(size_t maxBuffers = 10);
+    ~FrameBufferPool();
+
+    VisionBuf* acquire(size_t frameSize);
+    void release(VisionBuf* buffer);
+    void clear();
+
+private:
+    std::queue<std::unique_ptr<VisionBuf>> available;
+    std::mutex mutex;
+    size_t maxBuffers;
+    size_t frameSize = 0;
+};
+
+// Segment cache for intelligent preloading
+class SegmentCache {
+public:
+    SegmentCache(int maxCacheSize = 5);
+    ~SegmentCache();
+
+    std::shared_ptr<FrameReader> getSegment(int segmentIndex);
+    void preloadSegment(int segmentIndex, const QString& videoPath, CameraType cameraType);
+    void clearCache();
+    bool hasSegment(int segmentIndex) const;
+    void cancelPendingLoads();
+
+private:
+    QCache<int, std::shared_ptr<FrameReader>> cache;
+    QThreadPool* loaderPool;
+    std::atomic<bool> shutdown{false};
+    mutable QMutex cacheMutex;
+};
 
 class BPRouteVideoDialog : public BPDialogBase {
   Q_OBJECT
@@ -55,6 +120,11 @@ private slots:
   void preloadNextSegment();
   void onSegmentTransitionStart();
   void onVideoTap();
+  void onSeekCompleted();
+  void onSegmentPreloaded();
+  void updatePlayerState(PlayerState state);
+  void showLoadingIndicator(const QString& message);
+  void hideLoadingIndicator();
 
 private:
   void setupUI();
@@ -63,6 +133,7 @@ private:
   void showDebugPlayerOutput(const QString &message);
   void setupCameraPanel();
   void setupOverlayControls();
+  void setupStatusOverlay();
   void setupActionButtons(QVBoxLayout *parentLayout);
   QString buttonStyle(const QString &size);
   void updateOverlayPosition();
@@ -75,6 +146,7 @@ private:
   QString getVideoPath(const QString &cameraType, int segment);
   void seekToPosition(qint64 positionMs);
   void updateVideoFrame();
+  void handleCameraError(const QString& failedCamera);
 
   // Route data
   QString routeBaseName;
@@ -88,7 +160,7 @@ private:
   } routeInfo;  // Matches actual BPRoutesPanel::RouteInfo by layout
 
   // Video playback
-  std::unique_ptr<FrameReader> frameReader;
+  std::shared_ptr<FrameReader> frameReader;
   QStringList currentPlaylist;
   QString currentCameraType = "front";
   int currentSegment = 0;
@@ -110,13 +182,23 @@ private:
   bool controlsVisible = true;
   QTimer *overlayFadeTimer;
 
-  // Segment preloading system
+  // Enhanced segment preloading system
+  std::unique_ptr<SegmentCache> segmentCache;
+  std::unique_ptr<FrameBufferPool> bufferPool;
   std::unique_ptr<FrameReader> nextSegmentReader;
   int preloadedSegment = -1;
 
-  // Playback state management
+  // Enhanced playback state management
+  PlayerState currentPlayerState = PlayerState::Idle;
+  PlaybackState pausedState;
   qint64 lastValidPosition = 0;
   bool isPausedSnapshot = false;
+  std::atomic<bool> stopAllOperations{false};
+
+  // Async operation management
+  QPointer<QFutureWatcher<void>> activeSeekWatcher;
+  QPointer<QFutureWatcher<std::shared_ptr<FrameReader>>> segmentLoadWatcher;
+  std::atomic<int> loadingSegment{-1};
 
   // UI Components
   QWidget *headerWidget;
@@ -137,6 +219,13 @@ private:
   QSlider *positionSlider;
   QLabel *timeLabel;
   QLabel *segmentLabel;
+
+  // Status overlay components
+  QWidget *statusOverlay;
+  QLabel *statusIndicator;
+  QProgressBar *seekProgress;
+  QProgressBar *loadingProgress;
+  QLabel *loadingLabel;
 
   // Fullscreen SVG icons
   QPixmap fullscreenIcon;

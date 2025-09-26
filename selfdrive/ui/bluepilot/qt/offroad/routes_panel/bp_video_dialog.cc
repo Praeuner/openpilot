@@ -155,6 +155,111 @@ private:
 // Include the MOC file for Qt's meta-object system
 #include "bp_video_dialog.moc"
 
+// ===== FrameBufferPool Implementation =====
+FrameBufferPool::FrameBufferPool(size_t maxBuffers) : maxBuffers(maxBuffers) {}
+
+FrameBufferPool::~FrameBufferPool() {
+    clear();
+}
+
+VisionBuf* FrameBufferPool::acquire(size_t newFrameSize) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // If frame size changed, clear old buffers
+    if (this->frameSize != newFrameSize) {
+        while (!available.empty()) {
+            available.pop();
+        }
+        this->frameSize = newFrameSize;
+    }
+
+    if (available.empty()) {
+        // Create new buffer
+        auto buf = std::make_unique<VisionBuf>();
+        buf->allocate(newFrameSize);
+        return buf.release();
+    }
+
+    auto buf = std::move(available.front());
+    available.pop();
+    return buf.release();
+}
+
+void FrameBufferPool::release(VisionBuf* buffer) {
+    if (!buffer) return;
+
+    std::lock_guard<std::mutex> lock(mutex);
+    if (available.size() < maxBuffers) {
+        available.push(std::unique_ptr<VisionBuf>(buffer));
+    } else {
+        // Pool is full, delete the buffer
+        delete buffer;
+    }
+}
+
+void FrameBufferPool::clear() {
+    std::lock_guard<std::mutex> lock(mutex);
+    while (!available.empty()) {
+        available.pop();
+    }
+}
+
+// ===== SegmentCache Implementation =====
+SegmentCache::SegmentCache(int maxCacheSize) {
+    cache.setMaxCost(maxCacheSize);
+    loaderPool = new QThreadPool();
+    loaderPool->setMaxThreadCount(2); // Limit concurrent segment loads
+}
+
+SegmentCache::~SegmentCache() {
+    shutdown.store(true);
+    cancelPendingLoads();
+    loaderPool->waitForDone(3000); // Wait up to 3 seconds
+    delete loaderPool;
+}
+
+std::shared_ptr<FrameReader> SegmentCache::getSegment(int segmentIndex) {
+    QMutexLocker lock(&cacheMutex);
+    if (auto cached = cache.object(segmentIndex)) {
+        return *cached;
+    }
+    return nullptr;
+}
+
+void SegmentCache::preloadSegment(int segmentIndex, const QString& videoPath, CameraType cameraType) {
+    if (shutdown.load() || hasSegment(segmentIndex)) {
+        return;
+    }
+
+    QtConcurrent::run(loaderPool, [this, segmentIndex, videoPath, cameraType]() {
+        if (shutdown.load()) return;
+
+        auto frameReader = std::make_shared<FrameReader>();
+        std::atomic<bool> abort{false};
+
+        if (frameReader->load(cameraType, videoPath.toStdString(), false, &abort)) {
+            QMutexLocker lock(&cacheMutex);
+            if (!shutdown.load()) {
+                cache.insert(segmentIndex, new std::shared_ptr<FrameReader>(frameReader));
+            }
+        }
+    });
+}
+
+void SegmentCache::clearCache() {
+    QMutexLocker lock(&cacheMutex);
+    cache.clear();
+}
+
+bool SegmentCache::hasSegment(int segmentIndex) const {
+    QMutexLocker lock(&cacheMutex);
+    return cache.contains(segmentIndex);
+}
+
+void SegmentCache::cancelPendingLoads() {
+    shutdown.store(true);
+}
+
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
     : BPDialogBase(parent), routeBaseName(routeBase) {
 
@@ -162,6 +267,11 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   std::cout << "[VIDEO DIALOG] Route: " << routeBase.toStdString() << std::endl;
 
   setWindowTitle("Route Video Playback");
+
+  // Initialize new components
+  segmentCache = std::make_unique<SegmentCache>(5);  // Cache up to 5 segments
+  bufferPool = std::make_unique<FrameBufferPool>(10);  // Pool of 10 buffers
+  stopAllOperations.store(false);
 
   // Load route info
   QString routePath = static_cast<BPRoutesPanel*>(parent)->getRoutesDir() + "/" + routeBase;
@@ -279,14 +389,29 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
 }
 
 BPRouteVideoDialog::~BPRouteVideoDialog() {
+  // Signal all operations to stop immediately
+  stopAllOperations.store(true);
+
   // Stop video playback first
   isPlaying = false;
 
-  // Stop all timers
-  if (playbackTimer) playbackTimer->stop();
-  if (positionTimer) positionTimer->stop();
-  if (keepAwakeTimer) keepAwakeTimer->stop();
-  if (overlayFadeTimer) overlayFadeTimer->stop();
+  // Stop all timers immediately
+  for (auto* timer : {playbackTimer, positionTimer, keepAwakeTimer, overlayFadeTimer}) {
+    if (timer) {
+      timer->stop();
+      timer->deleteLater();
+    }
+  }
+
+  // Cancel any active async operations
+  if (activeSeekWatcher && activeSeekWatcher->isRunning()) {
+    activeSeekWatcher->cancel();
+    activeSeekWatcher->waitForFinished();
+  }
+  if (segmentLoadWatcher && segmentLoadWatcher->isRunning()) {
+    segmentLoadWatcher->cancel();
+    segmentLoadWatcher->waitForFinished();
+  }
 
   // Stop and wait for playback thread to finish (if any)
   if (playbackFuture.isRunning()) {
@@ -294,13 +419,21 @@ BPRouteVideoDialog::~BPRouteVideoDialog() {
     playbackFuture.waitForFinished(); // Wait for thread to finish
   }
 
-  // Clean up video resources
+  // Clean up resources in detached thread to prevent blocking
+  std::thread([frameReaderPtr = frameReader,
+               segCache = std::move(segmentCache),
+               bufPool = std::move(bufferPool)]() mutable {
+    // Cleanup happens independently
+    segCache.reset();
+    bufPool.reset();
+  }).detach();
+
   frameReader.reset();
 
   // Clear playlists
   currentPlaylist.clear();
 
-  showDebugPlayerOutput("BPRouteVideoDialog destroyed and cleaned up");
+  showDebugPlayerOutput("BPRouteVideoDialog destroyed and cleaned up safely");
 }
 
 void BPRouteVideoDialog::setupUI() {
@@ -474,6 +607,9 @@ void BPRouteVideoDialog::setupVideoDisplay() {
 
   // Setup overlay controls (iOS style) - no bottom controls needed
   setupOverlayControls();
+
+  // Setup status overlay for loading and buffering feedback
+  setupStatusOverlay();
 
   // Create slider container with proper layout management
   QWidget *sliderContainer = new QWidget(videoContainer);
@@ -676,6 +812,85 @@ void BPRouteVideoDialog::setupOverlayControls() {
   fullscreenToggleButton->raise();
 }
 
+void BPRouteVideoDialog::setupStatusOverlay() {
+  // Create status overlay container
+  statusOverlay = new QWidget(videoDisplay);
+  statusOverlay->setStyleSheet(R"(
+    QWidget {
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+  )");
+  statusOverlay->setFixedSize(400, 200);
+  statusOverlay->hide(); // Initially hidden
+
+  QVBoxLayout *overlayLayout = new QVBoxLayout(statusOverlay);
+  overlayLayout->setAlignment(Qt::AlignCenter);
+  overlayLayout->setSpacing(15);
+
+  // Status indicator (spinner or icon)
+  statusIndicator = new QLabel();
+  statusIndicator->setAlignment(Qt::AlignCenter);
+  statusIndicator->setStyleSheet("color: white; font-size: 48px; background: transparent;");
+  statusIndicator->setText("◐"); // Default spinner
+  overlayLayout->addWidget(statusIndicator);
+
+  // Loading label
+  loadingLabel = new QLabel();
+  loadingLabel->setAlignment(Qt::AlignCenter);
+  loadingLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 600; background: transparent;");
+  loadingLabel->setText("Loading...");
+  overlayLayout->addWidget(loadingLabel);
+
+  // Progress bars
+  seekProgress = new QProgressBar();
+  seekProgress->setStyleSheet(R"(
+    QProgressBar {
+      border: 2px solid #2196F3;
+      border-radius: 10px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-weight: bold;
+    }
+    QProgressBar::chunk {
+      background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                  stop:0 #2196F3, stop:1 #1976D2);
+      border-radius: 8px;
+    }
+  )");
+  seekProgress->setFixedHeight(30);
+  seekProgress->hide();
+  overlayLayout->addWidget(seekProgress);
+
+  loadingProgress = new QProgressBar();
+  loadingProgress->setStyleSheet(R"(
+    QProgressBar {
+      border: 2px solid #4CAF50;
+      border-radius: 10px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-weight: bold;
+    }
+    QProgressBar::chunk {
+      background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                  stop:0 #4CAF50, stop:1 #388E3C);
+      border-radius: 8px;
+    }
+  )");
+  loadingProgress->setFixedHeight(30);
+  loadingProgress->hide();
+  overlayLayout->addWidget(loadingProgress);
+
+  // Position overlay in center of video display
+  statusOverlay->move(
+    (videoDisplay->width() - statusOverlay->width()) / 2,
+    (videoDisplay->height() - statusOverlay->height()) / 2
+  );
+}
+
 void BPRouteVideoDialog::updateOverlayPosition() {
   if (!videoDisplay) return;
 
@@ -684,6 +899,14 @@ void BPRouteVideoDialog::updateOverlayPosition() {
     controlsWidget->move(
       (videoDisplay->width() - controlsWidget->width()) / 2,
       (videoDisplay->height() - controlsWidget->height()) / 2
+    );
+  }
+
+  // Center status overlay
+  if (statusOverlay) {
+    statusOverlay->move(
+      (videoDisplay->width() - statusOverlay->width()) / 2,
+      (videoDisplay->height() - statusOverlay->height()) / 2
     );
   }
 
@@ -1057,7 +1280,7 @@ void BPRouteVideoDialog::playCurrentSegment() {
 
   // Create FrameReader and load video
   qDebug() << "[VIDEO DEBUG] Creating FrameReader...";
-  frameReader = std::make_unique<FrameReader>();
+  frameReader = std::make_shared<FrameReader>();
 
   // Determine camera type based on current selection
   CameraType cameraType = RoadCam;  // Default to front camera
@@ -1170,6 +1393,19 @@ void BPRouteVideoDialog::updateVideoFrame() {
         positionSlider->setValue(currentPosition);
       }
 
+      // Smart preloading logic
+      if (currentFrameIndex > totalFrames * 0.8 && currentSegment + 1 < currentPlaylist.size()) {
+        // Preload next segment at 80% mark
+        int nextSegment = currentSegment + 1;
+        if (!segmentCache->hasSegment(nextSegment)) {
+          QString nextVideoPath = getVideoPath(currentCameraType, nextSegment);
+          CameraType cameraType = (currentCameraType == "driver") ? DriverCam :
+                                 (currentCameraType == "wide") ? WideRoadCam : RoadCam;
+          segmentCache->preloadSegment(nextSegment, nextVideoPath, cameraType);
+          qDebug() << "[VIDEO DEBUG] Preloading next segment:" << nextSegment;
+        }
+      }
+
       // Minimal debug logging for performance
       if (currentFrameIndex % 60 == 0) { // Log every 3 seconds at 20fps
         qDebug() << "[VIDEO DEBUG] Displayed frame" << currentFrameIndex << "/" << totalFrames;
@@ -1263,6 +1499,17 @@ void BPRouteVideoDialog::togglePlayback() {
 
   if (isPlaying) {
     qDebug() << "[VIDEO DEBUG] Starting playback";
+
+    // Restore from paused state if available
+    if (pausedState.wasPlaying && pausedState.frameIndex > 0) {
+      currentFrameIndex = pausedState.frameIndex;
+      currentPosition = pausedState.position;
+      currentSegment = pausedState.segment;
+      qDebug() << "[VIDEO DEBUG] Restored playback state - frame:" << currentFrameIndex << "position:" << currentPosition;
+    }
+
+    updatePlayerState(PlayerState::Playing);
+
     if (playPauseButton) {
       playPauseButton->setIconType(MediaControlButton::Pause);  // Pause icon
     }
@@ -1283,7 +1530,17 @@ void BPRouteVideoDialog::togglePlayback() {
 
     qDebug() << "[VIDEO DEBUG] Playback and position timers started";
   } else {
-    qDebug() << "[VIDEO DEBUG] Stopping playback";
+    qDebug() << "[VIDEO DEBUG] Stopping playback - saving state";
+
+    // Save current state for precise resume
+    pausedState.frameIndex = currentFrameIndex;
+    pausedState.segment = currentSegment;
+    pausedState.position = currentPosition;
+    pausedState.wasPlaying = true;
+    pausedState.cameraType = currentCameraType;
+
+    updatePlayerState(PlayerState::Paused);
+
     if (playPauseButton) {
       playPauseButton->setIconType(MediaControlButton::Play);  // Play icon
     }
@@ -1300,11 +1557,7 @@ void BPRouteVideoDialog::togglePlayback() {
     }
     showOverlayControls();
 
-    qDebug() << "[VIDEO DEBUG] Playback and position timers stopped";
-    // Don't show thumbnail snapshot when paused - this causes confusion
-    // Only show the current frame
-    isPausedSnapshot = true;
-    qDebug() << "[VIDEO DEBUG] Kept current playback frame on pause";
+    qDebug() << "[VIDEO DEBUG] Playback state saved - frame:" << pausedState.frameIndex << "position:" << pausedState.position;
   }
 }
 
@@ -1320,6 +1573,9 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
 
     qDebug() << "[VIDEO DEBUG] Saved state - Playing: " << wasPlaying
               << ", Position: " << savedPosition << ", Segment: " << savedSegment;
+
+    // Show loading indicator during camera switch
+    updatePlayerState(PlayerState::Loading);
 
     // Stop current playback
     if (isPlaying) {
@@ -1338,6 +1594,9 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
     // Close current frameReader
     frameReader.reset();
 
+    // Clear cache for old camera type
+    segmentCache->clearCache();
+
     // Switch camera type
     currentCameraType = cameraType;
 
@@ -1347,9 +1606,20 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
     // Reload video segments for new camera
     loadVideoSegments();
 
+    // Check if new camera actually has video segments
+    if (currentPlaylist.isEmpty()) {
+      qDebug() << "[VIDEO DEBUG] No segments available for camera:" << cameraType;
+      updatePlayerState(PlayerState::Idle);
+      showLoadingIndicator("⚠ No video available for " + cameraType + " camera");
+
+      // Try to fallback to another available camera
+      handleCameraError(cameraType);
+      return;
+    }
+
     // Restore playback state
     currentPosition = savedPosition;
-    currentSegment = savedSegment;
+    currentSegment = qMin(savedSegment, currentPlaylist.size() - 1); // Clamp to valid range
     positionSlider->setValue(currentPosition);
 
     qDebug() << "[VIDEO DEBUG] Restored position: " << currentPosition
@@ -1366,21 +1636,63 @@ void BPRouteVideoDialog::switchCamera(const QString &cameraType) {
         if (frameReader && totalFrames > 0 && frameReader->width > 0 && frameReader->height > 0) {
           if (playbackTimer && isPlaying) {
             playbackTimer->start(50);  // Restart playback timer after segment loads
+            updatePlayerState(PlayerState::Playing);
             qDebug() << "[VIDEO DEBUG] Playback timer started after camera switch";
           }
         } else {
           qDebug() << "[VIDEO DEBUG] Cannot start playback timer - frameReader not ready";
           isPlaying = false;
           playPauseButton->setIconType(MediaControlButton::Play);
+          updatePlayerState(PlayerState::Idle);
         }
       });
       qDebug() << "[VIDEO DEBUG] Resuming playback after camera switch";
     } else {
       // Show thumbnail for new camera
       loadThumbnail();
+      updatePlayerState(PlayerState::Paused);
       qDebug() << "[VIDEO DEBUG] Loaded thumbnail for stopped playback";
     }
   }
+}
+
+void BPRouteVideoDialog::handleCameraError(const QString& failedCamera) {
+  qDebug() << "[VIDEO DEBUG] Handling camera error for:" << failedCamera;
+
+  // Try alternative cameras in order of preference
+  QStringList alternatives;
+  if (failedCamera != "front" && routeInfo.hasFrontHQVideo) {
+    alternatives << "front";
+  }
+  if (failedCamera != "wide" && routeInfo.hasWideVideo) {
+    alternatives << "wide";
+  }
+  if (failedCamera != "driver" && routeInfo.hasDriverHQVideo) {
+    alternatives << "driver";
+  }
+  if (failedCamera != "lq" && routeInfo.hasFrontLQVideo) {
+    alternatives << "lq";
+  }
+
+  for (const QString& altCamera : alternatives) {
+    // Test if alternative camera has video
+    QString testPath = getVideoPath(altCamera, 0);
+    if (QFile::exists(testPath)) {
+      qDebug() << "[VIDEO DEBUG] Switching to alternative camera:" << altCamera;
+      showLoadingIndicator("⟳ Switching to " + altCamera + " camera...");
+
+      // Delay the switch to show the message
+      QTimer::singleShot(1000, this, [this, altCamera]() {
+        switchCamera(altCamera);
+      });
+      return;
+    }
+  }
+
+  // No alternatives available
+  qDebug() << "[VIDEO DEBUG] No alternative cameras available";
+  updatePlayerState(PlayerState::Idle);
+  showLoadingIndicator("⚠ No video available for this route");
 }
 
 void BPRouteVideoDialog::seekForward() {
@@ -1508,10 +1820,42 @@ void BPRouteVideoDialog::onSegmentFinished() {
     if (segmentLabel) {
       segmentLabel->setText(QString("Segment: %1 of %2").arg(currentSegment + 1).arg(currentPlaylist.size()));
     }
-    playCurrentSegment();
+
+    // Check if next segment is already cached
+    if (auto cachedSegment = segmentCache->getSegment(currentSegment)) {
+      qDebug() << "[VIDEO DEBUG] Using cached segment:" << currentSegment;
+      frameReader = cachedSegment;
+      totalFrames = frameReader->getFrameCount();
+      currentFrameIndex = 0;
+
+      // Continue playback immediately
+      if (isPlaying && playbackTimer) {
+        // No interruption needed - just continue with new segment
+        qDebug() << "[VIDEO DEBUG] Seamless transition to cached segment";
+      }
+    } else {
+      // Fall back to normal loading
+      qDebug() << "[VIDEO DEBUG] Loading segment normally (not cached):" << currentSegment;
+      updatePlayerState(PlayerState::Loading);
+      playCurrentSegment();
+    }
+
+    // Preload next segment if we're getting close to the end
+    if (currentSegment + 1 < currentPlaylist.size()) {
+      int nextSegment = currentSegment + 1;
+      if (!segmentCache->hasSegment(nextSegment)) {
+        QString nextVideoPath = getVideoPath(currentCameraType, nextSegment);
+        CameraType cameraType = (currentCameraType == "driver") ? DriverCam :
+                               (currentCameraType == "wide") ? WideRoadCam : RoadCam;
+        segmentCache->preloadSegment(nextSegment, nextVideoPath, cameraType);
+        qDebug() << "[VIDEO DEBUG] Preloading segment after transition:" << nextSegment;
+      }
+    }
+
   } else {
     // Playback finished
     isPlaying = false;
+    updatePlayerState(PlayerState::Idle);
     playPauseButton->setIconType(MediaControlButton::Play);  // Play icon
     positionTimer->stop();
     // Show thumbnail when playback ends
@@ -1525,103 +1869,172 @@ void BPRouteVideoDialog::onSegmentFinished() {
 
 void BPRouteVideoDialog::seekToPosition(qint64 positionMs) {
   // Safety checks to prevent crashes
-  if (!frameReader || currentPlaylist.isEmpty() || !videoDisplay) {
-    qDebug() << "[VIDEO DEBUG] Seek aborted - missing components";
+  if (!frameReader || currentPlaylist.isEmpty() || !videoDisplay || stopAllOperations.load()) {
+    qDebug() << "[VIDEO DEBUG] Seek aborted - missing components or stopping";
     return;
+  }
+
+  // Cancel any previous seek operation
+  if (activeSeekWatcher && activeSeekWatcher->isRunning()) {
+    activeSeekWatcher->cancel();
+    activeSeekWatcher->waitForFinished();
   }
 
   // Clamp position to valid range
   positionMs = qBound(0LL, positionMs, totalDuration);
+  qDebug() << "[VIDEO DEBUG] Starting async seek to position: " << positionMs << "ms";
 
-  qDebug() << "[VIDEO DEBUG] Seeking to position: " << positionMs << "ms";
-
-  // Calculate which segment and frame to seek to
-  qint64 segmentDuration = 60 * 1000; // 60 seconds per segment in ms
-  int targetSegment = positionMs / segmentDuration;
-  qint64 positionInSegment = positionMs % segmentDuration;
-
-  // Clamp segment to valid range
-  targetSegment = qBound(0, targetSegment, currentPlaylist.size() - 1);
-
-  // If we need to change segments, do that first
-  if (targetSegment != currentSegment) {
-    qDebug() << "[VIDEO DEBUG] Seeking to segment: " << targetSegment;
-
-    // Validate target segment exists
-    if (targetSegment < 0 || targetSegment >= currentPlaylist.size()) {
-      qDebug() << "[VIDEO DEBUG] Invalid segment index: " << targetSegment;
-      return;
-    }
-
-    currentSegment = targetSegment;
-
-    // Stop current playback temporarily
-    bool wasPlaying = isPlaying;
-    if (isPlaying && playbackTimer) {
-      playbackTimer->stop();
-    }
-
-    // Load the new segment
-    playCurrentSegment();
-
-    // Update segment indicator safely
-    if (segmentLabel) {
-      segmentLabel->setText(QString("Segment: %1 of %2").arg(currentSegment + 1).arg(currentPlaylist.size()));
-    }
-
-    // Restore playing state if it was playing
-    if (wasPlaying && playPauseButton) {
-      isPlaying = true;
-      playPauseButton->setIconType(MediaControlButton::Pause);
-      if (!isSeeking && playbackTimer) {
-        playbackTimer->start(50); // Only restart timer if not still seeking
-      }
-    }
+  // Update UI immediately
+  updatePlayerState(PlayerState::Seeking);
+  if (seekProgress) {
+    seekProgress->setRange(0, 100);
+    seekProgress->setValue(0);
   }
 
-  // Calculate target frame within current segment
-  // Assuming 20fps (50ms per frame)
-  int frameRate = 20;
-  int targetFrameInSegment = (positionInSegment * frameRate) / 1000;
+  // Store playback state
+  bool wasPlaying = isPlaying;
+  if (isPlaying && playbackTimer) {
+    playbackTimer->stop();
+  }
 
-  // Clamp to valid frame range and ensure we have valid data
-  if (frameReader && totalFrames > 0 && frameReader->width > 0 && frameReader->height > 0) {
-    targetFrameInSegment = qBound(0, targetFrameInSegment, static_cast<int>(totalFrames) - 1);
+  // Create seek watcher
+  activeSeekWatcher = new QFutureWatcher<void>(this);
+  connect(activeSeekWatcher, &QFutureWatcher<void>::finished, this, &BPRouteVideoDialog::onSeekCompleted);
 
-    // Seek to the specific frame and display it immediately
-    VisionBuf seekBuf = {};
-    try {
-      size_t frame_size = frameReader->width * frameReader->height * 3 / 2;
-      seekBuf.allocate(frame_size);
-      seekBuf.init_yuv(frameReader->width, frameReader->height, frameReader->width, frameReader->width * frameReader->height);
+  // Start async seek operation
+  auto future = QtConcurrent::run([this, positionMs, wasPlaying]() {
+    if (stopAllOperations.load()) return;
 
-      if (frameReader->get(targetFrameInSegment, &seekBuf)) {
-        videoDisplay->displayFrame(&seekBuf, frameReader->width, frameReader->height);
-        currentFrameIndex = targetFrameInSegment;
+    // Calculate which segment and frame to seek to
+    qint64 segmentDuration = 60 * 1000; // 60 seconds per segment in ms
+    int targetSegment = positionMs / segmentDuration;
+    qint64 positionInSegment = positionMs % segmentDuration;
 
-        qDebug() << "[VIDEO DEBUG] Seeked to frame " << targetFrameInSegment << " in segment " << targetSegment;
+    // Clamp segment to valid range
+    targetSegment = qBound(0, targetSegment, currentPlaylist.size() - 1);
+
+    // Report progress
+    QMetaObject::invokeMethod(this, [this]() {
+      if (seekProgress) seekProgress->setValue(25);
+    }, Qt::QueuedConnection);
+
+    // Check if we need to load a different segment
+    if (targetSegment != currentSegment) {
+      // Check if segment is already cached
+      if (auto cachedSegment = segmentCache->getSegment(targetSegment)) {
+        QMetaObject::invokeMethod(this, [this, cachedSegment, targetSegment]() {
+          frameReader = cachedSegment;
+          currentSegment = targetSegment;
+          totalFrames = frameReader->getFrameCount();
+          if (segmentLabel) {
+            segmentLabel->setText(QString("Segment: %1 of %2").arg(currentSegment + 1).arg(currentPlaylist.size()));
+          }
+        }, Qt::QueuedConnection);
       } else {
-        qDebug() << "[VIDEO DEBUG] Failed to seek to frame " << targetFrameInSegment;
-      }
+        // Load segment synchronously during seek
+        QString videoPath = getVideoPath(currentCameraType, targetSegment);
 
-      seekBuf.free();
-    } catch (const std::exception& e) {
-      qDebug() << "[VIDEO DEBUG] Exception during seek:" << e.what();
-      if (seekBuf.addr) {
-        seekBuf.free();
+        QMetaObject::invokeMethod(this, [this]() {
+          if (seekProgress) seekProgress->setValue(50);
+        }, Qt::QueuedConnection);
+
+        // Create new frame reader for target segment
+        auto newFrameReader = std::make_unique<FrameReader>();
+        CameraType cameraType = (currentCameraType == "driver") ? DriverCam :
+                               (currentCameraType == "wide") ? WideRoadCam : RoadCam;
+
+        std::atomic<bool> abort{false};
+        if (newFrameReader->load(cameraType, videoPath.toStdString(), false, &abort)) {
+          auto sharedReader = std::shared_ptr<FrameReader>(newFrameReader.release());
+          QMetaObject::invokeMethod(this, [this, sharedReader, targetSegment]() {
+            frameReader = sharedReader;
+            currentSegment = targetSegment;
+            totalFrames = frameReader->getFrameCount();
+            if (segmentLabel) {
+              segmentLabel->setText(QString("Segment: %1 of %2").arg(currentSegment + 1).arg(currentPlaylist.size()));
+            }
+          }, Qt::QueuedConnection);
+        }
       }
     }
-  } else {
-    qDebug() << "[VIDEO DEBUG] Cannot seek - invalid frame reader state";
+
+    if (stopAllOperations.load()) return;
+
+    QMetaObject::invokeMethod(this, [this]() {
+      if (seekProgress) seekProgress->setValue(75);
+    }, Qt::QueuedConnection);
+
+    // Calculate target frame within segment
+    int frameRate = 20;
+    int targetFrameInSegment = (positionInSegment * frameRate) / 1000;
+
+    QMetaObject::invokeMethod(this, [this, targetFrameInSegment, positionMs, wasPlaying]() mutable {
+      if (stopAllOperations.load()) return;
+
+      // Seek to specific frame on UI thread
+      if (frameReader && totalFrames > 0) {
+        targetFrameInSegment = qBound(0, targetFrameInSegment, static_cast<int>(totalFrames) - 1);
+
+        // Use buffer pool for seek operation
+        size_t frame_size = frameReader->width * frameReader->height * 3 / 2;
+        VisionBuf* seekBuf = bufferPool->acquire(frame_size);
+
+        if (seekBuf) {
+          seekBuf->init_yuv(frameReader->width, frameReader->height, frameReader->width, frameReader->width * frameReader->height);
+
+          if (frameReader->get(targetFrameInSegment, seekBuf)) {
+            videoDisplay->displayFrame(seekBuf, frameReader->width, frameReader->height);
+            currentFrameIndex = targetFrameInSegment;
+            currentPosition = positionMs;
+
+            if (!isSeeking && positionSlider) {
+              positionSlider->setValue(currentPosition);
+            }
+          }
+
+          bufferPool->release(seekBuf);
+        }
+      }
+
+      if (seekProgress) seekProgress->setValue(100);
+
+      // Restore playback state
+      if (wasPlaying) {
+        isPlaying = true;
+        updatePlayerState(PlayerState::Playing);
+        if (playPauseButton) {
+          playPauseButton->setIconType(MediaControlButton::Pause);
+        }
+        if (!isSeeking && playbackTimer) {
+          playbackTimer->start(50);
+        }
+        if (positionTimer) {
+          positionTimer->start();
+        }
+      } else {
+        updatePlayerState(PlayerState::Paused);
+      }
+
+    }, Qt::QueuedConnection);
+  });
+
+  activeSeekWatcher->setFuture(future);
+}
+
+void BPRouteVideoDialog::onSeekCompleted() {
+  qDebug() << "[VIDEO DEBUG] Async seek operation completed";
+
+  if (activeSeekWatcher) {
+    activeSeekWatcher->deleteLater();
+    activeSeekWatcher = nullptr;
   }
 
-  // Update position safely
-  currentPosition = positionMs;
-  if (!isSeeking && positionSlider) {
-    positionSlider->setValue(currentPosition);
-  }
-
-  qDebug() << "[VIDEO DEBUG] Seek completed to segment " << targetSegment << ", frame " << targetFrameInSegment;
+  // Hide seek progress after a brief delay
+  QTimer::singleShot(200, this, [this]() {
+    if (currentPlayerState != PlayerState::Seeking) {
+      hideLoadingIndicator();
+    }
+  });
 }
 
 void BPRouteVideoDialog::updatePlaybackPosition() {
@@ -1796,6 +2209,86 @@ void BPRouteVideoDialog::onSegmentTransitionStart() {
   // Placeholder implementation - called when starting segment transition
   // This will be implemented when we work on segment transitions
   qDebug() << "[VIDEO DEBUG] onSegmentTransitionStart() called - currently placeholder";
+}
+
+void BPRouteVideoDialog::onSegmentPreloaded() {
+  // Called when a segment has been successfully preloaded into cache
+  qDebug() << "[VIDEO DEBUG] onSegmentPreloaded() called - segment cached for smooth transition";
+}
+
+void BPRouteVideoDialog::updatePlayerState(PlayerState state) {
+  if (currentPlayerState == state) return;
+
+  currentPlayerState = state;
+
+  switch(state) {
+    case PlayerState::Idle:
+      hideLoadingIndicator();
+      break;
+    case PlayerState::Playing:
+      hideLoadingIndicator();
+      break;
+    case PlayerState::Paused:
+      hideLoadingIndicator();
+      break;
+    case PlayerState::Buffering:
+      showLoadingIndicator("⟳ Buffering...");
+      break;
+    case PlayerState::Seeking:
+      showLoadingIndicator("⟲ Seeking...");
+      if (seekProgress) {
+        seekProgress->show();
+      }
+      break;
+    case PlayerState::Loading:
+      showLoadingIndicator("⟳ Loading segment...");
+      if (loadingProgress) {
+        loadingProgress->show();
+      }
+      break;
+  }
+}
+
+void BPRouteVideoDialog::showLoadingIndicator(const QString& message) {
+  if (!statusOverlay || !loadingLabel) return;
+
+  loadingLabel->setText(message);
+  statusOverlay->show();
+  statusOverlay->raise();
+
+  // Animate the spinner
+  static QTimer *spinTimer = nullptr;
+
+  if (!spinTimer) {
+    spinTimer = new QTimer(this);
+    connect(spinTimer, &QTimer::timeout, [this]() {
+      static const QStringList spinStates = {"◐", "◓", "◑", "◒"};
+      static int state = 0;
+      if (statusIndicator) {
+        statusIndicator->setText(spinStates[state % spinStates.size()]);
+        state++;
+      }
+    });
+  }
+
+  spinTimer->start(200); // Rotate every 200ms
+}
+
+void BPRouteVideoDialog::hideLoadingIndicator() {
+  if (statusOverlay) {
+    statusOverlay->hide();
+  }
+  if (seekProgress) {
+    seekProgress->hide();
+  }
+  if (loadingProgress) {
+    loadingProgress->hide();
+  }
+
+  // Stop spinner animation
+  if (auto spinTimer = findChild<QTimer*>()) {
+    spinTimer->stop();
+  }
 }
 
 void BPRouteVideoDialog::showDebugPlayerOutput(const QString &message) {
