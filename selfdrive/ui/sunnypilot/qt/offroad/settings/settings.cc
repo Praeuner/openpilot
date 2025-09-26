@@ -30,7 +30,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/routes_panel/bp_routes_panel.h"
 
 TogglesPanelSP::TogglesPanelSP(SettingsWindowSP *parent) : TogglesPanel(parent) {
   QObject::connect(uiStateSP(), &UIStateSP::uiUpdate, this, &TogglesPanelSP::updateState);

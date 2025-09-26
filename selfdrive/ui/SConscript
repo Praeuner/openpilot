@@ -32,13 +32,13 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_base_view.cc",
   "bluepilot/qt/offroad/panels/bp_nested_view.cc",
   "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
-  "bluepilot/qt/offroad/panels/bp_routes_panel.cc",
+  "bluepilot/qt/offroad/routes_panel/bp_routes_panel.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
-  "bluepilot/qt/offroad/panels/bp_video_dialog.cc",
-  "bluepilot/qt/offroad/panels/bp_video_widget.cc",
+  "bluepilot/qt/offroad/routes_panel/bp_video_dialog.cc",
+  "bluepilot/qt/offroad/routes_panel/bp_video_widget.cc",
   # New decoder infrastructure
-  "bluepilot/qt/offroad/panels/bp_frame_reader.cc",
-  "bluepilot/qt/offroad/panels/qcom_decoder.cc",
+  "bluepilot/qt/offroad/routes_panel/bp_frame_reader.cc",
+  "bluepilot/qt/offroad/routes_panel/qcom_decoder.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel

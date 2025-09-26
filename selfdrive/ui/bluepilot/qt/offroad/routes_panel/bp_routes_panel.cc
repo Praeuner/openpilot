@@ -1,5 +1,6 @@
 // bp_routes_panel.cc
 #include "bp_routes_panel.h"
+#include "bp_video_dialog.h"
 #include <QDateTime>
 #include <QFileInfo>
 #include <QDir>

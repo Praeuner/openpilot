@@ -1,6 +1,7 @@
 // bp_video_dialog.cc - Route Video Playback Dialog Implementation
+#include "bp_video_dialog.h"
 #include "bp_routes_panel.h"
-#include "bp_utils.h"
+#include "../panels/bp_utils.h"
 #include "bp_video_types.h"
 #include "bp_frame_reader.h"
 #include "bp_video_widget.h"
@@ -162,7 +163,29 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   // Load route info
   QString routePath = static_cast<BPRoutesPanel*>(parent)->getRoutesDir() + "/" + routeBase;
   qDebug() << "[VIDEO DEBUG] Route path: " << routePath;
-  routeInfo = static_cast<BPRoutesPanel*>(parent)->getRouteInfo(routePath);
+  // Copy fields from BPRoutesPanel::RouteInfo to local RouteInfo
+  auto sourceRouteInfo = static_cast<BPRoutesPanel*>(parent)->getRouteInfo(routePath);
+  routeInfo.baseName = sourceRouteInfo.baseName;
+  routeInfo.timestamp = sourceRouteInfo.timestamp;
+  routeInfo.endTimestamp = sourceRouteInfo.endTimestamp;
+  routeInfo.duration = sourceRouteInfo.duration;
+  routeInfo.elapsedTime = sourceRouteInfo.elapsedTime;
+  routeInfo.displayDate = sourceRouteInfo.displayDate;
+  routeInfo.segments = sourceRouteInfo.segments;
+  routeInfo.size = sourceRouteInfo.size;
+  routeInfo.tripMiles = sourceRouteInfo.tripMiles;
+  routeInfo.hasVideo = sourceRouteInfo.hasVideo;
+  routeInfo.hasRLog = sourceRouteInfo.hasRLog;
+  routeInfo.hasQLog = sourceRouteInfo.hasQLog;
+  routeInfo.hasFrontVideo = sourceRouteInfo.hasFrontVideo;
+  routeInfo.hasWideVideo = sourceRouteInfo.hasWideVideo;
+  routeInfo.hasDriverVideo = sourceRouteInfo.hasDriverVideo;
+  routeInfo.hasLQVideo = sourceRouteInfo.hasLQVideo;
+  routeInfo.hasFrontHQVideo = sourceRouteInfo.hasFrontHQVideo;
+  routeInfo.hasFrontLQVideo = sourceRouteInfo.hasFrontLQVideo;
+  routeInfo.hasDriverHQVideo = sourceRouteInfo.hasDriverHQVideo;
+  routeInfo.isStarred = sourceRouteInfo.isStarred;
+  routeInfo.dateTime = sourceRouteInfo.dateTime;
 
   qDebug() << "[VIDEO DEBUG] Route info - Segments: " << routeInfo.segments
             << ", HasFrontHQ: " << routeInfo.hasFrontHQVideo
