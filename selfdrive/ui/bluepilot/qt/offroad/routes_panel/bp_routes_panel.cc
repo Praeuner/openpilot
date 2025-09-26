@@ -827,6 +827,7 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   info.timestamp = routeDateTime.toString("h:mm AP");
   info.displayDate = formatDisplayDate(routeDateTime);
   info.elapsedTime = formatElapsedTime(routeDateTime);
+  info.humanTime = routeDateTime.toString("h:mm AP");  // Preformatted human-readable time
 
   // std::cout << "[ROUTE DEBUG] DateTime: " << routeDateTime.toString().toStdString() << std::endl;
   // std::cout << "[ROUTE DEBUG] Timestamp: " << info.timestamp.toStdString() << std::endl;

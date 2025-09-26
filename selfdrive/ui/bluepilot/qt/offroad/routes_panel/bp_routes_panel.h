@@ -78,6 +78,7 @@ public:
     QString duration;     // Total duration
     QString elapsedTime;  // Human readable elapsed time
     QString displayDate;  // Date for grouping (e.g. "Thursday - September 18, 2025")
+    QString humanTime;    // Preformatted human-readable time for both route card and modal
     int segments;
     QString size;
     double tripMiles; // Trip distance in miles

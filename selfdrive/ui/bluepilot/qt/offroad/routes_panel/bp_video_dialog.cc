@@ -171,6 +171,7 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   routeInfo.duration = sourceRouteInfo.duration;
   routeInfo.elapsedTime = sourceRouteInfo.elapsedTime;
   routeInfo.displayDate = sourceRouteInfo.displayDate;
+  routeInfo.humanTime = sourceRouteInfo.humanTime;
   routeInfo.segments = sourceRouteInfo.segments;
   routeInfo.size = sourceRouteInfo.size;
   routeInfo.tripMiles = sourceRouteInfo.tripMiles;
@@ -359,13 +360,15 @@ void BPRouteVideoDialog::setupFullWidthHeader() {
     displayDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
   }
 
-  // Add time to the date - format for header
-  QString displayTime = routeInfo.timestamp;
+  // Add time to the date - use preformatted humanTime to avoid parsing issues
+  QString displayTime = routeInfo.humanTime;
   if (displayTime.isEmpty()) {
-    if (routeInfo.dateTime.isValid()) {
+    // Fallback to original timestamp if humanTime is not set
+    displayTime = routeInfo.timestamp;
+    if (displayTime.isEmpty() && routeInfo.dateTime.isValid()) {
       displayTime = routeInfo.dateTime.toString("h:mm AP");
-    } else {
-      // Try to extract time from route name (format: YYYY-MM-DD--HH-MM-SS)
+    } else if (displayTime.isEmpty()) {
+      // Try to extract time from route name (format: YYYY-MM-DD--HH-MM-SS) as last resort
       QStringList parts = routeBaseName.split("--");
       if (parts.size() >= 2) {
         QString timePart = parts[1];
@@ -395,11 +398,11 @@ void BPRouteVideoDialog::setupFullWidthHeader() {
   QString fullTitle = QString("%1 at %2").arg(displayDate, displayTime);
 
   routeTitle = new QLabel(fullTitle);
-  routeTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white;");
+  routeTitle->setStyleSheet("font-size: 44px; font-weight: 600; color: white; background: transparent;");
 
   // Subtitle - show only route ID
   QLabel *subtitleLabel = new QLabel(routeBaseName);
-  subtitleLabel->setStyleSheet("font-size: 32px; color: #cccccc;");
+  subtitleLabel->setStyleSheet("font-size: 32px; color: #cccccc; background: transparent;");
 
   titleLayout->addWidget(routeTitle);
   titleLayout->addWidget(subtitleLabel);
@@ -410,12 +413,12 @@ void BPRouteVideoDialog::setupFullWidthHeader() {
 
   // Route size - adjusted for reduced header
   QLabel *sizeLabel = new QLabel(routeInfo.size);
-  sizeLabel->setStyleSheet("font-size: 40px; color: #2196F3; font-weight: 600;");
+  sizeLabel->setStyleSheet("font-size: 40px; color: #2196F3; font-weight: 600; background: transparent;");
   sizeLabel->setAlignment(Qt::AlignRight);
 
-  // Segment indicator - adjusted for reduced header
+  // Segment indicator - adjusted for reduced header with smaller font size
   segmentLabel = new QLabel("Loading segments...");
-  segmentLabel->setStyleSheet("font-size: 36px; color: #888; font-weight: 500;");
+  segmentLabel->setStyleSheet("font-size: 28px; color: #888; font-weight: 500; background: transparent;");
   segmentLabel->setAlignment(Qt::AlignRight);
 
   rightInfoLayout->addWidget(sizeLabel);
@@ -952,10 +955,10 @@ void BPRouteVideoDialog::loadVideoSegments() {
     if (segmentLabel) {
       if (currentPlaylist.isEmpty()) {
         segmentLabel->setText("No segments");
-        segmentLabel->setStyleSheet("font-size: 44px; color: #ff4444; font-weight: 500;");
+        segmentLabel->setStyleSheet("font-size: 28px; color: #ff4444; font-weight: 500; background: transparent;");
       } else {
         segmentLabel->setText(QString("Segment: 1 of %1").arg(currentPlaylist.size()));
-        segmentLabel->setStyleSheet("font-size: 44px; color: #888; font-weight: 500;");
+        segmentLabel->setStyleSheet("font-size: 28px; color: #888; font-weight: 500; background: transparent;");
       }
     }
   }, Qt::QueuedConnection);

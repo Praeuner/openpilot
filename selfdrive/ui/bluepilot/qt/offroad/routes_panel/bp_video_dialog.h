@@ -78,7 +78,7 @@ private:
   // Route data
   QString routeBaseName;
   struct {
-    QString baseName, timestamp, endTimestamp, duration, elapsedTime, displayDate, size;
+    QString baseName, timestamp, endTimestamp, duration, elapsedTime, displayDate, size, humanTime;
     int segments;
     double tripMiles;
     bool hasVideo, hasRLog, hasQLog, hasFrontVideo, hasWideVideo, hasDriverVideo, hasLQVideo;
