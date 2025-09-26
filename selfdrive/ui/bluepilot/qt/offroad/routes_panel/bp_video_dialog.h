@@ -49,11 +49,17 @@ private slots:
   void onSegmentFinished();
   void updatePlaybackPosition();
   void keepDisplayAwake();
+  void hideOverlayControls();
+  void showOverlayControls();
+  void preloadNextSegment();
+  void onSegmentTransitionStart();
+  void onVideoTap();
 
 private:
   void setupUI();
   void setupFullWidthHeader();
   void setupVideoDisplay();
+  void showDebugPlayerOutput(const QString &message);
   void setupCameraPanel();
   void setupOverlayControls();
   void setupActionButtons(QVBoxLayout *parentLayout);
@@ -98,6 +104,18 @@ private:
   // Timer-based playback state
   size_t currentFrameIndex = 0;
   size_t totalFrames = 0;
+
+  // Overlay control management
+  bool controlsVisible = true;
+  QTimer *overlayFadeTimer;
+
+  // Segment preloading system
+  std::unique_ptr<FrameReader> nextSegmentReader;
+  int preloadedSegment = -1;
+
+  // Playback state management
+  qint64 lastValidPosition = 0;
+  bool isPausedSnapshot = false;
 
   // UI Components
   QWidget *headerWidget;

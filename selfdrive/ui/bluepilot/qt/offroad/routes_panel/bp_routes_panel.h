@@ -105,6 +105,7 @@ public:
   QString formatElapsedTime(const QDateTime &routeTime);
   QString getThumbnailPath(const QString &routeBase);
   void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
+  void showDebugPlayerOutput(const QString &message); // Allow video dialog to call debug
 
 protected:
   void showEvent(QShowEvent *event) override;
@@ -115,6 +116,7 @@ private slots:
   void onOffroadTransition();
 
 private:
+  void showDebugRoutesOutput(const QString &message);
   Params params;
   QTimer *activityTimer = nullptr;
   QMutex fileMutex;

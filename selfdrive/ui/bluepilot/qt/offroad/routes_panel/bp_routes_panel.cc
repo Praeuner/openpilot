@@ -204,7 +204,7 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
 
   // Check if device is onroad - if so, show message and don't load routes
   if (uiState()->scene.started) {
-    std::cout << "[ROUTE DEBUG] Device is onroad - showing safety message" << std::endl;
+    showDebugRoutesOutput("Device is onroad - showing safety message");
     showOnroadMessage();
     return;
   }
@@ -220,12 +220,12 @@ void BPRoutesPanel::hideEvent(QHideEvent *event) {
 }
 
 void BPRoutesPanel::loadRoutes() {
-  // std::cout << "[ROUTE DEBUG] loadRoutes() called" << std::endl;
+  showDebugRoutesOutput("loadRoutes() called");
   if (isLoading) return;
 
   // Safety check: Don't load routes while onroad
   if (uiState()->scene.started) {
-    std::cout << "[ROUTE DEBUG] Aborting route loading - device is onroad" << std::endl;
+    showDebugRoutesOutput("Aborting route loading - device is onroad");
     showOnroadMessage();
     return;
   }
@@ -1827,7 +1827,7 @@ void BPRoutesPanel::onOffroadTransition() {
       QList<QDialog*> dialogs = topLevel->findChildren<QDialog*>();
       for (QDialog* dialog : dialogs) {
         if (dialog->isVisible()) {
-          std::cout << "[ROUTE DEBUG] Closing video dialog due to onroad transition" << std::endl;
+          showDebugRoutesOutput("Closing video dialog due to onroad transition");
           dialog->close();
         }
       }
@@ -1842,5 +1842,17 @@ void BPRoutesPanel::onOffroadTransition() {
     } else if (routes.isEmpty()) {
       // std::cout << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
     }
+  }
+}
+
+void BPRoutesPanel::showDebugRoutesOutput(const QString &message) {
+  if (params.getBool("BPRoutePanelDebugRouteLogs")) {
+    std::cout << "[ROUTE DEBUG] " << message.toStdString() << std::endl;
+  }
+}
+
+void BPRoutesPanel::showDebugPlayerOutput(const QString &message) {
+  if (params.getBool("BPRoutePanelDebugRoutePlayerLogs")) {
+    std::cout << "[PLAYER DEBUG] " << message.toStdString() << std::endl;
   }
 }

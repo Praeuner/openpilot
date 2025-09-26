@@ -155,14 +155,14 @@ private:
 BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent)
     : BPDialogBase(parent), routeBaseName(routeBase) {
 
-  qDebug() << "[VIDEO DEBUG] === BPRouteVideoDialog Constructor ===";
-  qDebug() << "[VIDEO DEBUG] Route: " << routeBase;
+  showDebugPlayerOutput("=== BPRouteVideoDialog Constructor ===");
+  showDebugPlayerOutput("Route: " + routeBase);
 
   setWindowTitle("Route Video Playback");
 
   // Load route info
   QString routePath = static_cast<BPRoutesPanel*>(parent)->getRoutesDir() + "/" + routeBase;
-  qDebug() << "[VIDEO DEBUG] Route path: " << routePath;
+  showDebugPlayerOutput("Route path: " + routePath);
   // Copy fields from BPRoutesPanel::RouteInfo to local RouteInfo
   auto sourceRouteInfo = static_cast<BPRoutesPanel*>(parent)->getRouteInfo(routePath);
   routeInfo.baseName = sourceRouteInfo.baseName;
@@ -187,12 +187,7 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   routeInfo.isStarred = sourceRouteInfo.isStarred;
   routeInfo.dateTime = sourceRouteInfo.dateTime;
 
-  qDebug() << "[VIDEO DEBUG] Route info - Segments: " << routeInfo.segments
-            << ", HasFrontHQ: " << routeInfo.hasFrontHQVideo
-            << ", HasFrontLQ: " << routeInfo.hasFrontLQVideo
-            << ", HasWide: " << routeInfo.hasWideVideo
-            << ", HasDriverHQ: " << routeInfo.hasDriverHQVideo
-            << ", HasLQ: " << routeInfo.hasLQVideo;
+  showDebugPlayerOutput(QString("Route info - Segments: %1, HasFrontHQ: %2, HasFrontLQ: %3, HasWide: %4, HasDriverHQ: %5, HasLQ: %6").arg(routeInfo.segments).arg(routeInfo.hasFrontHQVideo).arg(routeInfo.hasFrontLQVideo).arg(routeInfo.hasWideVideo).arg(routeInfo.hasDriverHQVideo).arg(routeInfo.hasLQVideo));
 
   qDebug() << "[VIDEO DEBUG] Route time info - timestamp:" << routeInfo.timestamp
            << ", dateTime:" << routeInfo.dateTime
@@ -203,6 +198,15 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
   playbackTimer = new QTimer(this);
   positionTimer = new QTimer(this);
   positionTimer->setInterval(100); // Update position every 100ms
+
+  // Overlay auto-hide timer - hide controls after 3 seconds during playback
+  overlayFadeTimer = new QTimer(this);
+  overlayFadeTimer->setInterval(3000); // Hide after 3 seconds
+  overlayFadeTimer->setSingleShot(true);
+  connect(overlayFadeTimer, &QTimer::timeout, this, &BPRouteVideoDialog::hideOverlayControls);
+
+  qDebug() << "[VIDEO DEBUG] Initialized overlayFadeTimer - interval: " << overlayFadeTimer->interval()
+           << ", single shot: " << overlayFadeTimer->isSingleShot();
 
   // Keep display awake timer
   keepAwakeTimer = new QTimer(this);
@@ -237,6 +241,14 @@ BPRouteVideoDialog::BPRouteVideoDialog(const QString &routeBase, QWidget *parent
         } else {
           qDebug() << "[VIDEO DEBUG] Cannot start playback timer - timer not available";
         }
+
+        // Start overlay fade timer to hide controls during auto-play
+        if (overlayFadeTimer) {
+          overlayFadeTimer->start();
+          qDebug() << "[VIDEO DEBUG] Started overlay fade timer for auto-play - timer interval:" << overlayFadeTimer->interval() << "ms";
+        } else {
+          qDebug() << "[VIDEO DEBUG] ERROR: overlayFadeTimer is null!";
+        }
       } else {
         qDebug() << "[VIDEO DEBUG] Cannot start playback - invalid video data";
         // Just show thumbnail without starting playback
@@ -257,6 +269,7 @@ BPRouteVideoDialog::~BPRouteVideoDialog() {
   if (playbackTimer) playbackTimer->stop();
   if (positionTimer) positionTimer->stop();
   if (keepAwakeTimer) keepAwakeTimer->stop();
+  if (overlayFadeTimer) overlayFadeTimer->stop();
 
   // Stop and wait for playback thread to finish (if any)
   if (playbackFuture.isRunning()) {
@@ -427,8 +440,8 @@ void BPRouteVideoDialog::setupVideoDisplay() {
   videoDisplay->setBackgroundColor(QColor("#000000"));
   videoDisplay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-  // Connect touch to play/pause
-  connect(videoDisplay, &BPVideoWidget::clicked, this, &BPRouteVideoDialog::togglePlayback);
+  // Connect touch to play/pause or show controls depending on overlay visibility
+  connect(videoDisplay, &BPVideoWidget::clicked, this, &BPRouteVideoDialog::onVideoTap);
 
   videoLayout->addWidget(videoDisplay, 1);
 
@@ -551,12 +564,13 @@ void BPRouteVideoDialog::setupOverlayControls() {
   )");
 
   QHBoxLayout *sliderLayout = new QHBoxLayout(sliderContainer);
-  sliderLayout->setContentsMargins(30, 15, 30, 15);  // Tighter margins for pill shape
+  sliderLayout->setContentsMargins(30, 30, 30, 30);  // Increased margins for double-size handle
   sliderLayout->setSpacing(20);
+  sliderLayout->setAlignment(Qt::AlignCenter);  // Center align content within container
 
-  // Position slider - FULL WIDTH for 6" display with cleaner styling
+  // Position slider - FULL WIDTH for 6" display with touch-friendly styling
   positionSlider = new QSlider(Qt::Horizontal);
-  positionSlider->setFixedHeight(60);  // Proper touch target for pill container
+  positionSlider->setFixedHeight(100);  // Increased height for double-size components
   positionSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   positionSlider->setStyleSheet(R"(
     QSlider {
@@ -564,33 +578,42 @@ void BPRouteVideoDialog::setupOverlayControls() {
     }
     QSlider::groove:horizontal {
       background: rgba(255, 255, 255, 30);
-      height: 8px;
-      border-radius: 4px;
+      height: 24px;
+      border-radius: 12px;
+      margin: 38px 0;
     }
     QSlider::sub-page:horizontal {
       background: white;
-      height: 8px;
-      border-radius: 4px;
+      height: 24px;
+      border-radius: 12px;
+      margin: 38px 0;
     }
     QSlider::handle:horizontal {
       background: white;
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
-      margin: -14px 0;
-      border: 2px solid rgba(0, 0, 0, 0.1);
+      width: 100px;
+      height: 100px;
+      border-radius: 50px;
+      border: 6px solid rgba(0, 0, 0, 0.1);
+      margin: -38px 0;
     }
     QSlider::handle:horizontal:pressed {
       background: #2196F3;
-      width: 42px;
-      height: 42px;
-      border-radius: 21px;
-      margin: -17px 0;
-      border: 2px solid rgba(0, 0, 0, 0.2);
+      width: 100px;
+      height: 100px;
+      border-radius: 50px;
+      border: 6px solid rgba(33, 150, 243, 0.8);
+      margin: -38px 0;
+    }
+    QSlider::handle:horizontal:hover {
+      width: 108px;
+      height: 108px;
+      border-radius: 54px;
+      border: 6px solid rgba(33, 150, 243, 0.5);
+      margin: -41px 0;
     }
   )");
 
-  // Time label integrated into the SAME pill background
+  // Time label integrated into the SAME pill background - center aligned with slider
   timeLabel = new QLabel("0:00 / 0:00");
   timeLabel->setFixedWidth(200);
   timeLabel->setStyleSheet(R"(
@@ -609,7 +632,7 @@ void BPRouteVideoDialog::setupOverlayControls() {
   sliderLayout->addWidget(timeLabel, 0);       // Time fixed width
 
   // Position at VERY bottom using absolute positioning with proper sizing
-  sliderContainer->setFixedHeight(90);  // Smaller height for pill shape
+  sliderContainer->setFixedHeight(160);  // Increased height for double-size handle component
   sliderContainer->show();
   sliderContainer->raise();
   sliderContainer->setAttribute(Qt::WA_StyledBackground, true);
@@ -620,8 +643,8 @@ void BPRouteVideoDialog::setupOverlayControls() {
       qDebug() << "[VIDEO DEBUG] Positioning slider - video display size:"
                << videoDisplay->width() << "x" << videoDisplay->height()
                << " at position:" << videoDisplay->x() << "," << videoDisplay->y();
-      sliderContainer->resize(videoDisplay->width() - 40, 90);
-      sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 110);
+      sliderContainer->resize(videoDisplay->width() - 40, 160);
+      sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 180);
       qDebug() << "[VIDEO DEBUG] Slider positioned at:" << sliderContainer->x() << "," << sliderContainer->y()
                << " size:" << sliderContainer->width() << "x" << sliderContainer->height();
     }
@@ -681,8 +704,8 @@ void BPRouteVideoDialog::updateOverlayPosition() {
   QWidget *sliderContainer = videoContainer->findChild<QWidget*>("sliderContainer");
   if (sliderContainer && videoDisplay) {
     // Position relative to video display area, not the entire container
-    sliderContainer->resize(videoDisplay->width() - 40, 90);  // Full width minus margins
-    sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 110);
+    sliderContainer->resize(videoDisplay->width() - 40, 160);  // Updated height for double-size handle
+    sliderContainer->move(videoDisplay->x() + 20, videoDisplay->y() + videoDisplay->height() - 180);
   }
 }
 
@@ -1259,6 +1282,15 @@ void BPRouteVideoDialog::togglePlayback() {
     if (positionTimer) {
       positionTimer->start();
     }
+
+    // Start overlay fade timer to hide controls during playback
+    if (overlayFadeTimer) {
+      overlayFadeTimer->start();
+      qDebug() << "[VIDEO DEBUG] Started overlay fade timer in toggle play - timer interval:" << overlayFadeTimer->interval() << "ms";
+    } else {
+      qDebug() << "[VIDEO DEBUG] ERROR: overlayFadeTimer is null in toggle play!";
+    }
+
     qDebug() << "[VIDEO DEBUG] Playback and position timers started";
   } else {
     qDebug() << "[VIDEO DEBUG] Stopping playback";
@@ -1271,10 +1303,18 @@ void BPRouteVideoDialog::togglePlayback() {
     if (positionTimer) {
       positionTimer->stop();
     }
+
+    // Stop overlay fade timer and show controls
+    if (overlayFadeTimer) {
+      overlayFadeTimer->stop();
+    }
+    showOverlayControls();
+
     qDebug() << "[VIDEO DEBUG] Playback and position timers stopped";
-    // Show thumbnail when paused
-    qDebug() << "[VIDEO DEBUG] Loading thumbnail for paused state";
-    loadThumbnail();
+    // Don't show thumbnail snapshot when paused - this causes confusion
+    // Only show the current frame
+    isPausedSnapshot = true;
+    qDebug() << "[VIDEO DEBUG] Kept current playback frame on pause";
   }
 }
 
@@ -1669,4 +1709,98 @@ void BPRouteVideoDialog::hideEvent(QHideEvent *event) {
   }
 
   qDebug() << "[VIDEO DEBUG] BPRouteVideoDialog hidden, stopped timers and playback";
+}
+
+void BPRouteVideoDialog::hideOverlayControls() {
+  qDebug() << "[VIDEO DEBUG] hideOverlayControls() called - controlsVisible was:" << controlsVisible;
+
+  if (controlsWidget) {
+    controlsWidget->hide();
+    controlsVisible = false;
+    qDebug() << "[VIDEO DEBUG] Hiding controlsWidget";
+  }
+
+  // Hide all overlay widgets
+  QList<QPushButton*> buttons = videoDisplay->findChildren<QPushButton*>();
+  for (auto btn : buttons) {
+    if (btn->parent() == videoDisplay && btn != playPauseButton) { // Only video overlay buttons
+      btn->hide();
+      qDebug() << "[VIDEO DEBUG] Hiding overlay button:" << btn->text();
+    }
+  }
+
+  // Hide the bottom slider container
+  QWidget *sliderContainer = videoContainer->findChild<QWidget*>("sliderContainer");
+  if (sliderContainer) {
+    sliderContainer->hide();
+    qDebug() << "[VIDEO DEBUG] Hiding slider container";
+  }
+
+  qDebug() << "[VIDEO DEBUG] All overlays should now be hidden";
+}
+
+void BPRouteVideoDialog::showOverlayControls() {
+  if (controlsWidget) {
+    controlsWidget->show();
+    controlsVisible = true;
+    qDebug() << "[VIDEO DEBUG] Showing overlay controls";
+  }
+
+  // Show all overlay widgets that we hide
+  QList<QPushButton*> buttons = videoDisplay->findChildren<QPushButton*>();
+  for (auto btn : buttons) {
+    if (btn->parent() == videoDisplay && btn != playPauseButton) { // Only video overlay buttons
+      btn->show();
+      qDebug() << "[VIDEO DEBUG] Showing overlay button:" << btn->text();
+    }
+  }
+
+  // Show the bottom slider container
+  QWidget *sliderContainer = videoContainer->findChild<QWidget*>("sliderContainer");
+  if (sliderContainer) {
+    sliderContainer->show();
+    qDebug() << "[VIDEO DEBUG] Showing slider container";
+  }
+
+  // Restart fade timer to hide again after 3 seconds
+  if (overlayFadeTimer && isPlaying) {
+    overlayFadeTimer->start();
+  }
+}
+
+void BPRouteVideoDialog::onVideoTap() {
+  showDebugPlayerOutput(QString("Video tap detected - controlsVisible: %1").arg(controlsVisible));
+
+  if (!controlsVisible) {
+    // Show controls if they're hidden - don't toggle playback yet
+    showOverlayControls();
+    showDebugPlayerOutput("Showing overlay controls");
+  } else {
+    // Only toggle play/pause if controls are already visible and we're not in a critical state
+    if (frameReader && (totalFrames > 0 || frameReader->width > 0)) {
+      togglePlayback();
+      showDebugPlayerOutput("Toggling playback");
+    } else {
+      showDebugPlayerOutput("Video skip playback - invalid frame reader state");
+    }
+  }
+}
+
+void BPRouteVideoDialog::preloadNextSegment() {
+  // Placeholder implementation - called when transitioning to next segment
+  // This will be implemented when we work on segment preloading
+  qDebug() << "[VIDEO DEBUG] preloadNextSegment() called - currently placeholder";
+}
+
+void BPRouteVideoDialog::onSegmentTransitionStart() {
+  // Placeholder implementation - called when starting segment transition
+  // This will be implemented when we work on segment transitions
+  qDebug() << "[VIDEO DEBUG] onSegmentTransitionStart() called - currently placeholder";
+}
+
+void BPRouteVideoDialog::showDebugPlayerOutput(const QString &message) {
+  // Access the parent routes panel's debug functionality
+  if (auto routesPanel = qobject_cast<BPRoutesPanel*>(parent())) {
+    routesPanel->showDebugPlayerOutput(message);
+  }
 }

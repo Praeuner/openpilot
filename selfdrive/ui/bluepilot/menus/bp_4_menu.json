@@ -272,6 +272,28 @@
                 "git_remote": ["ford-op/sp-dev-c3"],
                 "git_branch": []
               }
+            },
+            {
+              "type": "toggle",
+              "param": "BPRoutePanelDebugRouteLogs",
+              "title": "Debug Routes",
+              "desc": "Enable debug logging for route panel operations",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "BPRoutePanelDebugRoutePlayerLogs",
+              "title": "Debug Player",
+              "desc": "Enable debug logging for route video player operations",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
             }
           ]
         }
