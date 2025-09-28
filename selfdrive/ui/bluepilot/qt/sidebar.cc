@@ -261,8 +261,8 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   // Safety check: ensure uiState is available before connecting signals
   UIState* ui = uiState();
   if (ui) {
-    // Disconnect base class signal connections to avoid conflicts
-    QObject::disconnect(ui, nullptr, this, nullptr);
+    // Disconnect ONLY the specific base class signal we're replacing
+    QObject::disconnect(ui, &UIState::uiUpdate, this, &Sidebar::updateState);
 
     // Connect our own methods
     QObject::connect(ui, &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
