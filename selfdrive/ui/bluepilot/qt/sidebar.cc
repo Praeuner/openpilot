@@ -1,3 +1,4 @@
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/sidebar.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/network/wifi_manager.h"
@@ -38,6 +39,7 @@ QString runProcess(const QString &program, const QStringList &arguments) {
   process.setProcessChannelMode(QProcess::MergedChannels);
 
   try {
+    BPLog::bpDebug() << "[bp.sidebar] Running process: " << program.toStdString() << " with arguments: " << arguments.join(" ").toStdString() << std::endl;
     process.start(program, arguments);
     if (!process.waitForFinished(500)) { // 500ms timeout - keep it short
       process.kill(); // Kill if it takes too long
@@ -54,8 +56,10 @@ QString runProcess(const QString &program, const QStringList &arguments) {
     // Silently handle errors - we don't want to spam logs
 
   } catch (const std::exception &e) {
+    BPLog::bpError() << "[bp.sidebar] Exception in runProcess: " << e.what() << std::endl;
     // Silently handle exceptions
   } catch (...) {
+    BPLog::bpError() << "[bp.sidebar] Unknown exception in runProcess" << std::endl;
     // Silently handle unknown exceptions
   }
 
@@ -246,14 +250,16 @@ QString getCarrierName(const QString &operatorCode) {
   };
 
   // Debug log the operator code to see what we're getting
-  qDebug() << "Operator Code:" << operatorCode;
+  BPLog::bpDebug() << "[bp.sidebar] Operator Code: " << operatorCode.toStdString() << std::endl;
 
   // Check if operator code exists in map
   if (carrierMap.contains(operatorCode)) {
+    BPLog::bpDebug() << "[bp.sidebar] Found carrier: " << carrierMap[operatorCode].toStdString() << std::endl;
     return carrierMap[operatorCode];
   }
 
   // If not found, return "Cellular" as fallback
+  BPLog::bpDebug() << "[bp.sidebar] Carrier not found, returning Cellular" << std::endl;
   return "Cellular";
 }
 
@@ -268,44 +274,39 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
     QObject::connect(ui, &UIState::uiUpdate, this, &SidebarBP::updateStateBP);
     QObject::connect(ui, &UIState::offroadTransition, this, &SidebarBP::offroadTransitionBP);
   } else {
-    qWarning() << "UIState not available, skipping signal connections";
+    BPLog::bpError() << "[bp.sidebar] UIState not available, skipping signal connections" << std::endl;
   }
-
-  // Initialize async SSID detection
-  // We now use QtConcurrent instead of QProcess to avoid UI blocking
-
-
 
   // Load button images with correct paths and safety checks
   home_img = loadPixmap("../assets/images/button_home.png", QSize(120, 120));
   if (home_img.isNull()) {
-    qWarning() << "Failed to load home button image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load home button image" << std::endl;
   }
 
   flag_img = loadPixmap("../assets/offroad/icon_flag.png", QSize(120, 120));
   if (flag_img.isNull()) {
-    qWarning() << "Failed to load flag button image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load flag button image" << std::endl;
   }
 
   settings_img = loadPixmap("../assets/offroad/icon_settings.png", QSize(120, 120), Qt::IgnoreAspectRatio);
   if (settings_img.isNull()) {
-    qWarning() << "Failed to load settings button image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load settings button image" << std::endl;
   }
 
   mic_img = loadPixmap("../assets/icons/microphone.png", QSize(30, 30));
   if (mic_img.isNull()) {
-    qWarning() << "Failed to load microphone image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load microphone image" << std::endl;
   }
 
   debug_img = loadPixmap("../assets/offroad/icon_debug.png", QSize(120, 120)); // Load debug icon
   if (debug_img.isNull()) {
-    qWarning() << "Failed to load debug button image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load debug button image" << std::endl;
   }
 
   // Load fan image
   fan_img = loadPixmap("../assets/images/button_fan.png", QSize(FAN_SIZE, FAN_SIZE));
   if (fan_img.isNull()) {
-    qWarning() << "Failed to load fan button image";
+    BPLog::bpError() << "[bp.sidebar] Failed to load fan button image" << std::endl;
   }
 
 
@@ -362,8 +363,6 @@ SidebarBP::~SidebarBP() {
     delete fan_stop_animation;
     fan_stop_animation = nullptr;
   }
-
-  // SSID detection now uses QtConcurrent, no cleanup needed
 }
 
 void SidebarBP::enterEvent(QEvent *event) {

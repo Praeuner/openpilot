@@ -22,9 +22,9 @@
 #include <QFrame>
 #include <QPropertyAnimation>
 #include <QStyle>
-#include <iostream>
 #include <cmath>
 
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "common/params.h"
 #include "bp_nested_view.h"
 #include "bp_panel_dialogs.h"
@@ -582,11 +582,11 @@ public:
     std::string existingValue = params.get(paramName);
     if (!existingValue.empty()) {
       // If parameter already exists with a value, don't modify it
-      std::cout << "Using existing parameter - " << paramName << ": " << existingValue << std::endl;
+      BPLog::bpInfo() << "[bp.segmented.control] Using existing parameter - " << paramName << ": " << existingValue << std::endl;
     } else if (!defaultValue.isEmpty()) {
       // Only set default if param doesn't exist yet
       params.put(paramName, defaultValue.toStdString());
-      std::cout << "Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from constructor default)" << std::endl;
+      BPLog::bpInfo() << "[bp.segmented.control] Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from constructor default)" << std::endl;
     }
 
     // Handle button clicks

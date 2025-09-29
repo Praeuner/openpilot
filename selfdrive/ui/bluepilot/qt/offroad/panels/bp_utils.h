@@ -14,10 +14,13 @@
 #include <QWidget>
 #include <QDir>
 #include <QPoint>
+#include <QDebug>
 #include <QString>
 #include <iostream>
 #include <cmath>
 #include "common/params.h"
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 class CommaTools {
 public:
@@ -66,23 +69,23 @@ public:
   }
 
   bool loadConfig(const QString &filename) {
-    std::cout << "Attempting to load config from: " << filename.toStdString() << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.utils.config] Attempting to load config from: " << filename.toStdString() << std::endl;
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
-      std::cerr << "Failed to open file: " << file.errorString().toStdString() << std::endl;
+      BPLog::bpDebugGeneral() << "[bp.utils.config] Failed to open file: " << file.errorString().toStdString() << std::endl;
       return false;
     }
     QByteArray data = file.readAll();
     if (data.isEmpty()) {
-      std::cerr << "File is empty" << std::endl;
+      BPLog::bpError() << "[bp.utils.config] File is empty: " << filename.toStdString() << std::endl;
       return false;
     }
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) {
-      std::cerr << "Failed to parse JSON" << std::endl;
+      BPLog::bpError() << "[bp.utils.config] Failed to parse JSON: " << filename.toStdString() << std::endl;
       return false;
     }
-    std::cout << "Successfully loaded config" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.utils.config] Successfully loaded config: " << filename.toStdString() << std::endl;
     config = doc.object();
     return true;
   }
@@ -404,7 +407,7 @@ public:
       if (!defaultValue.isEmpty()) {
         // Apply the default value
         params.put(paramName, defaultValue.toStdString());
-        std::cout << "Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from default)" << std::endl;
+        BPLog::bpInfo() << "[bp.utils.param] Parameter initialized - " << paramName << ": " << defaultValue.toStdString() << " (from default)" << std::endl;
         return true;
       }
     }
@@ -446,25 +449,25 @@ public:
           params.putFloat(paramName, defaultNumeric);
 
           int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
-          std::cout << "Parameter ";
+          BPLog::bpInfo() << "[bp.utils.param] Parameter ";
           if (!paramExists) {
-            std::cout << "initialized";
+            BPLog::bpInfo() << "initialized";
           } else {
-            std::cout << "adjusted (out of range)";
+            BPLog::bpInfo() << "adjusted (out of range)";
           }
-          std::cout << " - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from default)" << std::endl;
+          BPLog::bpInfo() << " - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from default)" << std::endl;
         } else {
           int defaultNumeric = defaultValue.toInt();
           defaultNumeric = std::clamp(defaultNumeric, static_cast<int>(min), static_cast<int>(max));
           params.putInt(paramName, defaultNumeric);
 
-          std::cout << "Parameter ";
+          BPLog::bpInfo() << "[bp.utils.param] Parameter ";
           if (!paramExists) {
-            std::cout << "initialized";
+            BPLog::bpInfo() << "initialized";
           } else {
-            std::cout << "adjusted (out of range)";
+            BPLog::bpInfo() << "adjusted (out of range)";
           }
-          std::cout << " - " << paramName << ": " << defaultNumeric << " (from default)" << std::endl;
+          BPLog::bpInfo() << " - " << paramName << ": " << defaultNumeric << " (from default)" << std::endl;
         }
         initialized = true;
       } else if (!constructorDefault.isEmpty() && !paramExists) {
@@ -475,14 +478,14 @@ public:
           params.putFloat(paramName, defaultNumeric);
 
           int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
-          std::cout << "Parameter initialized - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from constructor default)"
+          BPLog::bpInfo() << "[bp.utils.param] Parameter initialized - " << paramName << ": " << QString::number(defaultNumeric, 'f', decimals).toStdString() << " (from constructor default)"
                     << std::endl;
         } else {
           int defaultNumeric = constructorDefault.toInt();
           defaultNumeric = std::clamp(defaultNumeric, static_cast<int>(min), static_cast<int>(max));
           params.putInt(paramName, defaultNumeric);
 
-          std::cout << "Parameter initialized - " << paramName << ": " << defaultNumeric << " (from constructor default)" << std::endl;
+          BPLog::bpInfo() << "[bp.utils.param] Parameter initialized - " << paramName << ": " << defaultNumeric << " (from constructor default)" << std::endl;
         }
         initialized = true;
       } else if (valueOutOfRange) {
@@ -493,14 +496,14 @@ public:
           params.putFloat(paramName, clampedValue);
 
           int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
-          std::cout << "Parameter adjusted (clamped) - " << paramName << ": " << QString::number(numValue, 'f', decimals).toStdString() << " -> "
+          BPLog::bpInfo() << "[bp.utils.param] Parameter adjusted (clamped) - " << paramName << ": " << QString::number(numValue, 'f', decimals).toStdString() << " -> "
                     << QString::number(clampedValue, 'f', decimals).toStdString() << std::endl;
         } else {
           int numValue = QString::fromStdString(currentValue).toInt();
           int clampedValue = std::clamp(numValue, static_cast<int>(min), static_cast<int>(max));
           params.putInt(paramName, clampedValue);
 
-          std::cout << "Parameter adjusted (clamped) - " << paramName << ": " << numValue << " -> " << clampedValue << std::endl;
+          BPLog::bpInfo() << "[bp.utils.param] Parameter adjusted (clamped) - " << paramName << ": " << numValue << " -> " << clampedValue << std::endl;
         }
         initialized = true;
       }
@@ -511,19 +514,19 @@ public:
 
   // Log parameter changes for toggles and selection controls
   static void logParamChange(const std::string &paramName, const std::string &oldValue, const std::string &newValue) {
-    std::cout << "Parameter changed - " << paramName << ": " << oldValue << " -> " << newValue << std::endl;
+    BPLog::bpInfo() << "[bp.utils.param] Parameter changed - " << paramName << ": " << oldValue << " -> " << newValue << std::endl;
   }
 
   // Log numeric parameter changes with proper formatting
   static void logNumericParamChange(const std::string &paramName, double oldValue, double newValue, bool isFloat, double div = 1.0) {
     if (isFloat) {
       int decimals = div > 1.0 ? static_cast<int>(log10(div)) : 0;
-      std::cout << "Parameter changed - " << paramName << ": " << QString::number(oldValue, 'f', decimals).toStdString() << " -> "
+      BPLog::bpInfo() << "[bp.utils.param] Parameter changed - " << paramName << ": " << QString::number(oldValue, 'f', decimals).toStdString() << " -> "
                 << QString::number(newValue, 'f', decimals).toStdString() << std::endl;
     } else {
       int intOldValue = static_cast<int>(oldValue);
       int intNewValue = static_cast<int>(newValue);
-      std::cout << "Parameter changed - " << paramName << ": " << intOldValue << " -> " << intNewValue << std::endl;
+      BPLog::bpInfo() << "[bp.utils.param] Parameter changed - " << paramName << ": " << intOldValue << " -> " << intNewValue << std::endl;
     }
   }
 };

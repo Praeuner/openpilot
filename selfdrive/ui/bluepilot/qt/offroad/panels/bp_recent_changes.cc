@@ -3,7 +3,7 @@
 #include "bp_recent_changes.h"
 #include <QScroller>
 #include <QGraphicsDropShadowEffect>
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 BPRecentChangesDialog::BPRecentChangesDialog(QWidget *parent) : BPDialogBase(parent) {
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -15,7 +15,7 @@ BPRecentChangesDialog::BPRecentChangesDialog(QWidget *parent) : BPDialogBase(par
 }
 
 BPRecentChangesDialog::~BPRecentChangesDialog() {
-  std::cout << "BPRecentChangesDialog destructor called" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.recent.changes] BPRecentChangesDialog destructor called" << std::endl;
 }
 
 void BPRecentChangesDialog::setupDialogStyle() {
@@ -135,13 +135,13 @@ bool BPRecentChangesDialog::loadAndDisplayChanges(const QString &version) {
   QJsonObject changesData = loadChangesJson();
 
   if (changesData.isEmpty()) {
-    std::cerr << "Failed to load changes data" << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] Failed to load changes data" << std::endl;
     return false;
   }
 
   QJsonObject versions = changesData["versions"].toObject();
   if (!versions.contains(version)) {
-    std::cout << "No changes found for version: " << version.toStdString() << std::endl;
+    BPLog::bpInfo() << "[bp.recent.changes] No changes found for version: " << version.toStdString() << std::endl;
     return false;
   }
 
@@ -299,7 +299,7 @@ QString BPRecentChangesDialog::getCurrentVersion() {
 
   QFile file(versionPath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    std::cerr << "Failed to read BPVERSION file: " << versionPath.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] Failed to read BPVERSION file: " << versionPath.toStdString() << std::endl;
     return "unknown";
   }
 
@@ -311,14 +311,14 @@ QString BPRecentChangesDialog::getStoredVersion() {
   Params params;
   std::string storedVersion = params.get("BPLastSeenVersion");
   QString result = QString::fromStdString(storedVersion);
-  std::cout << "Retrieved stored version: '" << storedVersion << "' (length: " << storedVersion.length() << ")" << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Retrieved stored version: '" << storedVersion << "' (length: " << storedVersion.length() << ")" << std::endl;
   return result;
 }
 
 void BPRecentChangesDialog::setStoredVersion(const QString &version) {
   Params params;
   params.put("BPLastSeenVersion", version.toStdString());
-  std::cout << "Stored version updated to: " << version.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Stored version updated to: " << version.toStdString() << std::endl;
 }
 
 QJsonObject BPRecentChangesDialog::loadChangesJson() {
@@ -327,7 +327,7 @@ QJsonObject BPRecentChangesDialog::loadChangesJson() {
 
   QFile file(changesPath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    std::cerr << "Failed to open BP_CHANGES.json: " << changesPath.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] Failed to open BP_CHANGES.json: " << changesPath.toStdString() << std::endl;
     return QJsonObject();
   }
 
@@ -335,7 +335,7 @@ QJsonObject BPRecentChangesDialog::loadChangesJson() {
   QJsonDocument doc = QJsonDocument::fromJson(data);
 
   if (doc.isNull() || !doc.isObject()) {
-    std::cerr << "Invalid JSON in BP_CHANGES.json" << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] Invalid JSON in BP_CHANGES.json" << std::endl;
     return QJsonObject();
   }
 
@@ -357,7 +357,7 @@ QString BPRecentChangesDialog::getGitRootPath() {
   }
 
   // Fallback to project root if .git not found
-  std::cerr << "Git root not found, falling back to project root" << std::endl;
+  BPLog::bpWarn() << "[bp.recent.changes] Git root not found, falling back to project root" << std::endl;
   return FileUtils::getProjectRootPath();
 }
 
@@ -365,10 +365,10 @@ bool BPRecentChangesDialog::checkAndShowChanges(QWidget *parent) {
   QString currentVersion = getCurrentVersion();
   QString storedVersion = getStoredVersion();
 
-  std::cout << "Current version: '" << currentVersion.toStdString() << "' (length: " << currentVersion.length() << ")" << std::endl;
-  std::cout << "Stored version: '" << storedVersion.toStdString() << "' (length: " << storedVersion.length() << ")" << std::endl;
-  std::cout << "Versions equal: " << (currentVersion == storedVersion) << std::endl;
-  std::cout << "Current != unknown: " << (currentVersion != "unknown") << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Current version: '" << currentVersion.toStdString() << "' (length: " << currentVersion.length() << ")" << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Stored version: '" << storedVersion.toStdString() << "' (length: " << storedVersion.length() << ")" << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Versions equal: " << (currentVersion == storedVersion) << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] Current != unknown: " << (currentVersion != "unknown") << std::endl;
 
   if (currentVersion != storedVersion && currentVersion != "unknown") {
     auto *dialog = new BPRecentChangesDialog(parent);

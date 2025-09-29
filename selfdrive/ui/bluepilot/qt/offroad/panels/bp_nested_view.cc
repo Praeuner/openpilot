@@ -3,7 +3,7 @@
 #include "bp_nested_view.h"
 #include <QScreen>
 #include <QGraphicsDropShadowEffect>
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 BPNestedView::BPNestedView(QWidget *parent) : QDialog(parent), panel(nullptr) {
 
@@ -17,7 +17,7 @@ BPNestedView::BPNestedView(QWidget *parent) : QDialog(parent), panel(nullptr) {
 }
 
 BPNestedView::~BPNestedView() {
-  std::cout << "BPNestedView destructor called" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.nested.view] BPNestedView destructor called" << std::endl;
   if (panel) {
     // Clear conditions for all controls in this panel
     QList<QWidget *> controls = panel->findChildren<QWidget *>();
@@ -118,7 +118,7 @@ void BPNestedView::setupHeader(const QString &title) {
 }
 
 bool BPNestedView::setupView(const QString &title, const QJsonObject &config) {
-  std::cout << "Setting up nested view with title: " << title.toStdString() << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.nested.view] setupView: Setting up nested view with title: " << title.toStdString() << std::endl;
 
   setupHeader(title);
 
@@ -185,7 +185,7 @@ bool BPNestedView::setupView(const QString &title, const QJsonObject &config) {
   containerLayout->addWidget(scroll);
   main_layout->addWidget(container, 1);
 
-  std::cout << "BPNestedView::setupView completed" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.nested.view] setupView: Completed" << std::endl;
   return true;
 }
 
@@ -193,7 +193,7 @@ bool BPNestedView::setupView(const QString &title, const QString &configPath) {
   ConfigManager &config = ConfigManager::getInstance();
   QString actualConfigPath = FileUtils::getProjectRootPath() + configPath;
   if (!config.loadConfig(actualConfigPath)) {
-    std::cerr << "Failed to load nested view configuration" << std::endl;
+    BPLog::bpError() << "[bp.nested.view] setupView: Failed to load nested view configuration" << std::endl;
     return false;
   }
 
@@ -222,7 +222,7 @@ void BPNestedView::showEvent(QShowEvent *event) {
 }
 
 void BPNestedView::hideEvent(QHideEvent *event) {
-  std::cout << "BPNestedView::hideEvent called" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.nested.view] hideEvent: Called" << std::endl;
   QDialog::hideEvent(event);
 }
 

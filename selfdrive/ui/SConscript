@@ -20,6 +20,8 @@ if not GetOption('stock_ui'):
   Import('sp_widgets_src', 'sp_qt_src', 'sp_qt_util')
 
 bp_qt_src = [
+  # BluePilot Core Logging
+  "bluepilot/bp_logging.cc",
   # BluePilot Panel and Widgets
   # "bluepilot/qt/offroad/panels/bp_panel.cc",
   "bluepilot/qt/offroad/panels/bp_utils.cc",
@@ -36,9 +38,17 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_managers.cc",
   "bluepilot/qt/offroad/routes_panel/bp_video_dialog.cc",
   "bluepilot/qt/offroad/routes_panel/bp_video_widget.cc",
+  "bluepilot/qt/offroad/routes_panel/bp_media_control_button.cc",
   # New decoder infrastructure
   "bluepilot/qt/offroad/routes_panel/bp_frame_reader.cc",
   "bluepilot/qt/offroad/routes_panel/qcom_decoder.cc",
+  "bluepilot/qt/offroad/routes_panel/frame_provider.cc",
+  "bluepilot/qt/offroad/routes_panel/segment_buffer.cc",
+  "bluepilot/qt/offroad/routes_panel/segment_index.cc",
+  "bluepilot/qt/offroad/routes_panel/seek_controller.cc",
+  "bluepilot/qt/offroad/routes_panel/video_controller.cc",
+  "bluepilot/qt/offroad/routes_panel/video_metrics.cc",
+  "bluepilot/qt/offroad/routes_panel/watchdog_detector.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel
