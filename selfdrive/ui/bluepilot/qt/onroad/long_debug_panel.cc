@@ -1,3 +1,6 @@
+// selfdrive/ui/bluepilot/qt/onroad/long_debug_panel.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "long_debug_panel.h"
 #include "widgets/debug/AccelGraphWidget.h"
 #include "widgets/debug/LongControlGraphWidget.h"
@@ -115,7 +118,7 @@ void LongDataWorker::processData(const UIState *s) {
     m_lastCache = cache;
     emit dataReady(cache);
   } catch (const std::exception &e) {
-    qWarning() << "Error processing longitudinal debug data:" << e.what();
+    BPLog::bpWarn() << "[bp.long.debug.panel] processData | Error processing longitudinal debug data: " << e.what() << std::endl;
   }
 }
 

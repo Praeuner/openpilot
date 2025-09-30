@@ -100,18 +100,18 @@ void GForceOverlay::updateGForceData(const UIState &s, GForceState &gforce_state
         // }
       } else {
         if (debug_counter % 20 == 0) {
-          BPLog::bpError() << "[bp.gforce.overlay] Sensor data union mismatch - accel which: " << (int)accel_sensor.which()
+          BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensor data union mismatch - accel which: " << (int)accel_sensor.which()
                     << " gyro which: " << (int)gyro_sensor.which() << std::endl;
         }
       }
     } catch (const std::exception &e) {
       if (debug_counter % 20 == 0) {
-        BPLog::bpError() << "[bp.gforce.overlay] Sensor access error: " << e.what() << std::endl;
+        BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensor access error: " << e.what() << std::endl;
       }
     }
   } else {
     if (debug_counter % 50 == 0) {
-      BPLog::bpError() << "[bp.gforce.overlay] Sensors not available - accel: " << accel_available
+      BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensors not available - accel: " << accel_available
                 << " gyro: " << gyro_available << std::endl;
     }
   }
@@ -128,10 +128,10 @@ void GForceOverlay::updateGForceData(const UIState &s, GForceState &gforce_state
     gforce_state.lateral_g = -(v_ego * yaw_rate) / GRAVITY_MS2;  // Fixed sign
 
     if (debug_counter % 200 == 0) {
-      BPLog::bpWarn() << "[bp.gforce.overlay] Using SIMULATED data - v_ego: " << v_ego
-                << " a_ego: " << a_ego << " yaw_rate: " << yaw_rate
-                << " long_g: " << gforce_state.longitudinal_g
-                << " lat_g: " << gforce_state.lateral_g << std::endl;
+      BPLog::bpWarn() << "[bp.gforce.overlay] updateGForceData | Using SIMULATED data - v_ego: " << v_ego
+                << " | a_ego: " << a_ego << " | yaw_rate: " << yaw_rate
+                << " | long_g: " << gforce_state.longitudinal_g
+                << " | lat_g: " << gforce_state.lateral_g << std::endl;
     }
   }
 

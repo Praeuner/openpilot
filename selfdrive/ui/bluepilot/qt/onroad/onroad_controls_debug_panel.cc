@@ -136,7 +136,7 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   connect(m_animation, &QPropertyAnimation::finished, [this]() {
     if (m_visible) {
       // Double-check visibility and position at end of animation
-      BPLog::bpDebugGeneral() << "Animation finished - panel should be visible at:" << x() << "," << y() << std::endl;
+      BPLog::bpDebugGeneral() << "[bp.onroad.controls.debug.panel] Animation finished - panel should be visible at:" << x() << "," << y() << std::endl;
       raise(); // Make extra sure we're on top
     } else {
       // If animation finished but we're not visible, actually hide the widget

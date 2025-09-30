@@ -135,13 +135,13 @@ bool BPRecentChangesDialog::loadAndDisplayChanges(const QString &version) {
   QJsonObject changesData = loadChangesJson();
 
   if (changesData.isEmpty()) {
-    BPLog::bpError() << "[bp.recent.changes] Failed to load changes data" << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] loadAndDisplayChanges | Failed to load changes data" << std::endl;
     return false;
   }
 
   QJsonObject versions = changesData["versions"].toObject();
   if (!versions.contains(version)) {
-    BPLog::bpInfo() << "[bp.recent.changes] No changes found for version: " << version.toStdString() << std::endl;
+    BPLog::bpInfo() << "[bp.recent.changes] loadAndDisplayChanges | No changes found for version: " << version.toStdString() << std::endl;
     return false;
   }
 
@@ -299,7 +299,7 @@ QString BPRecentChangesDialog::getCurrentVersion() {
 
   QFile file(versionPath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    BPLog::bpError() << "[bp.recent.changes] Failed to read BPVERSION file: " << versionPath.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] getCurrentVersion | Failed to read BPVERSION file: " << versionPath.toStdString() << std::endl;
     return "unknown";
   }
 
@@ -311,14 +311,14 @@ QString BPRecentChangesDialog::getStoredVersion() {
   Params params;
   std::string storedVersion = params.get("BPLastSeenVersion");
   QString result = QString::fromStdString(storedVersion);
-  BPLog::bpInfo() << "[bp.recent.changes] Retrieved stored version: '" << storedVersion << "' (length: " << storedVersion.length() << ")" << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] getStoredVersion | Retrieved stored version: '" << storedVersion << "' (length: " << storedVersion.length() << ")" << std::endl;
   return result;
 }
 
 void BPRecentChangesDialog::setStoredVersion(const QString &version) {
   Params params;
   params.put("BPLastSeenVersion", version.toStdString());
-  BPLog::bpInfo() << "[bp.recent.changes] Stored version updated to: " << version.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.recent.changes] setStoredVersion | Stored version updated to: " << version.toStdString() << std::endl;
 }
 
 QJsonObject BPRecentChangesDialog::loadChangesJson() {
@@ -327,7 +327,7 @@ QJsonObject BPRecentChangesDialog::loadChangesJson() {
 
   QFile file(changesPath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    BPLog::bpError() << "[bp.recent.changes] Failed to open BP_CHANGES.json: " << changesPath.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] loadChangesJson | Failed to open BP_CHANGES.json: " << changesPath.toStdString() << std::endl;
     return QJsonObject();
   }
 
@@ -335,7 +335,7 @@ QJsonObject BPRecentChangesDialog::loadChangesJson() {
   QJsonDocument doc = QJsonDocument::fromJson(data);
 
   if (doc.isNull() || !doc.isObject()) {
-    BPLog::bpError() << "[bp.recent.changes] Invalid JSON in BP_CHANGES.json" << std::endl;
+    BPLog::bpError() << "[bp.recent.changes] loadChangesJson | Invalid JSON in BP_CHANGES.json" << std::endl;
     return QJsonObject();
   }
 
@@ -357,7 +357,7 @@ QString BPRecentChangesDialog::getGitRootPath() {
   }
 
   // Fallback to project root if .git not found
-  BPLog::bpWarn() << "[bp.recent.changes] Git root not found, falling back to project root" << std::endl;
+  BPLog::bpWarn() << "[bp.recent.changes] getGitRootPath | Git root not found, falling back to project root" << std::endl;
   return FileUtils::getProjectRootPath();
 }
 

@@ -261,13 +261,13 @@ void PanelConditions::logConditionCheck(const QString &controlName, const std::f
   int padding = (width - controlNameStr.length() - 2) / 2;
   std::string centeredName = std::string(padding, ' ') + controlNameStr + std::string(padding, ' ');
 
-  BPLog::bpInfo() << "\n" << separator << std::endl;
-  BPLog::bpInfo() << centeredName << std::endl;
-  BPLog::bpInfo() << separator << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | \n" << separator << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << centeredName << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << separator << std::endl;
 
   logFunc();
 
-  BPLog::bpInfo() << separator << "\n" << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << separator << "\n" << std::endl;
 }
 
 bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlConditions &conditions) {
