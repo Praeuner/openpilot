@@ -250,11 +250,11 @@ QString getCarrierName(const QString &operatorCode) {
   };
 
   // Debug log the operator code to see what we're getting
-  BPLog::bpDebug() << "[bp.sidebar] Operator Code: " << operatorCode.toStdString() << std::endl;
+  // BPLog::bpDebug() << "[bp.sidebar] Operator Code: " << operatorCode.toStdString() << std::endl;
 
   // Check if operator code exists in map
   if (carrierMap.contains(operatorCode)) {
-    BPLog::bpDebug() << "[bp.sidebar] Found carrier: " << carrierMap[operatorCode].toStdString() << std::endl;
+    // BPLog::bpDebug() << "[bp.sidebar] Found carrier: " << carrierMap[operatorCode].toStdString() << std::endl;
     return carrierMap[operatorCode];
   }
 

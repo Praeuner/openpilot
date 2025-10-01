@@ -1,4 +1,6 @@
 // selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
 #include "selfdrive/ui/qt/onroad/model.h"
 #include "selfdrive/ui/qt/util.h"
@@ -207,7 +209,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
     // Check if transform is valid but don't return early
     if (frame_state.transform.isZero()) {
       if (debug_counter % 20 == 0) {
-        std::cerr << "WARNING: BluePilot transform is zero - overlays may not work properly" << std::endl;
+        BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | BluePilot transform is zero - overlays may not work properly" << std::endl;
       }
     }
 
@@ -217,7 +219,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
     // sValidate modelV2 message before accessing
     if (!sm.valid("modelV2")) {
       if (debug_counter % 50 == 0) {
-        std::cerr << "WARNING: BluePilot modelV2 not valid, skipping lane line processing" << std::endl;
+        BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | WARNING: BluePilot modelV2 not valid, skipping lane line processing" << std::endl;
       }
       return;
     }
@@ -234,12 +236,12 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
         path_offset_z = height_list[0];
       } else {
         if (debug_counter % 50 == 0) {
-          std::cerr << "WARNING: BluePilot liveCalibration height list is empty, using default value" << std::endl;
+          BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | WARNING: BluePilot liveCalibration height list is empty, using default value" << std::endl;
         }
       }
     } else {
       if (debug_counter % 50 == 0) {
-        std::cerr << "WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
+        BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | WARNING: BluePilot liveCalibration not valid, using default path_offset_z" << std::endl;
       }
     }
 
@@ -253,7 +255,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
         // Additional safety check for line data consistency
         if (line_x.size() == 0 || line_y.size() != line_x.size() || line_z.size() != line_x.size()) {
           if (debug_counter % 100 == 0) {
-            std::cerr << "WARNING: BluePilot lane line " << i << " has inconsistent data sizes" << std::endl;
+            BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | WARNING: BluePilot lane line " << i << " has inconsistent data sizes" << std::endl;
           }
           continue;
         }
@@ -284,7 +286,7 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
       }
     } else {
       if (debug_counter % 100 == 0) {
-        std::cerr << "WARNING: BluePilot skipping lane line mapping - transform zero: "
+        BPLog::bpWarn() << "[bp.onroad.bluepilot_renderer] updateFrameState | WARNING: BluePilot skipping lane line mapping - transform zero: "
                   << frame_state.transform.isZero() << " lane_lines size: " << lane_lines.size() << std::endl;
       }
     }

@@ -100,13 +100,13 @@ void StopSignOverlay::render(QPainter &painter, const QRect &rect, const UIState
       QRectF adjusted_clip_region = clip_region;
 
       if (dev_ui_right_panel) {
-        // Reserve space for developer panel (184px wide) plus buffer
-        adjusted_clip_region.setRight(clip_region.right() - 200);
+        // Reserve space for developer panel (184px wide) plus 30px buffer
+        adjusted_clip_region.setRight(clip_region.right() - 225);
       }
 
       if (dev_ui_bottom_panel) {
-        // Reserve space for bottom panel (60px high) plus buffer
-        adjusted_clip_region.setBottom(clip_region.bottom() - 80);
+        // Reserve space for bottom panel (60px high) plus 30px buffer
+        adjusted_clip_region.setBottom(clip_region.bottom() - 90);
       }
 
       // Check for collisions with hybrid gauge and UI elements
@@ -229,10 +229,10 @@ void StopSignOverlay::drawStopSignOverlay(QPainter &painter, const QPointF &poin
   int corner_y = painter.device()->height() - dynamicSize * 1.5;
 
   // Adjust corner position to avoid developer UI
-  // Check if we're in a context where we can access scene data (this is a fallback for safety)
-  // In normal operation, collision avoidance should happen in the render() function above
-  corner_x -= 50; // Move away from right edge to avoid potential UI collisions
-  corner_y -= 50; // Move up to avoid potential bottom UI collisions
+  // Reserve space for right panel (184px) and bottom panel (60px) plus buffers
+  // This is a fallback - primary collision avoidance happens in render() function above
+  corner_x -= 214; // Move away from right edge (184px panel + 30px buffer)
+  corner_y -= 90;  // Move up from bottom (60px panel + 30px buffer)
 
   QPointF cornerPosition(corner_x, corner_y);
   QPointF targetPosition;
