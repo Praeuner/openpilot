@@ -96,7 +96,7 @@ void StandstillTimerOverlay::render(QPainter &painter, const QRect &rect, const 
     int y = rect.center().y() - 45;
 
     if (dev_ui_right_panel) {
-      x -= 100; // Move left by 100px to avoid right panel collision
+      x -= 250; // Move left by 250px to avoid right panel collision
     }
     if (dev_ui_bottom_panel) {
       y -= 70; // Move up by 70px to avoid bottom panel collision
