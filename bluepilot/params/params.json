@@ -18,6 +18,15 @@
       "enabled": true
     },
     {
+      "name": "FordPrefDisableBP_lat_UI",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "ccProp": "disable_BP_lat_UI",
+      "create_default": true,
+      "enabled": true
+    },
+    {
       "name": "FordPrefHumanTurnDetectionEnable",
       "default": true,
       "type": "bool",
@@ -52,15 +61,7 @@
       "create_default": true,
       "enabled": true
     },
-    {
-      "name": "FordPrefDisableBP_lat_UI",
-      "default": false,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "ccProp": "disable_BP_lat_UI",
-      "create_default": true,
-      "enabled": true
-    },
+
     {
       "name": "FordPrefSupportsHybridDrive",
       "default": false,

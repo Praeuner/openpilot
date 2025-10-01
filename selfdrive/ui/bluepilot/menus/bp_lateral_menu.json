@@ -13,9 +13,9 @@
       "controls": [
         {
           "type": "toggle",
-          "param": "FordPrefHumanTurnDetectionEnable",
-          "title": "Enable Human Turn Detection",
-          "desc": "Reset steering so you don't fight the wheel making manual turns.",
+          "param": "FordPrefDisableBP_lat_UI",
+          "title": "Disable BluePilot Lateral Controls",
+          "desc": "Use stock openpilot lateral controls",
           "hidden": false,
           "conditions": {
             "git_remote": ["any"],
@@ -24,13 +24,20 @@
         },
         {
           "type": "toggle",
-          "param": "FordPrefDisableBP_lat_UI",
-          "title": "Disable BluePilot Lateral Controls",
-          "desc": "Use stock openpilot lateral controls",
+          "param": "FordPrefHumanTurnDetectionEnable",
+          "title": "Enable Human Turn Detection",
+          "desc": "Reset steering so you don't fight the wheel making manual turns.",
           "hidden": false,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": []
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
+              }
+            ]
           }
         },
         {
@@ -46,7 +53,12 @@
           "conditions": {
             "allConditionsTrue": [
               { "git_remote": ["any"] },
-              { "git_branch": [] }
+              { "git_branch": [] },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
+              }
             ]
           }
         },
@@ -59,7 +71,12 @@
           "conditions": {
             "allConditionsTrue": [
               { "git_remote": ["any"] },
-              { "git_branch": [] }
+              { "git_branch": [] },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
+              }
             ]
           }
         }
@@ -88,6 +105,11 @@
                 "paramValueEquals": {
                   "FordLatTuningTuningCustomProfile": "1"
                 }
+              },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
               }
             ]
           }
@@ -110,6 +132,11 @@
                 "paramValueEquals": {
                   "FordLatTuningTuningCustomProfile": "1"
                 }
+              },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
               }
             ]
           }
@@ -128,8 +155,15 @@
           "desc": "Allows custom lane positioning and lanefull.",
           "hidden": false,
           "conditions": {
-            "git_remote": ["any"],
-            "git_branch": []
+            "allConditionsTrue": [
+              { "git_remote": ["any"] },
+              { "git_branch": [] },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
+              }
+            ]
           }
         },
         {
@@ -150,6 +184,11 @@
                 "paramValueEquals": {
                   "FordLatTuningEnableLanePositioning": "1"
                 }
+              },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
+                }
               }
             ]
           }
@@ -167,6 +206,11 @@
               {
                 "paramValueEquals": {
                   "FordLatTuningEnableLanePositioning": "1"
+                }
+              },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
                 }
               }
             ]
@@ -194,6 +238,11 @@
               {
                 "paramValueEquals": {
                   "FordLatTuningEnableLanePositioning": "1"
+                }
+              },
+              {
+                "paramValueEquals": {
+                  "FordPrefDisableBP_lat_UI": "0"
                 }
               }
             ]
