@@ -8,7 +8,6 @@
 #include <tuple>
 
 #include "msgq/visionipc/visionbuf.h"
-#include "bp_video_types.h"
 
 #ifndef __APPLE__
 #include "qcom_decoder.h"
@@ -40,7 +39,8 @@ public:
   bool get(int idx, VisionBuf *buf);
   size_t getFrameCount() const { return packets_info.size(); }
 
-  int width = 0, height = 0;
+  int width = 0, height = 0, stride = 0;
+  bool uses_hw_decoder = false;
 
   // These members need to be accessible by VideoDecoder classes
   AVFormatContext *input_ctx = nullptr;
@@ -62,7 +62,7 @@ public:
   virtual ~VideoDecoder() = default;
   virtual bool open(AVCodecParameters *codecpar, bool hw_decoder) = 0;
   virtual bool decode(FrameReader *reader, int idx, VisionBuf *buf) = 0;
-  int width = 0, height = 0;
+  int width = 0, height = 0, stride = 0;
 };
 
 // FFmpeg software decoder

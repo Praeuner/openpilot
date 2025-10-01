@@ -33,7 +33,7 @@ public:
 
   bool init(const char* dev, size_t width, size_t height, uint64_t codec);
   VisionBuf* decodeFrame(AVPacket* pkt, VisionBuf* buf);
-
+  size_t captureStride() const;
   AVFormatContext* avctx = nullptr;
   int fd = 0;
 
@@ -86,6 +86,7 @@ private:
   VisionBuf* handleCapture();
   bool handleOutput();
   bool handleEvent();
+
 };
 
 #endif

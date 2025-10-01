@@ -1,3 +1,4 @@
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "bp_thumbnail_loader.h"
 
 #include <QDir>
@@ -7,27 +8,26 @@
 #include <QStandardPaths>
 #include <QtConcurrent>
 #include <QProcess>
-#include <QDebug>
 
 BPThumbnailLoader::BPThumbnailLoader(QObject *parent)
     : QObject(parent)
     , m_cache(std::make_unique<QCache<QString, QPixmap>>(DEFAULT_CACHE_SIZE)) {
 
-  printf("BPThumbnailLoader: Starting constructor\n");
+  BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Starting constructor";
 
   try {
     // Set up cache directory
-    printf("BPThumbnailLoader: Setting up cache directory\n");
+    BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Setting up cache directory";
     m_cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/thumbnails";
-    printf("BPThumbnailLoader: Cache dir: %s\n", m_cacheDir.toStdString().c_str());
+    BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Cache dir: " << m_cacheDir.toStdString().c_str() << std::endl;
 
     QDir().mkpath(m_cacheDir);
-    printf("BPThumbnailLoader: Constructor completed successfully\n");
+    BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Constructor completed successfully";
   } catch (const std::exception& e) {
-    printf("Exception in BPThumbnailLoader constructor: %s\n", e.what());
+    BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Exception in BPThumbnailLoader constructor: " << e.what() << std::endl;
     throw;
   } catch (...) {
-    printf("Unknown exception in BPThumbnailLoader constructor\n");
+    BPLog::bpDebugVideo() << "[bp.thumbnail.loader] BPThumbnailLoader | Unknown exception in BPThumbnailLoader constructor";
     throw;
   }
 }
@@ -162,7 +162,7 @@ QPixmap BPThumbnailLoader::extractFrameFromVideo(const QString &videoPath) const
   }
 
   if (ffmpeg.exitCode() != 0) {
-    qWarning() << "ffmpeg failed:" << ffmpeg.readAllStandardError();
+    BPLog::bpError() << "[bp.thumbnail.loader] extractFrameFromVideo | ffmpeg failed:" << ffmpeg.readAllStandardError();
     return QPixmap();
   }
 

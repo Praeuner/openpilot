@@ -1,5 +1,5 @@
 #include "bp_video_widget.h"
-#include <QDebug>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include <QMouseEvent>
 
 // Vertex shader for NV12 YUV to RGB conversion (OpenGL ES 3.2)
@@ -62,8 +62,8 @@ BPVideoWidget::~BPVideoWidget() {
 void BPVideoWidget::initializeGL() {
     initializeOpenGLFunctions();
 
-    qDebug() << "[VIDEO WIDGET] Initializing OpenGL";
-    qDebug() << "[VIDEO WIDGET] OpenGL Version:" << (char*)glGetString(GL_VERSION);
+    BPLog::bpDebugVideo() << "[bp.video.widget] initializeGL | called" << std::endl;
+    BPLog::bpDebugVideo() << "[bp.video.widget] initializeGL | OpenGL Version: " << (char*)glGetString(GL_VERSION) << std::endl;
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_BLEND);
@@ -76,28 +76,28 @@ void BPVideoWidget::initializeGL() {
     glGenTextures(1, &y_texture);
     glGenTextures(1, &uv_texture);
 
-    qDebug() << "[VIDEO WIDGET] OpenGL initialized successfully";
+    BPLog::bpDebugVideo() << "[bp.video.widget] initializeGL | OpenGL initialized successfully" << std::endl;
 }
 
 void BPVideoWidget::setupShaders() {
     shader_program = std::make_unique<QOpenGLShaderProgram>();
 
     if (!shader_program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader_source)) {
-        qWarning() << "[VIDEO WIDGET] Vertex shader compilation failed:" << shader_program->log();
+        BPLog::bpWarn() << "[bp.video.widget] setupShaders | Vertex shader compilation failed: " << shader_program->log().toStdString() << std::endl;
         return;
     }
 
     if (!shader_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragment_shader_source)) {
-        qWarning() << "[VIDEO WIDGET] Fragment shader compilation failed:" << shader_program->log();
+        BPLog::bpWarn() << "[bp.video.widget] setupShaders | Fragment shader compilation failed: " << shader_program->log().toStdString() << std::endl;
         return;
     }
 
     if (!shader_program->link()) {
-        qWarning() << "[VIDEO WIDGET] Shader program linking failed:" << shader_program->log();
+        BPLog::bpWarn() << "[bp.video.widget] setupShaders | Shader program linking failed: " << shader_program->log().toStdString() << std::endl;
         return;
     }
 
-    qDebug() << "[VIDEO WIDGET] Shaders compiled and linked successfully";
+    BPLog::bpDebugVideo() << "[bp.video.widget] setupShaders | Shaders compiled and linked successfully" << std::endl;
 }
 
 void BPVideoWidget::setupBuffers() {
@@ -139,7 +139,7 @@ void BPVideoWidget::setupBuffers() {
     vertex_array.release();
     vertex_buffer.release();
 
-    qDebug() << "[VIDEO WIDGET] Vertex buffers setup complete";
+    BPLog::bpDebugVideo() << "[bp.video.widget] setupBuffers | Vertex buffers setup complete" << std::endl;
 }
 
 void BPVideoWidget::resizeGL(int width, int height) {
@@ -154,16 +154,16 @@ void BPVideoWidget::resizeGL(int width, int height) {
 
 void BPVideoWidget::displayFrame(VisionBuf* buf, int width, int height) {
     if (!buf) {
-        qWarning() << "[VIDEO WIDGET] Null buffer provided";
+        BPLog::bpWarn() << "[bp.video.widget] displayFrame | Null buffer provided" << std::endl;
         return;
     }
 
     static int frame_count = 0;
     frame_count++;
     if (frame_count % 60 == 0) {  // Log every 60th frame
-        qDebug() << "[VIDEO WIDGET] Frame" << frame_count << ":" << width << "x" << height
-                 << "stride:" << buf->stride << "Y addr:" << (void*)buf->y
-                 << "UV addr:" << (void*)buf->uv;
+        BPLog::bpDebugVideo() << "[bp.video.widget] displayFrame | Frame" << frame_count << ":" << width << "x" << height
+                 << " | stride:" << buf->stride << " | Y addr:" << (void*)buf->y
+                 << " | UV addr:" << (void*)buf->uv << std::endl;
     }
 
     makeCurrent();
@@ -177,16 +177,16 @@ void BPVideoWidget::displayFrame(VisionBuf* buf, int width, int height) {
 
 void BPVideoWidget::updateTextures(VisionBuf* buf, int width, int height) {
     if (!buf || !buf->y || !buf->uv) {
-        qWarning() << "[VIDEO WIDGET] ERROR: Invalid VisionBuf data";
+        BPLog::bpWarn() << "[bp.video.widget] updateTextures | ERROR: Invalid VisionBuf data" << std::endl;
         return;
     }
 
     static int update_count = 0;
     update_count++;
     if (update_count % 60 == 0) {
-        qDebug() << "[VIDEO WIDGET] Updating textures:" << width << "x" << height
-                 << "stride:" << buf->stride << "Y addr:" << (void*)buf->y
-                 << "UV addr:" << (void*)buf->uv;
+        BPLog::bpDebugVideo() << "[bp.video.widget] updateTextures | Updating textures: " << width << "x" << height
+                 << " | stride:" << buf->stride << " | Y addr:" << (void*)buf->y
+                 << " | UV addr:" << (void*)buf->uv << std::endl;
     }
 
     // Handle stride properly for aligned memory access
@@ -219,7 +219,7 @@ void BPVideoWidget::updateTextures(VisionBuf* buf, int width, int height) {
     // Check for OpenGL errors
     GLenum error = glGetError();
     if (error != GL_NO_ERROR) {
-        qWarning() << "[VIDEO WIDGET] OpenGL error during texture update:" << error;
+        BPLog::bpWarn() << "[bp.video.widget] updateTextures | OpenGL error during texture update: " << error << std::endl;
     }
 }
 
@@ -264,5 +264,3 @@ void BPVideoWidget::mouseReleaseEvent(QMouseEvent *event) {
     }
     QOpenGLWidget::mouseReleaseEvent(event);
 }
-
-// MOC file will be generated automatically by the build system
