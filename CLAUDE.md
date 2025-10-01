@@ -12,6 +12,7 @@ This is BluePilot, a fork of SunnyPilot (which is a fork of OpenPilot) focused o
 ```bash
 # Main build system uses SCons
 scons -j$(nproc)
+./tools/op.sh build
 
 # Build with specific options
 scons --kaitai    # Regenerate kaitai struct parsers

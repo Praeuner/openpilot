@@ -1,7 +1,7 @@
 // selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.cc
 
 #include "bp_panel_dialogs.h"
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 BPSelectionDialog::BPSelectionDialog(const QString &title, const QVector<Option> &options, const QString &currentValue, QWidget *parent)
     : BPDialogBase(parent), currentValue(currentValue) {
@@ -444,7 +444,7 @@ void BPCommandDialog::executeCommand(const QString &command, const QString &titl
     if (dir.exists()) {
       process->setWorkingDirectory(workingDir);
     } else {
-      std::cout << "Warning: Working directory does not exist: " << workingDir.toStdString() << std::endl;
+      BPLog::bpWarn() << "[bp.command.dialog] Warning: Working directory does not exist: " << workingDir.toStdString() << std::endl;
     }
   }
 
@@ -457,7 +457,7 @@ void BPCommandDialog::executeCommand(const QString &command, const QString &titl
   setupFullscreen();
 
   // Start the process
-  std::cout << "BPCommandDialog: executing command: " << command.toStdString() << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.command.dialog] executing command: " << command.toStdString() << std::endl;
   process->start("/bin/bash", QStringList() << "-c" << command);
 }
 
@@ -468,7 +468,7 @@ void BPCommandDialog::setupActionButtons(const QJsonArray &actionButtons) {
 
   for (const auto &btnVal : actionButtons) {
     if (addedButtons >= maxActionButtons) {
-      std::cout << "Exceeded maximum of 3 action buttons. Skipping extras." << std::endl;
+      BPLog::bpInfo() << "[bp.command.dialog] Exceeded maximum of 3 action buttons. Skipping extras." << std::endl;
       break;
     }
     QJsonObject buttonObj = btnVal.toObject();

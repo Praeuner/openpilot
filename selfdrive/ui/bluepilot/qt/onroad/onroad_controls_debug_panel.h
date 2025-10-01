@@ -49,6 +49,8 @@ public:
   void updateState(const UIState &s);
   bool gestureEvent(QGestureEvent *event);
   void toggleVisibility();
+  void forceRefresh(); // Force complete refresh of size and position
+  bool needsSizeUpdate() const; // Check if current size needs updating
 
 protected:
   void paintEvent(QPaintEvent *event) override;
@@ -79,7 +81,8 @@ private:
   int m_currentTabIndex = 0;
 
   // Constants
-  static constexpr float PANEL_RATIO = 0.9f; // 90% of screen width for right side panel
+  static constexpr int SIDEBAR_WIDTH = 460; // Width of the sidebar
+  static constexpr int NAV_BUTTONS_WIDTH = 160; // Width reserved for navigation buttons
   static constexpr int BORDER_RADIUS = 0;
   static constexpr int UPDATE_INTERVAL_MS = 50; // 20 Hz update rate
 
@@ -87,6 +90,8 @@ private:
   void drawBackground(QPainter &p);
   void updatePosition(); // Method to handle positioning
   void scheduleUpdate(const UIState &s);
+  int calculatePanelWidth() const; // Method to calculate dynamic panel width
+  void handleParentResize(); // Method to handle parent resize events
 
   QPushButton *m_closeButton;
   void setupCloseButton();

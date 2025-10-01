@@ -361,6 +361,7 @@ def main() -> NoReturn:
       if gps.hasFix:
         want_assistance = False
         stop_download_event.set()
+      
       pm.send('gpsLocation', msg)
 
     elif log_type == LOG_GNSS_OEMDRE_SVPOLY_REPORT:

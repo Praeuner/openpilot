@@ -9,12 +9,15 @@ class HomeWindowBP : public HomeWindow {
 
 public:
   explicit HomeWindowBP(QWidget *parent = 0);
+  ~HomeWindowBP();
+  void forceDebugPanelRefresh(); // Force refresh of debug panel
 
 public slots:
   void showDebugPanel();
 
 protected:
   void updateState(const UIState &s) override;
+  void resizeEvent(QResizeEvent *event) override;
 
 private:
   OnroadControlsDebugPanel *debug_panel;

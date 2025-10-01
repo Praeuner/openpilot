@@ -27,7 +27,11 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
 
   stacked_layout->addWidget(split_wrapper);
 
+#ifdef BLUEPILOT
+  alerts = new OnroadAlertsBP(this);
+#else
   alerts = new OnroadAlerts(this);
+#endif
   alerts->setAttribute(Qt::WA_TransparentForMouseEvents, true);
   stacked_layout->addWidget(alerts);
 

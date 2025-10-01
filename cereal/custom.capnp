@@ -172,6 +172,8 @@ struct OnroadEventSP @0xda96579883444c35 {
     experimentalModeSwitched @14;
     wrongCarModeAlertOnly @15;
     pedalPressedAlertOnly @16;
+    laneTurnLeft @17;
+    laneTurnRight @18;
   }
 }
 
@@ -247,17 +249,6 @@ struct BackupManagerSP @0xf98d843bfd7004a3 {
 }
 
 struct CarStateSP @0xb86e6369214c01c8 {
-    buttonEvents @0 :List(ButtonEvent);
-
-    struct ButtonEvent {
-        pressed @0 :Bool;
-        type @1 :Type;
-
-        enum Type {
-          unknown @0;
-          customButton @1;
-        }
-      }
 }
 
 struct LiveMapDataSP @0xf416ec09499d9d19 {
@@ -269,8 +260,15 @@ struct LiveMapDataSP @0xf416ec09499d9d19 {
   roadName @5 :Text;
 }
 
-struct CustomReserved9 @0xa1680744031fdb2d {
+struct ModelDataV2SP @0xa1680744031fdb2d {
+  laneTurnDirection @0 :TurnDirection;
 }
+
+  enum TurnDirection {
+    none @0;
+    turnLeft @1;
+    turnRight @2;
+  }
 
 struct CustomReserved10 @0xcb9fd56c7057593a {
 }

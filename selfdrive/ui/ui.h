@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QColor>
 #include <QFuture>
+#include <QString>
 
 #include "cereal/messaging/messaging.h"
 #include "common/mat.h"
@@ -80,7 +81,25 @@ typedef struct UIScene {
   bool show_brake_status;
 
   bool wide_camera_low_speed;
+  bool sidebar_visible;
+
+  // SunnyPilot additional fields
+  int speed_limit_mode = 0;
+  bool road_name = false;
+
+  // SunnyPilot brightness control
+  int onroadScreenOffBrightness, onroadScreenOffTimer = 0;
+  bool onroadScreenOffControl;
+
 } UIScene;
+
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/ui_scene_bp.h"
+#define UIScene UISceneBP
+#elif defined(SUNNYPILOT)
+#include "selfdrive/ui/sunnypilot/ui_scene.h"
+#define UIScene UISceneSP
+#endif
 
 class UIState : public QObject {
   Q_OBJECT
@@ -139,23 +158,9 @@ protected:
   FirstOrderFilter brightness_filter;
   QFuture<void> brightness_future;
 
-  // Onroad display behavior state
-  int onroad_display_behavior = 0;      // 0: Do Nothing
-  int onroad_display_timeout = 0;       // index -> seconds mapping
-  bool onroad_display_active = false;   // whether behavior is currently applied
-  int original_brightness = 0;          // brightness before applying behavior
-  std::chrono::steady_clock::time_point onroad_display_deadline{}; // activation deadline
-
   void updateBrightness(const UIState &s);
   void updateWakefulness(const UIState &s);
   void setAwake(bool on);
-
-  // New helpers for onroad behavior & offroad test
-  void updateOnroadDisplayBehavior(const UIState &s);
-  void applyOnroadDisplayBehavior(int behavior);
-  void dimDisplay(int percentage);
-  void turnOffDisplay();
-  void restoreOriginalBrightness();
 
 signals:
   void displayPowerChanged(bool on);
@@ -164,6 +169,8 @@ signals:
 public slots:
   void resetInteractiveTimeout(int timeout = -1);
   void update(const UIState &s);
+  void resetOnroadDisplayTimer();
+  void onUserInteraction();
 };
 
 #ifndef SUNNYPILOT

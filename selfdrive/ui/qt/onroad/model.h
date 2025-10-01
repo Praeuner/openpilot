@@ -28,23 +28,12 @@ public:
 
   ModelRenderer() {}
   void setTransform(const Eigen::Matrix3f &transform) { car_space_transform = transform; }
-
-  // ADDED: Getter methods for BluepilotRenderer
-  const Eigen::Matrix3f& getTransform() const { return car_space_transform; }
-  const QRectF& getClipRegion() const { return clip_region; }
-
   void draw(QPainter &painter, const QRect &surface_rect);
 
 protected:
   bool mapToScreen(float in_x, float in_y, float in_z, QPointF *out);
   void mapLineToPolygon(const cereal::XYZTData::Reader &line, float y_off, float z_off,
                         QPolygonF *pvd, int max_idx, bool allow_invert = true);
-  void drawLeadStatus(QPainter &painter, int height, int width);
-  void drawLeadStatusAtPosition(QPainter &painter,
-                             const cereal::RadarState::LeadData::Reader &lead_data,
-                             const QPointF &chevron_pos,
-                             int height, int width,
-                             const QString &label);
   void drawLead(QPainter &painter, const cereal::RadarState::LeadData::Reader &lead_data, const QPointF &vd, const QRect &surface_rect);
   void update_leads(const cereal::RadarState::Reader &radar_state, const cereal::XYZTData::Reader &line);
   virtual void update_model(const cereal::ModelDataV2::Reader &model, const cereal::RadarState::LeadData::Reader &lead);
@@ -69,9 +58,16 @@ protected:
   QPointF lead_vertices[2] = {};
   Eigen::Matrix3f car_space_transform = Eigen::Matrix3f::Zero();
   QRectF clip_region;
-
-  float lead_status_alpha = 0.0f;
-  QPointF lead_status_pos;
-  QString lead_status_text;
-  QColor lead_status_color;
 };
+
+// Forward declarations for conditional compilation
+#ifdef BLUEPILOT
+// Forward declare ModelRendererBP for now, actual include handled in .cc files
+class ModelRendererBP;
+using ModelRendererFinal = ModelRendererBP;
+#elif defined(SUNNYPILOT)
+#include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
+using ModelRendererFinal = ModelRendererSP;
+#else
+using ModelRendererFinal = ModelRenderer;
+#endif

@@ -2,13 +2,27 @@
   "versions": {
     "4.1.0": {
       "changes": [
-        "Merged all of the latest upstream sunnypilot master-dev-c3-new changes",
-        "New Onroad display controls: behavior (dim %) and timeout (seconds)",
-        "Brake status indicator: Attempt to use brake light CAN signal when available.",
-        "Added a new parameter to disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
-        "The BP Updater panel is now twice as fast because it disables powersave mode when updating allowing access to all 8 cores of the CPU."
+        "Enhanced Onroad UI: Enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing.",
+        "Brake status indicator: It now attempts to use brake light CAN signal when available.",
+        "New BluePilot sidebar with animated fan indicator and WiFi status display",
+        "Model info widget and enhanced drive stats widget for onroad display",
+        "Onroad display behavior controls: dimming percentage and timeout settings",
+        "Brightness control system improvements with better user interaction",
+        "Radar overlay speed display fixes to match system speed units",
+        "Enhanced onroad debug panel with conditional building",
+        "Updated the styling of the alert overlay to match the rest of the UI"
       ],
-      "fixes": ["General stability and bug fixes"],
+      "fixes": [
+        "Fixed BPSelection control description text display",
+        "Fixed radar overlay speed unit matching with system settings",
+        "Fixed BP Updater crashes on built branches without submodules",
+        "Fixed HybridDriveBatteryGauge values so they are now more accurate",
+        "Fixed sunnylink card display issues in sidebar",
+        "Fixed onroad debug panel width utilization",
+        "Fixed brightness control system interactions",
+        "Fixed menu system JSON parsing and control visibility",
+        "General stability and bug fixes"
+      ],
       "removals": [],
       "known_issues": []
     },

@@ -202,6 +202,7 @@ private:
   void stopActivitySimulation();
   void resetMaxDurationTimer();
   bool isValidGitRepo() const;
+  bool hasSubmodules() const;
   void showErrorState(const QString &message);
   QDialog *currentDialog = nullptr;
   QDateTime lastRefreshTime;
@@ -233,6 +234,7 @@ private:
 
   QDateTime lastUpdateCheck;
   void updateCheckUpdatesButtonText();
+  bool updateCheckInProgress = false;
 
   void setupMainRepoSection();
   void setupSubmoduleSection();

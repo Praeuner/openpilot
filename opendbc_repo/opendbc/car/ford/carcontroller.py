@@ -706,7 +706,7 @@ class CarController(CarControllerBase):
       lka_hud_control = None
       if self.send_lane_depart_can_msg:
         lka_hud_control = hud_control
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control))
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control, CS.lane_assist_stock_values))
 
     ### longitudinal control ###
     # send acc msg at 50Hz

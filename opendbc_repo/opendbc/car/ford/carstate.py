@@ -168,6 +168,8 @@ class CarState(CarStateBase, MadsCarState):
     # Stock values from IPMA so that we can retain some stock functionality
     self.acc_tja_status_stock_values = cp_cam.vl["ACCDATA_3"]
     self.lkas_status_stock_values = cp_cam.vl["IPMA_Data"]
+    # Stock values from Lane_Assist_Data1 for lane assist functionality
+    self.lane_assist_stock_values = cp_cam.vl["Lane_Assist_Data1"]
 
     MadsCarState.update_mads(self, ret, can_parsers)
 
@@ -393,6 +395,7 @@ class CarState(CarStateBase, MadsCarState):
       ("ACCDATA_2", 50),
       ("ACCDATA_3", 5),
       ("IPMA_Data", 1),
+      ("Lane_Assist_Data1", 33),
     ]
 
     if CP.flags & FordFlags.CANFD:

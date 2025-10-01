@@ -1,3 +1,6 @@
+// selfdrive/ui/bluepilot/qt/onroad/other_debug_panel.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/other_debug_panel.h"
 #include <QLinearGradient>
 #include <QFont>
@@ -7,9 +10,51 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDateTime>
 #include <QScroller>
-#include <iostream>
+#include <algorithm>
 
-OtherDataWorker::OtherDataWorker(QObject *parent) : QObject(parent), m_abort(false) { m_lastCache = new OtherDataCache(); }
+OtherDataWorker::OtherDataWorker(QObject *parent) : QObject(parent), m_abort(false), m_canSubscriptionActive(false), m_canUpdatesPaused(false) {
+  m_lastCache = new OtherDataCache();
+  m_lastCANUpdate = 0;
+
+  // Create timer for slower CAN updates (2Hz instead of 20Hz)
+  m_canUpdateTimer = new QTimer(this);
+  m_canUpdateTimer->setInterval(500); // 500ms = 2Hz
+  m_canUpdateTimer->setSingleShot(false);
+}
+
+void OtherDataWorker::setCANSubscriptionActive(bool active) {
+  if (m_canSubscriptionActive.load() == active) {
+    return; // No change needed
+  }
+
+  m_canSubscriptionActive.store(active);
+
+  if (active) {
+    // Create CAN SubMaster when activating
+    try {
+      m_canSubMaster = std::make_unique<SubMaster>(std::vector<const char*>{"can"});
+      // Note: We don't use the timer anymore, processCANData is called from processData
+      // m_canUpdateTimer->start();
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | CAN subscription activated, SubMaster created successfully" << std::endl;
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | Note: CAN data requires pandad running with a connected panda device" << std::endl;
+    } catch (const std::exception &e) {
+      BPLog::bpWarn() << "[bp.other.debug.panel] setCANSubscriptionActive | Failed to create CAN SubMaster: " << e.what() << std::endl;
+      BPLog::bpWarn() << "[bp.other.debug.panel] setCANSubscriptionActive | This usually means pandad is not running or no panda is connected" << std::endl;
+      m_canSubMaster.reset();
+      m_canSubscriptionActive.store(false);
+    }
+  } else {
+    // Destroy CAN SubMaster when deactivating
+    m_canUpdateTimer->stop();
+    m_canSubMaster.reset();
+    BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | CAN subscription deactivated" << std::endl;
+  }
+}
+
+void OtherDataWorker::setCANUpdatesPaused(bool paused) {
+  m_canUpdatesPaused.store(paused);
+  BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANUpdatesPaused | CAN updates: " << (paused ? "paused" : "resumed") << std::endl;
+}
 
 OtherDataWorker::~OtherDataWorker() {
   m_abort = true;
@@ -38,6 +83,7 @@ void OtherDataWorker::processData(const UIState *s) {
   processCarOutput(s, &cache);
   processCarParams(s, &cache);
   processDeviceState(s, &cache);
+  // processCANData(s, &cache); // DISABLED: CAN debug section disabled
 
   // Update our internal cache
   *m_lastCache = cache;
@@ -50,7 +96,7 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
   try {
     auto &sm = *(s->sm);
     bool valid = sm.valid("carState");
-    // std::cout << "carState valid: " << valid << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] processCarState: carState valid: " << valid << std::endl;
     if (valid) {
       auto car = sm["carState"].getCarState();
       cache->carValues.vEgo = car.getVEgo();
@@ -109,12 +155,12 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
         cache->carValues.cruiseSpeedLimit = cruise.getSpeedLimit();
       }
 
-      // std::cout << "update cache with vEgo: " << cache->carValues.vEgo << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarState: update cache with vEgo: " << cache->carValues.vEgo << std::endl;
 
       cache->updated.carState = true;
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating CarState:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] processCarState: Error updating CarState:" << e.what() << std::endl;
   }
 }
 
@@ -166,7 +212,7 @@ void OtherDataWorker::processRadarState(const UIState *s, OtherDataCache *cache)
       cache->updated.radarState = true;
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating RadarState:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processRadarState: Error updating RadarState:" << e.what() << std::endl;
   }
 }
 
@@ -231,17 +277,17 @@ void OtherDataWorker::processCarOutput(const UIState *s, OtherDataCache *cache) 
             } catch (...) {
             }
           } catch (const std::exception &e) {
-            qWarning() << "Error accessing actuatorsOutput:" << e.what();
+            BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error accessing actuatorsOutput:" << e.what() << std::endl;
           }
         }
       } catch (const std::exception &e) {
-        qWarning() << "Error accessing carOutput message:" << e.what();
+        BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error accessing carOutput message:" << e.what() << std::endl;
       }
 
       cache->updated.carOutput = true;
     }
   } catch (const std::exception &e) {
-    // qWarning() << "Error processing carOutput:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error processing carOutput:" << e.what() << std::endl;
   }
 }
 
@@ -349,22 +395,22 @@ void OtherDataWorker::processCarParams(const UIState *s, OtherDataCache *cache) 
         carFw.subAddress = fw.getSubAddress();
         carFw.bus = fw.getBus();
 
-        // std::cout << "Found firmware - "
+        // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: Found firmware - "
         //          << "ECU: " << carFw.ecu
-        //          << " Version: " << carFw.fwVersion.toStdString()
-        //          << " Address: 0x" << std::hex << carFw.address << std::dec
-        //          << " Bus: " << carFw.bus << std::endl;
+        //          << " | Version: " << carFw.fwVersion.toStdString()
+        //          << " | Address: 0x" << std::hex << carFw.address << std::dec
+        //          << " | Bus: " << carFw.bus << std::endl;
 
         cache->paramValues.carFw.append(carFw);
       }
 
-      // std::cout << "Total firmware entries processed: " << cache->paramValues.carFw.size() << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: Total firmware entries processed: " << cache->paramValues.carFw.size() << std::endl;
       cache->updated.carParams = true;
     } else {
-      // std::cout << "carParams not valid in state manager" << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: carParams not valid in state manager" << std::endl;
     }
   } catch (const std::exception &e) {
-    // std::cerr << "Error updating CarParams: " << e.what() << std::endl;
+    // BPLog::bpError() << "[bp.other.debug.panel] processCarParams: Error updating CarParams: " << e.what() << std::endl;
   }
 }
 
@@ -453,7 +499,188 @@ void OtherDataWorker::processDeviceState(const UIState *s, OtherDataCache *cache
       cache->updated.deviceState = true;
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating DeviceState:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processDeviceState Error updating DeviceState:" << e.what() << std::endl;
+  }
+}
+
+
+// Helper function to get CAN message name from ID
+// TODO: Integrate with vehicle's DBC file for accurate names
+// Future implementation should:
+// 1. Load the DBC file based on carFingerprint (e.g., ford_lincoln_base_pt.dbc)
+// 2. Use opendbc's CANDefine or a C++ DBC parser to get message names
+// 3. Cache the parsed DBC data for performance
+static QString getMessageName(uint32_t can_id, const QString &carFingerprint = "") {
+  Q_UNUSED(can_id);
+  Q_UNUSED(carFingerprint);
+  // Static message names removed - only show DBC-matched names
+  return "";  // Return empty - will be populated from DBC data only
+}
+
+// Helper function to parse CAN signals - generic version with optional DBC parsing
+static void parseCANSignals(uint32_t can_id, const kj::ArrayPtr<const uint8_t> &data,
+                           OtherDataCache::CANMessage *msg, OtherDataCache *cache,
+                           const QString &carFingerprint = "") {
+  // Store previous values for change detection
+  QMap<QString, double> previousValues;
+  for (const auto &signal : msg->signalList) {
+    previousValues[signal.name] = signal.value;
+  }
+
+  msg->signalList.clear();
+
+  if (data.size() == 0) return; // No data to parse
+
+  const uint8_t *bytes = data.begin();
+
+  // Static signal parsing removed - only show DBC-matched signals
+  Q_UNUSED(carFingerprint);
+  bool hasKnownSignals = false;
+
+  // Skip all hardcoded signal parsing - only use DBC data
+  // All the switch statement cases have been removed
+
+  // Static signal names removed - signals will only be populated from DBC data
+  Q_UNUSED(bytes);
+  Q_UNUSED(hasKnownSignals);
+  // Signal list remains empty - will only be populated from actual DBC parsing in the future
+}
+
+void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
+  try {
+    // Check if CAN subscription is active and available
+    if (!m_canSubscriptionActive.load() || !m_canSubMaster) {
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN subscription not active or SubMaster not available" << std::endl;
+      return;
+    }
+
+    // Get car fingerprint for DBC lookups
+    QString carFingerprint = cache->paramValues.carFingerprint;
+
+    // Check if updates are paused
+    if (m_canUpdatesPaused.load()) {
+      // Keep existing data when paused, just mark as available
+      cache->canDataAvailable = !cache->canMessages.isEmpty();
+      cache->updated.canData = false; // Don't trigger UI updates when paused
+      // Clear the hasNewData flags when paused
+      for (auto &msg : cache->canMessages) {
+        msg.hasNewData = false;
+      }
+      return;
+    }
+
+    // Rate limit CAN updates to 10Hz for better responsiveness
+    uint64_t current_time = QDateTime::currentMSecsSinceEpoch();
+    if (current_time - m_lastCANUpdate < 100) { // 100ms = 10Hz
+      return;
+    }
+    m_lastCANUpdate = current_time;
+
+    // Update the CAN SubMaster with a small timeout to ensure we get data
+    m_canSubMaster->update(10); // 10ms timeout for faster response
+
+    // Check if CAN data is available (but don't return if not, just log)
+    bool canValid = m_canSubMaster->valid("can");
+    bool canRecent = m_canSubMaster->rcv_frame("can");
+
+    if (!canValid || !canRecent) {
+      static int warnCounter = 0;
+      if (warnCounter++ % 50 == 0) {  // Log every 50th miss
+        BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN status - valid: " << canValid << " | recent:" << canRecent << std::endl;
+      }
+      // Don't return - try to process whatever data we have
+    }
+
+    // Get CAN messages from the dedicated CAN SubMaster
+    const auto &can_list = (*m_canSubMaster)["can"].getCan();
+
+    static int debugCounter = 0;
+    if (debugCounter++ % 10 == 0) {  // Log every 10th update
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN list size: " << can_list.size() << " | CAN frame: " << m_canSubMaster->rcv_frame("can") << std::endl;
+    }
+
+    // Track message frequency calculation (only for updated messages)
+    static std::map<uint32_t, std::vector<uint64_t>> message_timestamps;
+    static std::map<uint32_t, uint64_t> last_message_count;
+
+    // Process each CAN message in the list
+    for (const auto &can_msg : can_list) {
+      uint32_t can_id = can_msg.getAddress();
+      auto can_data = can_msg.getDat();
+      uint8_t bus = can_msg.getSrc();
+
+      // Process all buses to see all CAN traffic
+      // if (bus != 0) continue;  // Removed to see all buses
+
+      // Initialize message entry if it doesn't exist (Cabana-style persistence)
+      if (!cache->canMessages.contains(can_id)) {
+        OtherDataCache::CANMessage new_msg;
+        new_msg.id = can_id;
+        new_msg.name = getMessageName(can_id, carFingerprint);  // Will be empty for unknown messages
+        new_msg.bus = bus;  // Store bus number separately
+        new_msg.frequency = 0;
+        new_msg.firstSeen = current_time;
+        new_msg.lastSeen = current_time;
+        new_msg.updateCount = 0;
+        new_msg.hasNewData = true;
+        cache->canMessages[can_id] = new_msg;
+        // Track discovery order
+        cache->discoveryOrder.append(can_id);
+      }
+
+      // Check if data has changed
+      QByteArray currentData(reinterpret_cast<const char*>(can_data.begin()), can_data.size());
+      bool dataChanged = (cache->canMessages[can_id].lastData != currentData);
+
+      // Update message timing and data
+      cache->canMessages[can_id].lastSeen = current_time;
+      cache->canMessages[can_id].hasNewData = dataChanged;
+      if (dataChanged) {
+        cache->canMessages[can_id].lastData = currentData;
+        cache->canMessages[can_id].updateCount++;
+      }
+
+      // Calculate frequency using sliding window (like Cabana)
+      message_timestamps[can_id].push_back(current_time);
+
+      // Keep only timestamps from last 2 seconds for frequency calculation
+      auto &timestamps = message_timestamps[can_id];
+      timestamps.erase(
+        std::remove_if(timestamps.begin(), timestamps.end(),
+                      [current_time](uint64_t ts) { return current_time - ts > 2000; }),
+        timestamps.end());
+
+      // Calculate frequency based on timestamps in last 2 seconds
+      if (timestamps.size() > 1) {
+        cache->canMessages[can_id].frequency = timestamps.size() / 2.0; // Messages per second
+      }
+
+      // Parse signals based on known CAN message IDs (Ford-specific if applicable)
+      parseCANSignals(can_id, can_data, &cache->canMessages[can_id], cache, carFingerprint);
+    }
+
+    // Age out old messages that haven't been seen (like Cabana timeout)
+    auto it = cache->canMessages.begin();
+    while (it != cache->canMessages.end()) {
+      uint32_t msg_id = it.key();
+      auto &msg = it.value();
+
+      // Remove messages not seen for more than 10 seconds
+      if (current_time - msg.lastSeen > 10000) {
+        message_timestamps.erase(msg_id);
+        it = cache->canMessages.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    // Mark CAN data as available if we have any messages
+    cache->canDataAvailable = !cache->canMessages.isEmpty();
+    cache->updated.canData = true;
+
+  } catch (const std::exception &e) {
+    BPLog::bpWarn() << "[bp.other.debug.panel] processCANData | Error updating CAN data: " << e.what() << std::endl;
+    cache->canDataAvailable = false;
   }
 }
 
@@ -479,6 +706,9 @@ OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent), m_dataProce
   m_worker = new OtherDataWorker();
   m_worker->moveToThread(&m_workerThread);
   connect(this, &OtherDebugPanel::processStateUpdate, m_worker, &OtherDataWorker::processData);
+
+  // Initialize CAN subscription as inactive
+  m_worker->setCANSubscriptionActive(false);
   connect(m_worker, &OtherDataWorker::dataReady, this, &OtherDebugPanel::updateFromWorker);
   m_workerThread.start();
 
@@ -530,6 +760,18 @@ OtherDebugPanel::OtherDebugPanel(QWidget *parent) : QWidget(parent), m_dataProce
 
   // Setup all tabs
   setupTabs();
+}
+
+void OtherDebugPanel::setCANTabActive(bool active) {
+  if (m_worker) {
+    m_worker->setCANSubscriptionActive(active);
+  }
+}
+
+void OtherDebugPanel::setCANUpdatesPaused(bool paused) {
+  if (m_worker) {
+    m_worker->setCANUpdatesPaused(paused);
+  }
 }
 
 OtherDebugPanel::~OtherDebugPanel() {
@@ -641,17 +883,26 @@ void OtherDebugPanel::updateVisibleTab() {
       m_lastUpdates.deviceLastUpdate = currentTime;
     }
     break;
+
+  // case 5: // CAN tab DISABLED: CAN debug section disabled
+  //   if (m_cache->updated.canData || currentTime - m_lastUpdates.deviceLastUpdate >= UpdateRates::DYNAMICS_UPDATE_RATE_MS) {
+  //     // Update CAN message list if needed
+  //     populateCANMessageTable();
+  //     // Update signal table for selected message
+  //     updateCANSignals();
+  //   }
+  //   break;
   }
 
   update(); // Request a repaint
 }
 
 void OtherDebugPanel::setupMaterialStyle() {
-  // Set up the main layout with material design spacing
+  // Set up the main layout with automotive design spacing
   setStyleSheet(R"(
     QWidget {
-      background-color: #121212;
-      color: white;
+      background-color: transparent;
+      color: #ecf0f1;
       font-family: Inter, Arial, sans-serif;
     }
 
@@ -670,15 +921,17 @@ void OtherDebugPanel::setupMaterialStyle() {
     }
 
     QTabBar::tab {
-      background: #363636;
-      color: white;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #2c3e50, stop: 1 #1a252f);
+      color: #bdc3c7;
       padding: 15px 30px;
       margin: 5px 8px 0px 8px;
-      border-top-left-radius: 10px;
-      border-top-right-radius: 10px;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
       font-size: 32px;
       min-width: 150px;
       min-height: 50px;
+      border: 1px solid rgba(100, 149, 237, 80);
       border-bottom: 3px solid transparent;
     }
 
@@ -688,13 +941,19 @@ void OtherDebugPanel::setupMaterialStyle() {
 
 
     QTabBar::tab:selected {
-      background: #2196F3;
-      border-bottom: 3px solid #64B5F6;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #34495e, stop: 1 #2c3e50);
+      color: #18b4ff;
+      border: 2px solid #18b4ff;
+      border-bottom: 3px solid #18b4ff;
+      font-weight: bold;
     }
 
     QTabBar::tab:hover:!selected {
-      background: #424242;
-      border-bottom: 3px solid #555555;
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #34495e, stop: 1 #2c3e50);
+      color: #ecf0f1;
+      border-bottom: 3px solid #7f8c8d;
     }
 
     QTabBar::tab:disabled {
@@ -846,6 +1105,7 @@ void OtherDebugPanel::setupTabs() {
   setupTuningTab();
   setupFirmwareTab();
   setupDeviceTab();
+  // setupCANTab(); // DISABLED: CAN debug section disabled
 
   // Add tabs to tab widget
   m_tabWidget->tabBar()->setShape(QTabBar::RoundedSouth);
@@ -857,6 +1117,7 @@ void OtherDebugPanel::setupTabs() {
   m_tabWidget->addTab(m_tuningTab, "Tuning");
   m_tabWidget->addTab(m_firmwareTab, "Firmware");
   m_tabWidget->addTab(m_deviceTab, "Device");
+  // m_tabWidget->addTab(m_canTab, "CAN"); // DISABLED: CAN debug section disabled
 }
 
 void OtherDebugPanel::setupMainTab() {
@@ -1798,6 +2059,268 @@ void OtherDebugPanel::setupDeviceTab() {
   addDeviceLabel("System & Temperatures", "Max Temp:", "0.0°C");
 }
 
+void OtherDebugPanel::setupCANTab() {
+  m_canTab = new QWidget(m_tabWidget);
+  m_canTab->setStyleSheet("background: transparent;");
+
+  // Create main layout for CAN tab
+  QVBoxLayout *canMainLayout = new QVBoxLayout(m_canTab);
+  canMainLayout->setContentsMargins(5, 5, 5, 5);  // Smaller margins for 6" display
+  canMainLayout->setSpacing(5);  // Tighter spacing
+
+  // Create compact title label
+  QLabel *titleLabel = new QLabel("CAN Monitor (Cabana Lite)", m_canTab);
+  titleLabel->setStyleSheet(R"(
+    font-size: 36px;
+    font-weight: bold;
+    color: #18b4ff;
+    padding: 3px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+  )");
+  titleLabel->setAlignment(Qt::AlignCenter);
+  canMainLayout->addWidget(titleLabel);
+
+  // Create compact control panel
+  QWidget *controlPanel = new QWidget(m_canTab);
+  QHBoxLayout *controlLayout = new QHBoxLayout(controlPanel);
+  controlLayout->setContentsMargins(3, 1, 3, 1);
+
+  // Compact Pause/Resume button
+  m_canPauseButton = new QPushButton("⏸", controlPanel);
+  m_canPauseButton->setToolTip("Pause/Resume updates");
+  m_canPauseButton->setStyleSheet(R"(
+    QPushButton {
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #27ae60, stop: 1 #2ecc71);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 28px;
+      font-weight: bold;
+      padding: 5px 10px;
+      min-width: 45px;
+      max-width: 45px;
+    }
+    QPushButton:pressed {
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #2ecc71, stop: 1 #27ae60);
+    }
+  )");
+
+  // Remove filter checkbox since we're showing all DBC-matched messages
+
+  // Message count label
+  m_canUpdateRateLabel = new QLabel("Messages: 0", controlPanel);
+  m_canUpdateRateLabel->setStyleSheet(R"(
+    color: #95a5a6;
+    font-size: 24px;
+    font-weight: bold;
+  )");
+
+  controlLayout->addWidget(m_canPauseButton);
+  controlLayout->addStretch();
+  controlLayout->addWidget(m_canUpdateRateLabel);
+
+  canMainLayout->addWidget(controlPanel);
+
+  // Create horizontal splitter to divide messages and signals
+  QSplitter *splitter = new QSplitter(Qt::Horizontal, m_canTab);
+  splitter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  canMainLayout->addWidget(splitter, 1);  // Give it stretch factor 1 to use available space
+
+  // Left side: Message table (Cabana-style)
+  QWidget *messageWidget = new QWidget();
+  QVBoxLayout *messageLayout = new QVBoxLayout(messageWidget);
+  messageLayout->setContentsMargins(3, 3, 3, 3);
+
+  m_canMessageLabel = new QLabel("Messages", messageWidget);
+  m_canMessageLabel->setStyleSheet(R"(
+    font-size: 28px;
+    font-weight: bold;
+    color: #18b4ff;
+    padding: 2px;
+    background: #1a1a1a;
+    border-bottom: 2px solid #18b4ff;
+  )");
+  messageLayout->addWidget(m_canMessageLabel);
+
+  // Create Cabana-like message table with optimized columns for 5"+ display
+  m_canMessageTable = new QTableWidget(0, 3, messageWidget);
+  m_canMessageTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QStringList messageHeaders = {"Bus", "Freq", "Name"};
+  m_canMessageTable->setHorizontalHeaderLabels(messageHeaders);
+
+  // Configure table to look like Cabana
+  m_canMessageTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+  m_canMessageTable->setAlternatingRowColors(true);
+  m_canMessageTable->horizontalHeader()->setStretchLastSection(false);  // Don't stretch last column
+  m_canMessageTable->verticalHeader()->setVisible(false);
+  m_canMessageTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+  // Optimize column widths for better space utilization
+  m_canMessageTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // Name stretches
+  m_canMessageTable->setColumnWidth(0, 100);  // Bus - reduced width since font is smaller
+  m_canMessageTable->setColumnWidth(1, 80);   // Freq - increased width for better readability
+  // Column 2 (Name) stretches
+  m_canMessageTable->setStyleSheet(R"(
+    QTableWidget {
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #1a1a1a, stop: 1 #0d0d0d);
+      color: #ecf0f1;
+      border: 1px solid #333;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 22px;
+      gridline-color: #333;
+      alternate-background-color: rgba(255, 255, 255, 5);
+    }
+    QTableWidget::item {
+      padding: 2px;
+      border: none;
+    }
+    QTableWidget::item:selected {
+      background: rgba(24, 180, 255, 100);
+      color: white;
+    }
+    QHeaderView::section {
+      background: #2a2a2a;
+      color: #18b4ff;
+      font-weight: bold;
+      padding: 4px;
+      border: 1px solid #333;
+      font-size: 24px;
+      text-transform: uppercase;
+    }
+  )");
+  messageLayout->addWidget(m_canMessageTable, 1);  // Give stretch factor to the table
+  splitter->addWidget(messageWidget);
+
+  // Right side: Signal details
+  QWidget *signalWidget = new QWidget();
+  QVBoxLayout *signalLayout = new QVBoxLayout(signalWidget);
+  signalLayout->setContentsMargins(3, 3, 3, 3);
+
+  QLabel *signalLabel = new QLabel("Signals", signalWidget);
+  signalLabel->setObjectName("signalLabel"); // Set object name for easy access
+  signalLabel->setStyleSheet(R"(
+    font-size: 28px;
+    font-weight: bold;
+    color: #18b4ff;
+    padding: 2px;
+    background: #1a1a1a;
+    border-bottom: 2px solid #18b4ff;
+    )");
+  signalLayout->addWidget(signalLabel);
+
+  m_canSignalTable = new QTableWidget(0, 4, signalWidget);
+  m_canSignalTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QStringList headers = {"Signal Name", "Value", "Unit", "Range"};
+  m_canSignalTable->setHorizontalHeaderLabels(headers);
+  m_canSignalTable->setStyleSheet(R"(
+    QTableWidget {
+      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                  stop: 0 #1a1a1a, stop: 1 #0d0d0d);
+      color: #ecf0f1;
+      border: 1px solid #333;
+      border-radius: 4px;
+      gridline-color: #333;
+      font-family: 'Consolas', 'Monospace', monospace;
+      font-size: 22px;
+      alternate-background-color: rgba(255, 255, 255, 5);
+    }
+    QTableWidget::item {
+      padding: 2px;
+      border: none;
+    }
+    QTableWidget::item:selected {
+      background: rgba(24, 180, 255, 100);
+      color: white;
+    }
+    QHeaderView::section {
+      background: #2a2a2a;
+      color: #18b4ff;
+      font-weight: bold;
+      padding: 4px;
+      border: 1px solid #333;
+      text-transform: uppercase;
+      font-size: 24px;
+    }
+  )");
+
+  // Configure table properties
+  m_canSignalTable->horizontalHeader()->setStretchLastSection(true);
+  m_canSignalTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+  m_canSignalTable->verticalHeader()->setVisible(false);
+  m_canSignalTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+  m_canSignalTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  m_canSignalTable->setAlternatingRowColors(true);
+  m_canSignalTable->setShowGrid(false);
+
+  // Set initial column widths - optimized for smaller fonts
+  m_canSignalTable->setColumnWidth(0, 200); // Signal Name - reduced width
+  m_canSignalTable->setColumnWidth(1, 120); // Value - reduced width
+  m_canSignalTable->setColumnWidth(2, 80);  // Unit - reduced width
+  m_canSignalTable->setColumnWidth(3, 150); // Range - reduced width
+
+  signalLayout->addWidget(m_canSignalTable, 1);  // Give stretch factor to the table
+  splitter->addWidget(signalWidget);
+
+  // Set splitter proportions (70% for messages, 30% for signals)
+  splitter->setSizes({700, 300});
+
+  // Connect message selection to signal display
+  QObject::connect(m_canMessageTable, &QTableWidget::currentCellChanged,
+          this, [this](int currentRow, int currentColumn, int previousRow, int previousColumn) {
+    Q_UNUSED(currentColumn);
+    Q_UNUSED(previousRow);
+    Q_UNUSED(previousColumn);
+    if (currentRow >= 0 && currentRow < m_canMessageTable->rowCount()) {
+      QTableWidgetItem *item = m_canMessageTable->item(currentRow, 0); // ID column (now column 0)
+      if (item) {
+        m_selectedCANMessage = item->data(Qt::UserRole).toInt();
+        updateCANSignals();
+      }
+    }
+  });
+
+  // Connect pause button
+  QObject::connect(m_canPauseButton, &QPushButton::clicked, this, [this]() {
+    static bool isPaused = false;
+    isPaused = !isPaused;
+    m_canPauseButton->setText(isPaused ? "▶" : "⏸");
+    m_canPauseButton->setStyleSheet(isPaused ? R"(
+      QPushButton {
+        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                    stop: 0 #e74c3c, stop: 1 #c0392b);
+        color: white; border: none; border-radius: 8px;
+        font-size: 18px; font-weight: bold; padding: 8px 16px; min-width: 120px;
+      }
+    )" : R"(
+      QPushButton {
+        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                    stop: 0 #27ae60, stop: 1 #2ecc71);
+        color: white; border: none; border-radius: 8px;
+        font-size: 18px; font-weight: bold; padding: 8px 16px; min-width: 120px;
+      }
+    )");
+    if (m_worker) {
+      m_worker->setCANUpdatesPaused(isPaused);
+    }
+  });
+
+  // Filter checkbox removed - showing all DBC-matched messages
+
+  // Connect tab changes to CAN subscription management
+  // DISABLED: CAN debug section disabled
+  /*
+  QObject::connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+    bool isCANTab = (m_tabWidget->tabText(index) == "CAN");
+    qDebug() << "Tab changed to index:" << index << "tab text:" << m_tabWidget->tabText(index) << "isCANTab:" << isCANTab;
+    setCANTabActive(isCANTab);
+  });
+  */
+}
+
 void OtherDebugPanel::updateMainLabels() {
   // Helper to format boolean values
   auto formatBool = [](bool value, const QString &trueText = "Yes", const QString &falseText = "No") { return value ? trueText : falseText; };
@@ -1847,7 +2370,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(m_cache->carValues.engineRpm > 0 ? QString("%1").arg(m_cache->carValues.engineRpm, 0, 'f', 0) : "N/A");
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Dynamics group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Dynamics group: " << e.what() << std::endl;
   }
 
   // Update Steering group
@@ -1871,7 +2394,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.steerFaultPermanent));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Steering group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Steering group: " << e.what() << std::endl;
   }
 
   // Update Pedals group
@@ -1897,7 +2420,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.brakeHoldActive));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Pedals group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Pedals group: " << e.what() << std::endl;
   }
 
   // Update Vehicle Systems group
@@ -1921,7 +2444,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.charging));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Systems group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Systems group: " << e.what() << std::endl;
   }
 
   // Update Safety group
@@ -1943,7 +2466,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.vehicleSensorsInvalid));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Safety group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Safety group: " << e.what() << std::endl;
   }
 
   // Update Vehicle Parameters group
@@ -1969,7 +2492,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.tireStiffnessFactor, 0, 'f', 2));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Parameters group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Parameters group: " << e.what() << std::endl;
   }
 
   // Update Cruise Control group
@@ -1991,7 +2514,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.cruiseSpeedLimit, 0, 'f', 2));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Cruise Control group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Cruise Control group: " << e.what() << std::endl;
   }
 
   // Update Actuator Outputs group
@@ -2017,7 +2540,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatLongControlState(m_cache->outputValues.longControlState));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Actuator Outputs group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Actuator Outputs group: " << e.what() << std::endl;
   }
 }
 
@@ -2042,7 +2565,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->paramValues.radarUnavailable));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Radar Status group:" << e.what();
+      BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Radar Status group: " << e.what() << std::endl;
   }
 
   // Update Lead1 group
@@ -2082,7 +2605,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadOne.radarTrackId));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Lead1 group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Lead1 group: " << e.what() << std::endl;
   }
 
   // Update Lead2 group
@@ -2122,7 +2645,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadTwo.radarTrackId));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Lead2 group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Lead2 group: " << e.what() << std::endl;
   }
 }
 
@@ -2170,7 +2693,7 @@ void OtherDebugPanel::updateTuningLabels() {
       }
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Lateral Tuning group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Lateral Tuning group: " << e.what() << std::endl;
   }
 
   // Update Longitudinal Tuning
@@ -2223,7 +2746,7 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.longKf, 0, 'f', 4));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Longitudinal Tuning group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Longitudinal Tuning group: " << e.what() << std::endl;
   }
 
   // Update Safety Model section
@@ -2239,7 +2762,7 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.alternativeExperience));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Safety Model group:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Safety Model group: " << e.what() << std::endl;
   }
 
   // Update Car Parameters section
@@ -2259,26 +2782,26 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->paramValues.longitudinalActuatorDelay, 0, 'f', 3));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Car Parameters group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Car Parameters group: " << e.what() << std::endl;
   }
 }
 
 void OtherDebugPanel::updateFirmwareTable() {
   // Skip if tab isn't visible
   if (!m_firmwareTab->isVisible()) {
-    std::cout << "Firmware tab not visible, skipping update" << std::endl;
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateFirmwareTable | Firmware tab not visible, skipping update" << std::endl;
     return;
   }
 
   // Update firmware table with batch updates
   try {
     if (!m_firmwareTable) {
-      std::cerr << "Firmware table widget is null" << std::endl;
+      BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable | Firmware table widget is null" << std::endl;
       return;
     }
 
     if (!m_cache) {
-      std::cerr << "Cache is null" << std::endl;
+      BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable | Cache is null" << std::endl;
       return;
     }
 
@@ -2287,11 +2810,11 @@ void OtherDebugPanel::updateFirmwareTable() {
     m_firmwareTable->setRowCount(0); // Clear existing rows
 
     // Debug: Print total number of firmware entries
-    // std::cout << "=== Firmware Table Update ===" << std::endl;
-    // std::cout << "Cache valid: " << (m_cache->valid ? "true" : "false") << std::endl;
-    // std::cout << "CarParams updated: " << (m_cache->updated.carParams ? "true" : "false") << std::endl;
-    // std::cout << "Total firmware entries in cache: " << m_cache->paramValues.carFw.size() << std::endl;
-    // std::cout << "Safety model: " << m_cache->paramValues.safetyModel << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: === Firmware Table Update ===" << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Cache valid: " << (m_cache->valid ? "true" : "false") << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: CarParams updated: " << (m_cache->updated.carParams ? "true" : "false") << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Total firmware entries in cache: " << m_cache->paramValues.carFw.size() << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Safety model: " << m_cache->paramValues.safetyModel << std::endl;
 
     // Define Ford firmware pattern
     static const QRegularExpression fordPattern("^[A-Za-z0-9]{4}-[A-Za-z0-9]{5,6}-[A-Za-z0-9]{2,4}$");
@@ -2313,7 +2836,7 @@ void OtherDebugPanel::updateFirmwareTable() {
 
       // Skip empty firmware versions
       if (fw.fwVersion.isEmpty()) {
-        // std::cout << "  Skipping empty firmware version" << std::endl;
+        // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Skipping empty firmware version" << std::endl;
         continue;
       }
 
@@ -2345,16 +2868,16 @@ void OtherDebugPanel::updateFirmwareTable() {
         m_firmwareTable->setItem(row, 2, addressItem);
         m_firmwareTable->setItem(row, 3, busItem);
 
-        // std::cout << "  Added row " << row << " to table" << std::endl;
+        // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Added row " << row << " to table" << std::endl;
       } catch (const std::exception &e) {
-        std::cerr << "Error adding firmware row: " << e.what() << std::endl;
+        BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable: Error adding firmware row: " << e.what() << std::endl;
       }
     }
 
     // Re-enable updates now that we're done
     m_firmwareTable->setUpdatesEnabled(true);
   } catch (const std::exception &e) {
-    std::cerr << "Error updating firmware table: " << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable: Error updating firmware table: " << e.what() << std::endl;
   }
 }
 
@@ -2389,7 +2912,7 @@ void OtherDebugPanel::updateDeviceLabels() {
       //   group[idx++].valueLabel->setText(pingTimeStr);
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Device Status section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Device Status section:" << e.what() << std::endl;
   }
 
   // Update Power section
@@ -2407,7 +2930,7 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_cache->deviceValues.carBatteryCapacityUwh));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Power section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Power section:" << e.what() << std::endl;
   }
 
   // Update Network section
@@ -2448,7 +2971,7 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(formatBytes(m_cache->deviceValues.networkStats.wwanRx));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Network section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Network section:" << e.what() << std::endl;
   }
 
   // Update System & Temperatures section
@@ -2550,10 +3073,9 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.maxTempC, 0, 'f', 1));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating System & Temperatures section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating System & Temperatures section:" << e.what() << std::endl;
   }
 }
-
 
 
 // Helper formatting functions with implementations
@@ -2928,6 +3450,278 @@ void OtherDebugPanel::updateFirmwareLabels() {
         group[idx++].valueLabel->setText(formatNetworkLocation(m_cache->paramValues.networkLocation));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Car Info group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareLabels: Error updating Car Info group:" << e.what() << std::endl;
   }
 }
+
+void OtherDebugPanel::populateCANMessageTable() {
+  if (!m_cache || !m_canMessageTable) {
+    return;
+  }
+
+  // Store current selection to restore later
+  int selectedId = -1;
+  int currentRow = m_canMessageTable->currentRow();
+  if (currentRow >= 0) {
+    QTableWidgetItem *item = m_canMessageTable->item(currentRow, 1);
+    if (item) selectedId = item->data(Qt::UserRole).toInt();
+  }
+
+  // Update message count
+  if (m_canUpdateRateLabel) {
+    m_canUpdateRateLabel->setText(QString("Messages: %1").arg(m_cache->canMessages.size()));
+  }
+
+  if (!m_cache->canDataAvailable || m_cache->canMessages.isEmpty()) {
+    if (m_canMessageTable->rowCount() > 0) {
+      m_canMessageTable->setRowCount(0);
+    }
+    return;
+  }
+
+  // Build list of messages to display (use discovery order if available)
+  QList<OtherDataCache::CANMessage> messages;
+  if (!m_cache->discoveryOrder.isEmpty()) {
+    // Use discovery order (Cabana-style - maintains order messages were first seen)
+    for (int id : m_cache->discoveryOrder) {
+      if (m_cache->canMessages.contains(id)) {
+        messages.append(m_cache->canMessages[id]);
+      }
+    }
+  } else {
+    // Fallback to sorted by ID
+    QList<int> messageIds = m_cache->canMessages.keys();
+    std::sort(messageIds.begin(), messageIds.end());
+    for (int id : messageIds) {
+      messages.append(m_cache->canMessages[id]);
+    }
+  }
+
+  // Cabana-style: Only update existing rows, add new ones as needed
+  int row = 0;
+  for (const auto &message : messages) {
+    // Add new row if needed
+    if (row >= m_canMessageTable->rowCount()) {
+      m_canMessageTable->setRowCount(row + 1);
+    }
+
+    // Column 0: Bus - only update if changed
+    QTableWidgetItem *busItem = m_canMessageTable->item(row, 0);
+    if (!busItem) {
+      busItem = new QTableWidgetItem();
+      busItem->setFont(QFont("Consolas", 22));
+      busItem->setTextAlignment(Qt::AlignCenter);
+      m_canMessageTable->setItem(row, 0, busItem);
+    }
+    QString busText = QString("0x%1").arg(message.id, 3, 16, QChar('0')).toUpper();
+    if (busItem->text() != busText) {
+      busItem->setText(busText);
+      busItem->setData(Qt::UserRole, message.id);
+    }
+
+    // Column 1: Frequency
+    QTableWidgetItem *freqItem = m_canMessageTable->item(row, 1);
+    if (!freqItem) {
+      freqItem = new QTableWidgetItem();
+      freqItem->setFont(QFont("Consolas", 22));
+      freqItem->setTextAlignment(Qt::AlignCenter);
+      m_canMessageTable->setItem(row, 1, freqItem);
+    }
+    QString freqText = message.frequency > 0 ? QString("%1").arg((int)message.frequency) : "-";
+    if (freqItem->text() != freqText) {
+      freqItem->setText(freqText);
+    }
+
+    // Column 2: Name - only update if changed
+    QTableWidgetItem *nameItem = m_canMessageTable->item(row, 2);
+    if (!nameItem) {
+      nameItem = new QTableWidgetItem();
+      nameItem->setFont(QFont("Consolas", 22));
+      m_canMessageTable->setItem(row, 2, nameItem);
+    }
+    QString nameText = message.name.isEmpty() ? "-" : message.name;
+    if (nameItem->text() != nameText) {
+      nameItem->setText(nameText);
+    }
+
+    // Color coding based on update status
+    QColor textColor;
+    if (message.hasNewData) {
+      // Bright green for just updated
+      textColor = QColor(50, 255, 50);
+    } else {
+      // Normal cyan for existing
+      textColor = QColor(24, 180, 255);
+    }
+
+    // Apply color to show activity - Bus (CAN ID) column shows activity
+    busItem->setForeground(textColor);
+
+    // Other columns stay neutral
+    freqItem->setForeground(QColor(150, 150, 150));
+    nameItem->setForeground(message.name.isEmpty() ? QColor(100, 100, 100) : QColor(220, 220, 220));
+
+    row++;
+  }
+
+  // Remove extra rows if list shrunk
+  if (row < m_canMessageTable->rowCount()) {
+    m_canMessageTable->setRowCount(row);
+  }
+
+  // Restore selection by ID
+  if (selectedId >= 0) {
+    for (int i = 0; i < m_canMessageTable->rowCount(); i++) {
+      QTableWidgetItem *item = m_canMessageTable->item(i, 1);
+      if (item && item->data(Qt::UserRole).toInt() == selectedId) {
+        m_canMessageTable->setCurrentCell(i, 0);
+        break;
+      }
+    }
+  }
+}
+
+void OtherDebugPanel::updateCANSignals() {
+  if (!m_cache || !m_canSignalTable || m_selectedCANMessage == -1) {
+    return;
+  }
+
+  // Check if we have data for the selected message
+  if (!m_cache->canMessages.contains(m_selectedCANMessage)) {
+    m_canSignalTable->setRowCount(0);
+    return;
+  }
+
+  const auto &message = m_cache->canMessages[m_selectedCANMessage];
+
+  // Update signal label with message info
+  QLabel *signalLabel = m_canTab->findChild<QLabel*>("signalLabel");
+  if (signalLabel) {
+    QString labelText = QString("Signals - 0x%1").arg(message.id, 3, 16, QChar('0')).toUpper();
+    if (!message.name.isEmpty()) {
+      labelText += QString(" (%1)").arg(message.name);
+    }
+    signalLabel->setText(labelText);
+  }
+
+  // Create a sorted copy of the signal list
+  QList<OtherDataCache::CANSignal> sortedSignals = message.signalList;
+  std::sort(sortedSignals.begin(), sortedSignals.end(), [](const OtherDataCache::CANSignal &a, const OtherDataCache::CANSignal &b) {
+    return a.name < b.name;
+  });
+
+  // Cabana-style: Only update rows that changed
+  int row = 0;
+  for (const auto &signal : sortedSignals) {
+    // Add new row if needed
+    if (row >= m_canSignalTable->rowCount()) {
+      m_canSignalTable->setRowCount(row + 1);
+    }
+
+    // Column 0: Signal name
+    QTableWidgetItem *nameItem = m_canSignalTable->item(row, 0);
+    if (!nameItem) {
+      nameItem = new QTableWidgetItem();
+      nameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+      nameItem->setFont(QFont("Consolas", 16));
+      m_canSignalTable->setItem(row, 0, nameItem);
+    }
+    if (nameItem->text() != signal.name) {
+      nameItem->setText(signal.name);
+      // Color based on signal type
+      if (signal.name.contains("Unknown")) {
+        nameItem->setForeground(QColor(100, 100, 100));
+      } else {
+        nameItem->setForeground(QColor(220, 220, 220));
+      }
+    }
+
+    // Column 1: Value with change detection
+    QTableWidgetItem *valueItem = m_canSignalTable->item(row, 1);
+    if (!valueItem) {
+      valueItem = new QTableWidgetItem();
+      valueItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      valueItem->setFont(QFont("Consolas", 16, QFont::Bold));
+      m_canSignalTable->setItem(row, 1, valueItem);
+    }
+
+    // Format value appropriately
+    QString valueText;
+    if (signal.value == std::floor(signal.value) && std::abs(signal.value) < 1000000) {
+      valueText = QString::number(static_cast<qint64>(signal.value));
+    } else {
+      valueText = QString::number(signal.value, 'f', 2);
+    }
+
+    if (valueItem->text() != valueText) {
+      valueItem->setText(valueText);
+    }
+
+    // Highlight if value changed
+    if (signal.hasChanged) {
+      valueItem->setForeground(QColor(50, 255, 50)); // Bright green
+      valueItem->setBackground(QColor(50, 255, 50, 20)); // Light green background
+    } else {
+      valueItem->setForeground(QColor(24, 180, 255)); // Cyan
+      valueItem->setBackground(QColor(0, 0, 0, 0)); // Clear background
+    }
+
+    // Column 2: Unit
+    QTableWidgetItem *unitItem = m_canSignalTable->item(row, 2);
+    if (!unitItem) {
+      unitItem = new QTableWidgetItem();
+      unitItem->setTextAlignment(Qt::AlignCenter | Qt::AlignVCenter);
+      unitItem->setFont(QFont("Consolas", 16));
+      m_canSignalTable->setItem(row, 2, unitItem);
+    }
+    QString unitText = signal.unit.isEmpty() ? "-" : signal.unit;
+    if (unitItem->text() != unitText) {
+      unitItem->setText(unitText);
+      unitItem->setForeground(QColor(150, 150, 150));
+    }
+
+    // Column 3: Range
+    QTableWidgetItem *rangeItem = m_canSignalTable->item(row, 3);
+    if (!rangeItem) {
+      rangeItem = new QTableWidgetItem();
+      rangeItem->setTextAlignment(Qt::AlignCenter | Qt::AlignVCenter);
+      rangeItem->setFont(QFont("Consolas", 14));
+      m_canSignalTable->setItem(row, 3, rangeItem);
+    }
+    QString rangeText = QString("[%1, %2]").arg(signal.min, 0, 'f', 1).arg(signal.max, 0, 'f', 1);
+    if (rangeItem->text() != rangeText) {
+      rangeItem->setText(rangeText);
+      rangeItem->setForeground(QColor(100, 100, 100));
+    }
+
+    row++;
+  }
+
+  // Remove extra rows if list shrunk
+  if (row < m_canSignalTable->rowCount()) {
+    m_canSignalTable->setRowCount(row);
+  }
+
+  // Resize columns to content
+  m_canSignalTable->resizeColumnsToContents();
+
+  // Make sure the last column stretches
+  m_canSignalTable->horizontalHeader()->setStretchLastSection(true);
+
+  // Update the signal label to show count
+  if (m_canSignalTable->rowCount() > 0) {
+    QString signalCountText = QString("Signal Details (%1 signals)").arg(m_canSignalTable->rowCount());
+    // Find and update the signal label
+    for (int i = 0; i < m_canTab->layout()->count(); ++i) {
+      QWidget *widget = m_canTab->layout()->itemAt(i)->widget();
+      if (widget && widget->objectName() == "signalLabel") {
+        QLabel *label = qobject_cast<QLabel*>(widget);
+        if (label) {
+          label->setText(signalCountText);
+        }
+        break;
+      }
+    }
+  }
+}
+

@@ -87,7 +87,7 @@ def can_fingerprint(can_recv: CanRecvCallable) -> tuple[str | None, dict[int, di
 def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multiplexing: ObdCallback, num_pandas: int,
                 cached_params: CarParamsT | None,
                 fixed_fingerprint: str | None) -> tuple[str | None, dict, str, list[CarParams.CarFw], CarParams.FingerprintSource, bool]:
-  # Load FORD SELECTED VEHICLE MODEL PARAMS if set, use that fingerprint instead of defaul
+  # Load FORD SELECTED VEHICLE MODEL PARAMS if set, use that fingerprint instead of default
   params = Params()
   selected_vehicle_model = params.get("FordSelectedVehicleModel")
 
@@ -95,7 +95,13 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
     print(f'Selected Ford Vehicle Model: {selected_vehicle_model}')
     fixed_fingerprint = selected_vehicle_model
   else:
-    fixed_fingerprint = os.environ.get('FINGERPRINT', "")
+    # Check sunnypilot platform selector as secondary source
+    platform_from_selector = (params.get("CarPlatformBundle") or {}).get("platform", None)
+    if platform_from_selector:
+      print(f'Sunnypilot Platform Selector Vehicle: {platform_from_selector}')
+      fixed_fingerprint = platform_from_selector
+    else:
+      fixed_fingerprint = os.environ.get('FINGERPRINT', "")
 
   skip_fw_query = os.environ.get('SKIP_FW_QUERY', False)
   disable_fw_cache = os.environ.get('DISABLE_FW_CACHE', False)
@@ -162,7 +168,8 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
 
 
 def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multiplexing: ObdCallback, alpha_long_allowed: bool,
-            is_release: bool, num_pandas: int = 1, cached_params: CarParamsT | None = None, fixed_fingerprint: str | None = None):
+            is_release: bool, num_pandas: int = 1, cached_params: CarParamsT | None = None,
+            fixed_fingerprint: str | None = None, init_params_list_sp: list[dict[str, str]] = None):
   candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(can_recv, can_send, set_obd_multiplexing, num_pandas, cached_params,
                                                                           fixed_fingerprint)
 
@@ -178,7 +185,7 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
   CP.fuzzyFingerprint = not exact_match
   CP_SP = CarInterface.get_params_sp(CP, candidate, fingerprints, car_fw, alpha_long_allowed, docs=False)
 
-  sunnypilot_interfaces(CP, CP_SP, can_recv, can_send)
+  sunnypilot_interfaces(CarInterface, CP, CP_SP, init_params_list_sp, can_recv, can_send)
 
   return interfaces[CP.carFingerprint](CP, CP_SP)
 

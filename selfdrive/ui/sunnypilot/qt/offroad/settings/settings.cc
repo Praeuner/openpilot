@@ -13,6 +13,7 @@
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/developer_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/display_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/models_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/software_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnylink_panel.h"
@@ -29,7 +30,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_routes_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/routes_panel/bp_routes_panel.h"
 
 TogglesPanelSP::TogglesPanelSP(SettingsWindowSP *parent) : TogglesPanel(parent) {
   QObject::connect(uiStateSP(), &UIStateSP::uiUpdate, this, &TogglesPanelSP::updateState);
@@ -86,31 +87,40 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   QObject::connect(uiState()->prime_state, &PrimeState::changed, networking, &NetworkingSP::setPrimeType);
 
   BPNavBarView *bpNavBarView = new BPNavBarView(this);
-  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_dev_2_menu.json");
+  bpNavBarView->initialize("/selfdrive/ui/bluepilot/menus/bp_4_menu.json");
+
+  BPBaseView *bpLateralView = new BPBaseView(this);
+  bpLateralView->initialize("/selfdrive/ui/bluepilot/menus/bp_lateral_menu.json");
+
+  BPBaseView *bpVisualsView = new BPBaseView(this);
+  bpVisualsView->initialize("/selfdrive/ui/bluepilot/menus/bp_visuals_menu.json");
 
   // Check if prebuilt file exists in root directory
   QString rootPath = qApp->applicationDirPath() + "/../..";
   QString prebuiltPath = rootPath + "/prebuilt";
-  bool hasPrebuiltFile = QFile::exists(prebuiltPath);
+  bool hasPrebuiltFile = false; //QFile::exists(prebuiltPath);
 
   QList<PanelInfo> panels = {
     PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
     PanelInfo("   " + tr("Network"), networking, "../assets/icons/network.png"),
+    PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"),
     PanelInfo("   " + tr("sunnylink"), new SunnylinkPanel(this), "../assets/icons/wifi_strength_full.svg"),
     PanelInfo("   " + tr("Toggles"), toggles, "../../sunnypilot/selfdrive/assets/offroad/icon_toggle.png"),
     PanelInfo("   " + tr("Bluepilot"), bpNavBarView, "../assets/offroad/icon_ford.png"),
+    PanelInfo("   " + tr("BP Lateral"), bpLateralView, "../assets/offroad/icon_ford.png"),
+    PanelInfo("   " + tr("BP Visuals"), bpVisualsView, "../assets/offroad/icon_ford.png"),
     PanelInfo("   " + tr("Software"), new SoftwarePanelSP(this), "../../sunnypilot/selfdrive/assets/offroad/icon_software.png"),
     PanelInfo("   " + tr("Models"), new ModelsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_models.png"),
     PanelInfo("   " + tr("Steering"), new LateralPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_lateral.png"),
     PanelInfo("   " + tr("Cruise"), new LongitudinalPanel(this), "../assets/icons/speed_limit.png"),
     PanelInfo("   " + tr("Visuals"), new VisualsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_visuals.png"),
+    PanelInfo("   " + tr("Display"), new DisplayPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_display.png"),
     PanelInfo("   " + tr("OSM"), new OsmPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_map.png"),
     PanelInfo("   " + tr("Trips"), new TripsPanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_trips.png"),
     PanelInfo("   " + tr("Vehicle"), new VehiclePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png"),
     PanelInfo("   " + tr("Firehose"), new FirehosePanel(this), "../../sunnypilot/selfdrive/assets/offroad/icon_firehose.svg"),
     PanelInfo("   " + tr("Developer"), new DeveloperPanelSP(this), "../assets/icons/shell.png"),
     PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"),
-    // PanelInfo("   " + tr("Routes"), new BPRoutesPanel(this), "../assets/offroad/icon_routes.png"),
     // PanelInfo("   " + tr("Data Collect"), new BPDataCollectPanel(this), "../assets/offroad/icon_data.png"),
   };
 

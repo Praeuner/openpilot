@@ -1,0 +1,388 @@
+{
+  "type": "navigation",
+  "menuName": "BluePilot",
+  "menuIcon": "icon_ford.png",
+  "menuDescription": "BluePilot Panel",
+  "equalWidth": true,
+  "iconPosition": "top",
+  "tabs": [
+    {
+      "name": "Preferences",
+      "icon": "../assets/offroad/icon_user_prefs.png",
+      "groups": [
+        {
+          "groupName": "systemPreferencesGroup",
+          "title": "System Preferences:",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "selection",
+              "param": "FordSelectedVehicleModel",
+              "title": "Vehicle Model",
+              "desc": "This will force the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
+              "requiresReboot": true,
+              "hidden": false,
+              "options": [
+                {
+                  "name": "Auto Detect",
+                  "value": ""
+                },
+                {
+                  "name": "Ford Bronco Sport (2021-2024)",
+                  "value": "FORD_BRONCO_SPORT_MK1"
+                },
+                {
+                  "name": "Ford Edge (2019-2024)",
+                  "value": "FORD_EDGE_MK2"
+                },
+                {
+                  "name": "Lincoln Nautilus (2019-2024)",
+                  "value": "FORD_EDGE_MK2"
+                },
+                {
+                  "name": "Ford Explorer (2020-2024)",
+                  "value": "FORD_EXPLORER_MK6"
+                },
+                {
+                  "name": "Lincoln Aviator (2020-2024)",
+                  "value": "FORD_EXPLORER_MK6"
+                },
+                {
+                  "name": "Ford Escape (2020-2022)",
+                  "value": "FORD_ESCAPE_MK4"
+                },
+                {
+                  "name": "Lincoln Corsair (2020-2022)",
+                  "value": "FORD_ESCAPE_MK4"
+                },
+                {
+                  "name": "Ford Escape (2023-2025)",
+                  "value": "FORD_ESCAPE_MK5"
+                },
+                {
+                  "name": "Lincoln Corsair (2023-2025)",
+                  "value": "FORD_ESCAPE_MK5"
+                },
+                {
+                  "name": "Ford F-150 (2021-2023)",
+                  "value": "FORD_F_150_MK14"
+                },
+                {
+                  "name": "Ford F-150 Lightning (2022-2025)",
+                  "value": "FORD_F_150_LIGHTNING_MK1"
+                },
+                {
+                  "name": "Ford Expedition (2022-2024)",
+                  "value": "FORD_EXPEDITION_MK4"
+                },
+                {
+                  "name": "Lincoln Navigator (2022-2024)",
+                  "value": "FORD_EXPEDITION_MK4"
+                },
+                {
+                  "name": "Ford Mustang Mach-E (2021-2024)",
+                  "value": "FORD_MUSTANG_MACH_E_MK1"
+                },
+
+                {
+                  "name": "Ford Maverick 1st Gen",
+                  "value": "FORD_MAVERICK_MK1"
+                },
+                {
+                  "name": "Ford Ranger (2023-2024)",
+                  "value": "FORD_RANGER_MK2"
+                }
+              ],
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "DisableGPSAlert",
+              "title": "Disable GPS Alert",
+              "desc": "Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "clusterPreferencesGroup",
+          "title": "Cluster Preferences:",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "FordPrefSendHandsFreeCanMsg",
+              "title": "Show Hands-Free UI (On Supported Vehicles)",
+              "desc": "Enables hands-free UI for supported vehicles.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "FordPrefLaneDepartCanMsg",
+              "title": "Send Lane Departure Signals to Vehicle",
+              "desc": "Send Openpilot lane departure signals for native cluster alerts.",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "icon": "../assets/offroad/icon_toolbox.png",
+      "groups": [
+        {
+          "groupName": "utilityCommandsGroup",
+          "title": "Utility Commands:",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "command_button",
+              "command": "echo \"Starting process...\" && for i in {1..5}; do echo \"[$(date '+%H:%M:%S')] Processing batch $i/5...\"; sleep 1; echo \"  -> Completed subtask $i\"; sleep 1; done && echo \"All tasks completed successfully!\"",
+              "working_dir": "/data/openpilot",
+              "title": "Test Command",
+              "desc": "Test Command",
+              "button_text": "Test Command",
+              "confirm": true,
+              "confirm_text": "Are you sure you want to run this command?",
+              "confirm_button_text": "Run",
+              "cancel_button_text": "Cancel",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "command_button",
+              "command": "wget https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh && chmod +x /data/CommaUtility.sh",
+              "working_dir": "/data",
+              "title": "Install Comma Utility",
+              "desc": "Install Comma Utility",
+              "button_text": "Install",
+              "confirm": false,
+              "hidden": false,
+              "OnlyOnCommaDevice": true,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "file_viewer",
+              "path": "/data/community/crashes/error.txt",
+              "title": "Recent Crashes",
+              "desc": "View the crashes file",
+              "button_text": "View Error",
+              "confirm": false,
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "file_viewer",
+              "path": "/data/logs/bp_logger/bluepilot.log",
+              "title": "BluePilot Log",
+              "desc": "View the BluePilot log",
+              "button_text": "View Log",
+              "confirm": false,
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "command_button",
+              "command": "ifconfig",
+              "working_dir": "/data/openpilot",
+              "title": "Get Network Info",
+              "desc": "Get network info using ifconfig",
+              "button_text": "Get Info",
+              "confirm": false,
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "command_button",
+              "command": "joystick_control.py",
+              "working_dir": "/data/openpilot/tools/joystick",
+              "title": "Joystick Control",
+              "desc": "Joystick Control",
+              "button_text": "Start Joystick",
+              "confirm": true,
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "command_button",
+              "command": "tail -f /tmp/launch_log",
+              "working_dir": "/data/openpilot",
+              "title": "View Launch Log",
+              "desc": "View the launch log",
+              "button_text": "View Log",
+              "confirm": false,
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "GsmMetered",
+              "title": "GSM Metered Mode Enabled",
+              "desc": "Toggle GSM metered mode",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "DisableUpdates",
+              "title": "Disable Updates",
+              "desc": "Toggle Disable Updates",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "BPRoutePanelDebugRouteLogs",
+              "title": "Debug Routes",
+              "desc": "Enable debug logging for route panel operations",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "BPRoutePanelDebugRoutePlayerLogs",
+              "title": "Debug Player",
+              "desc": "Enable debug logging for route video player operations",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Debug",
+      "icon": "../assets/offroad/icon_debug.png",
+      "groups": [
+        {
+          "groupName": "paramViewerGroup",
+          "title": "Parameter Viewer",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "param_list_viewer",
+              "title": "All Parameters",
+              "desc": "View all available parameters in the system",
+              "hidden": false,
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "param_viewer",
+              "param": "LiveParameters",
+              "title": "Live Parameters",
+              "desc": "Displays live parameters",
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "debugPreferencesGroup",
+          "title": "Debug Preferences:",
+          "enableResetButton": false,
+          "keepScreenAwake": true,
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "FordPrefEnableDebugLogs",
+              "title": "Enable Debug Logging",
+              "desc": "Enable this to collect more detailed logs for the route."
+            }
+          ],
+          "conditions": {
+            "git_remote": ["ford-op/sp-dev-c3"],
+            "git_branch": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "Info",
+      "icon": "../assets/offroad/icon_info.png",
+      "groups": [
+        {
+          "groupName": "infoPreferencesGroup",
+          "title": "Info:",
+          "enableResetButton": false,
+          "keepScreenAwake": false,
+          "controls": [
+            {
+              "type": "file_viewer",
+              "path": "CHANGELOGS_BP.md",
+              "title": "BluePilot Changelog",
+              "desc": "View the latest changes and updates for BluePilot",
+              "header": "BluePilot Changelog",
+              "conditions": {
+                "git_remote": ["ford-op/sp-dev-c3"],
+                "git_branch": []
+              }
+            },
+            {
+              "type": "recent_changes",
+              "title": "Recent Changes",
+              "desc": "View recent changes and updates for the current version",
+              "conditions": {
+                "git_remote": ["any"],
+                "git_branch": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

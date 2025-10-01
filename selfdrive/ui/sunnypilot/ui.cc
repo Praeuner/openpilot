@@ -11,6 +11,15 @@
 
 void UIStateSP::updateStatus() {
   UIState::updateStatus();
+  if (scene.started && scene.onroadScreenOffControl) {
+    auto selfdriveState = (*sm)["selfdriveState"].getSelfdriveState();
+    if (selfdriveState.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE &&
+                   selfdriveState.getAlertStatus() != cereal::SelfdriveState::AlertStatus::NORMAL) {
+        reset_onroad_sleep_timer();
+    } else if (scene.onroadScreenOffTimer > 0) {
+      scene.onroadScreenOffTimer--;
+    }
+  }
 }
 
 UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
@@ -19,7 +28,9 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
     "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-    "liveMapDataSP", "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope"
+    "liveMapDataSP", "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope",
+    // Additional messages for developer UI
+    "gpsLocation", "gpsLocationExternal", "liveTorqueParameters", "liveParameters",
   });
 
   // update timer
@@ -33,6 +44,7 @@ void UIStateSP::update() {
   update_sockets(this);
   update_state(this);
   updateStatus();
+  ui_update_params_sp(this);
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
@@ -70,4 +82,26 @@ void DeviceSP::handleDisplayPowerChanged(bool on) {
   if (params.get("DeviceBootMode") == "1" && not on) {
     params.putBool("OffroadMode", true);
   }
+}
+
+void UIStateSP::reset_onroad_sleep_timer() {
+  auto params = Params();
+  int onroadTimer = std::atoi(params.get("OnroadScreenOffTimer").c_str());
+  if (onroadTimer >= 0 and scene.onroadScreenOffControl) {
+    scene.onroadScreenOffTimer = onroadTimer * UI_FREQ;
+  } else {
+    scene.onroadScreenOffTimer = -1;
+  }
+}
+
+void ui_update_params_sp(UIStateSP *s) {
+  auto params = Params();
+  s->scene.stand_still_timer = params.getBool("StandstillTimer");
+  s->scene.speed_limit_mode = std::atoi(params.get("SpeedLimitMode").c_str());
+  s->scene.road_name = params.getBool("RoadName");
+
+  // Onroad Screen Brightness
+  s->scene.onroadScreenOffBrightness = std::atoi(params.get("OnroadScreenOffBrightness").c_str());
+  s->scene.onroadScreenOffControl = params.getBool("OnroadScreenOffControl");
+  s->reset_onroad_sleep_timer();
 }
