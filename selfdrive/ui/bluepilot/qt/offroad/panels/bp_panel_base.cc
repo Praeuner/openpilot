@@ -2,7 +2,7 @@
 
 #include "bp_panel_base.h"
 #include "bp_recent_changes.h"
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 BPPanelBase::BPPanelBase(QWidget *parent) : BPPanelListWidget(parent) {
   setMouseTracking(true);
@@ -134,7 +134,7 @@ bool BPPanelBase::loadConfig(const QString &configPath) {
   ConfigManager &config = ConfigManager::getInstance();
   QString actualConfigPath = FileUtils::getProjectRootPath() + configPath;
   if (!config.loadConfig(actualConfigPath)) {
-    std::cerr << "Failed to load configuration" << std::endl;
+    BPLog::bpError() << "[bp.panel.base] loadConfig | Failed to load configuration" << std::endl;
     return false;
   }
 
@@ -163,7 +163,7 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
   }
 
   if (group.contains("keepScreenAwake") && group["keepScreenAwake"].toBool()) {
-    std::cout << "BPPanelBase: Group has keepScreenAwake=true, enabling activity simulation" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.panel.base] createGroup | Group has keepScreenAwake=true, enabling activity simulation" << std::endl;
     keepScreenAwake = true;
     updateActivitySimulation();
   }
@@ -411,7 +411,7 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
   if (!validateControlBasics(control))
     return nullptr;
   if (control["hidden"].toBool()) {
-    std::cout << control["param"].toString().toStdString() << " Control is hidden" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.panel.base] processControlCreation | " << control["param"].toString().toStdString() << " Control is hidden" << std::endl;
     return nullptr;
   }
 
@@ -441,7 +441,7 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
   } else if (type == "nested_controls_button") {
     widget = createNestedControlsButton(control);
   } else {
-    std::cerr << "Unsupported control type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] processControlCreation | Unsupported control type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
     return nullptr;
   }
 
@@ -466,7 +466,7 @@ QWidget *BPPanelBase::createToggleControl(const QJsonObject &control) {
   toggles[param.toStdString()] = toggle;
   connect(toggle, &BPToggleControl::toggleFlipped, this, [this, param](bool state) {
     std::string currentValue = params.get(param.toStdString());
-    std::cout << "Parameter changed - " << param.toStdString() << ": " << (currentValue == "1" ? "On" : "Off") << " -> " << (state ? "On" : "Off") << std::endl;
+    BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Parameter changed - " << param.toStdString() << ": " << (currentValue == "1" ? "On" : "Off") << " -> " << (state ? "On" : "Off") << std::endl;
     onControlValueChanged();
   });
   return toggle;
@@ -542,7 +542,7 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
         QString defaultValue = optObj["value"].toString();
         params.put(paramNameStd, defaultValue.toStdString());
         currentValue = defaultValue.toStdString();
-        std::cout << "Parameter initialized with default - " << paramNameStd << ": " << defaultValue.toStdString() << std::endl;
+        BPLog::bpInfo() << "[bp.panel.base] createSelectionControl | Parameter initialized with default - " << paramNameStd << ": " << defaultValue.toStdString() << std::endl;
         break;
       }
     }
@@ -555,7 +555,7 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
     QString newValue = BPSelectionDialog::getValue(control["title"].toString(), options, currentValue, this);
 
     if (!newValue.isEmpty() && newValue != currentValue) {
-      std::cout << "Selection Control - New value: " << newValue.toStdString() << std::endl;
+      BPLog::bpInfo() << "[bp.panel.base] createSelectionControl | Selection Control - New value: " << newValue.toStdString() << std::endl;
       params.put(control["param"].toString().toStdString(), newValue.toStdString());
       selectionControl->setSelectedValue(newValue);
       onControlValueChanged();
@@ -836,14 +836,14 @@ void BPPanelBase::resetGroupControls(const std::vector<QWidget *> &controls) {
 bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   // Check if it's a Comma device restriction
   if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool() && !CommaTools::isCommaDevice()) {
-    std::cout << "Control is only available on Comma devices | Type: " << control["type"].toString().toStdString() << " | Param: " << control["param"].toString().toStdString()
+    BPLog::bpInfo() << "[bp.panel.base] validateControlBasics | Control is only available on Comma devices | Type: " << control["type"].toString().toStdString() << " | Param: " << control["param"].toString().toStdString()
               << std::endl;
     return false;
   }
 
   // Ensure required fields exist
   if (!control.contains("type") || !control.contains("title")) {
-    std::cerr << "Control missing required 'type' or 'title' field | Type: " << control["type"].toString().toStdString()
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Control missing required 'type' or 'title' field | Type: " << control["type"].toString().toStdString()
               << " | Param: " << control["param"].toString().toStdString() << std::endl;
     return false;
   }
@@ -857,7 +857,7 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
 
   // Ensure the type is supported
   if (!supportedTypes.contains(type)) {
-    std::cerr << "Unsupported control type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Unsupported control type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
     return false;
   }
 
@@ -867,30 +867,30 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
 
   // Ensure param is present for necessary types
   if (!typesNotRequiringParam.contains(type) && !control.contains("param")) {
-    std::cerr << "Missing 'param' field for control type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Missing 'param' field for control type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
     return false;
   }
 
   // Specific checks for control types
   if (type == "float" || type == "integer") {
     if (!control.contains("min") || !control.contains("max") || !control.contains("increment")) {
-      std::cerr << "Numeric control missing min/max/increment values | Type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
+      BPLog::bpError() << "[bp.panel.base] validateControlBasics | Numeric control missing min/max/increment values | Type: " << type.toStdString() << " | Param: " << param.toStdString() << std::endl;
       return false;
     }
     if (type == "float" && !control.contains("division")) {
-      std::cerr << "Float control missing 'division' value | Param: " << param.toStdString() << std::endl;
+      BPLog::bpError() << "[bp.panel.base] validateControlBasics | Float control missing 'division' value | Param: " << param.toStdString() << std::endl;
       return false;
     }
   } else if (type == "selection") {
     if (!control.contains("options") || !control["options"].isArray()) {
-      std::cerr << "Selection control missing 'options' array | Param: " << param.toStdString() << std::endl;
+      BPLog::bpError() << "[bp.panel.base] validateControlBasics | Selection control missing 'options' array | Param: " << param.toStdString() << std::endl;
       return false;
     }
   } else if (type == "file_viewer" && !control.contains("path")) {
-    std::cerr << "File viewer control missing 'path' field | Param: " << param.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | File viewer control missing 'path' field | Param: " << param.toStdString() << std::endl;
     return false;
   } else if (type == "command_button" && !control.contains("command")) {
-    std::cerr << "Command button control missing 'command' field | Param: " << param.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Command button control missing 'command' field | Param: " << param.toStdString() << std::endl;
     return false;
   }
 
@@ -945,7 +945,7 @@ void BPPanelBase::refresh() {
       groupData.groupBox->setVisible(hasVisibleControls);
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error during refresh: " << e.what() << std::endl;
+    BPLog::bpError() << "[bp.panel.base] refresh | Error during refresh: " << e.what() << std::endl;
   }
 
   isRefreshing = false;

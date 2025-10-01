@@ -1,3 +1,6 @@
+// selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/onroad_controls_debug_panel.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/lateral_debug_panel.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/long_debug_panel.h"
@@ -12,7 +15,6 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDateTime>
-#include <iostream>
 
 ControlNavButton::ControlNavButton(const QIcon &icon, QWidget *parent) : QPushButton(parent) {
   setCheckable(true);
@@ -134,7 +136,7 @@ OnroadControlsDebugPanel::OnroadControlsDebugPanel(QWidget *parent) : QWidget(pa
   connect(m_animation, &QPropertyAnimation::finished, [this]() {
     if (m_visible) {
       // Double-check visibility and position at end of animation
-      std::cout << "Animation finished - panel should be visible at:" << x() << "," << y() << std::endl;
+      BPLog::bpDebugGeneral() << "[bp.onroad.controls.debug.panel] Animation finished - panel should be visible at:" << x() << "," << y() << std::endl;
       raise(); // Make extra sure we're on top
     } else {
       // If animation finished but we're not visible, actually hide the widget

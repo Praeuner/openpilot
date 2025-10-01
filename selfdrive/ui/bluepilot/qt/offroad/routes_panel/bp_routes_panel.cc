@@ -1,6 +1,7 @@
 // bp_routes_panel.cc
 #include "bp_routes_panel.h"
 #include "bp_video_dialog.h"
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include <QDateTime>
 #include <QFileInfo>
 #include <QDir>
@@ -48,8 +49,6 @@ QString BPRoutesPanel::getRoutesDir() const {
 
 BPRoutesPanel::BPRoutesPanel(QWidget *parent) : QWidget(parent), isLoading(false) {
   setObjectName("routesPanel");
-
-  // std::cout << "[ROUTE DEBUG] BPRoutesPanel constructor called" << std::endl;
 
   // Set size constraints
   setMinimumWidth(1000);
@@ -204,7 +203,7 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
 
   // Check if device is onroad - if so, show message and don't load routes
   if (uiState()->scene.started) {
-    showDebugRoutesOutput("Device is onroad - showing safety message");
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] showEvent | Device is onroad - showing safety message" << std::endl;
     showOnroadMessage();
     return;
   }
@@ -220,12 +219,13 @@ void BPRoutesPanel::hideEvent(QHideEvent *event) {
 }
 
 void BPRoutesPanel::loadRoutes() {
-  showDebugRoutesOutput("loadRoutes() called");
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRoutes | loadRoutes() called" << std::endl;
+
   if (isLoading) return;
 
   // Safety check: Don't load routes while onroad
   if (uiState()->scene.started) {
-    showDebugRoutesOutput("Aborting route loading - device is onroad");
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRoutes | Aborting route loading - device is onroad" << std::endl;
     showOnroadMessage();
     return;
   }
@@ -251,7 +251,7 @@ void BPRoutesPanel::loadRoutes() {
 
   // If cache is loaded and valid, and no routes need refreshing, use cache
   if (cacheLoaded && routeCache.isValid() && !shouldRefreshRoutes() && !routeCache.routeInfoCache.isEmpty()) {
-    // std::cout << "[ROUTE DEBUG] Loading routes from valid cache" << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRoutes | Loading routes from valid cache" << std::endl;
 
     // Convert cached data to routes vector
     QVector<RouteInfo> cachedRoutes;
@@ -277,13 +277,13 @@ void BPRoutesPanel::loadRoutes() {
   }
 
   // Cache not available or needs updating - load incrementally
-  // std::cout << "[ROUTE DEBUG] Loading routes incrementally (cache loaded: " << (cacheLoaded ? "yes" : "no") << ")" << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Loading routes incrementally (cache loaded: " << (cacheLoaded ? "yes" : "no") << ")" << std::endl;
 
   QtConcurrent::run([this]() {
     QDir routesDir(getRoutesDir());
     QStringList routeDirectories = routesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time | QDir::Reversed);
 
-    // std::cout << "[ROUTE DEBUG] Found " << routeDirectories.size() << " total directories in " << getRoutesDir().toStdString() << std::endl;
+    // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Found " << routeDirectories.size() << " total directories in " << getRoutesDir().toStdString() << std::endl;
 
     QVector<RouteInfo> newRoutes;
     QHash<QString, RouteInfo> baseRouteMap; // Map to store the latest segment for each base route
@@ -312,7 +312,7 @@ void BPRoutesPanel::loadRoutes() {
       }
       processedRoutes.insert(baseRouteName);
 
-      // std::cout << "[ROUTE DEBUG] Processing directory: " << routeDir.toStdString() << " Base: " << baseRouteName.toStdString() << std::endl;
+      // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Processing directory: " << routeDir.toStdString() << " Base: " << baseRouteName.toStdString() << std::endl;
 
       // Check if we have valid cached data for this route
       bool useCache = routeCache.isValid() && routeCache.routeInfoCache.contains(baseRouteName);
@@ -320,11 +320,11 @@ void BPRoutesPanel::loadRoutes() {
         // Check if the route on disk is newer than cache
         QFileInfo routeInfo(routePath);
         if (routeInfo.lastModified() <= routeCache.lastUpdated) {
-          // std::cout << "[ROUTE DEBUG] Using cached info for route: " << baseRouteName.toStdString() << std::endl;
+          // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Using cached info for route: " << baseRouteName.toStdString() << std::endl;
           baseRouteMap[baseRouteName] = routeCache.routeInfoCache[baseRouteName];
           continue;
         } else {
-          // std::cout << "[ROUTE DEBUG] Route modified, reprocessing: " << baseRouteName.toStdString() << std::endl;
+          // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Route modified, reprocessing: " << baseRouteName.toStdString() << std::endl;
         }
       }
 
@@ -349,14 +349,14 @@ void BPRoutesPanel::loadRoutes() {
       baseRouteMap[baseRouteName] = info;
     }
 
-    std::cout << "[ROUTE DEBUG] Skipped " << skippedCount << " directories, processed " << processedRoutes.size() << " unique base routes" << std::endl;
+    BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Skipped " << skippedCount << " directories, processed " << processedRoutes.size() << " unique base routes" << std::endl;
 
     // Convert map to vector
     for (const RouteInfo &info : baseRouteMap.values()) {
       newRoutes.append(info);
     }
 
-    // std::cout << "[ROUTE DEBUG] Final route count: " << newRoutes.size() << std::endl;
+    // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Final route count: " << newRoutes.size() << std::endl;
 
     // Sort by date/time (newest first)
     std::sort(newRoutes.begin(), newRoutes.end(), [](const RouteInfo &a, const RouteInfo &b) {
@@ -399,7 +399,7 @@ void BPRoutesPanel::loadMoreRoutes() {
     }
 
     // Create route card
-    // std::cout << "[ROUTE DEBUG] About to create route card for: " << route.baseName.toStdString() << std::endl;
+    // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | About to create route card for: " << route.baseName.toStdString() << std::endl;
     QWidget *routeCard = createRouteCard(route);
     routesLayout->addWidget(routeCard);
 
@@ -424,7 +424,7 @@ void BPRoutesPanel::loadMoreRoutes() {
 }
 
 QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
-  // std::cout << "[ROUTE DEBUG] createDateGroup called with text: " << dateText.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | createDateGroup called with text: " << dateText.toStdString() << std::endl;
 
   QWidget *dateGroup = new QWidget;
   dateGroup->setFixedHeight(90);
@@ -436,7 +436,7 @@ QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
   QLabel *dateLabel = new QLabel(dateText);
   dateLabel->setStyleSheet("font-size: 56px; font-weight: 600; color: white;");
 
-  // std::cout << "[ROUTE DEBUG] Created date label with text: " << dateLabel->text().toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] loadRoutes | Created date label with text: " << dateLabel->text().toStdString() << std::endl;
 
   dateLayout->addWidget(dateLabel);
   dateLayout->addStretch();
@@ -445,9 +445,9 @@ QWidget* BPRoutesPanel::createDateGroup(const QString &dateText) {
 }
 
 QWidget* BPRoutesPanel::createRouteCard(const RouteInfo &route) {
-  // std::cout << "[ROUTE DEBUG] createRouteCard called for: " << route.baseName.toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] Card data - Timestamp: " << route.timestamp.toStdString() << " ElapsedTime: " << route.elapsedTime.toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] createRouteCard | createRouteCard called for: " << route.baseName.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] createRouteCard | Card data - Timestamp: " << route.timestamp.toStdString() << " ElapsedTime: " << route.elapsedTime.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] createRouteCard | Card data - Duration: " << route.duration.toStdString() << " Segments: " << route.segments << " Size: " << route.size.toStdString() << std::endl;
 
   QWidget *card = new QWidget;
   card->setFixedHeight(400);
@@ -707,8 +707,8 @@ void BPRoutesPanel::handleRouteVideoPlayback(const QString &route, const QString
   currentSelectedRoute = route;
 
   // Debug info
-  showDebugPlayerOutput(QString("Opening video dialog for route: %1").arg(route));
-  showDebugPlayerOutput(QString("Route path: %1").arg(getRoutesDir() + "/" + route));
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] handleRouteVideoPlayback | Opening video dialog for route: " << route.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] handleRouteVideoPlayback | Route path: " << (getRoutesDir() + "/" + route).toStdString() << std::endl;
 
   BPRouteVideoDialog *videoDialog = new BPRouteVideoDialog(route, this);
   if (videoDialog) {
@@ -716,7 +716,7 @@ void BPRoutesPanel::handleRouteVideoPlayback(const QString &route, const QString
     videoDialog->exec();
     videoDialog->deleteLater();
   } else {
-    showDebugPlayerOutput("Failed to create video dialog");
+    BPLog::bpWarn() << "[bp.routes.panel] handleRouteVideoPlayback | Failed to create video dialog" << std::endl;
   }
 }
 
@@ -802,13 +802,13 @@ QString BPRoutesPanel::formatDisplayDate(const QDateTime &dateTime) {
   return QString("%1 - %2 %3%4, %5").arg(dayName).arg(monthName).arg(day).arg(suffix).arg(year);
 }
 
-// Utility methods (keeping existing implementations but updating RouteInfo structure)
+// Utility methods (note: RouteInfo derivations documented in header)
 BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   RouteInfo info;
   QFileInfo routeFileInfo(routePath);
   QString originalName = routeFileInfo.fileName();
 
-  // std::cout << "[ROUTE DEBUG] Processing route: " << originalName.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Processing route: " << originalName.toStdString() << std::endl;
 
   // Extract base route name (remove segment suffix)
   QString baseRouteName = originalName;
@@ -819,7 +819,7 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
 
   info.baseName = baseRouteName;
 
-  // std::cout << "[ROUTE DEBUG] Original name: " << originalName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Original name: " << originalName.toStdString() << " Base name: " << baseRouteName.toStdString() << std::endl;
 
   // Use directory modification time as the route timestamp
   QDateTime routeDateTime = routeFileInfo.lastModified();
@@ -829,10 +829,10 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   info.elapsedTime = formatElapsedTime(routeDateTime);
   info.humanTime = routeDateTime.toString("h:mm AP");  // Preformatted human-readable time
 
-  // std::cout << "[ROUTE DEBUG] DateTime: " << routeDateTime.toString().toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] Timestamp: " << info.timestamp.toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] DisplayDate: " << info.displayDate.toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] ElapsedTime: " << info.elapsedTime.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | DateTime: " << routeDateTime.toString().toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Timestamp: " << info.timestamp.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | DisplayDate: " << info.displayDate.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | ElapsedTime: " << info.elapsedTime.toStdString() << std::endl;
 
   // Check for video files in segment directories
   QDir routeDir(routePath);
@@ -850,7 +850,7 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   parentDir.cdUp();
   QStringList segmentDirs = parentDir.entryList(segmentFilter, QDir::Dirs);
 
-  // std::cout << "[ROUTE DEBUG] Found " << segmentDirs.size() << " segment directories for " << baseRouteName.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] getRouteInfo | Found " << segmentDirs.size() << " segment directories for " << baseRouteName.toStdString() << std::endl;
 
   // Check each segment directory for video files
   for (const QString &segmentDir : segmentDirs) {
@@ -859,19 +859,19 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
 
     if (QFile::exists(segment.absoluteFilePath("fcamera.hevc"))) {
       info.hasFrontHQVideo = true;
-      // std::cout << "[ROUTE DEBUG] Found fcamera.hevc in " << segmentDir.toStdString() << std::endl;
+      // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Found fcamera.hevc in " << segmentDir.toStdString() << std::endl;
     }
     if (QFile::exists(segment.absoluteFilePath("qcamera.ts"))) {
       info.hasFrontLQVideo = true;
-      // std::cout << "[ROUTE DEBUG] Found qcamera.ts in " << segmentDir.toStdString() << std::endl;
+      // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Found qcamera.ts in " << segmentDir.toStdString() << std::endl;
     }
     if (QFile::exists(segment.absoluteFilePath("dcamera.hevc"))) {
       info.hasDriverHQVideo = true;
-      // std::cout << "[ROUTE DEBUG] Found dcamera.hevc in " << segmentDir.toStdString() << std::endl;
+      // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Found dcamera.hevc in " << segmentDir.toStdString() << std::endl;
     }
     if (QFile::exists(segment.absoluteFilePath("ecamera.hevc"))) {
       info.hasWideVideo = true;
-      // std::cout << "[ROUTE DEBUG] Found ecamera.hevc in " << segmentDir.toStdString() << std::endl;
+      // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Found ecamera.hevc in " << segmentDir.toStdString() << std::endl;
     }
   }
 
@@ -896,21 +896,21 @@ BPRoutesPanel::RouteInfo BPRoutesPanel::getRouteInfo(const QString &routePath) {
   qint64 totalSize = 0;
   QDir routesDir(getRoutesDir());
   QStringList allSegments = routesDir.entryList(QStringList() << baseRouteName + "--*", QDir::Dirs | QDir::NoDotAndDotDot);
-  // std::cout << "[ROUTE DEBUG] Found " << allSegments.size() << " segments for base route: " << baseRouteName.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] getRouteInfo | Found " << allSegments.size() << " segments for base route: " << baseRouteName.toStdString() << std::endl;
   for (const QString &segment : allSegments) {
     QString segmentPath = routesDir.absoluteFilePath(segment);
     totalSize += calculateDirSize(segmentPath);
   }
   info.size = formatSize(totalSize);
 
-  // std::cout << "[ROUTE DEBUG] Total size: " << totalSize << " bytes" << std::endl;
-  // std::cout << "[ROUTE DEBUG] Segments: " << info.segments << std::endl;
-  // std::cout << "[ROUTE DEBUG] Duration: " << info.duration.toStdString() << std::endl;
-  // std::cout << "[ROUTE DEBUG] HasFrontHQVideo: " << (info.hasFrontHQVideo ? "true" : "false") << std::endl;
-  // std::cout << "[ROUTE DEBUG] HasFrontLQVideo: " << (info.hasFrontLQVideo ? "true" : "false") << std::endl;
-  // std::cout << "[ROUTE DEBUG] HasDriverHQVideo: " << (info.hasDriverHQVideo ? "true" : "false") << std::endl;
-  // std::cout << "[ROUTE DEBUG] HasWideVideo: " << (info.hasWideVideo ? "true" : "false") << std::endl;
-  // std::cout << "[ROUTE DEBUG] ==================" << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Total size: " << totalSize << " bytes" << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Segments: " << info.segments << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | Duration: " << info.duration.toStdString() << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | HasFrontHQVideo: " << (info.hasFrontHQVideo ? "true" : "false") << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | HasFrontLQVideo: " << (info.hasFrontLQVideo ? "true" : "false") << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | HasDriverHQVideo: " << (info.hasDriverHQVideo ? "true" : "false") << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | HasWideVideo: " << (info.hasWideVideo ? "true" : "false") << std::endl;
+  // BPLog::bpInfo() << "[bp.routes.panel] getRouteInfo | ==================" << std::endl;
 
   return info;
 }
@@ -1159,17 +1159,17 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
   QDir dir(getRoutesDir());
   QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(baseRouteSearch), QDir::Dirs | QDir::NoDotAndDotDot);
   if (segments.isEmpty()) {
-    std::cout << "[THUMBNAIL DEBUG] No segment found for route: " << routeBase.toStdString() << std::endl;
+    BPLog::bpWarn() << "[bp.routes.panel] generateThumbnail | No segment found for route: " << routeBase.toStdString() << std::endl;
     return QString();
   }
 
   QString inputVideo = getRoutesDir() + "/" + segments.first() + "/fcamera.hevc";
   if (!QFile::exists(inputVideo)) {
-    std::cout << "[THUMBNAIL DEBUG] Video file not found: " << inputVideo.toStdString() << std::endl;
+    BPLog::bpWarn() << "[bp.routes.panel] generateThumbnail | Video file not found: " << inputVideo.toStdString() << std::endl;
     return QString();
   }
 
-  std::cout << "[THUMBNAIL DEBUG] Found video: " << inputVideo.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnail | Found video: " << inputVideo.toStdString() << std::endl;
 
   // Create thumbnail directory
   QDir().mkpath(QFileInfo(thumbnailPath).absolutePath());
@@ -1194,7 +1194,7 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
   bool success = ffmpeg.waitForFinished(15000); // 15 second timeout
 
   if (!success || ffmpeg.state() != QProcess::NotRunning) {
-    std::cout << "[THUMBNAIL DEBUG] FFmpeg timeout or still running, terminating..." << std::endl;
+    BPLog::bpWarn() << "[bp.routes.panel] generateThumbnail | FFmpeg timeout or still running, terminating..." << std::endl;
     ffmpeg.terminate();
     if (!ffmpeg.waitForFinished(2000)) {
       ffmpeg.kill();
@@ -1202,14 +1202,14 @@ QString BPRoutesPanel::generateThumbnail(const QString &routeBase) {
   }
 
   if (success && ffmpeg.exitCode() == 0 && QFile::exists(thumbnailPath)) {
-    std::cout << "[THUMBNAIL DEBUG] Successfully generated thumbnail: " << thumbnailPath.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnail | Successfully generated thumbnail: " << thumbnailPath.toStdString() << std::endl;
     return thumbnailPath;
   } else {
-    std::cout << "[THUMBNAIL DEBUG] Failed to generate thumbnail. Exit code: " << ffmpeg.exitCode() << std::endl;
+    BPLog::bpWarn() << "[bp.routes.panel] generateThumbnail | Failed to generate thumbnail. Exit code: " << ffmpeg.exitCode() << std::endl;
     if (ffmpeg.exitCode() != 0) {
       QByteArray errorOutput = ffmpeg.readAllStandardError();
       if (!errorOutput.isEmpty()) {
-        std::cout << "[THUMBNAIL DEBUG] FFmpeg error: " << errorOutput.toStdString() << std::endl;
+        BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnail | FFmpeg error: " << errorOutput.toStdString() << std::endl;
       }
     }
     return QString(); // Return empty for placeholder
@@ -1223,7 +1223,7 @@ QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
 
   // Check if thumbnail already exists
   if (QFile::exists(thumbnailPath)) {
-    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail already exists: " << thumbnailPath.toStdString() << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Hardware thumbnail already exists: " << thumbnailPath.toStdString() << std::endl;
     return thumbnailPath;
   }
 
@@ -1241,17 +1241,17 @@ QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
   QDir dir(getRoutesDir());
   QStringList segments = dir.entryList(QStringList() << QString("%1--0").arg(baseRouteSearch), QDir::Dirs | QDir::NoDotAndDotDot);
   if (segments.isEmpty()) {
-    std::cout << "[THUMBNAIL DEBUG] No segment found for route: " << routeBase.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | No segment found for route: " << routeBase.toStdString() << std::endl;
     return QString();
   }
 
   QString inputVideo = getRoutesDir() + "/" + segments.first() + "/fcamera.hevc";
   if (!QFile::exists(inputVideo)) {
-    std::cout << "[THUMBNAIL DEBUG] Video file not found: " << inputVideo.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Video file not found: " << inputVideo.toStdString() << std::endl;
     return QString();
   }
 
-  std::cout << "[THUMBNAIL DEBUG] Using hardware decoder for: " << inputVideo.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Using hardware decoder for: " << inputVideo.toStdString() << std::endl;
 
   // Create thumbnail directory
   QDir().mkpath(QFileInfo(thumbnailPath).absolutePath());
@@ -1262,12 +1262,12 @@ QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
     std::atomic<bool> abort{false};
 
     if (!frameReader.load(RoadCam, inputVideo.toStdString(), false, &abort)) {
-      std::cout << "[THUMBNAIL DEBUG] Failed to load video with hardware decoder, falling back to FFmpeg" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Failed to load video with hardware decoder, falling back to FFmpeg" << std::endl;
       return generateThumbnail(routeBase); // Fallback to software FFmpeg
     }
 
     if (frameReader.getFrameCount() == 0) {
-      std::cout << "[THUMBNAIL DEBUG] No frames found in video" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | No frames found in video" << std::endl;
       return QString();
     }
 
@@ -1279,27 +1279,27 @@ QString BPRoutesPanel::generateThumbnailHardware(const QString &routeBase) {
 
     // Decode the first frame (index 0) for thumbnail
     if (!frameReader.get(0, &thumbnail_buf)) {
-      std::cout << "[THUMBNAIL DEBUG] Failed to decode first frame" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Failed to decode first frame" << std::endl;
       thumbnail_buf.free();
       return QString();
     }
 
     // Convert YUV420/NV12 to RGB and save as JPEG
     if (saveYUVasJPEG(&thumbnail_buf, thumbnailPath, frameReader.width, frameReader.height)) {
-      std::cout << "[THUMBNAIL DEBUG] Successfully generated hardware thumbnail: " << thumbnailPath.toStdString() << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Successfully generated hardware thumbnail: " << thumbnailPath.toStdString() << std::endl;
       thumbnail_buf.free();
       return thumbnailPath;
     } else {
-      std::cout << "[THUMBNAIL DEBUG] Failed to save thumbnail image" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Failed to save thumbnail image" << std::endl;
       thumbnail_buf.free();
       return QString();
     }
 
   } catch (const std::exception& e) {
-    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail generation failed: " << e.what() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Hardware thumbnail generation failed: " << e.what() << std::endl;
     return generateThumbnail(routeBase); // Fallback to software FFmpeg
   } catch (...) {
-    std::cout << "[THUMBNAIL DEBUG] Hardware thumbnail generation failed with unknown error" << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailHardware | Hardware thumbnail generation failed with unknown error" << std::endl;
     return generateThumbnail(routeBase); // Fallback to software FFmpeg
   }
 }
@@ -1317,24 +1317,24 @@ QString BPRoutesPanel::generateThumbnailAuto(const QString &routeBase) {
 #ifndef __APPLE__
   // On QCOM devices, try hardware decoding first
   if (isCommaDevice()) {
-    std::cout << "[THUMBNAIL DEBUG] Attempting hardware thumbnail generation for: " << routeBase.toStdString() << std::endl;
+    BPLog::bpInfo() << "[bp.routes.panel] generateThumbnailAuto | Attempting hardware thumbnail generation for: " << routeBase.toStdString() << std::endl;
     QString hardwareResult = generateThumbnailHardware(routeBase);
     if (!hardwareResult.isEmpty()) {
       return hardwareResult;
     }
-    std::cout << "[THUMBNAIL DEBUG] Hardware generation failed, falling back to software" << std::endl;
+    BPLog::bpInfo() << "[THUMBNAIL DEBUG] Hardware generation failed, falling back to software" << std::endl;
   }
 #endif
   */
 
   // Use software FFmpeg generation (more reliable)
-  std::cout << "[THUMBNAIL DEBUG] Using software FFmpeg thumbnail generation for: " << routeBase.toStdString() << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] generateThumbnailAuto | Using software FFmpeg thumbnail generation for: " << routeBase.toStdString() << std::endl;
   return generateThumbnail(routeBase);
 }
 
 bool BPRoutesPanel::saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int width, int height) {
   if (!buf || !buf->y || !buf->uv) {
-    std::cout << "[THUMBNAIL DEBUG] Invalid VisionBuf for JPEG conversion" << std::endl;
+    BPLog::bpWarn() << "[bp.routes.panel] saveYUVasJPEG | Invalid VisionBuf for JPEG conversion" << std::endl;
     return false;
   }
 
@@ -1357,7 +1357,7 @@ bool BPRoutesPanel::saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int
   );
 
   if (result1 != 0) {
-    std::cout << "[THUMBNAIL DEBUG] Failed to convert NV12 to ARGB, result: " << result1 << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] saveYUVasJPEG | Failed to convert NV12 to ARGB, result: " << result1 << std::endl;
     return false;
   }
 
@@ -1373,7 +1373,7 @@ bool BPRoutesPanel::saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int
     );
 
     if (result2 != 0) {
-      std::cout << "[THUMBNAIL DEBUG] Failed to scale ARGB, result: " << result2 << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] saveYUVasJPEG | Failed to scale ARGB, result: " << result2 << std::endl;
       return false;
     }
     argb_buffer = std::move(scaled_argb);
@@ -1392,19 +1392,18 @@ bool BPRoutesPanel::saveYUVasJPEG(VisionBuf *buf, const QString &outputPath, int
   QImage image(rgb_buffer.data(), thumb_width, thumb_height, thumb_width * 3, QImage::Format_RGB888);
 
   if (image.isNull()) {
-    std::cout << "[THUMBNAIL DEBUG] Failed to create QImage from RGB data" << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] saveYUVasJPEG | Failed to create QImage from RGB data" << std::endl;
     return false;
   }
 
   // Save as JPEG with quality 85
   bool saved = image.save(outputPath, "JPEG", 85);
   if (!saved) {
-    std::cout << "[THUMBNAIL DEBUG] Failed to save JPEG image to: " << outputPath.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] saveYUVasJPEG | Failed to save JPEG image to: " << outputPath.toStdString() << std::endl;
     return false;
   }
 
-  std::cout << "[THUMBNAIL DEBUG] Saved JPEG thumbnail: " << outputPath.toStdString()
-            << " (" << thumb_width << "x" << thumb_height << ")" << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] saveYUVasJPEG | Saved JPEG thumbnail: " << outputPath.toStdString() << " (" << thumb_width << "x" << thumb_height << ")" << std::endl;
   return true;
 }
 
@@ -1413,7 +1412,7 @@ QString BPRoutesPanel::getThumbnailPath(const QString &routeBase) {
 }
 
 void BPRoutesPanel::generateAllMissingThumbnails() {
-  std::cout << "[THUMBNAIL DEBUG] Starting batch thumbnail generation for all routes..." << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Starting batch thumbnail generation for all routes..." << std::endl;
 
   // Count missing thumbnails and currently generating ones
   int missingCount = 0;
@@ -1446,17 +1445,14 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
   // If no missing thumbnails and no generation in progress, we're done
   if (missingCount == 0 && generatingCount == 0) {
     if (skippedCount > 0) {
-      std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete! ("
-                << skippedCount << " routes skipped due to missing video files)" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Thumbnail generation complete! (" << skippedCount << " routes skipped due to missing video files)" << std::endl;
     } else {
-      std::cout << "[THUMBNAIL DEBUG] All thumbnails have been generated successfully!" << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | All thumbnails have been generated successfully!" << std::endl;
     }
     return;
   }
 
-  std::cout << "[THUMBNAIL DEBUG] Found " << missingCount << " missing thumbnails, "
-            << generatingCount << " currently generating, "
-            << skippedCount << " permanently skipped..." << std::endl;
+  BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Found " << missingCount << " missing thumbnails, " << generatingCount << " currently generating, " << skippedCount << " permanently skipped..." << std::endl;
 
   // Start generation for missing thumbnails (respecting concurrent limit)
   int started = 0;
@@ -1480,8 +1476,7 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
 
     // Respect concurrent limit
     if (thumbnailWatchers.size() >= MAX_CONCURRENT_THUMBNAILS) {
-      std::cout << "[THUMBNAIL DEBUG] Reached concurrent limit (" << MAX_CONCURRENT_THUMBNAILS
-                << "), waiting for some to complete..." << std::endl;
+      BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Reached concurrent limit (" << MAX_CONCURRENT_THUMBNAILS << "), waiting for some to complete..." << std::endl;
       break;
     }
 
@@ -1493,10 +1488,9 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
     connect(watcher, &QFutureWatcher<QString>::finished, [this, route, watcher]() {
       QString result = watcher->result();
       if (!result.isEmpty()) {
-        std::cout << "[THUMBNAIL DEBUG] Generated thumbnail for: " << route.baseName.toStdString() << std::endl;
+        BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Generated thumbnail for: " << route.baseName.toStdString() << std::endl;
       } else {
-        std::cout << "[THUMBNAIL DEBUG] Failed to generate thumbnail for: " << route.baseName.toStdString()
-                  << " - marking as permanently failed" << std::endl;
+        BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Failed to generate thumbnail for: " << route.baseName.toStdString() << " - marking as permanently failed" << std::endl;
         // Mark this route as permanently failed so we don't retry it
         permanentlyFailedRoutes.insert(route.baseName);
       }
@@ -1520,15 +1514,14 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
         }
 
         if (hasMissing) {
-          std::cout << "[THUMBNAIL DEBUG] Continuing thumbnail generation for remaining routes..." << std::endl;
+          BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Continuing thumbnail generation for remaining routes..." << std::endl;
           generateAllMissingThumbnails();
         } else {
           int failedCount = permanentlyFailedRoutes.size();
           if (failedCount > 0) {
-            std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete! ("
-                      << failedCount << " routes had no video files)" << std::endl;
+            BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Thumbnail generation complete! (" << failedCount << " routes had no video files)" << std::endl;
           } else {
-            std::cout << "[THUMBNAIL DEBUG] Thumbnail generation complete!" << std::endl;
+            BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Thumbnail generation complete!" << std::endl;
           }
         }
       });
@@ -1538,11 +1531,11 @@ void BPRoutesPanel::generateAllMissingThumbnails() {
     QFuture<QString> future = QtConcurrent::run(this, &BPRoutesPanel::generateThumbnailAuto, route.baseName);
     watcher->setFuture(future);
 
-    std::cout << "[THUMBNAIL DEBUG] Started generation for: " << route.baseName.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Started generation for: " << route.baseName.toStdString() << std::endl;
   }
 
   if (started > 0) {
-    std::cout << "[THUMBNAIL DEBUG] Started " << started << " new thumbnail generations" << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] generateAllMissingThumbnails | Started " << started << " new thumbnail generations" << std::endl;
   }
 }
 
@@ -1721,6 +1714,27 @@ bool BPRoutesPanel::loadRouteCacheFromDisk() {
     info.dateTime = QDateTime::fromString(routeObj["dateTime"].toString(), Qt::ISODate);
 
     routeCache.routeInfoCache[info.baseName] = info;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Route Loaded: " << info.baseName.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Timestamp: " << info.timestamp.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | End Timestamp: " << info.endTimestamp.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Duration: " << info.duration.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Elapsed Time: " << info.elapsedTime.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Display Date: " << info.displayDate.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Segments: " << info.segments << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Size: " << info.size.toStdString() << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Trip Miles: " << info.tripMiles << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Video: " << info.hasVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has RLog: " << info.hasRLog << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has QLog: " << info.hasQLog << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Front Video: " << info.hasFrontVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Wide Video: " << info.hasWideVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Driver Video: " << info.hasDriverVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has LQ Video: " << info.hasLQVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Front HQ Video: " << info.hasFrontHQVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Front LQ Video: " << info.hasFrontLQVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Has Driver HQ Video: " << info.hasDriverHQVideo << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Is Starred: " << info.isStarred << std::endl;
+    BPLog::bpDebugRoutes() << "[bp.routes.panel] loadRouteCacheFromDisk | Date Time: " << info.dateTime.toString().toStdString() << std::endl;
   }
 
   return true;
@@ -1816,11 +1830,11 @@ void BPRoutesPanel::clearOnroadMessage() {
 }
 
 void BPRoutesPanel::onOffroadTransition() {
-  // std::cout << "[ROUTE DEBUG] Offroad transition detected" << std::endl;
+  // BPLog::bpInfo() << "[ROUTE DEBUG] Offroad transition detected" << std::endl;
 
   if (uiState()->scene.started) {
     // Device went onroad - show safety message and clear routes
-    // std::cout << "[ROUTE DEBUG] Device went onroad - disabling routes panel" << std::endl;
+    // BPLog::bpInfo() << "[ROUTE DEBUG] Device went onroad - disabling routes panel" << std::endl;
     showOnroadMessage();
 
     // Close any open video dialogs for safety
@@ -1828,32 +1842,23 @@ void BPRoutesPanel::onOffroadTransition() {
       QList<QDialog*> dialogs = topLevel->findChildren<QDialog*>();
       for (QDialog* dialog : dialogs) {
         if (dialog->isVisible()) {
-          showDebugRoutesOutput("Closing video dialog due to onroad transition");
+          BPLog::bpDebugRoutes() << "[bp.routes.panel] onOffroadTransition | Closing video dialog due to onroad transition" << std::endl;
+
           dialog->close();
         }
       }
     }
   } else {
     // Device went offroad - clear message and load routes only if panel is visible
-    // std::cout << "[ROUTE DEBUG] Device went offroad - enabling routes panel" << std::endl;
+    // BPLog::bpInfo() << "[ROUTE DEBUG] Device went offroad - enabling routes panel" << std::endl;
     clearOnroadMessage();
     if (routes.isEmpty() && isVisible()) {
-      // std::cout << "[ROUTE DEBUG] Panel is visible - loading routes" << std::endl;
+      // BPLog::bpInfo() << "[ROUTE DEBUG] Panel is visible - loading routes" << std::endl;
       loadRoutes();
     } else if (routes.isEmpty()) {
-      // std::cout << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
+      // BPLog::bpInfo() << "[ROUTE DEBUG] Panel not visible - deferring route loading to showEvent" << std::endl;
     }
   }
 }
 
-void BPRoutesPanel::showDebugRoutesOutput(const QString &message) {
-  if (params.getBool("BPRoutePanelDebugRouteLogs")) {
-    std::cout << "[ROUTE DEBUG] " << message.toStdString() << std::endl;
-  }
-}
 
-void BPRoutesPanel::showDebugPlayerOutput(const QString &message) {
-  if (params.getBool("BPRoutePanelDebugRoutePlayerLogs")) {
-    std::cout << "[PLAYER DEBUG] " << message.toStdString() << std::endl;
-  }
-}

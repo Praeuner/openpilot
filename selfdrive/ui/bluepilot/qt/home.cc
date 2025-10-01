@@ -1,6 +1,7 @@
-#include "selfdrive/ui/bluepilot/qt/home.h"
+// selfdrive/ui/bluepilot/qt/home.cc
 
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/bluepilot/qt/home.h"
 
 HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
   // Replace stock sidebar with BluePilot sidebar
@@ -31,16 +32,16 @@ HomeWindowBP::~HomeWindowBP() {
 }
 
 void HomeWindowBP::showDebugPanel() {
-  std::cout << "HomeWindowBP: showDebugPanel called" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.home] showDebugPanel | showDebugPanel called" << std::endl;
 
   // Create debug panel on first use
   if (!debug_panel) {
-    std::cout << "HomeWindowBP: Creating debug panel on-demand" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] showDebugPanel | Creating debug panel on-demand" << std::endl;
     debug_panel = new OnroadControlsDebugPanel(this);
   }
 
   if (!debug_panel->isVisible()) {
-    std::cout << "HomeWindowBP: Setting debug panel height to:" << height() << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] showDebugPanel | Setting debug panel height to: " << height() << std::endl;
     debug_panel->setFixedHeight(height());
     // Width is now calculated dynamically by the debug panel
   }
@@ -49,7 +50,7 @@ void HomeWindowBP::showDebugPanel() {
   debug_panel->raise();
   debug_panel->activateWindow();
 
-  std::cout << "HomeWindowBP: Debug panel toggled, new visibility:" << debug_panel->isVisible() << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.home] showDebugPane | Debug panel toggled, new visibility: " << debug_panel->isVisible() << std::endl;
 }
 
 void HomeWindowBP::updateState(const UIState &s) {
@@ -69,30 +70,30 @@ void HomeWindowBP::updateState(const UIState &s) {
 }
 
 void HomeWindowBP::resizeEvent(QResizeEvent *event) {
-  std::cout << "HomeWindowBP: resizeEvent - new size:" << event->size().width() << "x" << event->size().height() << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.home] resizeEvent | new size: " << event->size().width() << "x" << event->size().height() << std::endl;
 
   // Call parent implementation first
   HomeWindow::resizeEvent(event);
 
   // Update debug panel size if it exists and is visible
   if (debug_panel && debug_panel->isVisible()) {
-    std::cout << "HomeWindowBP: Updating debug panel for resize event" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] resizeEvent | Updating debug panel for resize event" << std::endl;
     debug_panel->setFixedHeight(height());
     // The debug panel will recalculate its width in its own resizeEvent
   } else {
-    std::cout << "HomeWindowBP: Debug panel not visible, skipping resize update" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] resizeEvent | Debug panel not visible, skipping resize update" << std::endl;
   }
 }
 
 
 void HomeWindowBP::forceDebugPanelRefresh() {
-  std::cout << "HomeWindowBP: forceDebugPanelRefresh called" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.home] forceDebugPanelRefresh | forceDebugPanelRefresh called" << std::endl;
 
   if (debug_panel && debug_panel->isVisible()) {
-    std::cout << "HomeWindowBP: Forcing debug panel refresh" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] forceDebugPanelRefresh | Forcing debug panel refresh" << std::endl;
     debug_panel->forceRefresh();
   } else {
-    std::cout << "HomeWindowBP: Debug panel not visible, cannot force refresh" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.home] forceDebugPanelRefresh | Debug panel not visible, cannot force refresh" << std::endl;
   }
 }
 

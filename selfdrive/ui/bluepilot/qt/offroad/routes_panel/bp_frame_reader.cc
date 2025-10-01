@@ -1,5 +1,5 @@
 #include "bp_frame_reader.h"
-#include <QDebug>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "common/util.h"
 #include "common/swaglog.h"
 #include "system/hardware/hw.h"
@@ -36,26 +36,26 @@ struct DecoderManager {
     #ifndef __APPLE__
     if (Hardware::TICI() && hw_decoder) {
       decoder = std::make_unique<QcomVideoDecoder>();
-      qDebug() << "[DECODER] Attempting QCOM hardware decoder (new instance)";
+      BPLog::bpDebugVideo() << "[bp.frame.reader] acquire | Attempting QCOM hardware decoder (new instance)" << std::endl;
 
       // Try to open the QCOM decoder first
       if (!decoder->open(codecpar, hw_decoder)) {
-        qDebug() << "[DECODER] QCOM hardware decoder failed to initialize, falling back to FFmpeg";
+        BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] acquire | QCOM hardware decoder failed to initialize, falling back to FFmpeg" << std::endl;
         decoder = std::make_unique<FFmpegVideoDecoder>();
         if (!decoder->open(codecpar, false)) {  // Force software decoding for fallback
-          qDebug() << "[DECODER] FFmpeg software decoder also failed to initialize";
+          BPLog::bpError() << "[bp.frame.reader.ffmpeg.decoder] acquire | FFmpeg software decoder also failed to initialize" << std::endl;
           decoder.reset(nullptr);
         } else {
-          qDebug() << "[DECODER] Successfully fell back to FFmpeg software decoder";
+          BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] acquire | Successfully fell back to FFmpeg software decoder" << std::endl;
         }
       } else {
-        qDebug() << "[DECODER] QCOM hardware decoder initialized successfully";
+        BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] acquire | QCOM hardware decoder initialized successfully" << std::endl;
       }
     } else
     #endif
     {
       decoder = std::make_unique<FFmpegVideoDecoder>();
-      qDebug() << "[DECODER] Using FFmpeg decoder " << (hw_decoder ? "with HW acceleration" : "software only");
+      BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] acquire | Using FFmpeg decoder " << (hw_decoder ? "with HW acceleration" : "software only") << std::endl;
 
       if (!decoder->open(codecpar, hw_decoder)) {
         decoder.reset(nullptr);
@@ -96,24 +96,37 @@ FrameReader::~FrameReader() {
 }
 
 bool FrameReader::load(CameraType type, const std::string &file, bool no_hw_decoder, std::atomic<bool> *abort) {
+  BPLog::bpDebugVideo() << "[bp.frame.reader] load | camera: " << type << " file: " << file << std::endl;
+
   if (avformat_open_input(&input_ctx, file.c_str(), nullptr, nullptr) != 0 ||
       avformat_find_stream_info(input_ctx, nullptr) < 0) {
-    qDebug() << "[FRAME READER] Failed to open input file or find video stream: " << file.c_str();
+    BPLog::bpError() << "[bp.frame.reader] load | Failed to open input file or find video stream: " << file.c_str() << std::endl;
     return false;
   }
 
   video_stream_idx_ = av_find_best_stream(input_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
   if (video_stream_idx_ == -1) {
-    qDebug() << "[FRAME READER] No video stream found in file";
+    BPLog::bpError() << "[bp.frame.reader] load | No video stream found in file" << std::endl;
     return false;
   }
 
+  BPLog::bpDebugVideo() << "[bp.frame.reader] load | stream index: " << video_stream_idx_ << std::endl;
+
   decoder_ = decoder_manager.acquire(type, input_ctx->streams[video_stream_idx_]->codecpar, !no_hw_decoder);
   if (!decoder_) {
+    BPLog::bpWarn() << "[bp.frame.reader] load | decoder acquire failed" << std::endl;
     return false;
   }
+#ifndef __APPLE__
+  uses_hw_decoder = dynamic_cast<QcomVideoDecoder *>(decoder_) != nullptr;
+#else
+  uses_hw_decoder = false;
+#endif
   width = decoder_->width;
   height = decoder_->height;
+  stride = decoder_->stride;
+
+  BPLog::bpDebugVideo() << "[bp.frame.reader] load | decoder ready width:" << width << " height:" << height << std::endl;
 
   // Build packet info for seeking
   packets_info.clear();
@@ -123,14 +136,21 @@ bool FrameReader::load(CameraType type, const std::string &file, bool no_hw_deco
       packets_info.push_back({pkt.flags, pkt.pos});
     }
     av_packet_unref(&pkt);
+    if (abort != nullptr && abort->load()) {
+      BPLog::bpWarn() << "[bp.frame.reader] load | abort requested while scanning packets" << std::endl;
+      break;
+    }
   }
 
   av_seek_frame(input_ctx, video_stream_idx_, 0, AVSEEK_FLAG_BACKWARD);
+  BPLog::bpDebugVideo() << "[bp.frame.reader] load | packets indexed: " << packets_info.size() << std::endl;
   return true;
 }
 
 bool FrameReader::get(int idx, VisionBuf *buf) {
+  BPLog::bpDebugVideo() << "[bp.frame.reader] get | index:" << idx << " prev:" << prev_idx << std::endl;
   if (!decoder_ || idx < 0 || idx >= packets_info.size()) {
+    BPLog::bpWarn() << "[bp.frame.reader] get | invalid idx" << idx << " packets:" << packets_info.size() << std::endl;
     return false;
   }
   return decoder_->decode(this, idx, buf);
@@ -153,33 +173,37 @@ FFmpegVideoDecoder::~FFmpegVideoDecoder() {
 bool FFmpegVideoDecoder::open(AVCodecParameters *codecpar, bool hw_decoder) {
   const AVCodec *codec = avcodec_find_decoder(codecpar->codec_id);
   if (!codec) {
-    qDebug() << "[FFMPEG DECODER] Codec not found";
+    BPLog::bpError() << "[bp.frame.reader.ffmpeg] open | Codec not found" << std::endl;
     return false;
   }
 
   decoder_ctx = avcodec_alloc_context3(codec);
   if (!decoder_ctx) {
-    qDebug() << "[FFMPEG DECODER] Could not allocate video codec context";
+    BPLog::bpError() << "[bp.frame.reader.ffmpeg] open | Could not allocate video codec context" << std::endl;
     return false;
   }
 
   if (avcodec_parameters_to_context(decoder_ctx, codecpar) < 0) {
-    qDebug() << "[FFMPEG DECODER] Could not copy codec parameters to decoder context";
+    BPLog::bpError() << "[bp.frame.reader.ffmpeg] open | Could not copy codec parameters to decoder context" << std::endl;
     return false;
   }
 
   if (avcodec_open2(decoder_ctx, codec, nullptr) < 0) {
-    qDebug() << "[FFMPEG DECODER] Could not open codec";
+    BPLog::bpError() << "[bp.frame.reader.ffmpeg] open | Could not open codec" << std::endl;
     return false;
   }
 
   width = decoder_ctx->width;
   height = decoder_ctx->height;
+  stride = decoder_ctx->width;
+  BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg] open | codec opened width:" << width << " height:" << height
+           << " pix_fmt:" << decoder_ctx->pix_fmt << std::endl;
   return true;
 }
 
 bool FFmpegVideoDecoder::decode(FrameReader *reader, int idx, VisionBuf *buf) {
   int from_idx = idx;
+  BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] decode | req idx:" << idx << " prev:" << reader->prev_idx << std::endl;
   if (idx != reader->prev_idx + 1) {
     // seeking to the nearest key frame
     for (int i = idx; i >= 0; --i) {
@@ -192,7 +216,7 @@ bool FFmpegVideoDecoder::decode(FrameReader *reader, int idx, VisionBuf *buf) {
     auto pos = reader->packets_info[from_idx].pos;
     int ret = avformat_seek_file(reader->input_ctx, 0, pos, pos, pos, AVSEEK_FLAG_BYTE);
     if (ret < 0) {
-      qDebug() << "[FFMPEG DECODER] Failed to seek to byte position " << pos;
+      BPLog::bpWarn() << "[bp.frame.reader.ffmpeg.decoder] decode | Failed to seek to byte position " << pos << std::endl;
       return false;
     }
   }
@@ -207,12 +231,17 @@ bool FFmpegVideoDecoder::decode(FrameReader *reader, int idx, VisionBuf *buf) {
       continue;
     }
 
+    BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] decode | packet pos:" << pkt.pos
+             << " flags:" << pkt.flags << " idx_progress:" << from_idx << std::endl;
+
     if (avcodec_send_packet(decoder_ctx, &pkt) < 0) {
       av_packet_unref(&pkt);
       continue;
     }
 
     while (avcodec_receive_frame(decoder_ctx, av_frame_) == 0) {
+      BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] decode | receive frame idx:" << from_idx
+               << " target:" << idx << std::endl;
       if (from_idx++ == idx) {
         bool ret = copyBuffer(av_frame_, buf);
         av_packet_unref(&pkt);
@@ -229,6 +258,10 @@ bool FFmpegVideoDecoder::copyBuffer(AVFrame *f, VisionBuf *buf) {
   if (f->format == AV_PIX_FMT_YUV420P) {
     uint8_t *y_plane = (uint8_t *)buf->y;
     uint8_t *uv_plane = (uint8_t *)buf->uv;
+
+    BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] copyBuffer | YUV420P -> NV12 stride:" << buf->stride
+             << " linesizeY:" << f->linesize[0] << " linesizeU:" << f->linesize[1]
+             << " linesizeV:" << f->linesize[2] << std::endl;
 
     // Copy Y plane
     for (int i = 0; i < height; i++) {
@@ -250,9 +283,9 @@ bool FFmpegVideoDecoder::copyBuffer(AVFrame *f, VisionBuf *buf) {
     static int copy_count = 0;
     copy_count++;
     if (copy_count % 100 == 0) {
-      qDebug() << "[FFMPEG DECODER] copyBuffer YUV420P: frame " << copy_count
+      BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] copyBuffer | YUV420P: frame " << copy_count
                << " size " << width << "x" << height << " stride " << buf->stride
-               << " src linesize Y:" << f->linesize[0] << " U:" << f->linesize[1] << " V:" << f->linesize[2];
+               << " src linesize Y:" << f->linesize[0] << " U:" << f->linesize[1] << " V:" << f->linesize[2] << std::endl;
     }
 
     return true;
@@ -260,6 +293,9 @@ bool FFmpegVideoDecoder::copyBuffer(AVFrame *f, VisionBuf *buf) {
     // Direct copy for NV12 (should be more common)
     uint8_t *y_plane = (uint8_t *)buf->y;
     uint8_t *uv_plane = (uint8_t *)buf->uv;
+
+    BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] copyBuffer | NV12 stride:" << buf->stride
+             << " srcY:" << f->linesize[0] << " srcUV:" << f->linesize[1] << std::endl;
 
     // Copy Y plane
     for (int i = 0; i < height; i++) {
@@ -274,14 +310,14 @@ bool FFmpegVideoDecoder::copyBuffer(AVFrame *f, VisionBuf *buf) {
     static int nv12_copy_count = 0;
     nv12_copy_count++;
     if (nv12_copy_count % 100 == 0) {
-      qDebug() << "[FFMPEG DECODER] copyBuffer NV12: frame " << nv12_copy_count
+      BPLog::bpDebugVideo() << "[bp.frame.reader.ffmpeg.decoder] copyBuffer | NV12: frame " << nv12_copy_count
                << " size " << width << "x" << height << " stride " << buf->stride
-               << " src linesize Y:" << f->linesize[0] << " UV:" << f->linesize[1];
+               << " src linesize Y:" << f->linesize[0] << " UV:" << f->linesize[1] << std::endl;
     }
 
     return true;
   } else {
-    qDebug() << "[FFMPEG DECODER] Unsupported pixel format: " << f->format << " Expected YUV420P or NV12";
+    BPLog::bpError() << "[bp.frame.reader.ffmpeg.decoder] copyBuffer | Unsupported pixel format: " << f->format << " Expected YUV420P or NV12" << std::endl;
     return false;
   }
 }
@@ -290,29 +326,31 @@ bool FFmpegVideoDecoder::copyBuffer(AVFrame *f, VisionBuf *buf) {
 // QcomVideoDecoder Implementation
 bool QcomVideoDecoder::open(AVCodecParameters *codecpar, bool hw_decoder) {
   if (codecpar->codec_id != AV_CODEC_ID_HEVC) {
-    qDebug() << "[QCOM DECODER] Only supports HEVC codec, got codec_id: " << codecpar->codec_id;
+    BPLog::bpError() << "[bp.frame.reader.qcom.decoder] open | Only supports HEVC codec, got codec_id: " << codecpar->codec_id << std::endl;
     return false;
   }
 
   width = codecpar->width;
   height = codecpar->height;
+  stride = codecpar->width;
 
-  qDebug() << "[QCOM DECODER] Initializing for " << width << "x" << height << " HEVC video";
+  BPLog::bpDebugVideo() << "[bp.frame.reader.qcom.decoder] open | Initializing for " << width << "x" << height << " HEVC video" << std::endl;
 
   try {
     if (!msm_vidc.init(VIDEO_DEVICE, width, height, V4L2_PIX_FMT_HEVC)) {
-      qDebug() << "[QCOM DECODER] Failed to initialize - V4L2 init failed";
+      BPLog::bpError() << "[bp.frame.reader.qcom] open | Failed to initialize - V4L2 init failed" << std::endl;
       return false;
     }
   } catch (const std::exception& e) {
-    qDebug() << "[QCOM DECODER] Exception during initialization: " << e.what();
+    BPLog::bpError() << "[bp.frame.reader.qcom.decoder] open | Exception during initialization: " << e.what() << std::endl;
     return false;
   } catch (...) {
-    qDebug() << "[QCOM DECODER] Unknown exception during initialization";
+    BPLog::bpError() << "[bp.frame.reader.qcom.decoder] open | Unknown exception during initialization" << std::endl;
     return false;
   }
 
-  qDebug() << "[QCOM DECODER] Hardware decoder initialized successfully";
+  BPLog::bpDebugVideo() << "[bp.frame.reader.qcom.decoder] open | Hardware decoder initialized successfully" << std::endl;
+  stride = msm_vidc.captureStride();
   return true;
 }
 
@@ -330,7 +368,7 @@ bool QcomVideoDecoder::decode(FrameReader *reader, int idx, VisionBuf *buf) {
     auto pos = reader->packets_info[from_idx].pos;
     int ret = avformat_seek_file(reader->input_ctx, 0, pos, pos, pos, AVSEEK_FLAG_BYTE);
     if (ret < 0) {
-      qDebug() << "[FFMPEG DECODER] Failed to seek to byte position " << pos;
+      BPLog::bpWarn() << "[bp.frame.reader.qcom.decoder] decode | Failed to seek to byte position " << pos << std::endl;
       return false;
     }
   }

@@ -57,11 +57,7 @@ class MediaControlButton;
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
 
-// Video types
-#include "bp_video_types.h"
-
 // Forward declarations for video decoder types
-class VideoDecoder;
 class VisionBuf;
 
 class BPRoutesPanel : public QWidget {
@@ -71,29 +67,38 @@ public:
   explicit BPRoutesPanel(QWidget *parent = nullptr);
   ~BPRoutesPanel();
 
+  /// Cached metadata describing an on-disk route.  Key derivations:
+  ///   * `baseName` strips any `--<segment>` suffix from the directory name.
+  ///   * Time fields (`timestamp`, `displayDate`, `elapsedTime`, `humanTime`)
+  ///     are derived from `QFileInfo(routePath).lastModified()` via helpers.
+  ///   * `segments`/`duration` aggregate all matching `<base>--*` directories.
+  ///   * `size` sums each segment directory (`calculateDirSize`).
+  ///   * Camera/log flags reflect presence of the corresponding files inside
+  ///     each segment (`fcamera.hevc`, `qcamera.ts`, `dcamera.hevc`, etc.).
+  ///   * `isStarred` mirrors a `.star` sentinel file stored under the base dir.
   struct RouteInfo {
     QString baseName;
-    QString timestamp;    // Start time
-    QString endTimestamp; // End time
-    QString duration;     // Total duration
-    QString elapsedTime;  // Human readable elapsed time
-    QString displayDate;  // Date for grouping (e.g. "Thursday - September 18, 2025")
-    QString humanTime;    // Preformatted human-readable time for both route card and modal
-    int segments;
-    QString size;
-    double tripMiles; // Trip distance in miles
+    QString timestamp;    // Start time (lastModified -> "h:mm AP")
+    QString endTimestamp; // End time (legacy field, derived elsewhere)
+    QString duration;     // Total duration from getRouteDuration(base)
+    QString elapsedTime;  // formatElapsedTime(lastModified)
+    QString displayDate;  // formatDisplayDate(lastModified)
+    QString humanTime;    // Cached pretty time for dialogs/cards
+    int segments;         // Count from getTotalSegments(base)
+    QString size;         // formatSize(sum(calculateDirSize(segment)))
+    double tripMiles;     // Trip distance (if known via logs)
     bool hasVideo;
     bool hasRLog;
     bool hasQLog;
-    bool hasFrontVideo;      // Legacy - any front camera
+    bool hasFrontVideo;
     bool hasWideVideo;
     bool hasDriverVideo;
-    bool hasLQVideo;         // Legacy - any LQ video
-    bool hasFrontHQVideo;    // fcamera.hevc
-    bool hasFrontLQVideo;    // qcamera.ts
-    bool hasDriverHQVideo;   // dcamera.hevc
+    bool hasLQVideo;
+    bool hasFrontHQVideo;
+    bool hasFrontLQVideo;
+    bool hasDriverHQVideo;
     bool isStarred;
-    QDateTime dateTime;   // For sorting
+    QDateTime dateTime;   // Raw timestamp for sorting
   };
 
   // Public methods needed by video dialog
@@ -106,7 +111,6 @@ public:
   QString formatElapsedTime(const QDateTime &routeTime);
   QString getThumbnailPath(const QString &routeBase);
   void initializeThumbnail(QLabel *thumbnailLabel, const QString &routeBase);
-  void showDebugPlayerOutput(const QString &message); // Allow video dialog to call debug
 
 protected:
   void showEvent(QShowEvent *event) override;
@@ -117,7 +121,6 @@ private slots:
   void onOffroadTransition();
 
 private:
-  void showDebugRoutesOutput(const QString &message);
   Params params;
   QTimer *activityTimer = nullptr;
   QMutex fileMutex;
@@ -221,7 +224,6 @@ private:
   // UI Overlays
   QWidget *loadingOverlay = nullptr;
   QLabel *loadingLabel = nullptr;
-  QWidget *statusOverlay = nullptr;
   QLabel *statusLabel = nullptr;
 
   QHash<QString, bool> expandedRoutes;

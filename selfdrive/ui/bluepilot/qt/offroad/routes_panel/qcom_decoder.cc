@@ -13,14 +13,14 @@
 static void copyBuffer(VisionBuf *src_buf, VisionBuf *dst_buf) {
   // Copy Y plane with proper stride handling
   for (int i = 0; i < src_buf->height; i++) {
-    memcpy((uint8_t*)dst_buf->y + i * dst_buf->stride, 
-           (uint8_t*)src_buf->y + i * src_buf->stride, 
+    memcpy((uint8_t*)dst_buf->y + i * dst_buf->stride,
+           (uint8_t*)src_buf->y + i * src_buf->stride,
            src_buf->width);
   }
   // Copy UV plane with proper stride handling
   for (int i = 0; i < src_buf->height / 2; i++) {
-    memcpy((uint8_t*)dst_buf->uv + i * dst_buf->stride, 
-           (uint8_t*)src_buf->uv + i * src_buf->stride, 
+    memcpy((uint8_t*)dst_buf->uv + i * dst_buf->stride,
+           (uint8_t*)src_buf->uv + i * src_buf->stride,
            src_buf->width);
   }
 }
@@ -56,7 +56,7 @@ bool MsmVidc::init(const char* dev, size_t width, size_t height, uint64_t codec)
     LOGE("failed to open video device %s", dev);
     return false;
   }
-  
+
   // Query device capabilities first
   struct v4l2_capability cap;
   if (util::safe_ioctl(fd, VIDIOC_QUERYCAP, &cap, nullptr) < 0) {
@@ -64,25 +64,25 @@ bool MsmVidc::init(const char* dev, size_t width, size_t height, uint64_t codec)
     close(fd);
     return false;
   }
-  
+
   subscribeEvents();
   v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   setPlaneFormat(out_type, V4L2_PIX_FMT_HEVC);
   setFPS(FPS);
   request_buffers(fd, out_type, OUTPUT_BUFFER_COUNT);
-  
+
   // Don't start output stream immediately, wait for capture setup
   // util::safe_ioctl(fd, VIDIOC_STREAMON, &out_type, nullptr);
-  
+
   restartCapture();
-  
+
   // Now start output stream after capture is ready
   int ret = util::safe_ioctl(fd, VIDIOC_STREAMON, &out_type, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_STREAMON OUTPUT failed: %d", ret);
     return false;
   }
-  
+
   setupPolling();
 
   this->initialized = true;
@@ -154,7 +154,7 @@ VisionBuf* MsmVidc::handleCapture() {
   buf.memory        = V4L2_MEMORY_USERPTR;
   buf.m.planes      = planes;
   buf.length        = 1;
-  
+
   int ret = util::safe_ioctl(this->fd, VIDIOC_DQBUF, &buf, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_DQBUF CAPTURE failed: %d", ret);
@@ -189,13 +189,13 @@ bool MsmVidc::setPlaneFormat(enum v4l2_buf_type type, uint32_t fourcc) {
     .height = (__u32)this->h,
     .pixelformat = fourcc
   };
-  
+
   int ret = util::safe_ioctl(fd, VIDIOC_S_FMT, &fmt, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_S_FMT failed for type %d", type);
     return false;
   }
-  
+
   if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
     this->out_buf_size = pix->plane_fmt[0].sizeimage;
     int ion_size = this->out_buf_size * OUTPUT_BUFFER_COUNT;
@@ -208,20 +208,20 @@ bool MsmVidc::setPlaneFormat(enum v4l2_buf_type type, uint32_t fourcc) {
     LOGD("Set output buffer size to %d, count %d, addr %p", this->out_buf_size, OUTPUT_BUFFER_COUNT, this->out_buf.addr);
   } else if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
     request_buffers(this->fd, type, CAPTURE_BUFFER_COUNT);
-    
+
     // Re-get format to see what driver actually set
     ret = util::safe_ioctl(fd, VIDIOC_G_FMT, &fmt, nullptr);
     if (ret < 0) {
       LOGE("VIDIOC_G_FMT failed");
       return false;
     }
-    
+
     const __u32 y_size    = pix->plane_fmt[0].sizeimage;
     const __u32 y_stride  = pix->plane_fmt[0].bytesperline;
-    
+
     // Ensure stride is at least width for proper alignment
     __u32 actual_stride = std::max(y_stride, pix->width);
-    
+
     for (int i = 0; i < CAPTURE_BUFFER_COUNT; i++) {
       size_t uv_offset = (size_t)actual_stride * pix->height;
       size_t required = uv_offset + (actual_stride * pix->height / 2);
@@ -262,17 +262,17 @@ bool MsmVidc::restartCapture() {
       new (&cap_bufs[i]) VisionBuf();
     }
   }
-  
+
   // setup, start and queue capture buffers
   setDBP();
   setPlaneFormat(type, V4L2_PIX_FMT_NV12);
-  
+
   int ret = util::safe_ioctl(this->fd, VIDIOC_STREAMON, &type, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_STREAMON CAPTURE failed: %d", ret);
     return false;
   }
-  
+
   for (size_t i = 0; i < CAPTURE_BUFFER_COUNT; ++i) {
     queueCaptureBuffer(i);
   }
@@ -289,14 +289,14 @@ bool MsmVidc::queueCaptureBuffer(int i) {
   buf.index = i;
   buf.m.planes = planes;
   buf.length = 1;
-  
+
   planes[0].m.userptr     = (unsigned long)this->cap_bufs[i].addr;
   planes[0].length        = this->cap_bufs[i].len;
   planes[0].reserved[0]   = this->cap_bufs[i].fd;
   planes[0].reserved[1]   = 0;
   planes[0].bytesused     = this->cap_bufs[i].len;
   planes[0].data_offset   = 0;
-  
+
   int ret = util::safe_ioctl(this->fd, VIDIOC_QBUF, &buf, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_QBUF CAPTURE failed: %d", ret);
@@ -315,14 +315,14 @@ bool MsmVidc::queueOutputBuffer(int i, size_t size) {
   buf.index               = i;
   buf.m.planes            = planes;
   buf.length              = 1;
-  
+
   planes[0].m.userptr     = (unsigned long)this->out_buf_off[i];
   planes[0].length        = this->out_buf_size;
   planes[0].reserved[0]   = this->out_buf.fd;
   planes[0].reserved[1]   = 0;
   planes[0].bytesused     = size;
   planes[0].data_offset   = 0;
-  
+
   // Ensure alignment
   assert((this->out_buf_off[i] & 0xfff) == 0);
   assert(this->out_buf_size % 4096 == 0);
@@ -363,7 +363,7 @@ bool MsmVidc::setupPolling() {
 bool MsmVidc::sendPacket(int buf_index, AVPacket *pkt) {
   assert(buf_index >= 0 && buf_index < out_buf_cnt);
   assert(pkt != nullptr && pkt->data != nullptr && pkt->size > 0);
-  
+
   memset(this->out_buf_addr[buf_index], 0, this->out_buf_size);
   uint8_t * data = (uint8_t *)this->out_buf_addr[buf_index];
   memcpy(data, pkt->data, pkt->size);
@@ -386,7 +386,7 @@ bool MsmVidc::handleOutput() {
   buf.memory    = V4L2_MEMORY_USERPTR;
   buf.m.planes  = planes;
   buf.length    = 1;
-  
+
   int ret = util::safe_ioctl(this->fd, VIDIOC_DQBUF, &buf, nullptr);
   if (ret < 0) {
     LOGE("VIDIOC_DQBUF OUTPUT failed: %d", ret);
@@ -403,7 +403,7 @@ bool MsmVidc::handleEvent() {
     LOGE("VIDIOC_DQEVENT failed: %d", ret);
     return false;
   }
-  
+
   switch (event.type) {
     case V4L2_EVENT_MSM_VIDC_PORT_SETTINGS_CHANGED_INSUFFICIENT: {
       unsigned int *ptr     = (unsigned int *)event.u.data;
@@ -436,6 +436,13 @@ bool MsmVidc::handleEvent() {
       break;
   }
   return true;
+}
+
+size_t MsmVidc::captureStride() const {
+  if (CAPTURE_BUFFER_COUNT == 0) {
+    return 0;
+  }
+  return cap_bufs[0].stride;
 }
 
 #endif

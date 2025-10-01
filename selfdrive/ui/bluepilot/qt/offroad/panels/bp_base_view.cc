@@ -3,7 +3,7 @@
 #include "bp_base_view.h"
 #include <QScrollArea>
 #include <QVBoxLayout>
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 
 BPBaseView::BPBaseView(QWidget *parent) : BPPanelBase(parent) { setupBaseViewStyle(); }
 
@@ -12,7 +12,7 @@ BPBaseView::~BPBaseView() { cleanupNestedViews(); }
 bool BPBaseView::initialize(const QString &configPath) {
   currentConfigPath = configPath;
   if (!loadConfig(configPath)) {
-    std::cerr << "Failed to initialize BPBaseView with config: " << configPath.toStdString() << std::endl;
+    BPLog::bpError() << "[bp.base.view] Failed to initialize BPBaseView with config: " << configPath.toStdString() << std::endl;
     return false;
   }
   return true;
@@ -73,19 +73,19 @@ void BPBaseView::setupBaseViewStyle() {
 }
 
 void BPBaseView::showEvent(QShowEvent *event) {
-  std::cout << "BPBaseView::showEvent" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.base.view] BPBaseView::showEvent" << std::endl;
   try {
     // Clean up any lingering nested views first
     cleanupNestedViews();
     BPPanelBase::showEvent(event);
     refresh();
   } catch (const std::exception &e) {
-    std::cerr << "Exception in BPBaseView::showEvent: " << e.what() << std::endl;
+    BPLog::bpError() << "[bp.base.view] Exception in BPBaseView::showEvent: " << e.what() << std::endl;
   }
 }
 
 void BPBaseView::hideEvent(QHideEvent *event) {
-  std::cout << "BPBaseView::hideEvent" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.base.view] BPBaseView::hideEvent" << std::endl;
   cleanupNestedViews();
   BPPanelBase::hideEvent(event);
 }

@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <QtConcurrent>
 
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "bp_updater_panel.h"
 #include "bp_panel_dialogs.h"
 #include "common/params.h"
@@ -94,7 +95,7 @@ void GitStatusWidget::refresh() {
     try {
       process.start("git", QStringList() << "status" << "--porcelain");
       if (!process.waitForFinished(10000)) {
-        std::cerr << "Git status command timed out" << std::endl;
+        BPLog::bpError() << "[bp.updater.panel] refresh | Git status command timed out" << std::endl;
         return;
       }
 
@@ -113,7 +114,7 @@ void GitStatusWidget::refresh() {
 
       process.start("git", QStringList() << "log" << "-1" << "--pretty=format:%h - %s (%cr)");
       if (!process.waitForFinished(10000)) {
-        std::cerr << "Git log command timed out" << std::endl;
+        BPLog::bpError() << "[bp.updater.panel] refresh | Git log command timed out" << std::endl;
         return;
       }
 
@@ -170,7 +171,7 @@ void GitStatusWidget::refresh() {
           Qt::QueuedConnection);
 
     } catch (const std::exception &e) {
-      std::cerr << "Exception in GitStatusWidget::refresh:" << e.what() << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] refresh | Exception in GitStatusWidget::refresh: " << e.what() << std::endl;
     }
   });
 }
@@ -336,7 +337,7 @@ void SubmoduleWidget::refresh() {
       // Check submodule status
       process.start("git", QStringList() << "status" << "--porcelain");
       if (!process.waitForFinished(5000)) {
-        std::cerr << "Git status command timed out for " << submoduleName.toStdString() << std::endl;
+        BPLog::bpError() << "[bp.updater.panel] refresh | Git status command timed out for " << submoduleName.toStdString() << std::endl;
         return;
       }
 
@@ -380,7 +381,7 @@ void SubmoduleWidget::refresh() {
           Qt::QueuedConnection);
 
     } catch (const std::exception &e) {
-      std::cerr << "Exception in SubmoduleWidget::refresh for " << submoduleName.toStdString() << ": " << e.what() << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] refresh | Exception in SubmoduleWidget::refresh for " << submoduleName.toStdString() << ": " << e.what() << std::endl;
     }
   });
 }
@@ -392,11 +393,11 @@ BPUpdaterPanel::~BPUpdaterPanel() {
     autoUpdateCheckTimer->stop();
     delete autoUpdateCheckTimer;
   }
-  std::cout << "BPUpdaterPanel destructor complete" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] destructor | BPUpdaterPanel destructor complete" << std::endl;
 }
 
 BPUpdaterPanel::BPUpdaterPanel(QWidget *parent) : QWidget(parent), branchSelector(nullptr) {
-  std::cout << "BPUpdaterPanel constructor start" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] constructor | BPUpdaterPanel constructor start" << std::endl;
 
   // setFixedWidth(1640);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -437,7 +438,7 @@ BPUpdaterPanel::BPUpdaterPanel(QWidget *parent) : QWidget(parent), branchSelecto
   setupLayout();
   updateBranchList();
   updateButtonStates();
-  std::cout << "BPUpdaterPanel constructor end" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] constructor | BPUpdaterPanel constructor end" << std::endl;
 }
 
 void BPUpdaterPanel::simulateActivity() {
@@ -447,10 +448,10 @@ void BPUpdaterPanel::simulateActivity() {
   }
 
   if (commandInProgress) {
-    std::cout << "Simulating activity: command in progress" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] simulateActivity | Simulating activity: command in progress" << std::endl;
     resetMaxDurationTimer();
   } else {
-    std::cout << "Simulating activity in BPUpdaterPanel" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] simulateActivity | Simulating activity in BPUpdaterPanel" << std::endl;
   }
 
   // Create a mouse move event at the current cursor position
@@ -468,7 +469,7 @@ void BPUpdaterPanel::simulateActivity() {
 }
 
 void BPUpdaterPanel::stopActivitySimulation() {
-  std::cout << "Stopping BPUpdaterPanel activity simulation | max duration timer stopped" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] stopActivitySimulation | Stopping BPUpdaterPanel activity simulation | max duration timer stopped" << std::endl;
   activityTimer->stop();
 }
 
@@ -751,7 +752,7 @@ void BPUpdaterPanel::setupLayout() {
 }
 
 void BPUpdaterPanel::showEvent(QShowEvent *event) {
-  std::cout << "Showing BPUpdaterPanel" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] showEvent | Showing BPUpdaterPanel" << std::endl;
   QWidget::showEvent(event);
 
   // Reset initialization state
@@ -780,15 +781,15 @@ void BPUpdaterPanel::showEvent(QShowEvent *event) {
   // Start auto update checks
   startAutoUpdateChecks();
 
-  std::cout << "Started initialization and activity timers" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] showEvent | Started initialization and activity timers" << std::endl;
 }
 
 void BPUpdaterPanel::hideEvent(QHideEvent *event) {
-  std::cout << "Hiding BPUpdaterPanel" << std::endl;
+  BPLog::bpDebugGeneral() << "[bp.updater.panel] hideEvent | Hiding BPUpdaterPanel" << std::endl;
 
   if (refreshTimer) {
     refreshTimer->stop();
-    std::cout << "Refresh timer stopped" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] hideEvent | Refresh timer stopped" << std::endl;
   }
 
   if (initTimer) {
@@ -796,13 +797,13 @@ void BPUpdaterPanel::hideEvent(QHideEvent *event) {
     disconnect(initTimer, nullptr, this, nullptr);
     delete initTimer;
     initTimer = nullptr;
-    std::cout << "Initialization timer cleaned up" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] hideEvent | Initialization timer cleaned up" << std::endl;
   }
 
   // Stop activity timer
   if (activityTimer) {
     activityTimer->stop();
-    std::cout << "Activity timer stopped" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] hideEvent | Activity timer stopped" << std::endl;
   }
 
   // Stop auto update checks
@@ -1205,13 +1206,13 @@ bool BPUpdaterPanel::hasUncommittedChanges() const {
   process.start("git", QStringList() << "status" << "--porcelain");
 
   if (!process.waitForStarted(5000)) {
-    std::cerr << "Git status command failed to start" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] hasUncommittedChanges | Git status command failed to start" << std::endl;
     return false;
   }
 
   if (!process.waitForFinished(5000)) {
     process.kill();
-    std::cerr << "Git status command timed out" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] hasUncommittedChanges | Git status command timed out" << std::endl;
     return false;
   }
 
@@ -1226,7 +1227,7 @@ bool BPUpdaterPanel::hasUpdatesAvailable() const {
   process.start("git", QStringList() << "rev-parse" << "--abbrev-ref" << "--symbolic-full-name" << "@{u}");
   if (!process.waitForFinished(5000) || process.exitCode() != 0) {
     process.kill();
-    std::cerr << "Current branch has no upstream configured" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] hasUpdatesAvailable | Current branch has no upstream configured" << std::endl;
     QMetaObject::invokeMethod(const_cast<BPUpdaterPanel *>(this), [this]() { updateStatusLabel(UpdaterStatus::NO_REMOTE_BRANCH); }, Qt::QueuedConnection);
     return false;
   }
@@ -1235,7 +1236,7 @@ bool BPUpdaterPanel::hasUpdatesAvailable() const {
   process.start("git", QStringList() << "fetch");
   if (!process.waitForFinished(30000)) {
     process.kill();
-    std::cerr << "Git fetch timed out" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] hasUpdatesAvailable | Git fetch timed out" << std::endl;
     return false;
   }
 
@@ -1243,7 +1244,7 @@ bool BPUpdaterPanel::hasUpdatesAvailable() const {
   process.start("git", QStringList() << "rev-list" << "HEAD..@{u}" << "--count");
   if (!process.waitForFinished(5000)) {
     process.kill();
-    std::cerr << "Git rev-list command timed out" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] hasUpdatesAvailable | Git rev-list command timed out" << std::endl;
     return false;
   }
 
@@ -1487,14 +1488,14 @@ void BPUpdaterPanel::staggeredInit() {
   if (initStage >= 5) { // Changed from 4 to 5 to add new stage
     // Handle all submodules in stage 5
     if (currentSubmoduleIndex < submoduleWidgets.size()) {
-      std::cout << "BPUpdaterPanel: Stage 5 - Refreshing submodule " << currentSubmoduleIndex << std::endl;
+      BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 5 - Refreshing submodule " << currentSubmoduleIndex << std::endl;
       QTimer::singleShot(100, this, [this]() {
         auto *widget = submoduleWidgets[currentSubmoduleIndex];
         if (widget) {
           widget->refresh();
-          std::cout << "BPUpdaterPanel: Refreshed submodule " << currentSubmoduleIndex << std::endl;
+          BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Refreshed submodule " << currentSubmoduleIndex << std::endl;
         } else {
-          std::cerr << "BPUpdaterPanel: Widget is null for submodule " << currentSubmoduleIndex << std::endl;
+          BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Widget is null for submodule " << currentSubmoduleIndex << std::endl;
         }
         currentSubmoduleIndex++;
         if (initTimer) {
@@ -1502,7 +1503,7 @@ void BPUpdaterPanel::staggeredInit() {
         }
       });
     } else {
-      std::cout << "BPUpdaterPanel: Stage 5 - All submodules processed, stopping init timer" << std::endl;
+      BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 5 - All submodules processed, stopping init timer" << std::endl;
       if (initTimer) {
         initTimer->stop();
         delete initTimer;
@@ -1517,14 +1518,14 @@ void BPUpdaterPanel::staggeredInit() {
 
   switch (initStage++) {
   case 0:
-    std::cout << "BPUpdaterPanel: Stage 0 - Just showing UI" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 0 - Just showing UI" << std::endl;
     break;
   case 1:
-    std::cout << "BPUpdaterPanel: Stage 1 - Updating branch list" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 1 - Updating branch list" << std::endl;
     QTimer::singleShot(100, this, [this]() { updateBranchList(); });
     break;
   case 2:
-    std::cout << "BPUpdaterPanel: Stage 2 - Refreshing main repo status" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 2 - Refreshing main repo status" << std::endl;
     QTimer::singleShot(200, this, [this]() {
       if (mainRepoStatus) {
         mainRepoStatus->refresh();
@@ -1532,7 +1533,7 @@ void BPUpdaterPanel::staggeredInit() {
     });
     break;
   case 3:
-    std::cout << "BPUpdaterPanel: Stage 3 - Checking local changes and updates" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 3 - Checking local changes and updates" << std::endl;
     QTimer::singleShot(300, this, [this]() {
       QtConcurrent::run([=]() {
         bool hasLocal = hasUncommittedChanges();
@@ -1567,7 +1568,7 @@ void BPUpdaterPanel::staggeredInit() {
     });
     break;
   case 4:
-    std::cout << "BPUpdaterPanel: Stage 4 - Checking for updates" << std::endl;
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 4 - Checking for updates" << std::endl;
     QTimer::singleShot(2000, this, [this]() { // 2 second delay after status checks
       checkForUpdates();
     });
@@ -2359,7 +2360,7 @@ void BPUpdaterPanel::showCommitHistory(QWidget *parent, const QString &title, co
   process.start("git", QStringList() << "log" << "--all" << "-n" << "30" << "--pretty=format:%h|||%s|||%cr");
 
   if (!process.waitForFinished(10000)) {
-    std::cerr << "Git log command timed out" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] showCommitHistory | Git log command timed out" << std::endl;
     process.kill();
     return;
   }
@@ -2560,7 +2561,7 @@ void BPUpdaterPanel::handleRepoRepair() {
       BPUpdateConfirmDialog::alert(tr("Failed to remove existing temp script"), this);
       return;
     }
-    std::cout << "tempScript removed at " << tempScript.toStdString() << std::endl;
+    BPLog::bpInfo() << "[bp.updater.panel] handleRepoRepair | tempScript removed at " << tempScript.toStdString() << std::endl;
   }
 
   // Copy script to /data
@@ -2686,96 +2687,96 @@ bool BPUpdaterPanel::isSSHValid() const {
 }
 
 bool BPUpdaterPanel::checkRootDiskSpace() {
-  std::cout << "checkRootDiskSpace: Starting disk space check" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | Starting disk space check" << std::endl;
 
   QProcess process;
   process.start("df", QStringList() << "-h" << "/");
   process.waitForFinished();
   QString output = QString::fromUtf8(process.readAllStandardOutput());
-  std::cout << "checkRootDiskSpace: df output: " << output.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | df output: " << output.toStdString() << std::endl;
 
   QRegExp rx("\\d+(?=%)");
   if (rx.indexIn(output) != -1) {
     int usage = rx.cap(0).toInt();
-    std::cout << "checkRootDiskSpace: Parsed usage: " << usage << "%" << std::endl;
+    BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | Parsed usage: " << usage << "%" << std::endl;
 
     if (usage >= 95) {
-      std::cout << "checkRootDiskSpace: High disk usage detected, prompting for repair" << std::endl;
+      BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | High disk usage detected, prompting for repair" << std::endl;
       if (BPUpdateConfirmDialog::confirm(tr("Disk Space Issue"), tr("Root partition is at %1% capacity. Would you like to attempt to repair?").arg(usage), tr("Repair"),
                                          tr("Cancel"), this)) {
         return repairRootDiskSpace();
       }
-      std::cout << "checkRootDiskSpace: User declined repair" << std::endl;
+      BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | User declined repair" << std::endl;
       return false;
     }
   } else {
-    std::cout << "checkRootDiskSpace: Failed to parse disk usage" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] checkRootDiskSpace | Failed to parse disk usage" << std::endl;
   }
 
-  std::cout << "checkRootDiskSpace: Check completed successfully" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] checkRootDiskSpace | Check completed successfully" << std::endl;
   return true;
 }
 
 bool BPUpdaterPanel::repairRootDiskSpace() {
-  std::cout << "repairRootDiskSpace: Starting disk repair" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Starting disk repair" << std::endl;
   QProcess process;
 
   // Remount as writable
-  std::cout << "repairRootDiskSpace: Attempting to remount as writable" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Attempting to remount as writable" << std::endl;
   process.start("sudo", QStringList() << "mount" << "-o" << "remount,rw" << "/");
   process.waitForFinished();
-  std::cout << "repairRootDiskSpace: Remount exit code: " << process.exitCode() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Remount exit code: " << process.exitCode() << std::endl;
   if (process.exitCode() != 0) {
-    std::cout << "repairRootDiskSpace: Remount error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] repairRootDiskSpace | Remount error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
   }
 
   // Get device path
-  std::cout << "repairRootDiskSpace: Getting device path" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Getting device path" << std::endl;
   process.start("findmnt", QStringList() << "-n" << "-o" << "SOURCE" << "/");
   process.waitForFinished();
   QString device = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
-  std::cout << "repairRootDiskSpace: Found device: " << device.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Found device: " << device.toStdString() << std::endl;
 
   // Resize filesystem
-  std::cout << "repairRootDiskSpace: Attempting resize2fs on " << device.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Attempting resize2fs on " << device.toStdString() << std::endl;
   process.start("sudo", QStringList() << "resize2fs" << device);
   process.waitForFinished();
-  std::cout << "repairRootDiskSpace: resize2fs exit code: " << process.exitCode() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | resize2fs exit code: " << process.exitCode() << std::endl;
   if (process.exitCode() != 0) {
-    std::cout << "repairRootDiskSpace: resize2fs error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] repairRootDiskSpace | resize2fs error: " << QString::fromUtf8(process.readAllStandardError()).toStdString() << std::endl;
   }
 
   // Verify repair
-  std::cout << "repairRootDiskSpace: Verifying repair results" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Verifying repair results" << std::endl;
   process.start("df", QStringList() << "-h" << "/");
   process.waitForFinished();
   QString output = QString::fromUtf8(process.readAllStandardOutput());
-  std::cout << "repairRootDiskSpace: Post-repair df output: " << output.toStdString() << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Post-repair df output: " << output.toStdString() << std::endl;
 
   QRegExp rx("\\d+(?=%)");
   if (rx.indexIn(output) != -1) {
     int usage = rx.cap(0).toInt();
-    std::cout << "repairRootDiskSpace: Post-repair usage: " << usage << "%" << std::endl;
+    BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Post-repair usage: " << usage << "%" << std::endl;
     if (usage >= 95) {
-      std::cout << "repairRootDiskSpace: Repair unsuccessful, usage still high" << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] repairRootDiskSpace | Repair unsuccessful, usage still high" << std::endl;
       BPUpdateConfirmDialog::alert(tr("Failed to free up space. Please manually clean up the root partition."), this);
       return false;
     }
   } else {
-    std::cout << "repairRootDiskSpace: Failed to parse post-repair usage" << std::endl;
+    BPLog::bpError() << "[bp.updater.panel] repairRootDiskSpace | Failed to parse post-repair usage" << std::endl;
   }
 
-  std::cout << "repairRootDiskSpace: Repair completed successfully" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] repairRootDiskSpace | Repair completed successfully" << std::endl;
   return true;
 }
 
 bool BPUpdaterPanel::checkAndRestoreSSH() {
-  std::cout << "checkAndRestoreSSH: Starting SSH check and restore process" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] checkAndRestoreSSH | Starting SSH check and restore process" << std::endl;
 
   // Move disk space check to a concurrent operation
   QtConcurrent::run([this]() {
     if (!checkRootDiskSpace()) {
-      std::cout << "checkAndRestoreSSH: Disk space check failed" << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] checkAndRestoreSSH | Disk space check failed" << std::endl;
       return;
     }
 
@@ -2784,12 +2785,12 @@ bool BPUpdaterPanel::checkAndRestoreSSH() {
         this,
         [this]() {
           bool sshExists = QFile::exists("/home/comma/.ssh/github");
-          std::cout << "checkAndRestoreSSH: SSH key exists: " << (sshExists ? "yes" : "no") << std::endl;
+          BPLog::bpInfo() << "[bp.updater.panel] checkAndRestoreSSH | SSH key exists: " << (sshExists ? "yes" : "no") << std::endl;
 
           if (!sshExists || !isSSHValid()) {
-            std::cout << "checkAndRestoreSSH: SSH invalid or missing, checking for backup" << std::endl;
+            BPLog::bpInfo() << "[bp.updater.panel] checkAndRestoreSSH | SSH invalid or missing, checking for backup" << std::endl;
             bool backupExists = QFile::exists("/data/ssh_backup/github");
-            std::cout << "checkAndRestoreSSH: SSH backup exists: " << (backupExists ? "yes" : "no") << std::endl;
+            BPLog::bpInfo() << "[bp.updater.panel] checkAndRestoreSSH | SSH backup exists: " << (backupExists ? "yes" : "no") << std::endl;
 
             if (backupExists) {
               // Show confirmation dialog
@@ -2812,7 +2813,7 @@ bool BPUpdaterPanel::checkAndRestoreSSH() {
 }
 
 bool BPUpdaterPanel::restoreSSHFromUtility() {
-  std::cout << "restoreSSHFromUtility: Starting SSH restore process" << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] restoreSSHFromUtility | Starting SSH restore process" << std::endl;
 
   // First restore to /home/comma/.ssh
   QString restoreCommand = QString("sudo bash -c '"
@@ -2872,10 +2873,10 @@ void BPUpdaterPanel::updateButtonStates() {
     hasRemoteBranch = false;
   }
 
-  std::cout << "Internet available: " << internetAvailable << std::endl;
-  std::cout << "SSH valid: " << sshValid << std::endl;
-  std::cout << "Has remote branch: " << hasRemoteBranch << std::endl;
-  std::cout << "Onroad: " << onroad << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] updateButtonStates | Internet available: " << internetAvailable << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] updateButtonStates | SSH valid: " << sshValid << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] updateButtonStates | Has remote branch: " << hasRemoteBranch << std::endl;
+  BPLog::bpInfo() << "[bp.updater.panel] updateButtonStates | Onroad: " << onroad << std::endl;
 
   // Update status label based on conditions (in order of priority)
   if (onroad) {
@@ -3242,12 +3243,12 @@ void BPUpdaterPanel::disablePowerSave() {
       // Log the final core count for debugging
       int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
       if (finalCoreCount >= 8) {
-        std::cout << "Power save disabled successfully. All " << finalCoreCount << " cores are online." << std::endl;
+        BPLog::bpInfo() << "[bp.updater.panel] disablePowerSave | Power save disabled successfully. All " << finalCoreCount << " cores are online." << std::endl;
       } else {
-        std::cerr << "Warning: Only " << finalCoreCount << " cores are online after disabling power save." << std::endl;
+        BPLog::bpError() << "[bp.updater.panel] disablePowerSave | Warning: Only " << finalCoreCount << " cores are online after disabling power save." << std::endl;
       }
     } else {
-      std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] disablePowerSave | Power save script not found at: " << scriptPath.toStdString() << std::endl;
     }
   }
 #else
@@ -3274,12 +3275,12 @@ void BPUpdaterPanel::restorePowerSave() {
       // Log the final core count for debugging
       int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
       if (finalCoreCount <= 4) {
-        std::cout << "Power save restored successfully. " << finalCoreCount << " cores are now online." << std::endl;
+        BPLog::bpInfo() << "[bp.updater.panel] restorePowerSave | Power save restored successfully. " << finalCoreCount << " cores are now online." << std::endl;
       } else {
-        std::cerr << "Warning: " << finalCoreCount << " cores are still online after restoring power save." << std::endl;
+        BPLog::bpError() << "[bp.updater.panel] restorePowerSave | Warning: " << finalCoreCount << " cores are still online after restoring power save." << std::endl;
       }
     } else {
-      std::cerr << "Power save script not found at: " << scriptPath.toStdString() << std::endl;
+      BPLog::bpError() << "[bp.updater.panel] restorePowerSave | Power save script not found at: " << scriptPath.toStdString() << std::endl;
     }
     powerSaveWasActive = false;
   }

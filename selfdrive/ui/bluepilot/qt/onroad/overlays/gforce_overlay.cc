@@ -1,6 +1,6 @@
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/gforce_overlay.h"
 #include "selfdrive/ui/qt/util.h"
-#include <iostream>
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include <algorithm>
 #include <cmath>
 
@@ -93,25 +93,25 @@ void GForceOverlay::updateGForceData(const UIState &s, GForceState &gforce_state
         using_real_data = false;  // TEMPORARY: Force simulated data until coordinate system is fixed
 
         // if (debug_counter % 20 == 0) {
-        //   std::cout << "RAW SENSOR - ax: " << ax << " ay: " << ay << " az: " << az
+        //   BPLog::bpInfo() << "[bp.gforce.overlay] RAW SENSOR - ax: " << ax << " ay: " << ay << " az: " << az
         //             << " yaw: " << yaw_rate << " v_ego: " << v_ego
         //             << " | calc long_g: " << gforce_state.longitudinal_g
         //             << " lat_g: " << gforce_state.lateral_g << std::endl;
         // }
       } else {
         if (debug_counter % 20 == 0) {
-          std::cout << "Sensor data union mismatch - accel which: " << (int)accel_sensor.which()
+          BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensor data union mismatch - accel which: " << (int)accel_sensor.which()
                     << " gyro which: " << (int)gyro_sensor.which() << std::endl;
         }
       }
     } catch (const std::exception &e) {
       if (debug_counter % 20 == 0) {
-        std::cout << "Sensor access error: " << e.what() << std::endl;
+        BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensor access error: " << e.what() << std::endl;
       }
     }
   } else {
     if (debug_counter % 50 == 0) {
-      std::cout << "Sensors not available - accel: " << accel_available
+      BPLog::bpError() << "[bp.gforce.overlay] updateGForceData | Sensors not available - accel: " << accel_available
                 << " gyro: " << gyro_available << std::endl;
     }
   }
@@ -128,10 +128,10 @@ void GForceOverlay::updateGForceData(const UIState &s, GForceState &gforce_state
     gforce_state.lateral_g = -(v_ego * yaw_rate) / GRAVITY_MS2;  // Fixed sign
 
     if (debug_counter % 200 == 0) {
-      std::cout << "Using SIMULATED data - v_ego: " << v_ego
-                << " a_ego: " << a_ego << " yaw_rate: " << yaw_rate
-                << " long_g: " << gforce_state.longitudinal_g
-                << " lat_g: " << gforce_state.lateral_g << std::endl;
+      BPLog::bpWarn() << "[bp.gforce.overlay] updateGForceData | Using SIMULATED data - v_ego: " << v_ego
+                << " | a_ego: " << a_ego << " | yaw_rate: " << yaw_rate
+                << " | long_g: " << gforce_state.longitudinal_g
+                << " | lat_g: " << gforce_state.lateral_g << std::endl;
     }
   }
 

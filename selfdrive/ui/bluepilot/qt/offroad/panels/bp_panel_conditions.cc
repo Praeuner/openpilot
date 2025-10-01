@@ -1,7 +1,7 @@
 // selfdrive/ui/BP/qt/offroad/panels/bp_panel_conditions.cc
 
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "bp_panel_conditions.h"
-#include <iostream>
 
 bool PanelConditions::validateSingleCondition(const QString &conditionType, const QJsonValue &condition) {
   if (conditionType == "paramValueEquals") {
@@ -261,13 +261,13 @@ void PanelConditions::logConditionCheck(const QString &controlName, const std::f
   int padding = (width - controlNameStr.length() - 2) / 2;
   std::string centeredName = std::string(padding, ' ') + controlNameStr + std::string(padding, ' ');
 
-  std::cout << "\n" << separator << std::endl;
-  std::cout << centeredName << std::endl;
-  std::cout << separator << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | \n" << separator << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << centeredName << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << separator << std::endl;
 
   logFunc();
 
-  std::cout << separator << "\n" << std::endl;
+  BPLog::bpInfo() << "[bp.panel.conditions] logConditionCheck | " << separator << "\n" << std::endl;
 }
 
 bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlConditions &conditions) {

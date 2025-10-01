@@ -1,3 +1,6 @@
+// selfdrive/ui/bluepilot/qt/onroad/lateral_debug_panel.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "lateral_debug_panel.h"
 #include "widgets/debug/LateralGraphWidget.h"
 #include "selfdrive/ui/qt/util.h"
@@ -114,7 +117,7 @@ void LateralDataWorker::processData(const UIState *s) {
     m_lastCache = cache;
     emit dataReady(cache);
   } catch (const std::exception &e) {
-    qWarning() << "Error processing lateral debug data:" << e.what();
+    BPLog::bpWarn() << "[bp.lateral.debug.panel] processData | Error processing lateral debug data: " << e.what() << std::endl;
   }
 }
 

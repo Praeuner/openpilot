@@ -1,5 +1,6 @@
 // selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.cc
 
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "bp_statistics_panel.h"
 #include "bp_utils.h"
 #include "bp_panel_controls.h"
@@ -346,7 +347,7 @@ StatCardBase::StatCardBase(const QString &title, const QString &desc, const QStr
 
 void StatCardBase::startUpdates() {
   if (!initialized) {
-    qWarning() << "Cannot start updates - card not initialized";
+    BPLog::bpWarn() << "[bp.statistics.panel] startUpdates | Cannot start updates - card not initialized" << std::endl;
     return;
   }
   isUpdating = true;

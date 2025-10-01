@@ -1,3 +1,6 @@
+// selfdrive/ui/bluepilot/qt/onroad/other_debug_panel.cc
+
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/other_debug_panel.h"
 #include <QLinearGradient>
 #include <QFont>
@@ -7,7 +10,6 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDateTime>
 #include <QScroller>
-#include <iostream>
 #include <algorithm>
 
 OtherDataWorker::OtherDataWorker(QObject *parent) : QObject(parent), m_abort(false), m_canSubscriptionActive(false), m_canUpdatesPaused(false) {
@@ -33,11 +35,11 @@ void OtherDataWorker::setCANSubscriptionActive(bool active) {
       m_canSubMaster = std::make_unique<SubMaster>(std::vector<const char*>{"can"});
       // Note: We don't use the timer anymore, processCANData is called from processData
       // m_canUpdateTimer->start();
-      qDebug() << "CAN subscription activated, SubMaster created successfully";
-      qDebug() << "Note: CAN data requires pandad running with a connected panda device";
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | CAN subscription activated, SubMaster created successfully" << std::endl;
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | Note: CAN data requires pandad running with a connected panda device" << std::endl;
     } catch (const std::exception &e) {
-      qWarning() << "Failed to create CAN SubMaster:" << e.what();
-      qWarning() << "This usually means pandad is not running or no panda is connected";
+      BPLog::bpWarn() << "[bp.other.debug.panel] setCANSubscriptionActive | Failed to create CAN SubMaster: " << e.what() << std::endl;
+      BPLog::bpWarn() << "[bp.other.debug.panel] setCANSubscriptionActive | This usually means pandad is not running or no panda is connected" << std::endl;
       m_canSubMaster.reset();
       m_canSubscriptionActive.store(false);
     }
@@ -45,13 +47,13 @@ void OtherDataWorker::setCANSubscriptionActive(bool active) {
     // Destroy CAN SubMaster when deactivating
     m_canUpdateTimer->stop();
     m_canSubMaster.reset();
-    qDebug() << "CAN subscription deactivated";
+    BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANSubscriptionActive | CAN subscription deactivated" << std::endl;
   }
 }
 
 void OtherDataWorker::setCANUpdatesPaused(bool paused) {
   m_canUpdatesPaused.store(paused);
-  qDebug() << "CAN updates" << (paused ? "paused" : "resumed");
+  BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] setCANUpdatesPaused | CAN updates: " << (paused ? "paused" : "resumed") << std::endl;
 }
 
 OtherDataWorker::~OtherDataWorker() {
@@ -94,7 +96,7 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
   try {
     auto &sm = *(s->sm);
     bool valid = sm.valid("carState");
-    // std::cout << "carState valid: " << valid << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] processCarState: carState valid: " << valid << std::endl;
     if (valid) {
       auto car = sm["carState"].getCarState();
       cache->carValues.vEgo = car.getVEgo();
@@ -153,12 +155,12 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
         cache->carValues.cruiseSpeedLimit = cruise.getSpeedLimit();
       }
 
-      // std::cout << "update cache with vEgo: " << cache->carValues.vEgo << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarState: update cache with vEgo: " << cache->carValues.vEgo << std::endl;
 
       cache->updated.carState = true;
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating CarState:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] processCarState: Error updating CarState:" << e.what() << std::endl;
   }
 }
 
@@ -210,7 +212,7 @@ void OtherDataWorker::processRadarState(const UIState *s, OtherDataCache *cache)
       cache->updated.radarState = true;
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating RadarState:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processRadarState: Error updating RadarState:" << e.what() << std::endl;
   }
 }
 
@@ -275,17 +277,17 @@ void OtherDataWorker::processCarOutput(const UIState *s, OtherDataCache *cache) 
             } catch (...) {
             }
           } catch (const std::exception &e) {
-            qWarning() << "Error accessing actuatorsOutput:" << e.what();
+            BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error accessing actuatorsOutput:" << e.what() << std::endl;
           }
         }
       } catch (const std::exception &e) {
-        qWarning() << "Error accessing carOutput message:" << e.what();
+        BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error accessing carOutput message:" << e.what() << std::endl;
       }
 
       cache->updated.carOutput = true;
     }
   } catch (const std::exception &e) {
-    // qWarning() << "Error processing carOutput:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processCarOutput: Error processing carOutput:" << e.what() << std::endl;
   }
 }
 
@@ -393,22 +395,22 @@ void OtherDataWorker::processCarParams(const UIState *s, OtherDataCache *cache) 
         carFw.subAddress = fw.getSubAddress();
         carFw.bus = fw.getBus();
 
-        // std::cout << "Found firmware - "
+        // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: Found firmware - "
         //          << "ECU: " << carFw.ecu
-        //          << " Version: " << carFw.fwVersion.toStdString()
-        //          << " Address: 0x" << std::hex << carFw.address << std::dec
-        //          << " Bus: " << carFw.bus << std::endl;
+        //          << " | Version: " << carFw.fwVersion.toStdString()
+        //          << " | Address: 0x" << std::hex << carFw.address << std::dec
+        //          << " | Bus: " << carFw.bus << std::endl;
 
         cache->paramValues.carFw.append(carFw);
       }
 
-      // std::cout << "Total firmware entries processed: " << cache->paramValues.carFw.size() << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: Total firmware entries processed: " << cache->paramValues.carFw.size() << std::endl;
       cache->updated.carParams = true;
     } else {
-      // std::cout << "carParams not valid in state manager" << std::endl;
+      // BPLog::bpInfo() << "[bp.other.debug.panel] processCarParams: carParams not valid in state manager" << std::endl;
     }
   } catch (const std::exception &e) {
-    // std::cerr << "Error updating CarParams: " << e.what() << std::endl;
+    // BPLog::bpError() << "[bp.other.debug.panel] processCarParams: Error updating CarParams: " << e.what() << std::endl;
   }
 }
 
@@ -497,7 +499,7 @@ void OtherDataWorker::processDeviceState(const UIState *s, OtherDataCache *cache
       cache->updated.deviceState = true;
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating DeviceState:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] processDeviceState Error updating DeviceState:" << e.what() << std::endl;
   }
 }
 
@@ -548,7 +550,7 @@ void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
   try {
     // Check if CAN subscription is active and available
     if (!m_canSubscriptionActive.load() || !m_canSubMaster) {
-      qDebug() << "CAN subscription not active or SubMaster not available";
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN subscription not active or SubMaster not available" << std::endl;
       return;
     }
 
@@ -584,7 +586,7 @@ void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
     if (!canValid || !canRecent) {
       static int warnCounter = 0;
       if (warnCounter++ % 50 == 0) {  // Log every 50th miss
-        qDebug() << "CAN status - valid:" << canValid << "recent:" << canRecent;
+        BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN status - valid: " << canValid << " | recent:" << canRecent << std::endl;
       }
       // Don't return - try to process whatever data we have
     }
@@ -594,7 +596,7 @@ void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
 
     static int debugCounter = 0;
     if (debugCounter++ % 10 == 0) {  // Log every 10th update
-      qDebug() << "CAN list size:" << can_list.size() << "CAN frame:" << m_canSubMaster->rcv_frame("can");
+      BPLog::bpDebugOnroadDebug() << "[bp.other.debug.panel] processCANData | CAN list size: " << can_list.size() << " | CAN frame: " << m_canSubMaster->rcv_frame("can") << std::endl;
     }
 
     // Track message frequency calculation (only for updated messages)
@@ -677,7 +679,7 @@ void OtherDataWorker::processCANData(const UIState *s, OtherDataCache *cache) {
     cache->updated.canData = true;
 
   } catch (const std::exception &e) {
-    qWarning() << "Error updating CAN data:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] processCANData | Error updating CAN data: " << e.what() << std::endl;
     cache->canDataAvailable = false;
   }
 }
@@ -2368,7 +2370,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(m_cache->carValues.engineRpm > 0 ? QString("%1").arg(m_cache->carValues.engineRpm, 0, 'f', 0) : "N/A");
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Dynamics group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Dynamics group: " << e.what() << std::endl;
   }
 
   // Update Steering group
@@ -2392,7 +2394,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.steerFaultPermanent));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Steering group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Steering group: " << e.what() << std::endl;
   }
 
   // Update Pedals group
@@ -2418,7 +2420,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.brakeHoldActive));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Pedals group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Pedals group: " << e.what() << std::endl;
   }
 
   // Update Vehicle Systems group
@@ -2442,7 +2444,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.charging));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Systems group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Systems group: " << e.what() << std::endl;
   }
 
   // Update Safety group
@@ -2464,7 +2466,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->carValues.vehicleSensorsInvalid));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Safety group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Safety group: " << e.what() << std::endl;
   }
 
   // Update Vehicle Parameters group
@@ -2490,7 +2492,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.tireStiffnessFactor, 0, 'f', 2));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Vehicle Parameters group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Vehicle Parameters group: " << e.what() << std::endl;
   }
 
   // Update Cruise Control group
@@ -2512,7 +2514,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(QString("%1 m/s").arg(m_cache->carValues.cruiseSpeedLimit, 0, 'f', 2));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Cruise Control group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Cruise Control group: " << e.what() << std::endl;
   }
 
   // Update Actuator Outputs group
@@ -2538,7 +2540,7 @@ void OtherDebugPanel::updateMainLabels() {
         group[idx++].valueLabel->setText(formatLongControlState(m_cache->outputValues.longControlState));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Actuator Outputs group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateMainLabels | Error updating Actuator Outputs group: " << e.what() << std::endl;
   }
 }
 
@@ -2563,7 +2565,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(formatBool(m_cache->paramValues.radarUnavailable));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Radar Status group:" << e.what();
+      BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Radar Status group: " << e.what() << std::endl;
   }
 
   // Update Lead1 group
@@ -2603,7 +2605,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadOne.radarTrackId));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Lead1 group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Lead1 group: " << e.what() << std::endl;
   }
 
   // Update Lead2 group
@@ -2643,7 +2645,7 @@ void OtherDebugPanel::updateRadarLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->radarValues.leadTwo.radarTrackId));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Lead2 group:" << e.what();
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateRadarLabels | Error updating Lead2 group: " << e.what() << std::endl;
   }
 }
 
@@ -2691,7 +2693,7 @@ void OtherDebugPanel::updateTuningLabels() {
       }
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Lateral Tuning group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Lateral Tuning group: " << e.what() << std::endl;
   }
 
   // Update Longitudinal Tuning
@@ -2744,7 +2746,7 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.longKf, 0, 'f', 4));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Longitudinal Tuning group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Longitudinal Tuning group: " << e.what() << std::endl;
   }
 
   // Update Safety Model section
@@ -2760,7 +2762,7 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1").arg(m_cache->paramValues.alternativeExperience));
     }
   } catch (const std::exception &e) {
-    qWarning() << "Error updating Safety Model group:" << e.what();
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Safety Model group: " << e.what() << std::endl;
   }
 
   // Update Car Parameters section
@@ -2780,26 +2782,26 @@ void OtherDebugPanel::updateTuningLabels() {
         group[idx++].valueLabel->setText(QString("%1 s").arg(m_cache->paramValues.longitudinalActuatorDelay, 0, 'f', 3));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Car Parameters group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateTuningLabels | Error updating Car Parameters group: " << e.what() << std::endl;
   }
 }
 
 void OtherDebugPanel::updateFirmwareTable() {
   // Skip if tab isn't visible
   if (!m_firmwareTab->isVisible()) {
-    std::cout << "Firmware tab not visible, skipping update" << std::endl;
+    BPLog::bpWarn() << "[bp.other.debug.panel] updateFirmwareTable | Firmware tab not visible, skipping update" << std::endl;
     return;
   }
 
   // Update firmware table with batch updates
   try {
     if (!m_firmwareTable) {
-      std::cerr << "Firmware table widget is null" << std::endl;
+      BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable | Firmware table widget is null" << std::endl;
       return;
     }
 
     if (!m_cache) {
-      std::cerr << "Cache is null" << std::endl;
+      BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable | Cache is null" << std::endl;
       return;
     }
 
@@ -2808,11 +2810,11 @@ void OtherDebugPanel::updateFirmwareTable() {
     m_firmwareTable->setRowCount(0); // Clear existing rows
 
     // Debug: Print total number of firmware entries
-    // std::cout << "=== Firmware Table Update ===" << std::endl;
-    // std::cout << "Cache valid: " << (m_cache->valid ? "true" : "false") << std::endl;
-    // std::cout << "CarParams updated: " << (m_cache->updated.carParams ? "true" : "false") << std::endl;
-    // std::cout << "Total firmware entries in cache: " << m_cache->paramValues.carFw.size() << std::endl;
-    // std::cout << "Safety model: " << m_cache->paramValues.safetyModel << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: === Firmware Table Update ===" << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Cache valid: " << (m_cache->valid ? "true" : "false") << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: CarParams updated: " << (m_cache->updated.carParams ? "true" : "false") << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Total firmware entries in cache: " << m_cache->paramValues.carFw.size() << std::endl;
+    // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Safety model: " << m_cache->paramValues.safetyModel << std::endl;
 
     // Define Ford firmware pattern
     static const QRegularExpression fordPattern("^[A-Za-z0-9]{4}-[A-Za-z0-9]{5,6}-[A-Za-z0-9]{2,4}$");
@@ -2834,7 +2836,7 @@ void OtherDebugPanel::updateFirmwareTable() {
 
       // Skip empty firmware versions
       if (fw.fwVersion.isEmpty()) {
-        // std::cout << "  Skipping empty firmware version" << std::endl;
+        // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Skipping empty firmware version" << std::endl;
         continue;
       }
 
@@ -2866,16 +2868,16 @@ void OtherDebugPanel::updateFirmwareTable() {
         m_firmwareTable->setItem(row, 2, addressItem);
         m_firmwareTable->setItem(row, 3, busItem);
 
-        // std::cout << "  Added row " << row << " to table" << std::endl;
+        // BPLog::bpInfo() << "[bp.other.debug.panel] updateFirmwareTable: Added row " << row << " to table" << std::endl;
       } catch (const std::exception &e) {
-        std::cerr << "Error adding firmware row: " << e.what() << std::endl;
+        BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable: Error adding firmware row: " << e.what() << std::endl;
       }
     }
 
     // Re-enable updates now that we're done
     m_firmwareTable->setUpdatesEnabled(true);
   } catch (const std::exception &e) {
-    std::cerr << "Error updating firmware table: " << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareTable: Error updating firmware table: " << e.what() << std::endl;
   }
 }
 
@@ -2910,7 +2912,7 @@ void OtherDebugPanel::updateDeviceLabels() {
       //   group[idx++].valueLabel->setText(pingTimeStr);
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Device Status section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Device Status section:" << e.what() << std::endl;
   }
 
   // Update Power section
@@ -2928,7 +2930,7 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(QString("%1 µWh").arg(m_cache->deviceValues.carBatteryCapacityUwh));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Power section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Power section:" << e.what() << std::endl;
   }
 
   // Update Network section
@@ -2969,7 +2971,7 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(formatBytes(m_cache->deviceValues.networkStats.wwanRx));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Network section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating Network section:" << e.what() << std::endl;
   }
 
   // Update System & Temperatures section
@@ -3071,10 +3073,9 @@ void OtherDebugPanel::updateDeviceLabels() {
         group[idx++].valueLabel->setText(QString("%1°C").arg(m_cache->deviceValues.maxTempC, 0, 'f', 1));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating System & Temperatures section:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateDeviceLabels: Error updating System & Temperatures section:" << e.what() << std::endl;
   }
 }
-
 
 
 // Helper formatting functions with implementations
@@ -3449,7 +3450,7 @@ void OtherDebugPanel::updateFirmwareLabels() {
         group[idx++].valueLabel->setText(formatNetworkLocation(m_cache->paramValues.networkLocation));
     }
   } catch (const std::exception &e) {
-    std::cerr << "Error updating Car Info group:" << e.what() << std::endl;
+    BPLog::bpError() << "[bp.other.debug.panel] updateFirmwareLabels: Error updating Car Info group:" << e.what() << std::endl;
   }
 }
 
