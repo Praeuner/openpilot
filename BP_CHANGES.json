@@ -1,7 +1,8 @@
 {
   "versions": {
-    "4.1.0": {
+    "5.0.0": {
       "changes": [
+        "All of the latest upstream SunnyPilot changes",
         "Enhanced Onroad UI: Enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing.",
         "Brake status indicator: It now attempts to use brake light CAN signal when available.",
         "New BluePilot sidebar with animated fan indicator and WiFi status display",
