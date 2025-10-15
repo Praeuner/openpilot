@@ -602,19 +602,20 @@ def check_and_restore_power_save():
 
 
 def cleanup_on_shutdown():
-    """Critical cleanup on server shutdown - ensure CPU cores are restored"""
+    """Critical cleanup on server shutdown"""
     logger.info("Server shutting down - performing cleanup...")
 
-    # Only restore CPU power save mode if we're still offroad
-    # If going onroad, leave cores enabled for openpilot processes
-    try:
-        if not is_onroad():
-            restore_power_save()
-            logger.info("CPU cores restored to power save mode (device is offroad)")
-        else:
-            logger.info("Device going onroad - keeping CPU cores enabled for openpilot")
-    except Exception:
-        logger.exception("Error checking onroad status for power save")
+    # IMPORTANT: Do NOT disable CPU cores on shutdown!
+    # The web server shuts down when:
+    # 1. Going onroad (cores MUST stay enabled for openpilot processes)
+    # 2. User disabled the server (cores should stay as-is)
+    # 3. Device shutdown (doesn't matter, system is shutting down anyway)
+    #
+    # Power save restoration is handled by check_and_restore_power_save()
+    # during normal operation when the server detects idle periods.
+    # That function already checks if we're offroad before disabling cores.
+
+    logger.info("Leaving CPU cores in current state (not disabling on shutdown)")
 
     # Kill any remaining FFmpeg processes
     global active_ffmpeg_processes
