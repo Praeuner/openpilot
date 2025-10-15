@@ -588,11 +588,18 @@ def restore_power_save():
 
 
 def check_and_restore_power_save():
-    """Check if idle and restore power save mode"""
+    """Check if idle and restore power save mode (only when offroad)"""
     global last_activity_time
     import time
 
     if last_activity_time is None:
+        return
+
+    # CRITICAL: Never disable cores when onroad or about to go onroad
+    # Check onroad status BEFORE checking idle time
+    if is_onroad():
+        # Device is onroad, keep cores enabled
+        last_activity_time = None  # Reset so we don't keep trying
         return
 
     idle_time = time.time() - last_activity_time
