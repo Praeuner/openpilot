@@ -11,9 +11,16 @@
 #include "selfdrive/ui/qt/widgets/cameraview.h"
 
 #ifdef SUNNYPILOT
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/onroad/buttons_bp.h"
+#define ExperimentalButton ExperimentalButtonBP
+#else
 #include "selfdrive/ui/sunnypilot/qt/onroad/buttons.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/hud.h"
 #define ExperimentalButton ExperimentalButtonSP
+#endif
+#include "selfdrive/ui/sunnypilot/qt/onroad/hud.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/model.h"
+#define ModelRenderer ModelRendererSP
 #define HudRenderer HudRendererSP
 #else
 #include "selfdrive/ui/qt/onroad/buttons.h"

@@ -5,6 +5,7 @@
 #include <QPropertyAnimation>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QPointer>
 #include <memory>
 #include <mutex>
 #include "cereal/messaging/messaging.h"

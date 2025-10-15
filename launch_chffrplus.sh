@@ -98,6 +98,14 @@ function launch {
   # write tmux scrollback to a file
   tmux capture-pane -pq -S-1000 > /tmp/launch_log
 
+  # Check if the websockets package is installed and if not install it using uv
+  if ! python3 -c "import websockets" > /dev/null 2>&1; then
+    uv add websockets
+    echo "websockets package installed using uv"
+    # Do we need to use uv pip install websockets?
+    uv pip install websockets
+  fi
+
   # start manager
   cd system/manager
   if [ ! -f $DIR/prebuilt ]; then

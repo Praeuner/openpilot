@@ -8,6 +8,7 @@
 #include <QThreadPool>
 #include <QApplication>
 #include <QWidget>
+#include <QTimer>
 
 #include "common/transformations/orientation.hpp"
 #include "common/swaglog.h"
@@ -20,6 +21,8 @@
 #include "system/hardware/hw.h"
 
 #include "bluepilot/qt/offroad/panels/bp_recent_changes.h"
+#include "selfdrive/ui/bluepilot/performance_logger.h"
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include <limits>
 
 #define BACKLIGHT_DT 0.05
@@ -65,8 +68,7 @@ void update_state(UIState *s) {
   }
   if (sm.updated("wideRoadCameraState")) {
     auto cam_state = sm["wideRoadCameraState"].getWideRoadCameraState();
-    float scale = (cam_state.getSensor() == cereal::FrameData::ImageSensor::AR0231) ? 6.0f : 1.0f;
-    scene.light_sensor = std::max(100.0f - scale * cam_state.getExposureValPercent(), 0.0f);
+    scene.light_sensor = std::max(100.0f - cam_state.getExposureValPercent(), 0.0f);
   } else if (!sm.allAliveAndValid({"wideRoadCameraState"})) {
     scene.light_sensor = -1;
   }
@@ -87,18 +89,18 @@ void ui_update_params(UIState *s) {
   s->scene.hybrid_drive_gauge_size = params.getInt("FordPrefHybridDriveGaugeSize");
   s->scene.show_hybrid_battery_overlay = params.getBool("FordPrefHybridBatteryOverlay"); // && params.getBool("FordPrefHevBattDataAvailable");
   s->scene.show_animated_wheel_angle = params.getBool("FordPrefShowAnimatedWheelAngle");
-  s->scene.stand_still_timer = params.getBool("StandstillTimer");
   s->scene.show_bp_radar_overlay = params.getBool("FordPrefShowRadarLeadOverlay");
   s->scene.radar_overlay_size = params.getInt("FordPrefRadarOverlaySize");
   s->scene.show_blindspot_indicators = params.getBool("ShowBlindspotIndicators");
   s->scene.show_stop_indicator_overlay = params.getBool("ShowStopIndicatorOverlay");
-  s->scene.show_gforce_meter = params.getBool("ShowGForceMeter");  // New parameter for G-force meter
+  // DISABLED: G-Force meter disabled for performance/consistency issues
+  // s->scene.show_gforce_meter = params.getBool("ShowGForceMeter");  // New parameter for G-force meter
+  s->scene.show_gforce_meter = false;  // Hardcoded to false (disabled)
   s->scene.show_brake_status = params.getBool("ShowBrakeStatus");
 
   s->scene.wide_camera_low_speed = params.getBool("ShowWideCameraAtLowSpeed");
 
   // std::cout << "hybrid_drive_gauge_size: " << s->scene.hybrid_drive_gauge_size << std::endl;
-  // std::cout << "StandstillTimer: " << s->scene.stand_still_timer << std::endl;
 }
 
 void UIState::updateStatus() {
@@ -140,11 +142,35 @@ void UIState::updateStatus() {
       scene.started_frame = sm->frame;
     }
     started_prev = scene.started;
-    emit offroadTransition(!scene.started);
+
+    // CRITICAL FIX: Defer offroadTransition signal to avoid blocking UI thread for >1 second!
+    // The signal triggers 26+ slots which includes HomeWindow::offroadTransition that does
+    // expensive Qt widget switching (slayout->setCurrentWidget). By using QTimer::singleShot(0),
+    // we return control to the event loop immediately, allowing watchdog to be kicked.
+    bool going_offroad = !scene.started;
+    BPLog::bpWarn() << "[bp.ui.state] Scheduling deferred offroadTransition signal (offroad="
+                    << going_offroad << ")" << std::endl;
+
+    QTimer::singleShot(0, this, [this, going_offroad]() {
+      auto start = std::chrono::steady_clock::now();
+      BPLog::bpWarn() << "[bp.ui.state] ===== EMITTING offroadTransition signal (offroad="
+                      << going_offroad << ") =====" << std::endl;
+
+      emit offroadTransition(going_offroad);
+
+      auto end = std::chrono::steady_clock::now();
+      auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+      BPLog::bpWarn() << "[bp.ui.state] offroadTransition signal completed in " << duration_ms << "ms" << std::endl;
+
+      if (duration_ms > 500) {
+        BPLog::bpWarn() << "[bp.ui.state] offroadTransition took " << duration_ms
+                         << "ms (deferred, so watchdog is safe)" << std::endl;
+      }
+    });
 
     // Check and show recent changes when going offroad
     if (!scene.started && started_prev) {
-      QTimer::singleShot(2000, []() {
+      QTimer::singleShot(2000, this, []() {
         RecentChangesManager::getInstance().showChangesDialog(nullptr);
       });
     }
@@ -180,14 +206,31 @@ UIState::UIState(QObject *parent) : QObject(parent) {
 
 void UIState::update() {
 #ifndef SUNNYPILOT
-  update_sockets(this);
-  update_state(this);
-  updateStatus();
+  PERF_LOG("UIState::update", 100);
+
+  {
+    PERF_LOG("update_sockets", 50);
+    update_sockets(this);
+  }
+
+  {
+    PERF_LOG("update_state", 50);
+    update_state(this);
+  }
+
+  {
+    PERF_LOG("updateStatus", 20);
+    updateStatus();
+  }
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
-  emit uiUpdate(*this);
+
+  {
+    PERF_LOG("uiUpdate_emit", 50);
+    emit uiUpdate(*this);
+  }
 #endif
 }
 
@@ -224,12 +267,9 @@ void Device::resetInteractiveTimeout(int timeout) {
 }
 
 void Device::updateBrightness(const UIState &s) {
-
   int brightness;
   int brightness_override = QString::fromStdString(Params().get("Brightness")).toInt();
   float clipped_brightness = offroad_brightness;
-
-  // Normal auto-brightness logic when not overridden by BluePilot
   if (s.scene.started && s.scene.light_sensor >= 0) {
     clipped_brightness = s.scene.light_sensor;
 
@@ -241,9 +281,9 @@ void Device::updateBrightness(const UIState &s) {
     }
 
     if (brightness_override == 1) {
-      clipped_brightness = std::clamp(100.0f * clipped_brightness, 1.0f, 100.0f);
+      clipped_brightness = std::clamp(100.0f * clipped_brightness, 1.0f, 100.0f);  // Scale back to 1% to 100%
     } else if (brightness_override == 0) {
-      clipped_brightness = std::clamp(100.0f * clipped_brightness, 10.0f, 100.0f);
+      clipped_brightness = std::clamp(100.0f * clipped_brightness, 10.0f, 100.0f);  // Scale back to 10% to 100%
     }
   }
 
@@ -259,7 +299,7 @@ void Device::updateBrightness(const UIState &s) {
 
   // Onroad Brightness Control
 #ifdef SUNNYPILOT
-  if (awake && s.scene.started && s.scene.onroadScreenOffTimer == 0 && s.scene.onroadScreenOffControl) {
+  if (awake && s.scene.started && s.scene.onroadScreenOffControl && s.scene.onroadScreenOffTimer == 0) {
     brightness = s.scene.onroadScreenOffBrightness * 0.01 * brightness;
   }
 #endif
@@ -283,33 +323,6 @@ void Device::updateWakefulness(const UIState &s) {
   }
 
   setAwake(s.scene.ignition || interactive_timeout > 0);
-}
-
-void Device::resetOnroadDisplayTimer() {
-  // Add throttling to prevent spam and identify caller
-  static auto last_call = std::chrono::steady_clock::now();
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call);
-
-  if (elapsed.count() < 100) {  // Less than 100ms since last call
-    return;  // Ignore rapid-fire calls
-  }
-
-  last_call = now;
-  resetInteractiveTimeout();
-}
-
-void Device::onUserInteraction() {
-  static auto last_interaction = std::chrono::steady_clock::now();
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_interaction).count();
-
-  if (elapsed < 100) {
-    return;
-  }
-  last_interaction = now;
-
-  // Note: resetInteractiveTimeout() is called by the caller, so we don't need to call it again
 }
 
 #ifndef SUNNYPILOT

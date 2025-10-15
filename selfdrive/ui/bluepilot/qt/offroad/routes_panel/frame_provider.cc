@@ -1,6 +1,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/routes_panel/frame_provider.h"
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/bluepilot/concurrent_tracker.h"
 #include <QMutexLocker>
 #include <QThread>
 #include <QtConcurrent>
@@ -119,7 +120,10 @@ void FrameProvider::releaseFrame(VisionBuf *buf) {
 
 void FrameProvider::startDecodeThread() {
   should_stop_ = false;
-  decode_future_ = QtConcurrent::run([this]() { decodeLoop(); });
+  decode_future_ = QtConcurrent::run([this]() {
+    TRACK_CONCURRENT_TASK("FrameProvider::decodeLoop");
+    decodeLoop();
+  });
 }
 
 void FrameProvider::stopDecodeThread() {

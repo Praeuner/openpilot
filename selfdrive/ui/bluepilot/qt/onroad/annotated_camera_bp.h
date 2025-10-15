@@ -5,10 +5,10 @@
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/onroad/annotated_camera.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/buttons.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/buttons_bp.h"
 #include "selfdrive/ui/sunnypilot/qt/onroad/hud.h"
 #define AnnotatedCameraWidgetBase AnnotatedCameraWidgetSP
-#define ExperimentalButton ExperimentalButtonSP
+#define ExperimentalButton ExperimentalButtonBP
 #define HudRenderer HudRendererSP
 #else
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"

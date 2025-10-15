@@ -25,7 +25,7 @@ public:
 
 private:
   QVBoxLayout *layout;
-  ParamControl *disable_firehose;
+
   QLabel *detailed_instructions;
   QLabel *contribution_label;
   QLabel *toggle_label;

@@ -2,7 +2,14 @@
 
 #include "bp_panel_base.h"
 #include "bp_recent_changes.h"
+#include "bp_panel_actions.h"
 #include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/qt/util.h"
+#include "selfdrive/ui/qt/widgets/input.h"
+#include "common/watchdog.h"
+#include "system/hardware/hw.h"
+#include "selfdrive/ui/qt/widgets/controls.h"
+#include "selfdrive/ui/sunnypilot/ui.h"
 
 BPPanelBase::BPPanelBase(QWidget *parent) : BPPanelListWidget(parent) {
   setMouseTracking(true);
@@ -10,6 +17,10 @@ BPPanelBase::BPPanelBase(QWidget *parent) : BPPanelListWidget(parent) {
   setMinimumWidth(1000);
   setMaximumWidth(1920);
   setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+
+  // Register signal connectors and list generators
+  registerSignalConnectors();
+  registerListGenerators();
 
   setStyleSheet(QString(R"(
         * {
@@ -114,10 +125,13 @@ void BPPanelBase::updateActivitySimulation() {
 
 void BPPanelBase::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
+
+  // Invalidate condition cache when panel becomes visible (params may have changed while hidden)
+  PanelConditions::getInstance().invalidateCache();
+
+  // Batch all updates into a single pass to reduce redundant iterations
+  // Note: refresh() internally calls updateConditionsForAllControls, so we don't need both
   refresh();
-  updateToggles();
-  updateConditionsForAllControls();
-  updateGroupVisibility();
   updateActivitySimulation();
 }
 
@@ -219,8 +233,8 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
 
         containerLayout->addWidget(line);
         layout->addWidget(lineContainer);
-        // Store the container in groupData to handle visibility
-        groupData.controls.push_back(lineContainer);
+        // Store dividers separately for visibility management
+        groupData.dividers.push_back(lineContainer);
       }
     }
   }
@@ -235,7 +249,8 @@ void BPPanelBase::createGroup(const QJsonObject &group) {
       }
     }
   } else {
-    delete groupBox;
+    // Use deleteLater for widgets to ensure proper cleanup
+    groupBox->deleteLater();
   }
 }
 
@@ -420,6 +435,8 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
 
   if (type == "toggle") {
     widget = createToggleControl(control);
+  } else if (type == "param_toggle_button") {
+    widget = createParamToggleButton(control);
   } else if (type == "segmented_control") {
     widget = createSegmentedControl(control);
   } else if (type == "float") {
@@ -432,6 +449,14 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
     widget = createParamViewerControl(control);
   } else if (type == "param_list_viewer") {
     widget = createParamListViewerControl(control);
+  } else if (type == "static_param_display") {
+    widget = createStaticParamDisplayControl(control);
+  } else if (type == "file_param_display") {
+    widget = createFileParamDisplayControl(control);
+  } else if (type == "text_input") {
+    widget = createTextInputControl(control);
+  } else if (type == "html_viewer") {
+    widget = createHtmlViewerControl(control);
   } else if (type == "file_viewer") {
     widget = createFileViewerControl(control);
   } else if (type == "recent_changes") {
@@ -440,15 +465,73 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
     widget = createCommandButtonControl(control);
   } else if (type == "nested_controls_button") {
     widget = createNestedControlsButton(control);
+  } else if (type == "restart_ui") {
+    widget = createRestartUIControl(control);
+  } else if (type == "static_text") {
+    widget = createStaticTextControl(control);
+  } else if (type == "platform_display") {
+    widget = createPlatformDisplayControl(control);
   } else {
     BPLog::bpError() << "[bp.panel.base] processControlCreation | Unsupported control type: " << type.toStdString() << " | Param:" << control["param"].toString().toStdString() << std::endl;
     return nullptr;
   }
 
-  if (widget && control.contains("conditions")) {
+  // Parse all condition types (legacy conditions, enableConditions, visibleConditions)
+  if (widget && (control.contains("conditions") || control.contains("enableConditions") || control.contains("visibleConditions"))) {
     ControlConditions conditions;
-    conditions.conditions = control["conditions"].toObject();
-    conditions.hasConditions = true;
+
+    // Legacy "conditions" - controls both enabled state (backward compatibility)
+    if (control.contains("conditions")) {
+      conditions.conditions = control["conditions"].toObject();
+      conditions.hasConditions = true;
+    }
+
+    // New granular control: enableConditions (controls whether widget is enabled/disabled)
+    if (control.contains("enableConditions")) {
+      conditions.enableConditions = control["enableConditions"].toObject();
+      conditions.hasEnableConditions = true;
+    }
+
+    // New granular control: visibleConditions (controls whether widget is shown/hidden)
+    if (control.contains("visibleConditions")) {
+      conditions.visibleConditions = control["visibleConditions"].toObject();
+      conditions.hasVisibleConditions = true;
+    }
+
+    // Store auto-reset info if present
+    if (control.contains("auto_reset_value")) {
+      conditions.autoResetValue = control["auto_reset_value"].toString();
+      conditions.hasAutoReset = true;
+      conditions.paramName = control["param"].toString();
+    }
+
+    // Parse dynamic descriptions if present
+    if (control.contains("descriptions") && control.contains("description_conditions")) {
+      conditions.hasDynamicDescriptions = true;
+      conditions.defaultDescription = control["desc"].toString();
+
+      QJsonObject descriptions = control["descriptions"].toObject();
+      QJsonObject descConditions = control["description_conditions"].toObject();
+
+      // Build the description map and condition map
+      for (auto it = descriptions.begin(); it != descriptions.end(); ++it) {
+        QString key = it.key();
+        QString desc = it.value().toString();
+        conditions.descriptions[key] = desc;
+
+        // Get the corresponding condition
+        if (descConditions.contains(key)) {
+          conditions.descConditions[key] = descConditions[key].toObject();
+        }
+      }
+    }
+
+    // Parse parameter substitutions if present
+    if (control.contains("param_substitutions")) {
+      conditions.hasParamSubstitutions = true;
+      conditions.paramSubstitutions = control["param_substitutions"].toObject();
+    }
+
     PanelConditions::getInstance().controlConditions[widget] = conditions;
     widget->setEnabled(true);
     widget->update();
@@ -457,35 +540,312 @@ QWidget *BPPanelBase::processControlCreation(const QJsonObject &control) {
   return widget;
 }
 
+QWidget *BPPanelBase::createParamToggleButton(const QJsonObject &control) {
+  QString param = control["param"].toString();
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+  QString buttonText = control["button_text"].toString();
+
+  auto paramToggleBtn = new BPParamToggleButton(param, title, desc, buttonText);
+  paramToggleBtn->setObjectName(param);
+
+  // Handle dynamic button text
+  if (control.value("dynamic_button_text").toBool(false) && control.contains("button_texts")) {
+    QJsonObject buttonTexts = control["button_texts"].toObject();
+    QString enabledText = buttonTexts["enabled"].toString();
+    QString disabledText = buttonTexts["disabled"].toString();
+    if (!enabledText.isEmpty() && !disabledText.isEmpty()) {
+      paramToggleBtn->enableDynamicButtonText(enabledText, disabledText);
+    }
+  }
+
+  // Handle dynamic styling
+  if (control.value("dynamic_styling").toBool(false) && control.contains("styles")) {
+    QJsonObject styles = control["styles"].toObject();
+    QJsonObject enabledStyle = styles["enabled"].toObject();
+    QJsonObject disabledStyle = styles["disabled"].toObject();
+
+    QString bgColorEnabled = enabledStyle["background_color"].toString();
+    QString bgColorDisabled = disabledStyle["background_color"].toString();
+    QString bgColorEnabledPressed = enabledStyle["background_color_pressed"].toString();
+    QString bgColorDisabledPressed = disabledStyle["background_color_pressed"].toString();
+
+    QString textColor = "#FFFFFF";
+    if (enabledStyle.contains("text_color")) {
+      textColor = enabledStyle["text_color"].toString();
+    } else if (disabledStyle.contains("text_color")) {
+      textColor = disabledStyle["text_color"].toString();
+    }
+
+    if (!bgColorEnabled.isEmpty() && !bgColorDisabled.isEmpty()) {
+      paramToggleBtn->enableDynamicStyling(bgColorEnabled, bgColorDisabled, bgColorEnabledPressed, bgColorDisabledPressed, textColor);
+    }
+  }
+
+  // Handle confirmation texts
+  if (control.value("confirm").toBool(false)) {
+    QString confirmOn = control["confirm_text_on"].toString();
+    QString confirmOff = control["confirm_text_off"].toString();
+    QString confirmYes = control.contains("confirm_yes_text") ? control["confirm_yes_text"].toString() : "Confirm";
+    QString confirmNo = control.contains("confirm_no_text") ? control["confirm_no_text"].toString() : "Cancel";
+
+    if (!confirmOn.isEmpty() && !confirmOff.isEmpty()) {
+      paramToggleBtn->setConfirmationTexts(confirmOn, confirmOff, confirmYes, confirmNo);
+    }
+  }
+
+  connect(paramToggleBtn, &BPParamToggleButton::valueChanged, this, &BPPanelBase::onControlValueChanged);
+
+  return paramToggleBtn;
+}
+
 QWidget *BPPanelBase::createToggleControl(const QJsonObject &control) {
   QString param = control["param"].toString();
   QString title = control["title"].toString();
   QString desc = control["desc"].toString();
-  auto toggle = new BPToggleControl(param, title, desc);
+  bool needsRestart = control.value("needs_restart").toBool(false);
+
+  // Append restart warning to description if needed
+  QString finalDesc = desc;
+  if (needsRestart && !params.getBool((param.toStdString() + "Lock"))) {
+    finalDesc += tr(" Changing this setting will restart openpilot if the car is powered on.");
+  }
+
+  auto toggle = new BPToggleControl(param, title, finalDesc);
   toggle->setObjectName(param);
   toggles[param.toStdString()] = toggle;
-  connect(toggle, &BPToggleControl::toggleFlipped, this, [this, param](bool state) {
-    std::string currentValue = params.get(param.toStdString());
-    BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Parameter changed - " << param.toStdString() << ": " << (currentValue == "1" ? "On" : "Off") << " -> " << (state ? "On" : "Off") << std::endl;
-    onControlValueChanged();
+
+  // Handle dynamic title
+  if (control.value("dynamic_title").toBool(false) && control.contains("titles")) {
+    QJsonObject titles = control["titles"].toObject();
+    QString enabledTitle = titles["enabled"].toString();
+    QString disabledTitle = titles["disabled"].toString();
+    if (!enabledTitle.isEmpty() && !disabledTitle.isEmpty()) {
+      toggle->enableDynamicTitle(enabledTitle, disabledTitle);
+    }
+  }
+
+  // Handle dynamic styling
+  if (control.value("dynamic_styling").toBool(false) && control.contains("styles")) {
+    QJsonObject styles = control["styles"].toObject();
+    QJsonObject enabledStyle = styles["enabled"].toObject();
+    QJsonObject disabledStyle = styles["disabled"].toObject();
+
+    QString bgColorEnabled = enabledStyle["background_color"].toString();
+    QString bgColorDisabled = disabledStyle["background_color"].toString();
+    QString bgColorEnabledPressed = enabledStyle["background_color_pressed"].toString();
+    QString bgColorDisabledPressed = disabledStyle["background_color_pressed"].toString();
+
+    // Get text color, prefer from enabled style, fallback to disabled, then default
+    QString textColor = "#FFFFFF";
+    if (enabledStyle.contains("text_color")) {
+      textColor = enabledStyle["text_color"].toString();
+    } else if (disabledStyle.contains("text_color")) {
+      textColor = disabledStyle["text_color"].toString();
+    }
+
+    if (!bgColorEnabled.isEmpty() && !bgColorDisabled.isEmpty()) {
+      toggle->enableDynamicStyling(bgColorEnabled, bgColorDisabled, bgColorEnabledPressed, bgColorDisabledPressed, textColor);
+    }
+  }
+
+  // Handle mutual exclusion
+  QJsonArray mutuallyExclusive = control["mutually_exclusive"].toArray();
+
+  // Handle confirmation
+  bool requireConfirm = control.value("confirm").toBool(false);
+  bool useDynamicConfirmText = control.value("use_dynamic_confirm_text").toBool(false);
+  QString staticConfirmText = control.contains("confirm_text") ? control["confirm_text"].toString() : "";
+  QString confirmYes = control.contains("confirm_yes_text") ? control["confirm_yes_text"].toString() : "Enable";
+  QString confirmNo = control.contains("confirm_no_text") ? control["confirm_no_text"].toString() : "Cancel";
+
+  connect(toggle, &BPToggleControl::toggleFlipped, this, [this, param, mutuallyExclusive, needsRestart, requireConfirm, useDynamicConfirmText, staticConfirmText, confirmYes, confirmNo, toggle](bool state) {
+    // If confirmation required and toggling ON, show dialog
+    if (requireConfirm && state) {
+      // Revert the toggle and param immediately since we need confirmation
+      params.putBool(param.toStdString(), false);
+      toggle->blockSignals(true);
+      toggle->refresh();  // This will reset it to the current param value (now off)
+      toggle->blockSignals(false);
+
+      // Get the confirmation text - use current description if dynamic, otherwise use static confirm_text
+      QString confirmText;
+      if (useDynamicConfirmText) {
+        confirmText = toggle->getDescription();  // Use the currently displayed dynamic description
+      } else if (!staticConfirmText.isEmpty()) {
+        confirmText = staticConfirmText;
+      } else {
+        confirmText = toggle->getDescription();  // Fallback to current description
+      }
+
+      BPConfirmationDialog::ConfirmConfig config;
+      config.title = tr("Confirmation Required");
+      config.prompt = confirmText;
+      config.confirmText = confirmYes;
+      config.cancelText = confirmNo;
+
+      auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
+      connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
+        if (accepted) {
+          // User confirmed, now actually toggle it on
+          params.putBool(param.toStdString(), true);
+          toggle->refresh();
+
+          // Handle mutual exclusion
+          if (!mutuallyExclusive.isEmpty()) {
+            for (const auto &excludedParam : mutuallyExclusive) {
+              QString excludedParamName = excludedParam.toString();
+              params.putBool(excludedParamName.toStdString(), false);
+              BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Mutually exclusive param disabled - " << excludedParamName.toStdString() << std::endl;
+
+              // Refresh the excluded toggle if it exists
+              if (toggles.find(excludedParamName.toStdString()) != toggles.end()) {
+                toggles[excludedParamName.toStdString()]->refresh();
+              }
+            }
+          }
+
+          // Request onroad cycle if needs_restart
+          if (needsRestart) {
+            params.putBool("OnroadCycleRequested", true);
+          }
+
+          onControlValueChanged();
+          BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Parameter confirmed and enabled - " << param.toStdString() << std::endl;
+        } else {
+          BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Parameter change cancelled - " << param.toStdString() << std::endl;
+        }
+      });
+    } else {
+      // No confirmation needed or toggling off
+      std::string currentValue = params.get(param.toStdString());
+      BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Parameter changed - " << param.toStdString() << ": " << (currentValue == "1" ? "On" : "Off") << " -> " << (state ? "On" : "Off") << std::endl;
+
+      // If toggled on, disable mutually exclusive params
+      if (state && !mutuallyExclusive.isEmpty()) {
+        for (const auto &excludedParam : mutuallyExclusive) {
+          QString excludedParamName = excludedParam.toString();
+          params.putBool(excludedParamName.toStdString(), false);
+          BPLog::bpInfo() << "[bp.panel.base] createToggleControl | Mutually exclusive param disabled - " << excludedParamName.toStdString() << std::endl;
+
+          // Refresh the excluded toggle if it exists
+          if (toggles.find(excludedParamName.toStdString()) != toggles.end()) {
+            toggles[excludedParamName.toStdString()]->refresh();
+          }
+        }
+      }
+
+      // Request onroad cycle if needs_restart
+      if (needsRestart) {
+        params.putBool("OnroadCycleRequested", true);
+      }
+
+      onControlValueChanged();
+    }
   });
+
+  // Disable when engaged if needs_restart
+  if (needsRestart) {
+    QObject::connect(uiState(), &UIState::engagedChanged, toggle, [toggle](bool engaged) {
+      // Invalidate condition cache on engagement state change
+      PanelConditions::getInstance().invalidateCache();
+
+      if (engaged) {
+        toggle->setEnabled(false);
+      } else {
+        // Re-enable when not engaged (conditions will be re-evaluated)
+        toggle->setEnabled(true);
+      }
+    });
+  }
+
   return toggle;
 }
 
 QWidget *BPPanelBase::createSegmentedControl(const QJsonObject &control) {
   QJsonArray options = control["options"].toArray();
   QVector<QPair<QString, QString>> optionPairs;
+  QVector<QString> descList;
+  QVector<QJsonObject> optionConditions;
   QString defaultValue;
+
   for (const auto &opt : options) {
     QJsonObject option = opt.toObject();
     optionPairs.append({option["name"].toString(), option["value"].toString()});
     if (option.contains("default") && option["default"].toBool()) {
       defaultValue = option["value"].toString();
     }
+    // Collect descriptions for bullet point list if present
+    if (option.contains("desc")) {
+      descList.append(option["desc"].toString());
+    }
+    // Collect conditions for each option if present
+    if (option.contains("conditions")) {
+      optionConditions.append(option["conditions"].toObject());
+    } else {
+      optionConditions.append(QJsonObject()); // Empty conditions = always enabled
+    }
   }
-  auto segmented = new BPSegmentedControl(control["param"].toString(), control["title"].toString(), control["desc"].toString(), optionPairs, defaultValue);
+
+  // Check if showDescBottom is specified in JSON
+  bool showDescBottom = control.contains("showDescBottom") && control["showDescBottom"].toBool();
+
+  auto segmented = new BPSegmentedControl(control["param"].toString(), control["title"].toString(), control["desc"].toString(), optionPairs, defaultValue, nullptr, descList, showDescBottom);
   segmented->setObjectName(control["param"].toString());
   connect(segmented, &BPSegmentedControl::valueChanged, this, &BPPanelBase::onControlValueChanged);
+
+  // Special handling for BPUiTextSize parameter - prompt for UI restart
+  QString paramName = control["param"].toString();
+  if (paramName == "BPUiTextSize") {
+    connect(segmented, &BPSegmentedControl::valueChanged, this, [this]() {
+      BPConfirmationDialog::ConfirmConfig config;
+      config.title = tr("Restart UI");
+      config.prompt = tr("UI text size has been changed.\n\nRestart the UI now to apply the new text size?");
+      config.confirmText = tr("Restart Now");
+      config.cancelText = tr("Later");
+
+      auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
+      connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
+        if (accepted) {
+          BPLog::bpInfo() << "[bp.panel.base] Restarting UI due to text size change..." << std::endl;
+          qApp->exit(18); // Exit code 18 triggers UI restart
+        }
+      });
+    });
+  }
+
+  // Set up per-option conditional visibility
+  if (!optionConditions.isEmpty()) {
+    // Store option conditions for this control
+    auto updateButtonStates = [segmented, optionConditions]() {
+      // Invalidate cache when conditions need to be re-evaluated
+      PanelConditions::getInstance().invalidateCache();
+
+      QVector<bool> enabledStates;
+      auto &panelConditions = PanelConditions::getInstance();
+      for (const auto &optionCond : optionConditions) {
+        bool enabled = true;
+        if (!optionCond.isEmpty()) {
+          enabled = panelConditions.validateConditionObject(optionCond);
+        }
+        enabledStates.append(enabled);
+      }
+      segmented->updateButtonStates(enabledStates);
+    };
+
+    // Initial update
+    updateButtonStates();
+
+    // Connect to condition change signals
+    connect(uiState(), &UIState::offroadTransition, segmented, updateButtonStates);
+    connect(uiState(), &UIState::engagedChanged, segmented, updateButtonStates);
+
+    // Also update when CarParams change
+    QTimer *timer = new QTimer(segmented);
+    connect(timer, &QTimer::timeout, updateButtonStates);
+    timer->start(5000); // Check every 5 seconds for CarParams changes
+  }
+
   return segmented;
 }
 
@@ -517,13 +877,48 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
 
   QVector<BPSelectionDialog::Option> options;
   QVector<QPair<QString, QString>> optionPairs; // For the selection control mapping
-  QJsonArray optArray = control["options"].toArray();
-  for (const auto &opt : optArray) {
-    QJsonObject optObj = opt.toObject();
-    QString displayName = optObj["name"].toString();
-    QString value = optObj["value"].toString();
-    options.append({displayName, value});
-    optionPairs.append({displayName, value}); // display name -> value
+
+  // Check for unit/unitMetric for dynamic replacement
+  QString unitToUse;
+  if (control.contains("unit") && control.contains("unitMetric")) {
+    bool isMetric = params.getBool("IsMetric");
+    unitToUse = isMetric ? control["unitMetric"].toString() : control["unit"].toString();
+  }
+
+  // Check if there's a list generator function
+  QJsonArray optArray;
+  if (control.contains("list_generator")) {
+    QString generatorName = control["list_generator"].toString();
+    auto it = listGenerators.find(generatorName);
+    if (it != listGenerators.end()) {
+      QMap<QString, QString> generatedList = it->second();
+      for (auto mapIt = generatedList.begin(); mapIt != generatedList.end(); ++mapIt) {
+        QString displayName = mapIt.key();
+        // Replace {unit} placeholder with appropriate unit
+        if (!unitToUse.isEmpty()) {
+          displayName.replace("{unit}", unitToUse);
+        }
+        options.append({displayName, mapIt.value()});
+        optionPairs.append({displayName, mapIt.value()});
+      }
+      BPLog::bpInfo() << "[bp.panel.base] createSelectionControl | Using list generator: " << generatorName.toStdString() << std::endl;
+    } else {
+      BPLog::bpWarn() << "[bp.panel.base] createSelectionControl | List generator not found: " << generatorName.toStdString() << std::endl;
+    }
+  } else {
+    // Use static options from JSON
+    optArray = control["options"].toArray();
+    for (const auto &opt : optArray) {
+      QJsonObject optObj = opt.toObject();
+      QString displayName = optObj["name"].toString();
+      QString value = optObj["value"].toString();
+      // Replace {unit} placeholder with appropriate unit
+      if (!unitToUse.isEmpty()) {
+        displayName.replace("{unit}", unitToUse);
+      }
+      options.append({displayName, value});
+      optionPairs.append({displayName, value}); // display name -> value
+    }
   }
 
   // Set the options for value-to-display mapping
@@ -534,7 +929,7 @@ QWidget *BPPanelBase::createSelectionControl(const QJsonObject &control) {
   std::string paramNameStd = paramName.toStdString();
   std::string currentValue = params.get(paramNameStd);
 
-  if (currentValue.empty()) {
+  if (currentValue.empty() && !optArray.isEmpty()) {
     // Find the default option and set it
     for (const auto &opt : optArray) {
       QJsonObject optObj = opt.toObject();
@@ -611,6 +1006,69 @@ QWidget *BPPanelBase::createParamListViewerControl(const QJsonObject &control) {
   return listViewer;
 }
 
+QWidget *BPPanelBase::createStaticParamDisplayControl(const QJsonObject &control) {
+  QString valueProcessor = control.value("value_processor").toString("");
+  auto staticDisplay = new BPStaticParamDisplay(control["param"].toString(), control["title"].toString(), control["desc"].toString(), valueProcessor);
+  staticDisplay->setObjectName(control["param"].toString());
+  return staticDisplay;
+}
+
+QWidget *BPPanelBase::createFileParamDisplayControl(const QJsonObject &control) {
+  QString fileName = control["file"].toString();
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+  QString prefix = control.value("prefix").toString("");
+  QString suffix = control.value("suffix").toString("");
+
+  auto fileDisplay = new BPFileParamDisplay(fileName, title, desc, prefix, suffix);
+  fileDisplay->setObjectName(fileName);
+  return fileDisplay;
+}
+
+QWidget *BPPanelBase::createTextInputControl(const QJsonObject &control) {
+  QString param = control["param"].toString();
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+  QString buttonText = control.value("button_text").toString("ADD");
+  QString placeholder = control.value("placeholder").toString("");
+
+  auto textCtrl = new BPTextInputControl(param, title, desc, buttonText, placeholder);
+
+  connect(textCtrl, &BPTextInputControl::showTextInputDialog, this, [=](const QString &paramName, const QString &dialogTitle, const QString &placeholderText) {
+    QString currentValue = QString::fromStdString(params.get(paramName.toStdString()));
+    QString newText = InputDialog::getText(dialogTitle, this, placeholderText, false, -1, currentValue);
+    if (!newText.isEmpty()) {
+      params.put(paramName.toStdString(), newText.toStdString());
+      textCtrl->refresh();
+      emit controlValueChanged();
+    }
+  });
+
+  connect(textCtrl, &BPTextInputControl::textRemoved, this, [=]() {
+    emit controlValueChanged();
+  });
+
+  return textCtrl;
+}
+
+QWidget *BPPanelBase::createHtmlViewerControl(const QJsonObject &control) {
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+  QString path = control["path"].toString();
+  QString header = control.value("header").toString(title);
+
+  auto htmlCtrl = new BPHtmlViewerControl(title, desc, path, header);
+
+  connect(htmlCtrl, &BPHtmlViewerControl::htmlViewRequested, this, [=](const QString &htmlPath, const QString &hdr) {
+    QString rootPath = FileUtils::getProjectRootPath();
+    QString fullPath = QDir(rootPath).filePath(htmlPath);
+    QString htmlContent = QString::fromStdString(util::read_file(fullPath.toStdString()));
+    ConfirmationDialog::rich(htmlContent, this);
+  });
+
+  return htmlCtrl;
+}
+
 QWidget *BPPanelBase::createFileViewerControl(const QJsonObject &control) {
   QString title = control["title"].toString();
   QString desc = control["desc"].toString();
@@ -646,6 +1104,7 @@ QWidget *BPPanelBase::createRecentChangesControl(const QJsonObject &control) {
 
 QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
   QString command = control["command"].toString();
+  QString action = control["action"].toString();
   QString workingDir = control["working_dir"].toString();
   QString buttonText = control["button_text"].toString();
   QString confirmText = control["confirm_text"].toString();
@@ -673,9 +1132,22 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
     }
   }
 
-  auto cmdCtrl = new BPCommandControl(control["title"].toString(), control["desc"].toString(), buttonText, command, workingDir, requireConfirm, confirmText, confirmYesText,
+  auto cmdCtrl = new BPCommandControl(control["title"].toString(), control["desc"].toString(), buttonText, command, action, control, workingDir, requireConfirm, confirmText, confirmYesText,
                                       confirmNoText, actionButtons);
 
+  // Apply custom button styling if provided
+  if (control.contains("button_style")) {
+    QJsonObject buttonStyle = control["button_style"].toObject();
+    QString bgColor = buttonStyle["background_color"].toString();
+    QString bgColorPressed = buttonStyle["background_color_pressed"].toString();
+    QString textColor = buttonStyle["text_color"].toString();
+
+    if (!bgColor.isEmpty() && !bgColorPressed.isEmpty() && !textColor.isEmpty()) {
+      cmdCtrl->setButtonStyle(bgColor, bgColorPressed, textColor);
+    }
+  }
+
+  // Connect command handler (for shell commands)
   connect(cmdCtrl, &BPCommandControl::commandRequested, this,
           [this](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
                  const QString &yesText, const QString &noText) {
@@ -699,8 +1171,128 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
             }
           });
 
+  // Connect action handler (for action system)
+  connect(cmdCtrl, &BPCommandControl::actionRequested, this,
+          [this](const QString &action, const QJsonObject &actionData) {
+            if (!actionHandler) {
+              actionHandler = new BPActionHandler(this, this);
+              // Forward action handler signals to this widget's signals
+              connect(actionHandler, &BPActionHandler::showDriverView, this, &BPPanelBase::showDriverView);
+              connect(actionHandler, &BPActionHandler::reviewTrainingGuide, this, &BPPanelBase::reviewTrainingGuide);
+              connect(actionHandler, &BPActionHandler::showLanguageSelector, this, &BPPanelBase::showLanguageSelector);
+              connect(actionHandler, &BPActionHandler::showRegulatory, this, &BPPanelBase::showRegulatory);
+              connect(actionHandler, &BPActionHandler::openNestedPanel, this, [this](const QString &configPath, const QString &title) {
+                auto *nestedView = new BPNestedView(this);
+                connect(nestedView, &BPNestedView::finished, [nestedView]() {
+                  nestedView->disconnect();
+                  nestedView->setParent(nullptr);
+                  nestedView->deleteLater();
+                });
+                nestedView->setupView(title, configPath);
+                nestedView->show();
+              });
+            }
+            actionHandler->handleAction(action, actionData);
+          });
+
+  // Handle connect_signal if present
+  if (control.contains("connect_signal")) {
+    QString signalName = control["connect_signal"].toString();
+    connectSignal(signalName, cmdCtrl, this);
+  }
+
   connect(cmdCtrl, &BPCommandControl::commandRequested, this, &BPPanelBase::onControlValueChanged);
   return cmdCtrl;
+}
+
+QWidget *BPPanelBase::createRestartUIControl(const QJsonObject &control) {
+  QString buttonText = control["button_text"].toString();
+  QString confirmText = control["confirm_text"].toString();
+  QString confirmYesText = control["confirm_yes_text"].toString();
+  QString confirmNoText = control["confirm_no_text"].toString();
+  bool requireConfirm = control.value("confirm").toBool(true); // Default to requiring confirmation
+
+  if (buttonText.isEmpty()) {
+    buttonText = tr("RESTART UI");
+  }
+  if (confirmText.isEmpty()) {
+    confirmText = tr("Are you sure you want to restart the user interface?");
+  }
+  if (confirmYesText.isEmpty()) {
+    confirmYesText = tr("Restart");
+  }
+  if (confirmNoText.isEmpty()) {
+    confirmNoText = tr("Cancel");
+  }
+
+  auto restartCtrl = new BPCommandControl(
+    control["title"].toString(),
+    control["desc"].toString(),
+    buttonText,
+    "", // no shell command
+    "", // no action
+    control,
+    "", // no working dir
+    requireConfirm,
+    confirmText,
+    confirmYesText,
+    confirmNoText,
+    QJsonArray() // no action buttons
+  );
+
+  // Connect restart UI handler
+  connect(restartCtrl, &BPCommandControl::commandRequested, this,
+          [=](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
+              const QString &yesText, const QString &noText) {
+            if (confirmRequired) {
+              BPConfirmationDialog::ConfirmConfig config;
+              config.title = dialogTitle.isEmpty() ? tr("Restart UI") : dialogTitle;
+              config.prompt = confText;
+              config.confirmText = yesText;
+              config.cancelText = noText;
+
+              auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
+              connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
+                if (accepted) {
+                  BPLog::bpInfo() << "[bp.panel.base] Restarting UI..." << std::endl;
+                  qApp->exit(18); // Exit code 18 triggers UI restart
+                }
+              });
+            } else {
+              BPLog::bpInfo() << "[bp.panel.base] Restarting UI..." << std::endl;
+              qApp->exit(18);
+            }
+          });
+
+  return restartCtrl;
+}
+
+QWidget *BPPanelBase::createStaticTextControl(const QJsonObject &control) {
+  // Create a simple label-based control for static informational text
+  QWidget *container = new QWidget(this);
+  QVBoxLayout *layout = new QVBoxLayout(container);
+  layout->setContentsMargins(40, 20, 40, 20);
+  layout->setSpacing(10);
+
+  // Title label
+  QLabel *titleLabel = new QLabel(control["title"].toString(), container);
+  titleLabel->setStyleSheet("font-size: 50px; font-weight: 500; color: #E4E4E4;");
+  layout->addWidget(titleLabel);
+
+  // Description label
+  QLabel *descLabel = new QLabel(control["desc"].toString(), container);
+  descLabel->setWordWrap(true);
+  descLabel->setStyleSheet("font-size: 40px; color: #AAAAAA; padding-top: 10px;");
+  layout->addWidget(descLabel);
+
+  container->setStyleSheet("QWidget { background-color: #1C1C1C; border-radius: 10px; }");
+  return container;
+}
+
+QWidget *BPPanelBase::createPlatformDisplayControl(const QJsonObject &control) {
+  // For now, create a placeholder - this would need proper implementation
+  // based on the vehicle platform display requirements
+  return createStaticTextControl(control);
 }
 
 QWidget *BPPanelBase::createNestedControlsButton(const QJsonObject &control) {
@@ -735,14 +1327,31 @@ void BPPanelBase::updateConditionsForAllControls() {
 
 void BPPanelBase::updateGroupVisibility() {
   for (auto &[groupName, groupData] : groups) {
+    // Check if any controls are visible
     bool hasVisibleControls = false;
     for (QWidget *control : groupData.controls) {
-      if (control && control->isVisible()) {
+      if (control && !control->testAttribute(Qt::WA_WState_Hidden)) {
         hasVisibleControls = true;
         break;
       }
     }
+
+    // Update group visibility
     groupData.groupBox->setVisible(hasVisibleControls);
+
+    // Update divider visibility based on adjacent controls
+    // Each divider corresponds to the space between controls[i] and controls[i+1]
+    for (size_t i = 0; i < groupData.dividers.size(); i++) {
+      QWidget *divider = groupData.dividers[i];
+      if (!divider) continue;
+
+      // A divider should be visible only if both adjacent controls are visible
+      // Use explicit visibility state (not dependent on parent visibility)
+      bool prevControlVisible = (i < groupData.controls.size() && groupData.controls[i] && !groupData.controls[i]->testAttribute(Qt::WA_WState_Hidden));
+      bool nextControlVisible = ((i + 1) < groupData.controls.size() && groupData.controls[i + 1] && !groupData.controls[i + 1]->testAttribute(Qt::WA_WState_Hidden));
+
+      divider->setVisible(prevControlVisible && nextControlVisible);
+    }
   }
 }
 
@@ -763,6 +1372,8 @@ void BPPanelBase::updateToggles() {
         // Refresh selection control by updating its selected value
         QString currentValue = QString::fromStdString(params.get(ctrl->objectName().toStdString()));
         selection->setSelectedValue(currentValue);
+      } else if (auto staticDisplay = qobject_cast<BPStaticParamDisplay *>(ctrl)) {
+        staticDisplay->refresh();
       }
     }
     updateResetButtonVisibility(groupData.groupBox);
@@ -841,9 +1452,17 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
     return false;
   }
 
-  // Ensure required fields exist
-  if (!control.contains("type") || !control.contains("title")) {
-    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Control missing required 'type' or 'title' field | Type: " << control["type"].toString().toStdString()
+  // Ensure type field exists
+  if (!control.contains("type")) {
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Control missing required 'type' field | Param: " << control["param"].toString().toStdString() << std::endl;
+    return false;
+  }
+
+  // Some control types don't require a title (e.g., button_grid has titles in buttons array)
+  static const QSet<QString> typesNotRequiringTitle{"button_grid"};
+
+  if (!typesNotRequiringTitle.contains(control["type"].toString()) && !control.contains("title")) {
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Control missing required 'title' field | Type: " << control["type"].toString().toStdString()
               << " | Param: " << control["param"].toString().toStdString() << std::endl;
     return false;
   }
@@ -853,7 +1472,8 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
 
   // Set of supported control types
   static const QSet<QString> supportedTypes{"toggle",      "float",          "integer",           "selection",         "param_viewer",
-                                            "file_viewer", "recent_changes", "command_button", "param_list_viewer", "segmented_control", "nested_controls_button"};
+                                            "file_viewer", "recent_changes", "command_button", "param_list_viewer", "segmented_control",
+                                            "nested_controls_button", "static_param_display", "param_toggle_button", "html_viewer", "text_input", "restart_ui", "file_param_display", "static_text", "platform_display"};
 
   // Ensure the type is supported
   if (!supportedTypes.contains(type)) {
@@ -862,7 +1482,7 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   }
 
   static const QSet<QString> typesNotRequiringParam{
-      "param_viewer", "param_list_viewer", "nested_controls_button", "command_button", "file_viewer", "recent_changes",
+      "param_viewer", "param_list_viewer", "nested_controls_button", "command_button", "file_viewer", "recent_changes", "html_viewer", "restart_ui", "file_param_display", "static_text", "platform_display"
   };
 
   // Ensure param is present for necessary types
@@ -889,8 +1509,8 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   } else if (type == "file_viewer" && !control.contains("path")) {
     BPLog::bpError() << "[bp.panel.base] validateControlBasics | File viewer control missing 'path' field | Param: " << param.toStdString() << std::endl;
     return false;
-  } else if (type == "command_button" && !control.contains("command")) {
-    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Command button control missing 'command' field | Param: " << param.toStdString() << std::endl;
+  } else if (type == "command_button" && !control.contains("command") && !control.contains("action") && !control.contains("connect_signal")) {
+    BPLog::bpError() << "[bp.panel.base] validateControlBasics | Command button control missing 'command', 'action', or 'connect_signal' field | Param: " << param.toStdString() << std::endl;
     return false;
   }
 
@@ -898,9 +1518,11 @@ bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
 }
 
 void BPPanelBase::onControlValueChanged() {
+  // Invalidate condition cache since a param was changed
+  PanelConditions::getInstance().invalidateCache();
+
+  // Refresh UI with new param values and re-validate conditions
   refresh();
-  updateConditionsForAllControls();
-  updateGroupVisibility();
   emit controlValueChanged();
 }
 
@@ -910,9 +1532,8 @@ void BPPanelBase::refresh() {
   isRefreshing = true;
 
   try {
+    // First pass: refresh all controls (read params, update UI)
     for (auto &[groupName, groupData] : groups) {
-      bool hasVisibleControls = false;
-
       for (QWidget *ctrl : groupData.controls) {
         // Refresh different control types
         if (auto toggle = qobject_cast<BPToggleControl *>(ctrl)) {
@@ -925,28 +1546,85 @@ void BPPanelBase::refresh() {
           // Refresh selection control by updating its selected value
           QString currentValue = QString::fromStdString(params.get(ctrl->objectName().toStdString()));
           selection->setSelectedValue(currentValue);
-        }
-
-        // Update control conditions
-        auto conditionIt = PanelConditions::getInstance().controlConditions.find(ctrl);
-        if (conditionIt != PanelConditions::getInstance().controlConditions.end() && conditionIt->second.hasConditions) {
-          bool shouldBeEnabled = PanelConditions::getInstance().validateCompositeConditions(conditionIt->second.conditions);
-          if (ctrl->isEnabled() != shouldBeEnabled) {
-            ctrl->setEnabled(shouldBeEnabled);
-            ctrl->update();
-          }
-        }
-
-        if (ctrl->isEnabled() && ctrl->isVisible()) {
-          hasVisibleControls = true;
+        } else if (auto staticDisplay = qobject_cast<BPStaticParamDisplay *>(ctrl)) {
+          staticDisplay->refresh();
         }
       }
-
-      groupData.groupBox->setVisible(hasVisibleControls);
     }
+
+    // Second pass: update conditions for all controls in one batch
+    // This is more efficient than inline validation during refresh
+    updateConditionsForAllControls();
+
+    // Third pass: update group visibility based on final control states
+    updateGroupVisibility();
+
   } catch (const std::exception &e) {
     BPLog::bpError() << "[bp.panel.base] refresh | Error during refresh: " << e.what() << std::endl;
   }
 
   isRefreshing = false;
+}
+
+// Registry implementations
+void BPPanelBase::registerSignalConnectors() {
+  // Register showLanguageSelector signal connector
+  signalConnectors["showLanguageSelector"] = [this](QWidget *widget, QObject *target) {
+    QObject::connect(this, &BPPanelBase::showLanguageSelector, target, [target]() {
+      Params params;
+      QMap<QString, QString> langs = getSupportedLanguages();
+      QString currentLang = langs.key(QString::fromStdString(params.get("LanguageSetting")));
+      QString selection = MultiOptionDialog::getSelection(QObject::tr("Select a language"), langs.keys(), currentLang, qobject_cast<QWidget*>(target));
+      if (!selection.isEmpty()) {
+        params.put("LanguageSetting", langs[selection].toStdString());
+        qApp->exit(18);
+        watchdog_kick(0);
+      }
+    });
+  };
+
+  // Register showRegulatory signal connector
+  signalConnectors["showRegulatory"] = [this](QWidget *widget, QObject *target) {
+    QObject::connect(this, &BPPanelBase::showRegulatory, target, [target]() {
+      if (Hardware::TICI()) {
+        const std::string txt = util::read_file("../assets/offroad/fcc.html");
+        ConfirmationDialog::rich(QString::fromStdString(txt), qobject_cast<QWidget*>(target));
+      }
+    });
+  };
+
+  // Register showDriverView signal connector
+  signalConnectors["showDriverView"] = [this](QWidget *widget, QObject *target) {
+    QObject::connect(this, &BPPanelBase::showDriverView, [target]() {
+      if (QWidget *w = qobject_cast<QWidget*>(target)) {
+        w->show();
+      }
+    });
+  };
+
+  // Register reviewTrainingGuide signal connector
+  signalConnectors["reviewTrainingGuide"] = [this](QWidget *widget, QObject *target) {
+    QObject::connect(this, &BPPanelBase::reviewTrainingGuide, [target]() {
+      if (QWidget *w = qobject_cast<QWidget*>(target)) {
+        w->show();
+      }
+    });
+  };
+}
+
+void BPPanelBase::registerListGenerators() {
+  // Register language list generator
+  listGenerators["getSupportedLanguages"] = []() {
+    return getSupportedLanguages();
+  };
+}
+
+void BPPanelBase::connectSignal(const QString &signalName, QWidget *widget, QObject *target) {
+  auto it = signalConnectors.find(signalName);
+  if (it != signalConnectors.end()) {
+    it->second(widget, target);
+    // BPLog::bpInfo() << "[bp.panel.base] Connected signal: " << signalName.toStdString() << std::endl;
+  } else {
+    BPLog::bpWarn() << "[bp.panel.base] Signal connector not found: " << signalName.toStdString() << std::endl;
+  }
 }

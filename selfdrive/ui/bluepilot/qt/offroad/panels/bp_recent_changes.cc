@@ -168,6 +168,7 @@ void BPRecentChangesDialog::createVersionSection(const QString &version, const Q
 
   QHBoxLayout *versionLayout = new QHBoxLayout(versionContainer);
   versionLayout->setContentsMargins(0, 15, 0, 25);
+  versionLayout->setSpacing(15);
   versionLayout->setAlignment(Qt::AlignLeft);
 
   QLabel *versionLabel = new QLabel(QString("Version %1").arg(version));
@@ -185,6 +186,26 @@ void BPRecentChangesDialog::createVersionSection(const QString &version, const Q
   versionLabel->setAlignment(Qt::AlignCenter);
 
   versionLayout->addWidget(versionLabel);
+
+  // Add AGNOS version badge if present
+  if (versionData.contains("agnos_version")) {
+    QString agnosVersion = versionData["agnos_version"].toString();
+    QLabel *agnosLabel = new QLabel(QString("AGNOS %1").arg(agnosVersion));
+    agnosLabel->setStyleSheet(R"(
+      QLabel {
+        font-size: 32px;
+        font-weight: 600;
+        color: #FFFFFF;
+        background-color: #9C27B0;
+        border-radius: 20px;
+        padding: 10px 20px;
+        margin: 0px;
+      }
+    )");
+    agnosLabel->setAlignment(Qt::AlignCenter);
+    versionLayout->addWidget(agnosLabel);
+  }
+
   content_layout->addWidget(versionContainer);
 
   // Changes section

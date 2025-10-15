@@ -25,20 +25,23 @@ This document provides a comprehensive overview of the JSON configuration format
         - [Properties:](#properties-3)
       - [Selection Control](#selection-control)
         - [Properties:](#properties-4)
-      - [Segmented Control](#segmented-control)
+      - [Static Param Display Control](#static-param-display-control)
         - [Properties:](#properties-5)
-      - [Param Viewer Control](#param-viewer-control)
+      - [Segmented Control](#segmented-control)
         - [Properties:](#properties-6)
-      - [Param List Viewer Control](#param-list-viewer-control)
+      - [Param Viewer Control](#param-viewer-control)
         - [Properties:](#properties-7)
-      - [File Viewer Control](#file-viewer-control)
+      - [Param List Viewer Control](#param-list-viewer-control)
         - [Properties:](#properties-8)
-      - [Recent Changes Control](#recent-changes-control)
+      - [File Viewer Control](#file-viewer-control)
         - [Properties:](#properties-9)
-      - [Command Button Control](#command-button-control)
+      - [Recent Changes Control](#recent-changes-control)
         - [Properties:](#properties-10)
+      - [Command Button Control](#command-button-control)
+        - [Properties:](#properties-11)
     - [Custom Controls](#custom-controls)
   - [Conditions](#conditions)
+    - [Condition Property Types](#condition-property-types)
     - [Condition Types](#condition-types)
     - [Composite Conditions](#composite-conditions)
   - [Examples](#examples)
@@ -48,6 +51,7 @@ This document provides a comprehensive overview of the JSON configuration format
       - [Float Control with Default Value](#float-control-with-default-value)
       - [Command Button Control with Confirmation](#command-button-control-with-confirmation)
       - [Segmented Control Example](#segmented-control-example)
+      - [Conditional Visibility Based on Parameter Values](#conditional-visibility-based-on-parameter-values)
       - [Advanced Condition Example](#advanced-condition-example)
   - [Optional vs. Required Properties](#optional-vs-required-properties)
     - [Required Properties](#required-properties)
@@ -124,7 +128,9 @@ Controls are interactive elements within a group that allow users to view or mod
 | `desc` | String | A description or tooltip for the control. | Yes | \-  |
 | `disable` | Boolean | Disables the control if set to `true`. | No  | `false` |
 | `hidden` | Boolean | Hides the control if set to `true`. | No  | `false` |
-| `conditions` | Object | Defines conditions for the control's visibility and behavior. | No  | \-  |
+| `conditions` | Object | **[LEGACY]** Defines conditions for both visibility and enabled state. Use `visibleConditions` and `enableConditions` instead for granular control. | No  | \-  |
+| `visibleConditions` | Object | Defines conditions that control whether the control is visible or hidden. | No  | \-  |
+| `enableConditions` | Object | Defines conditions that control whether the control is enabled or disabled (grayed out). | No  | \-  |
 
 ### Control Types
 
@@ -218,6 +224,7 @@ Allows users to adjust an integer parameter within a specified range.
 | `min` | Number | The minimum allowable value. | Yes | \-  |
 | `max` | Number | The maximum allowable value. | Yes | \-  |
 | `increment` | Number | The step increment for adjusting the value. | Yes | \-  |
+| `unit` | String | The unit suffix to display (e.g., "mph", "%", "km/h"). | No  | `""` |
 | `hidden` | Boolean | Hides the control if set to `true`. | No  | `false` |
 | `conditions` | Object | Conditions to determine the control's availability. | No  | \-  |
 
@@ -226,15 +233,18 @@ Allows users to adjust an integer parameter within a specified range.
 ```
 {
   "type": "integer",
-  "param": "FordLatTuningRandomNumber",
-  "title": "Random Number",
-  "desc": "A random number between 0 and 10",
-  "disable": false,
-  "hidden": false,
-  "min": 0,
-  "max": 10,
+  "param": "SpeedLimitValueOffset",
+  "title": "Fixed Offset Value",
+  "desc": "Fixed speed offset value in mph/km/h",
+  "min": -30,
+  "max": 30,
   "increment": 1,
-  "conditions": { "git_remote": ["any"], "git_branch": [] }
+  "unit": "mph",
+  "conditions": {
+    "allConditionsTrue": [
+      { "paramValueEquals": { "SpeedLimitOffsetType": "1" } }
+    ]
+  }
 }
 ```
 
@@ -277,6 +287,39 @@ Provides a dropdown or selection interface for choosing among predefined options
     { "name": "F-150 Lightning 1st Gen", "value": "FORD_F_150_LIGHTNING_MK1" },
     { "name": "Mustang Mach-E 1st Gen", "value": "FORD_MUSTANG_MACH_E_MK1" }
   ]
+}
+```
+
+#### Static Param Display Control
+
+Displays a parameter value as read-only text in the UI.
+
+##### Properties:
+
+| Property | Type | Description | Required | Default |
+| --- | --- | --- | --- | --- |
+| `type` | String | Must be `"static_param_display"`. | Yes | \-  |
+| `param` | String | The parameter name to display. | Yes | \-  |
+| `title` | String | The display title of the control. | Yes | \-  |
+| `desc` | String | Description of what the parameter represents. | Yes | \-  |
+| `disable` | Boolean | Disables the control if set to `true`. | No | `false` |
+| `hidden` | Boolean | Hides the control if set to `true`. | No | `false` |
+| `conditions` | Object | Conditions to determine the control's availability. | No | \-  |
+
+**Example:**
+
+```
+{
+  "type": "static_param_display",
+  "param": "DongleId",
+  "title": "Device ID",
+  "desc": "Unique identifier for this device",
+  "disable": false,
+  "hidden": false,
+  "conditions": {
+    "git_remote": ["any"],
+    "git_branch": []
+  }
 }
 ```
 
@@ -511,6 +554,54 @@ _Note: Custom controls require corresponding implementation in the codebase to h
 
 Conditions determine the visibility and behavior of controls based on specific criteria. They enable dynamic and context-sensitive UI elements.
 
+### Condition Property Types
+
+There are three ways to apply conditions to controls:
+
+1. **`conditions`** (Legacy) - Controls BOTH visibility and enabled state
+   - When conditions fail, the control is both hidden AND disabled
+   - Maintained for backward compatibility
+   - **Recommendation:** Use `visibleConditions` and `enableConditions` instead for better control
+
+2. **`visibleConditions`** (Recommended) - Controls visibility only
+   - When conditions are met: control is shown
+   - When conditions fail: control is completely hidden from the UI
+   - Use this when you want to show/hide controls based on parameter values or system state
+
+3. **`enableConditions`** (Recommended) - Controls enabled state only
+   - When conditions are met: control is enabled (interactive)
+   - When conditions fail: control is visible but disabled (grayed out)
+   - Use this when you want to show a control but prevent interaction based on conditions
+
+**Example use cases:**
+
+```json
+{
+  "type": "integer",
+  "param": "SpeedLimitValueOffset",
+  "title": "Fixed Offset Value",
+  "visibleConditions": {
+    "paramValueEquals": { "SpeedLimitOffsetType": "1" }
+  }
+}
+```
+In this example, the control only appears when the offset type is set to "Fixed" (value "1").
+
+```json
+{
+  "type": "toggle",
+  "param": "ExperimentalMode",
+  "title": "Experimental Mode",
+  "enableConditions": {
+    "allConditionsTrue": [
+      { "isOnroad": true },
+      { "hasLongitudinalControl": true }
+    ]
+  }
+}
+```
+In this example, the toggle is always visible, but only enabled when the vehicle is onroad and has longitudinal control.
+
 ### Condition Types
 
 *   **`paramValueEquals`:** Checks if a parameter equals a specified value.
@@ -566,10 +657,114 @@ Conditions determine the visibility and behavior of controls based on specific c
 
     ```
 
-*   **`onlyWhenTheseParams`:** Ensures that certain parameters are enabled or true.
+*   **`paramIsTrue`:** Checks if a boolean parameter is true. (Preferred over `onlyWhenTheseParams`)
+
+    ```
+    "paramIsTrue": "OnroadScreenOffControl"
+
+    ```
+
+    Multiple params (all must be true):
+
+    ```
+    "paramIsTrue": ["EnableMads", "LongitudinalEnable"]
+
+    ```
+
+*   **`paramIsFalse`:** Checks if a boolean parameter is false.
+
+    ```
+    "paramIsFalse": "DisableLogging"
+
+    ```
+
+    Multiple params (all must be false):
+
+    ```
+    "paramIsFalse": ["Feature1", "Feature2"]
+
+    ```
+
+*   **`onlyWhenTheseParams`:** Ensures that certain parameters are enabled or true. (Legacy - prefer `paramIsTrue`)
 
     ```
     "onlyWhenTheseParams": ["Param1", "Param2"]
+
+    ```
+
+*   **`paramExists` / `paramNotExists`:** Checks if a parameter has a value.
+
+    ```
+    "paramExists": "DongleId"
+    "paramNotExists": "SomeOptionalParam"
+
+    ```
+
+*   **`paramLocked` / `paramNotLocked`:** Checks if a parameter is locked (e.g., `ParamNameLock` is true).
+
+    ```
+    "paramLocked": "LateralTorqueFriction"
+    "paramNotLocked": "SomeEditableParam"
+
+    ```
+
+*   **`isOffroad` / `isOnroad`:** Checks the vehicle's driving state.
+
+    ```
+    "isOffroad": true
+    "isOnroad": true
+
+    ```
+
+*   **`isEngaged` / `isNotEngaged`:** Checks if openpilot is actively engaged.
+
+    ```
+    "isEngaged": true
+    "isNotEngaged": true
+
+    ```
+
+*   **`isTiciHardware` / `isPcHardware`:** Checks the hardware platform.
+
+    ```
+    "isTiciHardware": true
+    "isPcHardware": true
+
+    ```
+
+*   **`hasCarParams`:** Checks if car parameters are available.
+
+    ```
+    "hasCarParams": true
+
+    ```
+
+*   **`hasLongitudinalControl`:** Checks if the vehicle supports longitudinal control.
+
+    ```
+    "hasLongitudinalControl": true
+
+    ```
+
+*   **`isPcmCruise`:** Checks if the vehicle uses PCM cruise control.
+
+    ```
+    "isPcmCruise": true
+
+    ```
+
+*   **`hasBlindSpotMonitoring`:** Checks if blind spot monitoring is available.
+
+    ```
+    "hasBlindSpotMonitoring": true
+
+    ```
+
+*   **`isReleaseBranch` / `isNotReleaseBranch` / `isTestedBranch` / `isDevelopmentBranch`:** Branch type checks.
+
+    ```
+    "isReleaseBranch": true
+    "isDevelopmentBranch": true
 
     ```
 
@@ -1112,6 +1307,73 @@ This segmented control allows users to select the tuning profile with predefined
   }
 }
 ```
+
+#### Conditional Visibility Based on Parameter Values
+
+This example demonstrates conditional visibility where different controls appear based on the value of another parameter. This uses `visibleConditions` to show/hide controls dynamically.
+
+**Scenario:** Speed Limit Offset controls that change based on offset type (None/Fixed/Percent)
+
+```
+{
+  "controls": [
+    {
+      "type": "segmented_control",
+      "param": "SpeedLimitOffsetType",
+      "title": "Speed Limit Offset",
+      "desc": "Choose offset type",
+      "options": [
+        { "name": "None", "value": "0", "default": true },
+        { "name": "Fixed", "value": "1" },
+        { "name": "Percent", "value": "2" }
+      ]
+    },
+    {
+      "type": "integer",
+      "param": "SpeedLimitValueOffset",
+      "title": "Fixed Offset Value",
+      "desc": "Fixed speed offset value in mph/km/h",
+      "min": -30,
+      "max": 30,
+      "increment": 1,
+      "unit": "mph",
+      "visibleConditions": {
+        "paramValueEquals": { "SpeedLimitOffsetType": "1" }
+      }
+    },
+    {
+      "type": "integer",
+      "param": "SpeedLimitValueOffset",
+      "title": "Percent Offset Value",
+      "desc": "Percent speed offset value",
+      "min": -30,
+      "max": 30,
+      "increment": 1,
+      "unit": "%",
+      "visibleConditions": {
+        "paramValueEquals": { "SpeedLimitOffsetType": "2" }
+      }
+    }
+  ]
+}
+```
+
+_In this example:_
+
+*   When `SpeedLimitOffsetType` is set to `"0"` (None):
+    *   Both integer controls are hidden
+*   When `SpeedLimitOffsetType` is set to `"1"` (Fixed):
+    *   The "Fixed Offset Value" control becomes visible with "mph" unit
+    *   The "Percent Offset Value" control remains hidden
+*   When `SpeedLimitOffsetType` is set to `"2"` (Percent):
+    *   The "Percent Offset Value" control becomes visible with "%" unit
+    *   The "Fixed Offset Value" control remains hidden
+
+**Key advantages of `visibleConditions`:**
+- Controls are completely hidden when not applicable (cleaner UI)
+- Multiple controls can share the same parameter with different visibility rules
+- User only sees relevant controls for their current selection
+- No need for composite `allConditionsTrue` wrapper when using single conditions
 
 #### Advanced Condition Example
 

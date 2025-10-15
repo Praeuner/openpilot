@@ -133,7 +133,8 @@ public:
   static void showCommitHistory(QWidget *parent, const QString &title, const QString &workingDir);
   static QString getTimeAgoString(const QDateTime &time);
   static QString getTimeDateString(const QDateTime &time);
-  void showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir, int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn);
+  void showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir, int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn, bool showRestartUIBtn = false);
+  bool checkIfUIOnlyChanges() const;
 
   // Power management methods
   bool isPowerSaveActive() const;

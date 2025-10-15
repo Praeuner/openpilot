@@ -1,4 +1,5 @@
 #include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/bluepilot/concurrent_tracker.h"
 #include "selfdrive/ui/bluepilot/qt/sidebar.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/network/wifi_manager.h"
@@ -345,21 +346,26 @@ SidebarBP::SidebarBP(QWidget *parent) : Sidebar(parent) {
   connect_status = {{tr("CONNECT"), tr("...")}, warning_color};
   panda_status = {{tr("VEHICLE"), tr("...")}, warning_color};
 
-  connect(this, &SidebarBP::valueChanged, [=] { update(); });
+  // Connect valueChanged signal to update slot - use proper lambda capture
+  connect(this, &SidebarBP::valueChanged, this, [this]() { update(); });
 }
 
 SidebarBP::~SidebarBP() {
+  // Stop and delete animations properly to prevent issues
   if (hover_animation) {
+    hover_animation->stop();
     delete hover_animation;
     hover_animation = nullptr;
   }
 
   if (fan_animation) {
+    fan_animation->stop();
     delete fan_animation;
     fan_animation = nullptr;
   }
 
   if (fan_stop_animation) {
+    fan_stop_animation->stop();
     delete fan_stop_animation;
     fan_stop_animation = nullptr;
   }
@@ -426,8 +432,12 @@ void SidebarBP::startAsyncSSIDUpdate() {
   // Mark as pending
   ssid_update_pending = true;
 
+  // Use QPointer to safely handle object deletion during async operation
+  QPointer<SidebarBP> self(this);
+
   // Run SSID detection in background thread to prevent ANY UI blocking
-  QtConcurrent::run([this]() {
+  QtConcurrent::run([self]() {
+    TRACK_CONCURRENT_TASK("SidebarBP::updateWifiStatus");
     try {
       // Create process in the worker thread
       QProcess localProcess;
@@ -446,11 +456,13 @@ void SidebarBP::startAsyncSSIDUpdate() {
         if (localProcess.exitStatus() == QProcess::NormalExit && localProcess.exitCode() == 0) {
           QString output = QString::fromUtf8(localProcess.readAllStandardOutput()).trimmed();
           if (!output.isEmpty() && output.length() < 100) { // Sanity check on output length
-            // Update UI thread safely
-            QMetaObject::invokeMethod(this, [this, output]() {
-              cached_ssid = output;
-              ssid_cache_counter = 0;
-              ssid_update_pending = false;
+            // Update UI thread safely - check if object still exists
+            QMetaObject::invokeMethod(self.data(), [self, output]() {
+              if (!self.isNull()) {
+                self->cached_ssid = output;
+                self->ssid_cache_counter = 0;
+                self->ssid_update_pending = false;
+              }
             }, Qt::QueuedConnection);
             return;
           }
@@ -465,9 +477,11 @@ void SidebarBP::startAsyncSSIDUpdate() {
       // Silently handle any exceptions
     }
 
-    // Clear pending flag on any failure
-    QMetaObject::invokeMethod(this, [this]() {
-      ssid_update_pending = false;
+    // Clear pending flag on any failure - check if object still exists
+    QMetaObject::invokeMethod(self.data(), [self]() {
+      if (!self.isNull()) {
+        self->ssid_update_pending = false;
+      }
     }, Qt::QueuedConnection);
   });
 }
@@ -779,8 +793,8 @@ void SidebarBP::mousePressEvent(QMouseEvent *event) {
   }
 
   if (needs_update) {
-    // Use repaint() for immediate update on touch
-    repaint();
+    // Use update() for deferred painting - better performance
+    update();
   }
 }
 
@@ -792,7 +806,7 @@ void SidebarBP::mouseReleaseEvent(QMouseEvent *event) {
 
   if (flag_pressed || settings_pressed || mic_indicator_pressed || debug_pressed || network_card_pressed) {
     flag_pressed = settings_pressed = mic_indicator_pressed = debug_pressed = network_card_pressed = false;
-    repaint(); // Use repaint() for immediate visual feedback
+    update(); // Use update() for deferred painting - better performance
   }
 
   // Handle network card click - navigate to network settings

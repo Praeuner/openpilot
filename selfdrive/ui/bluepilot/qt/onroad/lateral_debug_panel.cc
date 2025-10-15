@@ -172,9 +172,15 @@ LateralDebugPanel::LateralDebugPanel(QWidget *parent) : QWidget(parent), m_dataP
 }
 
 LateralDebugPanel::~LateralDebugPanel() {
+  // Properly cleanup worker thread
   m_workerThread.quit();
-  m_workerThread.wait();
-  delete m_worker;
+  m_workerThread.wait(5000); // Add timeout for safety
+
+  // Use deleteLater since worker is on another thread
+  if (m_worker) {
+    m_worker->deleteLater();
+    m_worker = nullptr;
+  }
 }
 
 void LateralDebugPanel::updateState(const UIState &s) {

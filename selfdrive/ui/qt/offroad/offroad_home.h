@@ -50,7 +50,11 @@ private:
   Params params;
 
   QTimer* timer;
+#ifdef BLUEPILOT
+  QWidget* bp_version_widget;
+#else
   ElidedLabel* version;
+#endif
   QStackedLayout* center_layout;
   UpdateAlert *update_widget;
   OffroadAlert* alerts_widget;

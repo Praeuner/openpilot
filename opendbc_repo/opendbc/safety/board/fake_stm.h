@@ -15,14 +15,6 @@ void puth(unsigned int i) {
   printf("%u", i);
 }
 
-// void puti(int i) {
-//   printf("%d", i);
-// }
-
-// void putf(float i) {
-//   printf("%f", i);
-// }
-
 typedef struct {
   uint32_t CNT;
 } TIM_TypeDef;

@@ -19,13 +19,14 @@ public:
   virtual void updateState(const UIState &s);
 
 private:
+  void paintEvent(QPaintEvent *event) override;
   void changeMode();
 
   Params params;
 
 protected:
   virtual void drawButton(QPainter &p);
-  void paintEvent(QPaintEvent *event) override;
+
   QPixmap engage_img;
   QPixmap experimental_img;
   bool experimental_mode;

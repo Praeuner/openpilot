@@ -9,6 +9,7 @@
 
 #include <QJsonDocument>
 #include <QLabel>
+#include <QVBoxLayout>
 
 class DriveStats : public QFrame {
   Q_OBJECT
@@ -18,7 +19,9 @@ public:
 
 private:
   void showEvent(QShowEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
   void updateStats();
+  void updateFontSizes();
   inline QString getDistanceUnit() const { return metric_ ? tr("KM") : tr("Miles"); }
 
   bool metric_;
@@ -26,6 +29,8 @@ private:
   struct StatsLabels {
     QLabel *routes, *distance, *distance_unit, *hours;
   } all_, week_;
+  QLabel *all_title_, *week_title_;
+  QVBoxLayout *main_layout_;
 
 private slots:
   void parseResponse(const QString &response, bool success);

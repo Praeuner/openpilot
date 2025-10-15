@@ -1,4 +1,5 @@
 #include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/bluepilot/concurrent_tracker.h"
 #include "bp_thumbnail_loader.h"
 
 #include <QDir>
@@ -69,6 +70,7 @@ void BPThumbnailLoader::requestThumbnail(const QString &routePath, const QString
   ThumbnailRequest request{routePath, routeId};
 
   auto future = QtConcurrent::run([this, request]() {
+    TRACK_CONCURRENT_TASK(QString("BPThumbnailLoader::extract(%1)").arg(request.routeId));
     return this->extractFrameFromVideo(this->findBestVideoFile(request.routePath));
   });
 

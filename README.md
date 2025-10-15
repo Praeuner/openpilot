@@ -112,7 +112,6 @@ The following settings and tuning are available in the BluePilot menu (after com
 - [**Show Hybrid Battery Data Overlay**] - Add a panel at the bottom of the UI showing the hybrid or electic battery status
 - [**Hybrid Drive Gauge Size**] - Adjust the size of the hybrid/electric data panel on the UI
 - [**Show G-Force Meter**] - Displays a g-force meter when onroad
-- [**Show Standstill Timer**] - A sunnypilot feature not yet ported to dev-c3-new.  Still a work in progress.
 - [**Show Blindspot Indicators**] - Another sunny feature not yet ported but available in BluePilot.  Get red inidcators on the UI of blindspot detection.
 - [**Show Stop Indicator Overlay**] - Add a stop sign on the UI where OpenPilot has detect a stop or redlight.  Great for knowing what experimental mode detected.
 - [**Show Wide Camera at Low Speed**] - Still a work in progress

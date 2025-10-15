@@ -523,7 +523,7 @@
             "allConditionsTrue": [
               { "git_remote": ["any"] },
               { "git_branch": [] },
-              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } }
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" }, "reason": "Requires Custom Lateral Logic to be enabled" }
             ]
           }
         },
@@ -542,7 +542,7 @@
             "allConditionsTrue": [
               { "git_remote": ["any"] },
               { "git_branch": [] },
-              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } }
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" }, "reason": "Requires Custom Lateral Logic to be enabled" }
             ]
           }
         },
@@ -560,8 +560,8 @@
             "allConditionsTrue": [
               { "git_remote": ["any"] },
               { "git_branch": [] },
-              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
-              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" }, "reason": "Requires Custom Lateral Logic to be enabled" },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" }, "reason": "Requires Path Angle to be enabled" }
             ]
           }
         },
@@ -579,8 +579,8 @@
             "allConditionsTrue": [
               { "git_remote": ["any"] },
               { "git_branch": [] },
-              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
-              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" }, "reason": "Requires Custom Lateral Logic to be enabled" },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" }, "reason": "Requires Path Angle to be enabled" }
             ]
           }
         },
@@ -598,8 +598,8 @@
             "allConditionsTrue": [
               { "git_remote": ["any"] },
               { "git_branch": [] },
-              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" } },
-              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" } }
+              { "paramValueEquals": { "FordPrefEnableCustomLatLogic": "1" }, "reason": "Requires Custom Lateral Logic to be enabled" },
+              { "paramValueEquals": { "FordPrefEnablePathAngle": "1" }, "reason": "Requires Path Angle to be enabled" }
             ]
           }
         }

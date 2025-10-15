@@ -29,7 +29,6 @@ typedef struct UISceneBP :
   bool show_hybrid_battery_overlay = false;
   bool show_animated_wheel_angle = false;
   bool show_bp_radar_overlay = false;
-  bool stand_still_timer = false;
   bool show_blindspot_indicators = false;
   bool show_stop_indicator_overlay = false;
   bool show_gforce_meter = false;

@@ -49,10 +49,6 @@ FirehosePanel::FirehosePanel(SettingsWindow *parent) : QWidget((QWidget*)parent)
   toggle_label->setStyleSheet("font-size: 60px; font-weight: bold; color: white;");
   content_layout->addWidget(toggle_label);
 
-  disable_firehose = new ParamControl("DisableFirehoseMode", tr("Disable Firehose Mode"), "", "");
-  QObject::connect(disable_firehose, &ParamControl::toggleFlipped, this, &FirehosePanel::refresh);
-  content_layout->addWidget(disable_firehose);
-
   // Add contribution label
   contribution_label = new QLabel();
   contribution_label->setStyleSheet("font-size: 52px; margin-top: 10px; margin-bottom: 10px;");
@@ -107,14 +103,12 @@ void FirehosePanel::refresh() {
   auto networkType = deviceState.getNetworkType();
   bool networkMetered = deviceState.getNetworkMetered();
 
-  if (networkMetered || networkType != cereal::DeviceState::NetworkType::NONE) {
-    toggle_label->setText(tr("<span stylesheet='font-size: 60px; font-weight: bold; color: #e74c3c;'>INACTIVE</span>: connect to an unmetered network"));
-    toggle_label->setStyleSheet("font-size: 60px;");
-  } else if (Params().getBool("DisableFirehoseMode")) {
-    toggle_label->setText(tr("<span stylesheet='font-size: 60px; font-weight: bold; color: #e74c3c;'>INACTIVE</span>: firehose mode disabled"));
-    toggle_label->setStyleSheet("font-size: 60px;");
-  } else {
+  bool is_active = !networkMetered && (networkType != cereal::DeviceState::NetworkType::NONE);
+  if (is_active) {
     toggle_label->setText(tr("ACTIVE"));
     toggle_label->setStyleSheet("font-size: 60px; font-weight: bold; color: #2ecc71;");
+  } else {
+    toggle_label->setText(tr("<span stylesheet='font-size: 60px; font-weight: bold; color: #e74c3c;'>INACTIVE</span>: connect to an unmetered network"));
+    toggle_label->setStyleSheet("font-size: 60px;");
   }
 }

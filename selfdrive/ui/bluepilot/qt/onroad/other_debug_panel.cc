@@ -152,8 +152,9 @@ void OtherDataWorker::processCarState(const UIState *s, OtherDataCache *cache) {
         cache->carValues.cruiseAvailable = cruise.getAvailable();
         cache->carValues.cruiseStandstill = cruise.getStandstill();
         cache->carValues.cruiseNonAdaptive = cruise.getNonAdaptive();
-        cache->carValues.cruiseSpeedLimit = cruise.getSpeedLimit();
       }
+      // Get cruise speed limit from CarState (actual set speed)
+      cache->carValues.cruiseSpeedLimit = car.getVCruise();
 
       // BPLog::bpInfo() << "[bp.other.debug.panel] processCarState: update cache with vEgo: " << cache->carValues.vEgo << std::endl;
 
@@ -231,7 +232,16 @@ void OtherDataWorker::processCarOutput(const UIState *s, OtherDataCache *cache) 
     cache->outputValues.torqueOutputCan = 0.0f;
     cache->outputValues.longControlState = 0;
 
-    if (sm.valid("carOutput")) {
+    // Check if carOutput service is subscribed (may not be if DevUIInfo is disabled)
+    bool carOutputAvailable = false;
+    try {
+      carOutputAvailable = sm.valid("carOutput");
+    } catch (...) {
+      // Service not subscribed
+      return;
+    }
+
+    if (carOutputAvailable) {
       try {
         auto output = sm["carOutput"].getCarOutput();
 
@@ -777,11 +787,19 @@ void OtherDebugPanel::setCANUpdatesPaused(bool paused) {
 OtherDebugPanel::~OtherDebugPanel() {
   // Clean up worker thread
   m_workerThread.quit();
-  m_workerThread.wait();
-  delete m_worker;
+  m_workerThread.wait(5000); // Add timeout for safety
 
-  // Free data cache
-  delete m_cache;
+  // Use deleteLater since worker is on another thread
+  if (m_worker) {
+    m_worker->deleteLater();
+    m_worker = nullptr;
+  }
+
+  // Free data cache (not a QObject, safe to delete)
+  if (m_cache) {
+    delete m_cache;
+    m_cache = nullptr;
+  }
 }
 
 void OtherDebugPanel::updateState(const UIState &s) {

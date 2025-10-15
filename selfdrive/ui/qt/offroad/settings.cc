@@ -424,12 +424,22 @@ void SettingsWindow::showEvent(QShowEvent *event) {
 
 void SettingsWindow::setCurrentPanel(int index, const QString &param) {
   if (!param.isEmpty()) {
-    // Check if param ends with "Panel" to determine if it's a panel name
-    if (param.endsWith("Panel")) {
+    // First, try to find a panel by exact title match
+    bool found = false;
+    for (int i = 0; i < nav_btns->buttons().size(); i++) {
+      QString btnText = nav_btns->buttons()[i]->text().trimmed();
+      if (btnText == param) {
+        index = i;
+        found = true;
+        break;
+      }
+    }
+
+    // If not found by exact match, check if param ends with "Panel" (legacy support)
+    if (!found && param.endsWith("Panel")) {
       QString panelName = param;
       panelName.chop(5); // Remove "Panel" suffix
 
-      // Find the panel by name
       for (int i = 0; i < nav_btns->buttons().size(); i++) {
         bool panel_trimmed = false;
 #ifdef SUNNYPILOT
@@ -437,10 +447,14 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
 #endif
         if ((nav_btns->buttons()[i]->text() == tr(panelName.toStdString().c_str())) || panel_trimmed) {
           index = i;
+          found = true;
           break;
         }
       }
-    } else {
+    }
+
+    // If still not found, treat as a toggle parameter
+    if (!found) {
       emit expandToggleDescription(param);
       emit scrollToToggle(param);
     }

@@ -26,6 +26,10 @@ find . -type f -name '*.o' -print -exec rm -f {} +
 echo "Searching for moc_ files..."
 find . -type f -name 'moc_*' -print -exec rm -f {} +
 
+# Remove all .tmp files
+echo "Searching for .tmp files..."
+find . -type f -name '*.tmp' -print -exec rm -f {} +
+
 # Clean other directories
 echo "Cleaning other directories..."
 rm -rf cereal/gen
@@ -42,5 +46,9 @@ rm -f selfdrive/assets/translations_assets.qrc
 
 rm -f opendbc_repo/opendbc/safety/tests/misra/checkers.txt
 rm -f opendbc_repo/opendbc/safety/tests/misra/suppressions.txt
+
+# Clean up empty directories named generated
+echo "Cleaning up empty directories named generated..."
+find . -type d -name 'generated' -empty -print -exec rm -rf {} +
 
 echo "Cleanup complete."

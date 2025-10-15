@@ -20,6 +20,7 @@ class BPToggleControl;
 #include "bp_panel_conditions.h"
 #include "bp_panel_dialogs.h"
 
+// Simplified ListWidget that doesn't embed scroll area (will be wrapped by ScrollView externally)
 class BPPanelListWidget : public QWidget {
   Q_OBJECT
 
@@ -27,76 +28,14 @@ class BPPanelListWidget : public QWidget {
   friend class BPNavBarView;
 
 public:
-  explicit BPPanelListWidget(QWidget *parent = nullptr) : QWidget(parent) {
-    // Create scroll area
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
-
-    QScrollArea *scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    // Create container for scroll content
-    QWidget *scrollContent = new QWidget(scrollArea);
-    outer_layout.setContentsMargins(0, 0, 0, 0);
+  explicit BPPanelListWidget(QWidget *parent = nullptr) : QWidget(parent), outer_layout(this) {
+    // Simple layout structure like the smooth-scrolling ListWidget
+    outer_layout.setMargin(0);
     outer_layout.setSpacing(0);
     outer_layout.addLayout(&inner_layout);
-    inner_layout.setContentsMargins(0, 0, 0, 0);
-    inner_layout.setSpacing(50);
+    inner_layout.setMargin(0);
+    inner_layout.setSpacing(50);  // Default spacing for BP panels
     outer_layout.addStretch();
-
-    scrollContent->setLayout(&outer_layout);
-    scrollArea->setWidget(scrollContent);
-    mainLayout->addWidget(scrollArea);
-
-    // Set scroll area styling
-    scrollArea->setStyleSheet(R"(
-      QScrollArea {
-        background: transparent;
-        border: none;
-      }
-      QScrollBar:vertical {
-        width: 24px;
-        margin: 0px;
-        padding: 2px;
-        background: transparent;
-      }
-      QScrollBar::handle {
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
-        border-bottom-left-radius: 12px;
-        border-bottom-right-radius: 12px;
-      }
-      QScrollBar::handle:vertical {
-        background: #666666;
-        min-height: 100px;
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
-        border-bottom-left-radius: 12px;
-        border-bottom-right-radius: 12px;
-        margin: 0 4px;
-      }
-      QScrollBar::add-line:vertical,
-      QScrollBar::sub-line:vertical {
-        height: 0px;
-      }
-      QScrollBar::add-page:vertical,
-      QScrollBar::sub-page:vertical {
-        background: none;
-      }
-    )");
-
-    // Enable touch events on the scroll area and its viewport.
-    scrollArea->setAttribute(Qt::WA_AcceptTouchEvents, true);
-    scrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
-    scrollArea->viewport()->setMouseTracking(true);
-    scrollArea->viewport()->setFocusPolicy(Qt::StrongFocus);
-
-    // Enable touch scrolling via QScroller on the viewport.
-    QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
   }
 
   inline void addItem(QWidget *w) { inner_layout.addWidget(w); }
@@ -134,6 +73,7 @@ protected:
   struct GroupData {
     QGroupBox *groupBox;
     std::vector<QWidget *> controls;
+    std::vector<QWidget *> dividers;  // Track dividers separately for visibility management
   };
 
   // Core state
@@ -144,18 +84,40 @@ protected:
   std::map<QString, GroupData> groups;
   std::map<std::string, BPToggleControl *> toggles;
   QJsonObject configJson;
+  class BPActionHandler *actionHandler = nullptr;
+
+  // Dynamic signal connection registry
+  using SignalConnector = std::function<void(QWidget*, QObject*)>;
+  std::map<QString, SignalConnector> signalConnectors;
+
+  // Dynamic list generator registry
+  using ListGenerator = std::function<QMap<QString, QString>()>;
+  std::map<QString, ListGenerator> listGenerators;
+
+  // Registry setup
+  virtual void registerSignalConnectors();
+  virtual void registerListGenerators();
+  virtual void connectSignal(const QString &signalName, QWidget *widget, QObject *target);
 
   // Control creation
   virtual QWidget *processControlCreation(const QJsonObject &control);
   virtual QWidget *createToggleControl(const QJsonObject &control);
+  virtual QWidget *createParamToggleButton(const QJsonObject &control);
   virtual QWidget *createSegmentedControl(const QJsonObject &control);
   virtual QWidget *createNumericControl(const QJsonObject &control, bool isFloat);
   virtual QWidget *createSelectionControl(const QJsonObject &control);
   virtual QWidget *createParamViewerControl(const QJsonObject &control);
   virtual QWidget *createParamListViewerControl(const QJsonObject &control);
+  virtual QWidget *createStaticParamDisplayControl(const QJsonObject &control);
+  virtual QWidget *createFileParamDisplayControl(const QJsonObject &control);
+  virtual QWidget *createTextInputControl(const QJsonObject &control);
+  virtual QWidget *createHtmlViewerControl(const QJsonObject &control);
   virtual QWidget *createFileViewerControl(const QJsonObject &control);
   virtual QWidget *createRecentChangesControl(const QJsonObject &control);
   virtual QWidget *createCommandButtonControl(const QJsonObject &control);
+  virtual QWidget *createRestartUIControl(const QJsonObject &control);
+  virtual QWidget *createStaticTextControl(const QJsonObject &control);
+  virtual QWidget *createPlatformDisplayControl(const QJsonObject &control);
   virtual QWidget *createNestedControlsButton(const QJsonObject &control);
 
   // Group management
@@ -184,4 +146,8 @@ signals:
   void controlValueChanged();
   void groupResetRequested(const QString &groupName);
   void dialogVisibilityChanged(bool visible);
+  void showDriverView();
+  void reviewTrainingGuide();
+  void showLanguageSelector();
+  void showRegulatory();
 };

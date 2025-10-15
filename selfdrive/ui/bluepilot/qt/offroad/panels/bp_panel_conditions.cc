@@ -2,6 +2,15 @@
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "bp_panel_conditions.h"
+#include "bp_panel_controls.h"
+#include "common/swaglog.h"
+#include "selfdrive/ui/qt/util.h"
+#include "selfdrive/ui/sunnypilot/ui.h"
+#include "system/hardware/hw.h"
+
+#include <QCoreApplication>
+#include <capnp/dynamic.h>
+#include "cereal/messaging/messaging.h"
 
 bool PanelConditions::validateSingleCondition(const QString &conditionType, const QJsonValue &condition) {
   if (conditionType == "paramValueEquals") {
@@ -99,6 +108,206 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
         return false;
       }
     }
+  } else if (conditionType == "paramIsTrue") {
+    if (condition.isString()) {
+      // Single param: "paramIsTrue": "ParamName"
+      QString paramName = condition.toString();
+      return params.getBool(paramName.toStdString());
+    } else if (condition.isArray()) {
+      // Multiple params: "paramIsTrue": ["Param1", "Param2"]
+      QJsonArray paramArray = condition.toArray();
+      for (const auto &param : paramArray) {
+        std::string paramName = param.toString().toStdString();
+        if (!params.getBool(paramName)) {
+          return false;
+        }
+      }
+    } else if (condition.isObject()) {
+      // Object format: "paramIsTrue": {"ParamName": true}
+      QJsonObject paramObj = condition.toObject();
+      for (auto it = paramObj.begin(); it != paramObj.end(); ++it) {
+        std::string paramName = it.key().toStdString();
+        if (!params.getBool(paramName)) {
+          return false;
+        }
+      }
+    }
+  } else if (conditionType == "paramIsFalse") {
+    if (condition.isString()) {
+      // Single param: "paramIsFalse": "ParamName"
+      QString paramName = condition.toString();
+      return !params.getBool(paramName.toStdString());
+    } else if (condition.isArray()) {
+      // Multiple params: "paramIsFalse": ["Param1", "Param2"]
+      QJsonArray paramArray = condition.toArray();
+      for (const auto &param : paramArray) {
+        std::string paramName = param.toString().toStdString();
+        if (params.getBool(paramName)) {
+          return false;
+        }
+      }
+    } else if (condition.isObject()) {
+      // Object format: "paramIsFalse": {"ParamName": true}
+      QJsonObject paramObj = condition.toObject();
+      for (auto it = paramObj.begin(); it != paramObj.end(); ++it) {
+        std::string paramName = it.key().toStdString();
+        if (params.getBool(paramName)) {
+          return false;
+        }
+      }
+    }
+  } else if (conditionType == "paramLocked") {
+    QString paramName = condition.toString();
+    std::string lockParam = (paramName + "Lock").toStdString();
+    return params.getBool(lockParam);
+  } else if (conditionType == "paramNotLocked") {
+    QString paramName = condition.toString();
+    std::string lockParam = (paramName + "Lock").toStdString();
+    return !params.getBool(lockParam);
+  } else if (conditionType == "paramExists") {
+    QString paramName = condition.toString();
+    std::string paramVal = params.get(paramName.toStdString());
+    return !paramVal.empty();
+  } else if (conditionType == "paramNotExists") {
+    QString paramName = condition.toString();
+    std::string paramVal = params.get(paramName.toStdString());
+    return paramVal.empty();
+  } else if (conditionType == "hasCarParams") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    return !cp_bytes.empty();
+  } else if (conditionType == "hasLongitudinalControl") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    return hasLongitudinalControl(CP);
+  } else if (conditionType == "hasAlphaLongitudinalAvailable") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    return CP.getAlphaLongitudinalAvailable();
+  } else if (conditionType == "isReleaseBranch") {
+    return params.getBool("IsReleaseBranch");
+  } else if (conditionType == "isTestedBranch") {
+    return params.getBool("IsTestedBranch");
+  } else if (conditionType == "isDevelopmentBranch") {
+    return params.getBool("IsDevelopmentBranch");
+  } else if (conditionType == "isNotReleaseBranch") {
+    return !params.getBool("IsReleaseBranch");
+  } else if (conditionType == "disableUpdates") {
+    return params.getBool("DisableUpdates");
+  } else if (conditionType == "isOffroad") {
+    return !uiState()->scene.started;
+  } else if (conditionType == "isOnroad") {
+    return uiState()->scene.started;
+  } else if (conditionType == "isEngaged") {
+    return uiState()->engaged();
+  } else if (conditionType == "isNotEngaged") {
+    return !uiState()->engaged();
+  } else if (conditionType == "isPcmCruise") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    return CP.getPcmCruise();
+  } else if (conditionType == "hasIntelligentCruiseButtonManagement") {
+    auto cp_sp_bytes = params.get("CarParamsSPPersistent");
+    if (cp_sp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
+    cereal::CarParamsSP::Reader CP_SP = cmsg.getRoot<cereal::CarParamsSP>();
+    return CP_SP.getIntelligentCruiseButtonManagementAvailable();
+  } else if (conditionType == "isTiciHardware") {
+    return Hardware::TICI();
+  } else if (conditionType == "isPcHardware") {
+    return Hardware::PC();
+  } else if (conditionType == "isMadsLimitedBrand") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    std::string brand = CP.getBrand();
+    // Rivian and Tesla have limited MADS settings
+    return (brand == "rivian" || brand == "tesla");
+  } else if (conditionType == "hasBlindSpotMonitoring") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    return CP.getEnableBsm();
+  } else if (conditionType == "isAngleSteering") {
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    return CP.getSteerControlType() == cereal::CarParams::SteerControlType::ANGLE;
+  } else if (conditionType == "paramExists") {
+    QString paramName = condition.toString();
+    auto value = params.get(paramName.toStdString());
+    return !value.empty();
+  } else if (conditionType == "paramNotExists") {
+    QString paramName = condition.toString();
+    auto value = params.get(paramName.toStdString());
+    return value.empty();
+  } else if (conditionType == "brandEquals") {
+    QString expectedBrand = condition.toString().toLower();
+
+    // First check if there's a manually selected platform
+    QString platform_bundle = QString::fromStdString(params.get("CarPlatformBundle"));
+    if (!platform_bundle.isEmpty()) {
+      QJsonDocument json = QJsonDocument::fromJson(platform_bundle.toUtf8());
+      if (!json.isNull() && json.isObject()) {
+        QString brand = json.object().value("brand").toString().toLower();
+        return brand == expectedBrand;
+      }
+    }
+
+    // Otherwise, check the detected brand from CarParams
+    auto cp_bytes = params.get("CarParamsPersistent");
+    if (cp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+    cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+    QString carName = QString::fromStdString(CP.getCarFingerprint()).toLower();
+
+    // Extract brand from car name (e.g., "FORD BRONCO SPORT 2021" -> "ford")
+    if (carName.contains("ford")) return expectedBrand == "ford";
+    if (carName.contains("toyota")) return expectedBrand == "toyota";
+    if (carName.contains("honda")) return expectedBrand == "honda";
+    if (carName.contains("hyundai") || carName.contains("kia") || carName.contains("genesis")) return expectedBrand == "hyundai";
+    if (carName.contains("gm") || carName.contains("chevrolet") || carName.contains("cadillac")) return expectedBrand == "gm";
+    if (carName.contains("chrysler") || carName.contains("jeep") || carName.contains("ram") || carName.contains("dodge")) return expectedBrand == "chrysler";
+    if (carName.contains("mazda")) return expectedBrand == "mazda";
+    if (carName.contains("nissan")) return expectedBrand == "nissan";
+    if (carName.contains("subaru")) return expectedBrand == "subaru";
+    if (carName.contains("volkswagen") || carName.contains("vw")) return expectedBrand == "volkswagen";
+    if (carName.contains("tesla")) return expectedBrand == "tesla";
+    if (carName.contains("rivian")) return expectedBrand == "rivian";
+
+    return false;
   }
 
   return true;
@@ -187,7 +396,8 @@ void PanelConditions::updateConditionsForAllControls(std::function<void()> updat
 
     const ControlConditions &conds = pair.second;
 
-    if (conds.hasConditions && ctrl) {
+    // Check if this control has any conditions (legacy, enabled, or visible)
+    if ((conds.hasConditions || conds.hasEnableConditions || conds.hasVisibleConditions) && ctrl) {
       std::string controlName = ctrl->objectName().toStdString();
 
       if (processedControls.find(controlName) != processedControls.end()) {
@@ -195,17 +405,8 @@ void PanelConditions::updateConditionsForAllControls(std::function<void()> updat
       }
       processedControls.insert(controlName);
 
-      bool currentlyEnabled = ctrl->isEnabled();
-      bool shouldBeEnabled = validateCompositeConditions(conds.conditions);
-
-      if (currentlyEnabled != shouldBeEnabled) {
-        ctrl->setEnabled(shouldBeEnabled);
-        ctrl->setProperty("enabled", QVariant(shouldBeEnabled));
-        ctrl->update();
-        ctrl->style()->unpolish(ctrl);
-        ctrl->style()->polish(ctrl);
-        ctrl->update();
-      }
+      // Use the unified updateConditionsForWidget function which handles all condition types
+      updateConditionsForWidget(ctrl, conds);
     }
   }
 
@@ -271,21 +472,332 @@ void PanelConditions::logConditionCheck(const QString &controlName, const std::f
 }
 
 bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlConditions &conditions) {
-  if (!widget || !conditions.hasConditions) {
+  if (!widget) {
     return true;
   }
 
-  bool currentlyEnabled = widget->isEnabled();
-  bool shouldBeEnabled = validateCompositeConditions(conditions.conditions);
+  // Performance optimization: use cached state if valid
+  if (conditions.cachedStateValid) {
+    // Quick path: just verify widget state matches cache
+    if (widget->isEnabled() == conditions.lastEnabledState &&
+        widget->isVisible() == conditions.lastVisibleState) {
+      return conditions.lastEnabledState;
+    }
+  }
 
-  if (currentlyEnabled != shouldBeEnabled) {
+  // Determine enabled state
+  bool shouldBeEnabled = true;
+  if (conditions.hasEnableConditions) {
+    // Use new enableConditions
+    shouldBeEnabled = validateCompositeConditions(conditions.enableConditions);
+  } else if (conditions.hasConditions) {
+    // Legacy: use conditions for enabled state
+    shouldBeEnabled = validateCompositeConditions(conditions.conditions);
+  }
+
+  // Determine visible state
+  bool shouldBeVisible = true;
+  if (conditions.hasVisibleConditions) {
+    // Use new visibleConditions
+    shouldBeVisible = validateCompositeConditions(conditions.visibleConditions);
+  }
+  // Note: Legacy "conditions" does NOT control visibility, only enabled state
+  // This maintains backward compatibility where controls were always visible but could be disabled
+
+  // Update cache
+  const_cast<ControlConditions&>(conditions).lastEnabledState = shouldBeEnabled;
+  const_cast<ControlConditions&>(conditions).lastVisibleState = shouldBeVisible;
+  const_cast<ControlConditions&>(conditions).cachedStateValid = true;
+
+  // Handle auto-reset when conditions are not met
+  if (!shouldBeEnabled && conditions.hasAutoReset && !conditions.paramName.isEmpty()) {
+    std::string currentValue = params.get(conditions.paramName.toStdString());
+    std::string resetValue = conditions.autoResetValue.toStdString();
+
+    if (currentValue != resetValue) {
+      params.put(conditions.paramName.toStdString(), resetValue);
+      BPLog::bpInfo() << "[bp.panel.conditions] updateConditionsForWidget | Auto-reset param - "
+                      << conditions.paramName.toStdString() << ": " << currentValue << " -> " << resetValue << std::endl;
+    }
+  }
+
+  // Handle dynamic descriptions
+  if (conditions.hasDynamicDescriptions) {
+    QString newDesc = evaluateDescription(conditions);
+
+    // Try casting to different control types
+    if (auto toggle = qobject_cast<BPToggleControl*>(widget)) {
+      toggle->setDescription(newDesc);
+    } else if (auto segmented = qobject_cast<BPSegmentedControl*>(widget)) {
+      segmented->setDescription(newDesc);
+    } else if (auto selection = qobject_cast<BPSelectionControl*>(widget)) {
+      selection->setDescription(newDesc);
+    } else if (auto numeric = qobject_cast<BPNumericControl*>(widget)) {
+      numeric->setDescription(newDesc);
+    }
+  }
+
+  // Apply visibility state
+  bool visibilityChanged = false;
+  if (widget->isVisible() != shouldBeVisible) {
+    widget->setVisible(shouldBeVisible);
+    visibilityChanged = true;
+  }
+
+  // Apply enabled state (only matters if widget is visible)
+  bool enabledChanged = false;
+  if (shouldBeVisible && widget->isEnabled() != shouldBeEnabled) {
     widget->setEnabled(shouldBeEnabled);
     widget->setProperty("enabled", QVariant(shouldBeEnabled));
-    widget->update();
+    enabledChanged = true;
+  }
+
+  // Batch style updates - only recalculate once if anything changed
+  if (enabledChanged && shouldBeVisible) {
     widget->style()->unpolish(widget);
     widget->style()->polish(widget);
+  }
+
+  // Single update call only if state actually changed
+  if (visibilityChanged || enabledChanged) {
     widget->update();
   }
 
+  // Handle disabled reasons for controls that aren't enabled
+  if (!shouldBeEnabled && conditions.hasEnableConditions) {
+    // Collect reasons from failed conditions
+    QStringList reasons = getFailedConditionReasons(conditions.enableConditions, QJsonValue());
+    reasons.removeDuplicates();
+
+    // Try casting to different control types and set disabled reasons
+    if (auto toggle = qobject_cast<BPToggleControl*>(widget)) {
+      toggle->setDisabledReasons(reasons);
+    } else if (auto paramToggle = qobject_cast<BPParamToggleButton*>(widget)) {
+      paramToggle->setDisabledReasons(reasons);
+    } else if (auto segmented = qobject_cast<BPSegmentedControl*>(widget)) {
+      segmented->setDisabledReasons(reasons);
+    } else if (auto selection = qobject_cast<BPSelectionControl*>(widget)) {
+      selection->setDisabledReasons(reasons);
+    } else if (auto numeric = qobject_cast<BPNumericControl*>(widget)) {
+      numeric->setDisabledReasons(reasons);
+    }
+  } else {
+    // Control is enabled or has no conditions - clear disabled reasons
+    if (auto toggle = qobject_cast<BPToggleControl*>(widget)) {
+      toggle->setDisabledReasons(QStringList());
+    } else if (auto paramToggle = qobject_cast<BPParamToggleButton*>(widget)) {
+      paramToggle->setDisabledReasons(QStringList());
+    } else if (auto segmented = qobject_cast<BPSegmentedControl*>(widget)) {
+      segmented->setDisabledReasons(QStringList());
+    } else if (auto selection = qobject_cast<BPSelectionControl*>(widget)) {
+      selection->setDisabledReasons(QStringList());
+    } else if (auto numeric = qobject_cast<BPNumericControl*>(widget)) {
+      numeric->setDisabledReasons(QStringList());
+    }
+  }
+
   return shouldBeEnabled;
+}
+
+QString PanelConditions::evaluateDescription(const ControlConditions &conditions) {
+  QString description;
+
+  if (!conditions.hasDynamicDescriptions || conditions.descriptions.isEmpty()) {
+    description = conditions.defaultDescription;
+  } else {
+    // Iterate through description conditions, return first match
+    for (auto it = conditions.descConditions.begin(); it != conditions.descConditions.end(); ++it) {
+      QString key = it.key();
+      QJsonObject conditionObj = it.value();
+
+      if (validateCompositeConditions(conditionObj)) {
+        // Found a matching condition, return its description
+        if (conditions.descriptions.contains(key)) {
+          description = conditions.descriptions[key];
+          break;
+        }
+      }
+    }
+
+    // No conditions matched, use default
+    if (description.isEmpty()) {
+      description = conditions.defaultDescription;
+    }
+  }
+
+  // Perform parameter substitution if configured
+  if (conditions.hasParamSubstitutions) {
+    description = performParameterSubstitution(description, conditions.paramSubstitutions);
+  }
+
+  return description;
+}
+
+QString PanelConditions::readCarParamSPValue(cereal::CarParamsSP::Reader &CP_SP, const QString &path) {
+  // Parse nested path like "neuralNetworkLateralControl.model.name"
+  QStringList parts = path.split(".");
+
+  if (parts[0] == "neuralNetworkLateralControl") {
+    auto nnlc = CP_SP.getNeuralNetworkLateralControl();
+    if (parts.size() >= 2 && parts[1] == "model") {
+      auto model = nnlc.getModel();
+      if (parts.size() >= 3 && parts[2] == "name") {
+        return QString::fromStdString(model.getName());
+      }
+    } else if (parts.size() >= 2 && parts[1] == "fuzzyFingerprint") {
+      return nnlc.getFuzzyFingerprint() ? "true" : "false";
+    }
+  }
+
+  return QString();
+}
+
+QString PanelConditions::readCarParamValue(cereal::CarParams::Reader &CP, const QString &path) {
+  // Implement common CarParams fields as needed
+  // For now, return empty - extend as needed for future use cases
+  return QString();
+}
+
+QString PanelConditions::performParameterSubstitution(const QString &text, const QJsonObject &substitutions) {
+  QString result = text;
+
+  // Iterate through each substitution defined in the JSON
+  for (auto it = substitutions.begin(); it != substitutions.end(); ++it) {
+    QString placeholder = it.key();  // e.g., "model_name"
+    QJsonObject substConfig = it.value().toObject();
+
+    QString substValue;
+    QString substType = substConfig["type"].toString();
+
+    if (substType == "param") {
+      // Simple param read
+      QString paramName = substConfig["param"].toString();
+      substValue = QString::fromStdString(params.get(paramName.toStdString()));
+    } else if (substType == "carParam" || substType == "carParamSP") {
+      // Read from CarParams or CarParamsSP
+      std::string carParamsKey = (substType == "carParam") ? "CarParamsPersistent" : "CarParamsSPPersistent";
+      auto cp_bytes = params.get(carParamsKey);
+
+      if (!cp_bytes.empty()) {
+        AlignedBuffer aligned_buf;
+        capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+
+        QString path = substConfig["path"].toString();
+
+        if (substType == "carParam") {
+          cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+          substValue = readCarParamValue(CP, path);
+        } else {
+          cereal::CarParamsSP::Reader CP_SP = cmsg.getRoot<cereal::CarParamsSP>();
+          substValue = readCarParamSPValue(CP_SP, path);
+        }
+      }
+    }
+
+    // Apply value mapping if configured
+    if (substConfig.contains("valueMap")) {
+      QJsonObject valueMap = substConfig["valueMap"].toObject();
+      if (valueMap.contains(substValue)) {
+        substValue = valueMap[substValue].toString();
+      }
+    }
+
+    // Replace placeholder in text (support both {placeholder} and {{placeholder}} formats)
+    result.replace(QString("{%1}").arg(placeholder), substValue);
+    result.replace(QString("{{%1}}").arg(placeholder), substValue);
+  }
+
+  return result;
+}
+
+QStringList PanelConditions::getFailedConditionReasons(const QJsonObject &conditions, const QJsonValue &disabledReasonConfig) {
+  QStringList reasons;
+
+  // Check each condition in the conditions object
+  for (auto it = conditions.begin(); it != conditions.end(); ++it) {
+    QString conditionType = it.key();
+    QJsonValue conditionValue = it.value();
+
+    // Skip git-related conditions (no user-facing reason needed)
+    if (conditionType == "git_remote" || conditionType == "git_branch") {
+      continue;
+    }
+
+    // Handle composite conditions by recursing into their children
+    if (conditionType == "allConditionsTrue" || conditionType == "anyConditionsTrue") {
+      QJsonArray condArray = conditionValue.toArray();
+      for (const auto &subCond : condArray) {
+        if (subCond.isObject()) {
+          QJsonObject subCondObj = subCond.toObject();
+          // Extract "reason" field if present
+          QString reason;
+          if (subCondObj.contains("reason")) {
+            reason = subCondObj["reason"].toString();
+          }
+
+          // Create a copy without the "reason" field for validation
+          QJsonObject conditionOnly = subCondObj;
+          conditionOnly.remove("reason");
+
+          // Recursively check sub-conditions
+          reasons.append(getFailedConditionReasons(conditionOnly, disabledReasonConfig));
+
+          // If this specific condition failed and has a reason, add it
+          if (!reason.isEmpty()) {
+            bool conditionMet = validateConditionObject(conditionOnly);
+            if (!conditionMet) {
+              reasons.append(reason);
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    // For leaf conditions, the value might be an object with a "reason" field
+    // e.g., { "isOffroad": true, "reason": "Must be offroad" }
+    // But this doesn't match our JSON structure. Our structure is:
+    // { "isOffroad": true, "reason": "..." } inside an array element
+
+    // We don't need to handle single conditions here since they're handled above in composite conditions
+  }
+
+  return reasons;
+}
+
+QString PanelConditions::getDisabledReason(QWidget *widget) {
+  if (!widget) {
+    return QString();
+  }
+
+  auto it = controlConditions.find(widget);
+  if (it == controlConditions.end()) {
+    return QString();
+  }
+
+  const ControlConditions &conditions = it->second;
+
+  // Only show disabled reason if control is actually disabled and has conditions
+  if (!conditions.hasConditions || widget->isEnabled()) {
+    return QString();
+  }
+
+  // Check if conditions are met
+  bool conditionsMet = validateCompositeConditions(conditions.conditions);
+  if (conditionsMet) {
+    return QString();  // Conditions met, no disabled reason needed
+  }
+
+  // Extract reasons from the conditions (reasons are now embedded in the condition objects)
+  QStringList reasons = getFailedConditionReasons(conditions.conditions, QJsonValue());
+  reasons.removeDuplicates();
+
+  if (reasons.isEmpty()) {
+    return QString();
+  } else if (reasons.size() == 1) {
+    return reasons.first();
+  } else {
+    // Multiple reasons - format as bullet list
+    return "• " + reasons.join("\n• ");
+  }
 }

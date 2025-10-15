@@ -28,7 +28,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ControlsReady", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL}},
     {"CurrentBootlog", {PERSISTENT, STRING}},
     {"CurrentRoute", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, STRING}},
-    {"DisableFirehoseMode", {PERSISTENT | BACKUP, BOOL}},
     {"DisableLogging", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL}},
     {"DisablePowerDown", {PERSISTENT | BACKUP, BOOL}},
     {"DisableUpdates", {PERSISTENT | BACKUP, BOOL, "0"}},
@@ -95,7 +94,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"Offroad_NeosUpdate", {CLEAR_ON_MANAGER_START, JSON}},
     {"Offroad_NoFirmware", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, JSON}},
     {"Offroad_Recalibration", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, JSON}},
-    {"Offroad_StorageMissing", {CLEAR_ON_MANAGER_START, JSON}},
     {"Offroad_TemperatureTooHigh", {CLEAR_ON_MANAGER_START, JSON}},
     {"Offroad_UnregisteredHardware", {CLEAR_ON_MANAGER_START, JSON}},
     {"Offroad_UpdateFailed", {CLEAR_ON_MANAGER_START, JSON}},
@@ -146,24 +144,32 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"CustomAccIncrementsEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"CustomAccLongPressIncrement", {PERSISTENT | BACKUP, INT, "5"}},
     {"CustomAccShortPressIncrement", {PERSISTENT | BACKUP, INT, "1"}},
-    {"DevUIInfo", {PERSISTENT | BACKUP, INT, "0"}},
     {"DeviceBootMode", {PERSISTENT | BACKUP, INT, "0"}},
+    {"DevUIInfo", {PERSISTENT | BACKUP, INT, "0"}},
     {"EnableCopyparty", {PERSISTENT | BACKUP, BOOL}},
     {"EnableGithubRunner", {PERSISTENT | BACKUP, BOOL}},
+    {"GreenLightAlert", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"GithubRunnerSufficientVoltage", {CLEAR_ON_MANAGER_START , BOOL}},
+    {"HideVEgoUI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"IntelligentCruiseButtonManagement", {PERSISTENT | BACKUP , BOOL}},
     {"InteractivityTimeout", {PERSISTENT | BACKUP, INT, "0"}},
     {"IsDevelopmentBranch", {CLEAR_ON_MANAGER_START, BOOL}},
+    {"LastGPSPositionLLK", {PERSISTENT, STRING}},
+    {"LeadDepartAlert", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"MaxTimeOffroad", {PERSISTENT | BACKUP, INT, "1800"}},
     {"ModelRunnerTypeCache", {CLEAR_ON_ONROAD_TRANSITION, INT}},
     {"OffroadMode", {CLEAR_ON_MANAGER_START, BOOL}},
     {"Offroad_TiciSupport", {CLEAR_ON_MANAGER_START, JSON}},
+    {"OnroadScreenOffBrightness", {PERSISTENT | BACKUP, INT, "100"}},
     {"OnroadScreenOffControl", {PERSISTENT | BACKUP, BOOL}},
     {"OnroadScreenOffTimer", {PERSISTENT | BACKUP, INT, "0"}},
-    {"OnroadScreenOffBrightness", {PERSISTENT | BACKUP, INT, "100"}},
+    {"OnroadUploads", {PERSISTENT | BACKUP, BOOL, "1"}},
     {"QuickBootToggle", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"QuietMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"RainbowMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ShowAdvancedControls", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"StandstillTimer", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"TrueVEgoUI", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // MADS params
     {"Mads", {PERSISTENT | BACKUP, BOOL, "1"}},
@@ -189,7 +195,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"SunnylinkCache_Users", {PERSISTENT, STRING}},
     {"SunnylinkDongleId", {PERSISTENT, STRING}},
     {"SunnylinkdPid", {PERSISTENT, INT}},
-    {"SunnylinkEnabled", {PERSISTENT, BOOL}},
+    {"SunnylinkEnabled", {PERSISTENT, BOOL, "1"}},
+    {"SunnylinkTempFault", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, BOOL, "0"}},
 
     // Backup Manager params
     {"BackupManager_CreateBackup", {PERSISTENT, BOOL}},
@@ -207,7 +214,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LagdValueCache", {PERSISTENT, FLOAT, "0.2"}},
     {"LaneTurnDesire", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"LaneTurnValue", {PERSISTENT | BACKUP, FLOAT, "19.0"}},
-
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
@@ -228,7 +234,29 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OsmStateTitle", {PERSISTENT, STRING}},
     {"OsmWayTest", {PERSISTENT, STRING}},
     {"RoadName", {CLEAR_ON_ONROAD_TRANSITION, STRING}},
-    {"SpeedLimitMode", {PERSISTENT | BACKUP, INT, "0"}},
+    {"RoadNameToggle", {PERSISTENT, STRING}},
+
+    // Speed Limit
+    {"SpeedLimitMode", {PERSISTENT | BACKUP, INT, "1"}},
+    {"SpeedLimitOffsetType", {PERSISTENT | BACKUP, INT, "0"}},
+    {"SpeedLimitPolicy", {PERSISTENT | BACKUP, INT, "3"}},
+    {"SpeedLimitValueOffset", {PERSISTENT | BACKUP, INT, "0"}},
+
+    // Smart Cruise Control
+    {"MapTargetVelocities", {CLEAR_ON_ONROAD_TRANSITION, STRING}},
+    {"SmartCruiseControlMap", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"SmartCruiseControlVision", {PERSISTENT | BACKUP, BOOL, "0"}},
+
+    // Torque lateral control custom params
+    {"CustomTorqueParams", {PERSISTENT | BACKUP , BOOL}},
+    {"EnforceTorqueControl", {PERSISTENT | BACKUP, BOOL}},
+    {"LiveTorqueParamsToggle", {PERSISTENT | BACKUP , BOOL}},
+    {"LiveTorqueParamsRelaxedToggle", {PERSISTENT | BACKUP , BOOL}},
+    {"TorqueParamsOverrideEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"TorqueParamsOverrideFriction", {PERSISTENT | BACKUP, FLOAT, "0.1"}},
+    {"TorqueParamsOverrideLatAccelFactor", {PERSISTENT | BACKUP, FLOAT, "2.5"}},
+	
+	// Bluepilot Params
     {"BPRoutePanelDebugRouteLogs", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"BPRoutePanelDebugRoutePlayerLogs", {PERSISTENT | BACKUP, BOOL, "0"}},
 };

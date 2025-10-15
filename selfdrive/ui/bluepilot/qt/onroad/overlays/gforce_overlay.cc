@@ -257,12 +257,9 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
     }
 
     int gauge_y = rect.height() - meter_height - bottom_margin;
-    int gauge_center_x = rect.width() / 2;
 
-    // Shift left when developer UI right panel is active
-    if (dev_ui_right_panel) {
-      gauge_center_x -= 50; // Move center left by 50px to avoid right panel (184px wide)
-    }
+    // Always center gauge on the full display
+    int gauge_center_x = rect.width() / 2;
 
     int gauge_left = gauge_center_x - gauge_width / 2;
 
@@ -292,9 +289,9 @@ void GForceOverlay::drawGForceMeter(QPainter &painter, const QRect &rect, const 
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.save();
 
-  // Draw meter background with automotive styling
+  // Draw meter background with automotive styling and slight transparency
   painter.setPen(QPen(QColor(100, 149, 237, 200), 3));
-  painter.setBrush(QColor(44, 62, 80, 240));
+  painter.setBrush(QColor(44, 62, 80, 230));
   painter.drawRoundedRect(meter_rect, 12, 12);
 
   // Calculate sections - 3 equal columns

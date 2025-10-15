@@ -529,3 +529,71 @@ public:
     }
   }
 };
+
+// Text size configuration for BluePilot UI controls
+struct BPTextSizes {
+  int titleSize;
+  int descSize;
+  int buttonTextSize;
+  int reasonLabelSize;
+  int valueDisplaySize;
+  int segmentedButtonSize;
+
+  // Static helper to get text sizes based on BPUiTextSize parameter
+  static BPTextSizes getSizes() {
+    static Params params;
+    std::string sizeParam = params.get("BPUiTextSize");
+
+    // Initialize param if not set (default to "1" = Medium)
+    if (sizeParam.empty()) {
+      params.put("BPUiTextSize", "1");
+      sizeParam = "1";
+    }
+
+    BPTextSizes sizes;
+
+    if (sizeParam == "0") {
+      // Small (current sizes)
+      sizes.titleSize = 40;
+      sizes.descSize = 32;
+      sizes.buttonTextSize = 50;
+      sizes.reasonLabelSize = 28;
+      sizes.valueDisplaySize = 40;
+      sizes.segmentedButtonSize = 31;
+    } else if (sizeParam == "1") {
+      // Medium (default - 125% of small)
+      sizes.titleSize = 50;
+      sizes.descSize = 40;
+      sizes.buttonTextSize = 62;
+      sizes.reasonLabelSize = 35;
+      sizes.valueDisplaySize = 50;
+      sizes.segmentedButtonSize = 39;
+    } else if (sizeParam == "2") {
+      // Large (150% of small)
+      sizes.titleSize = 60;
+      sizes.descSize = 48;
+      sizes.buttonTextSize = 75;
+      sizes.reasonLabelSize = 42;
+      sizes.valueDisplaySize = 60;
+      sizes.segmentedButtonSize = 47;
+    } else {
+      // Fallback to medium if invalid value
+      sizes.titleSize = 50;
+      sizes.descSize = 40;
+      sizes.buttonTextSize = 62;
+      sizes.reasonLabelSize = 35;
+      sizes.valueDisplaySize = 50;
+      sizes.segmentedButtonSize = 39;
+    }
+
+    return sizes;
+  }
+
+  // Helper to get size for specific element type
+  static int getTitleSize() { return getSizes().titleSize; }
+  static int getDescSize() { return getSizes().descSize; }
+  static int getButtonTextSize() { return getSizes().buttonTextSize; }
+  static int getReasonLabelSize() { return getSizes().reasonLabelSize; }
+  static int getValueDisplaySize() { return getSizes().valueDisplaySize; }
+  static int getSegmentedButtonSize() { return getSizes().segmentedButtonSize; }
+};

@@ -2,20 +2,21 @@
 
 #include <QWidget>
 #include <QPropertyAnimation>
-#include <QRegularExpression>
 
 #include "selfdrive/ui/ui.h"
 
 class OnroadAlertsBP : public QWidget {
   Q_OBJECT
   Q_PROPERTY(qreal alertOpacity MEMBER alert_opacity NOTIFY valueChanged);
-  Q_PROPERTY(qreal progressValue MEMBER progress_value NOTIFY valueChanged);
 
 public:
   OnroadAlertsBP(QWidget *parent = 0);
   ~OnroadAlertsBP();
   void updateState(const UIState &s);
   void clear();
+
+private:
+  bool is_destroying = false;
 
 signals:
   void valueChanged();
@@ -39,8 +40,6 @@ protected:
   const QColor danger_color = QColor(242, 72, 85);
   const QColor background_color = QColor(32, 33, 35);
   const QColor card_background = QColor(48, 49, 51);
-  const QColor accent_color = QColor(24, 144, 255);
-  const QColor progress_color = QColor(3, 132, 252);
 
   // Alert status colors with modern touch
   const QMap<cereal::SelfdriveState::AlertStatus, QColor> alert_colors = {
@@ -49,29 +48,19 @@ protected:
     {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(242, 72, 85, 241)},    // Danger
   };
 
-  // Status accent colors for borders
-  const QMap<cereal::SelfdriveState::AlertStatus, QColor> accent_colors = {
-    {cereal::SelfdriveState::AlertStatus::NORMAL, accent_color},
-    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(200, 80, 15)}, // Less yellow orange border
-    {cereal::SelfdriveState::AlertStatus::CRITICAL, danger_color},
-  };
 
   void paintEvent(QPaintEvent*) override;
   OnroadAlertsBP::Alert getAlert(const SubMaster &sm, uint64_t started_frame);
 
   // Helper methods
   void drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen);
-  void drawRadialProgress(QPainter &p, const QRect &rect, float percentage);
-  float extractPercentage(const QString &text);
+  void drawBlurryBorder(QPainter &p, const QColor &borderColor);
 
   QColor bg;
   Alert alert = {};
 
   // Animation properties
   QPropertyAnimation *opacity_animation = nullptr;
-  QPropertyAnimation *progress_animation = nullptr;
   qreal alert_opacity = 0.0;
-  qreal progress_value = 0.0;
-  float target_progress = 0.0;
   int dev_ui_info = 0;  // Store developer UI state for positioning
 };

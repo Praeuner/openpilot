@@ -24,7 +24,6 @@
 // Include overlay classes
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/radar_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/stop_sign_overlay.h"
-#include "selfdrive/ui/bluepilot/qt/onroad/overlays/standstill_timer_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/gforce_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.h"
 
@@ -55,25 +54,22 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   // if (global_debug_counter++ % 100 == 0) {
   //   std::cout << "BluePilot renderAll - hybrid: " << s.scene.show_hybrid_drive_overlay
   //             << " radar: " << s.scene.show_bp_radar_overlay
-  //             << " stop: " << s.scene.show_stop_indicator_overlay
-  //             << " timer: " << s.scene.stand_still_timer << std::endl;
+  //             << " stop: " << s.scene.show_stop_indicator_overlay << std::endl;
   // }
 
   // PERFORMANCE: Early exit if no BluePilot features enabled
   if (!s.scene.show_hybrid_drive_overlay &&
       !s.scene.show_bp_radar_overlay &&
-      !s.scene.show_stop_indicator_overlay &&
-      !s.scene.stand_still_timer &&
-      !s.scene.show_gforce_meter) {
+      !s.scene.show_stop_indicator_overlay) {
+      // !s.scene.show_gforce_meter) {  // DISABLED: G-Force meter disabled for performance
     return;
   }
 
   // PERFORMANCE: Single state update per frame - batch all data gathering
   updateFrameState(s, model);
 
-  // 1. BOTTOM LAYER: Blinkers and standstill timer
+  // 1. BOTTOM LAYER: Blinkers
   renderBlinkers(painter, rect);
-  StandstillTimerOverlay::render(painter, rect, s, frame_state.standstill_state);
 
   // 2. MIDDLE LAYER: Model-dependent overlays (radar, stop signs)
   if (frame_state.show_radar || frame_state.show_stop) {
@@ -84,7 +80,8 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   HybridGaugesOverlay::render(painter, rect, s, frame_state.hybrid_state);
 
   // 4. G-FORCE METER: Bottom right corner
-  GForceOverlay::render(painter, rect, s, frame_state.gforce_state);
+  // DISABLED: G-Force meter disabled for performance/consistency issues
+  // GForceOverlay::render(painter, rect, s, frame_state.gforce_state);
 }
 
 template<typename ModelType>
@@ -108,10 +105,8 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   frame_state.left_blindspot = car_state.getLeftBlindspot();
   frame_state.right_blindspot = car_state.getRightBlindspot();
 
-  // Update standstill state
-  frame_state.standstill_state.standstill = car_state.getStandstill();
+  // Update vehicle speed
   frame_state.vehicle_speed = car_state.getVEgo();
-  frame_state.standstill_state.vehicle_speed = frame_state.vehicle_speed;
 
   // Update hybrid data if available
   if (sm.updated("carStateBP") && sm.valid("carStateBP")) {
@@ -140,10 +135,12 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   // Update model enhancement flags and transforms
   frame_state.show_radar = s.scene.show_bp_radar_overlay;
   frame_state.show_stop = s.scene.show_stop_indicator_overlay;
-  frame_state.gforce_state.show_gforce = s.scene.show_gforce_meter;
+  // DISABLED: G-Force meter disabled for performance/consistency issues
+  // frame_state.gforce_state.show_gforce = s.scene.show_gforce_meter;
 
   // Update G-force data
-  GForceOverlay::updateGForceData(s, frame_state.gforce_state);
+  // DISABLED: G-Force meter disabled for performance/consistency issues
+  // GForceOverlay::updateGForceData(s, frame_state.gforce_state);
 
   // Debug logging
   static int debug_counter = 0;

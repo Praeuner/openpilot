@@ -1,6 +1,7 @@
 {
   "versions": {
     "5.0.0": {
+      "agnos_version": "13.1",
       "changes": [
         "All of the latest upstream SunnyPilot changes",
         "Enhanced Onroad UI: Enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing.",
@@ -24,10 +25,11 @@
         "Fixed menu system JSON parsing and control visibility",
         "General stability and bug fixes"
       ],
-      "removals": [],
+      "removals": ["Removed the GForce Meter from the HUD"],
       "known_issues": []
     },
     "4.0.0": {
+      "agnos_version": "12.0",
       "changes": [
         "Added this recent changes dialog functionality to offroad transition in UI",
         "Added the fan demand percentage to the sidebar.  Just tap on the memory card to toggle it",
@@ -45,7 +47,7 @@
         "Latest Upstream SunnyPilot changes"
       ],
       "fixes": [
-        "Fixed typo in parameter name for standstill timer which was causing the timer to not display",
+        "Fixed compilation errors in BluePilot UI components",
         "Performance improvements to hopefully fix the random UI restarts",
         "Enhanced stop detection and rendering with improved data validation",
         "Latest Upstream SunnyPilot fixes"

@@ -74,7 +74,6 @@ typedef struct UIScene {
   bool show_hybrid_battery_overlay;
   bool show_animated_wheel_angle;
   bool show_bp_radar_overlay;
-  bool stand_still_timer;
   bool show_blindspot_indicators;
   bool show_stop_indicator_overlay;
   bool show_gforce_meter;
@@ -82,15 +81,6 @@ typedef struct UIScene {
 
   bool wide_camera_low_speed;
   bool sidebar_visible;
-
-  // SunnyPilot additional fields
-  int speed_limit_mode = 0;
-  bool road_name = false;
-
-  // SunnyPilot brightness control
-  int onroadScreenOffBrightness, onroadScreenOffTimer = 0;
-  bool onroadScreenOffControl;
-
 } UIScene;
 
 #ifdef BLUEPILOT
@@ -169,8 +159,6 @@ signals:
 public slots:
   void resetInteractiveTimeout(int timeout = -1);
   void update(const UIState &s);
-  void resetOnroadDisplayTimer();
-  void onUserInteraction();
 };
 
 #ifndef SUNNYPILOT

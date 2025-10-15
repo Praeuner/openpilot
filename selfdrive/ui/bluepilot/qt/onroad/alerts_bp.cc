@@ -2,7 +2,6 @@
 
 #include <QPainter>
 #include <QPainterPath>
-#include <QtMath>
 #include <map>
 
 #include "selfdrive/ui/qt/util.h"
@@ -13,20 +12,35 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
   opacity_animation->setDuration(300);
   opacity_animation->setEasingCurve(QEasingCurve::OutCubic);
 
-  // Setup progress animation for smooth percentage changes
-  progress_animation = new QPropertyAnimation(this, "progressValue");
-  progress_animation->setDuration(500);
-  progress_animation->setEasingCurve(QEasingCurve::InOutCubic);
-
-  connect(this, &OnroadAlertsBP::valueChanged, [=] { update(); });
+  // Connect valueChanged signal - use proper lambda capture with safety check
+  connect(this, &OnroadAlertsBP::valueChanged, this, [this]() {
+    if (!is_destroying) {
+      update();
+    }
+  });
 }
 
 OnroadAlertsBP::~OnroadAlertsBP() {
-  delete opacity_animation;
-  delete progress_animation;
+  // Mark as destroying to prevent update() calls during destruction
+  is_destroying = true;
+
+  // CRITICAL: Disconnect all signals FIRST to prevent accessing destroyed widget
+  disconnect(this, nullptr, this, nullptr);
+
+  // Stop animations before deletion to prevent issues
+  if (opacity_animation) {
+    opacity_animation->stop();
+    delete opacity_animation;
+    opacity_animation = nullptr;
+  }
 }
 
 void OnroadAlertsBP::updateState(const UIState &s) {
+  // Safety check: don't process updates if destroying
+  if (is_destroying) {
+    return;
+  }
+
   // Store developer UI state for positioning
   dev_ui_info = s.scene.dev_ui_info;
 
@@ -34,20 +48,16 @@ void OnroadAlertsBP::updateState(const UIState &s) {
   if (!alert.equal(a)) {
     alert = a;
 
-    // Animate opacity for smooth alert transitions
-    opacity_animation->setStartValue(alert_opacity);
-    opacity_animation->setEndValue(alert.size == cereal::SelfdriveState::AlertSize::NONE ? 0.0 : 1.0);
-    opacity_animation->start();
+    // Stop any running animations before starting new ones
+    if (opacity_animation && opacity_animation->state() == QAbstractAnimation::Running) {
+      opacity_animation->stop();
+    }
 
-    // Check for percentage in text2 and animate progress
-    float new_progress = extractPercentage(alert.text2);
-    if (new_progress >= 0) {
-      progress_animation->setStartValue(progress_value);
-      progress_animation->setEndValue(new_progress);
-      progress_animation->start();
-      target_progress = new_progress;
-    } else {
-      target_progress = -1;
+    // Animate opacity for smooth alert transitions
+    if (opacity_animation) {
+      opacity_animation->setStartValue(alert_opacity);
+      opacity_animation->setEndValue(alert.size == cereal::SelfdriveState::AlertSize::NONE ? 0.0 : 1.0);
+      opacity_animation->start();
     }
 
     update();
@@ -57,13 +67,23 @@ void OnroadAlertsBP::updateState(const UIState &s) {
 void OnroadAlertsBP::clear() {
   alert = {};
 
-  // Animate out
-  opacity_animation->setStartValue(alert_opacity);
-  opacity_animation->setEndValue(0.0);
-  opacity_animation->start();
+  // Safety check: don't start animations if destroying
+  if (!is_destroying && opacity_animation) {
+    // Stop any running animation first
+    if (opacity_animation->state() == QAbstractAnimation::Running) {
+      opacity_animation->stop();
+    }
 
-  target_progress = -1;
-  update();
+    // Animate out
+    opacity_animation->setStartValue(alert_opacity);
+    opacity_animation->setEndValue(0.0);
+    opacity_animation->start();
+  }
+
+
+  if (!is_destroying) {
+    update();
+  }
 }
 
 OnroadAlertsBP::Alert OnroadAlertsBP::getAlert(const SubMaster &sm, uint64_t started_frame) {
@@ -100,124 +120,6 @@ OnroadAlertsBP::Alert OnroadAlertsBP::getAlert(const SubMaster &sm, uint64_t sta
   return a;
 }
 
-float OnroadAlertsBP::extractPercentage(const QString &text) {
-  // Regular expression to find percentage values (e.g., "50%", "100%")
-  QRegularExpression re("(\\d+(?:\\.\\d+)?)\\s*%");
-  QRegularExpressionMatch match = re.match(text);
-
-  if (match.hasMatch()) {
-    bool ok;
-    float value = match.captured(1).toFloat(&ok);
-    if (ok && value >= 0 && value <= 100) {
-      return value / 100.0f; // Return as 0-1 range
-    }
-  }
-
-  return -1; // No percentage found
-}
-
-void OnroadAlertsBP::drawRadialProgress(QPainter &p, const QRect &rect, float percentage) {
-  const int size = 100; // Larger dial
-  const int strokeWidth = 10;
-  const int centerX = rect.center().x();  // Center in container
-  const int centerY = rect.center().y();
-
-  p.save();
-  p.setRenderHint(QPainter::Antialiasing, true);
-  p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-  // Draw outer shadow ring
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(0, 0, 0, 30));
-  p.drawEllipse(QPoint(centerX + 2, centerY + 2), size/2 + 4, size/2 + 4);
-
-  // Draw background track with gradient
-  QConicalGradient bgGradient(centerX, centerY, 0);
-  bgGradient.setColorAt(0, QColor(60, 60, 60, 140));
-  bgGradient.setColorAt(1, QColor(80, 80, 80, 140));
-  p.setPen(QPen(QBrush(bgGradient), strokeWidth, Qt::SolidLine, Qt::RoundCap));
-  p.setBrush(Qt::NoBrush);
-  p.drawEllipse(QPoint(centerX, centerY), size/2, size/2);
-
-  // Draw progress arc with animated gradient
-  if (percentage > 0) {
-    // Create smooth gradient for progress
-    QPainterPath progressPath;
-    QRectF arcRect(centerX - size/2, centerY - size/2, size, size);
-
-    // Calculate sweep angle
-    float sweepAngle = percentage * 360.0f;
-
-    // Use linear gradient along the arc for smooth color transition
-    QConicalGradient progressGradient(centerX, centerY, -90);
-
-    // Multi-color gradient for visual appeal
-    if (percentage < 0.5) {
-      progressGradient.setColorAt(0, QColor(24, 144, 255)); // Blue
-      progressGradient.setColorAt(percentage, QColor(3, 132, 252)); // Darker blue
-    } else {
-      progressGradient.setColorAt(0, QColor(24, 144, 255)); // Blue
-      progressGradient.setColorAt(0.25, QColor(3, 200, 252)); // Cyan
-      progressGradient.setColorAt(0.5, QColor(42, 199, 122)); // Green
-      progressGradient.setColorAt(percentage, QColor(42, 199, 122));
-    }
-    progressGradient.setColorAt(percentage + 0.001, Qt::transparent);
-
-    // Draw main progress arc
-    p.setPen(QPen(QBrush(progressGradient), strokeWidth, Qt::SolidLine, Qt::RoundCap));
-    p.drawArc(arcRect, 90 * 16, -sweepAngle * 16);
-
-    // Draw bright leading edge dot
-    float angleRad = qDegreesToRadians(-90 + sweepAngle);
-    int dotX = centerX + (size/2) * cos(angleRad);
-    int dotY = centerY + (size/2) * sin(angleRad);
-
-    // Leading edge glow
-    QRadialGradient dotGlow(dotX, dotY, 15);
-    dotGlow.setColorAt(0, QColor(255, 255, 255, 180));
-    dotGlow.setColorAt(0.5, QColor(accent_color.red(), accent_color.green(), accent_color.blue(), 100));
-    dotGlow.setColorAt(1, Qt::transparent);
-    p.setPen(Qt::NoPen);
-    p.setBrush(dotGlow);
-    p.drawEllipse(QPoint(dotX, dotY), 15, 15);
-
-    // Inner bright dot
-    p.setBrush(Qt::white);
-    p.drawEllipse(QPoint(dotX, dotY), 4, 4);
-  }
-
-  // Draw inner circle background
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(25, 25, 25, 200));
-  p.drawEllipse(QPoint(centerX, centerY), size/2 - 15, size/2 - 15);
-
-  // Draw percentage text with better styling
-  p.setPen(Qt::white);
-  p.setFont(InterFont(36, QFont::Bold));
-  QString percentText = QString("%1").arg(int(percentage * 100));
-  QRect textRect(centerX - size/2, centerY - 15, size, 20);
-  p.drawText(textRect, Qt::AlignCenter, percentText);
-
-  // Draw % symbol smaller
-  p.setFont(InterFont(20, QFont::DemiBold));
-  p.setPen(QColor(180, 180, 180));
-  QRect symbolRect(centerX - size/2, centerY + 5, size, 20);
-  p.drawText(symbolRect, Qt::AlignCenter, "%");
-
-  // Outer glow effect
-  if (percentage > 0) {
-    QRadialGradient outerGlow(centerX, centerY, size + 10);
-    QColor glowColor = percentage > 0.8 ? good_color : accent_color;
-    outerGlow.setColorAt(0, QColor(glowColor.red(), glowColor.green(), glowColor.blue(), 15));
-    outerGlow.setColorAt(0.5, QColor(glowColor.red(), glowColor.green(), glowColor.blue(), 8));
-    outerGlow.setColorAt(1, Qt::transparent);
-    p.setPen(Qt::NoPen);
-    p.setBrush(outerGlow);
-    p.drawEllipse(QPoint(centerX, centerY), size + 10, size + 10);
-  }
-
-  p.restore();
-}
 
 void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen) {
   if (isFullscreen) {
@@ -228,58 +130,72 @@ void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFulls
     return;
   }
 
-  // Create card path with rounded corners
-  QPainterPath path;
-  const int radius = 20; // Modern rounded corners
-  path.addRoundedRect(rect, radius, radius);
+  // Simplified modern card with standard rounded corners
+  const int radius = 30;
 
-  // Draw stronger shadow for depth (3D effect)
+  // Draw shadow first (simplified)
   p.setPen(Qt::NoPen);
-  p.setBrush(QColor(0, 0, 0, 100)); // Darker shadow
-  p.drawRoundedRect(rect.adjusted(6, 6, 6, 6), radius, radius);
+  p.setBrush(QColor(0, 0, 0, 80));
+  QRect shadowRect = rect.adjusted(-2, -4, 2, 0);
+  p.drawRoundedRect(shadowRect, radius, radius);
 
-  // Draw bright outer border for visibility
-  p.setPen(QPen(accent_colors[alert.status], 3, Qt::SolidLine)); // 3px colored border
+  // Draw main background
+  p.setPen(Qt::NoPen);
   p.setBrush(alert_colors[alert.status]);
-  p.drawPath(path);
+  p.drawRoundedRect(rect, radius, radius);
 
-  // Add material gradient overlay for depth - reduced for warning alerts
+  // Add subtle gradient overlay
   QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
   if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
-    // Reduced gradient for warning alerts to minimize yellow appearance
-    gradient.setColorAt(0, QColor(255, 255, 255, 15)); // Lighter top
-    gradient.setColorAt(0.5, QColor(255, 255, 255, 8));
-    gradient.setColorAt(1, QColor(0, 0, 0, 25)); // Lighter bottom
+    gradient.setColorAt(0, QColor(255, 255, 255, 20));
+    gradient.setColorAt(0.3, QColor(255, 255, 255, 10));
+    gradient.setColorAt(1, QColor(0, 0, 0, 15));
   } else {
-    gradient.setColorAt(0, QColor(255, 255, 255, 30)); // Brighter top
-    gradient.setColorAt(0.5, QColor(255, 255, 255, 15));
-    gradient.setColorAt(1, QColor(0, 0, 0, 50)); // Darker bottom
+    gradient.setColorAt(0, QColor(255, 255, 255, 35));
+    gradient.setColorAt(0.3, QColor(255, 255, 255, 15));
+    gradient.setColorAt(1, QColor(0, 0, 0, 30));
   }
 
   p.setPen(Qt::NoPen);
   p.setBrush(gradient);
-  p.drawPath(path);
+  p.drawRoundedRect(rect, radius, radius);
+}
 
-  // Add bright inner glow for premium feel
-  QPainterPath innerPath;
-  QRect innerRect = rect.adjusted(3, 3, -3, -3);
-  innerPath.addRoundedRect(innerRect, radius - 3, radius - 3);
+void OnroadAlertsBP::drawBlurryBorder(QPainter &p, const QColor &borderColor) {
+  // Draw multiple layers of semi-transparent borders to create blur effect
+  const int borderWidth = 12;
+  const int layers = 6;
 
-  QLinearGradient innerGlow(rect.topLeft(), rect.topRight());
-  if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
-    // Reduced inner glow for warning alerts
-    innerGlow.setColorAt(0, QColor(255, 255, 255, 12)); // Lighter inner glow
-    innerGlow.setColorAt(0.5, QColor(255, 255, 255, 5));
-    innerGlow.setColorAt(1, QColor(255, 255, 255, 12));
-  } else {
-    innerGlow.setColorAt(0, QColor(255, 255, 255, 25)); // Brighter inner glow
-    innerGlow.setColorAt(0.5, QColor(255, 255, 255, 10));
-    innerGlow.setColorAt(1, QColor(255, 255, 255, 25));
+  p.setPen(Qt::NoPen);
+
+  for (int i = 0; i < layers; i++) {
+    int alpha = 80 - (i * 12); // Fade out as we go outward
+    int offset = i * 2;
+
+    QColor layerColor = borderColor;
+    layerColor.setAlpha(alpha);
+
+    // Draw border inset from edges
+    QPainterPath borderPath;
+    QRect borderRect = rect().adjusted(offset, offset, -offset, -offset);
+    const int cornerRadius = 8 + i;
+
+    // Outer edge
+    QPainterPath outer;
+    outer.addRoundedRect(borderRect, cornerRadius, cornerRadius);
+
+    // Inner edge (smaller)
+    QPainterPath inner;
+    QRect innerRect = borderRect.adjusted(borderWidth - offset, borderWidth - offset,
+                                          -(borderWidth - offset), -(borderWidth - offset));
+    inner.addRoundedRect(innerRect, cornerRadius - 2, cornerRadius - 2);
+
+    // Subtract inner from outer to get border
+    borderPath = outer.subtracted(inner);
+
+    p.setBrush(layerColor);
+    p.drawPath(borderPath);
   }
-
-  p.setPen(QPen(QBrush(innerGlow), 2)); // Thicker inner border
-  p.setBrush(Qt::NoBrush);
-  p.drawPath(innerPath);
 }
 
 void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
@@ -297,10 +213,8 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
   bool isFullscreen = (alert.size == cereal::SelfdriveState::AlertSize::FULL);
 
   int margin = 40;
-  // int radius = 30;
   if (alert.size == cereal::SelfdriveState::AlertSize::FULL) {
     margin = 0;
-    // radius = 0;
   }
 
   // Adjust for developer UI bottom panel (60px height)
@@ -309,9 +223,23 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
     bottom_offset = 70;  // Move up by 70px to avoid bottom panel collision
   }
 
-  QRect r = QRect(0 + margin, height() - h + margin - bottom_offset, width() - margin*2, h - margin*2);
+  // Position alert with standard margins
+  QRect r;
+  if (isFullscreen) {
+    r = QRect(0, 0, width(), height());
+  } else {
+    // Standard positioning with margins on all sides
+    r = QRect(margin, height() - h - margin - bottom_offset, width() - margin*2, h);
+  }
 
   QPainter p(this);
+
+  // Draw blurry border around entire display (only for non-fullscreen)
+  if (!isFullscreen) {
+    p.setOpacity(alert_opacity);
+    drawBlurryBorder(p, alert_colors[alert.status]);
+  }
+
   p.setOpacity(alert_opacity);
 
   // Draw modern card with material design
@@ -345,12 +273,6 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
   } else if (alert.size == cereal::SelfdriveState::AlertSize::MID) {
     const QPoint c = r.center();
 
-    // Calculate equal containers for balanced layout
-    bool hasProgress = (target_progress >= 0 && progress_value > 0.01);
-    int containerWidth = r.width() / 2;
-
-    // Left container for text (always centered)
-    QRect textContainer = QRect(r.x(), r.y(), hasProgress ? containerWidth : r.width(), r.height());
 
     // Draw main text with 3D shadow layers - match original positioning
     p.setFont(InterFont(88, QFont::Bold));
@@ -370,22 +292,9 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
     p.setFont(InterFont(66));
     p.setPen(QColor(220, 220, 220));
 
-    // Remove percentage from text2 if showing dial
-    QString displayText = alert.text2;
-    if (hasProgress) {
-      QRegularExpression re("\\s*\\d+(?:\\.\\d+)?\\s*%");
-      displayText = displayText.remove(re).trimmed();
-    }
-
     QRect text2Rect = QRect(0, c.y() + 21, width(), 90);
-    p.drawText(text2Rect, Qt::AlignHCenter, displayText);
+    p.drawText(text2Rect, Qt::AlignHCenter, alert.text2);
 
-    // Draw radial progress in right container if percentage detected
-    if (hasProgress) {
-      // Right container for radial dial
-      QRect dialContainer = QRect(r.x() + containerWidth, r.y(), containerWidth, r.height());
-      drawRadialProgress(p, dialContainer, progress_value);
-    }
 
   } else if (alert.size == cereal::SelfdriveState::AlertSize::FULL) {
     bool longText = alert.text1.length() > 15;

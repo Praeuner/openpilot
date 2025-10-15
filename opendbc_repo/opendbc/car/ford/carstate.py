@@ -117,7 +117,7 @@ class CarState(CarStateBase, MadsCarState):
     ret.accFaulted = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (1, 2)
 
     if self.CP.flags & FordFlags.CANFD:
-      ret.cruiseState.speedLimit = self.update_traffic_signals(cp_cam)
+      ret_sp.speedLimit = self.update_traffic_signals(cp_cam)
 
     if not self.CP.openpilotLongitudinalControl:
       ret.accFaulted = ret.accFaulted or cp_cam.vl["ACCDATA"]["CmbbDeny_B_Actl"] == 1

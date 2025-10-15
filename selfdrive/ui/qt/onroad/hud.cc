@@ -1,7 +1,6 @@
 #include "selfdrive/ui/qt/onroad/hud.h"
 
 #include <cmath>
-#include <algorithm>
 
 #include "selfdrive/ui/qt/util.h"
 
@@ -12,14 +11,12 @@ HudRenderer::HudRenderer() {}
 void HudRenderer::updateState(const UIState &s) {
   is_metric = s.scene.is_metric;
   status = s.status;
-  show_brake_status = s.scene.show_brake_status;
 
   const SubMaster &sm = *(s.sm);
   if (sm.rcv_frame("carState") < s.scene.started_frame) {
     is_cruise_set = false;
     set_speed = SET_SPEED_NA;
     speed = 0.0;
-    brake_pressed = false;
     return;
   }
 
@@ -39,29 +36,6 @@ void HudRenderer::updateState(const UIState &s) {
   v_ego_cluster_seen = v_ego_cluster_seen || car_state.getVEgoCluster() != 0.0;
   float v_ego = v_ego_cluster_seen ? car_state.getVEgoCluster() : car_state.getVEgo();
   speed = std::max<float>(0.0f, v_ego * (is_metric ? MS_TO_KPH : MS_TO_MPH));
-
-  // Update brake status - try to use brake light status from carStateBP if available
-  brake_pressed = car_state.getBrakePressed(); // fallback to original behavior
-
-  // Check if we have carStateBP with brake light status
-  if (sm.rcv_frame("carStateBP") >= s.scene.started_frame && sm.valid("carStateBP")) {
-    const auto &car_state_bp = sm["carStateBP"].getCarStateBP();
-    if (car_state_bp.getBrakeLightStatus().getDataAvailable()) {
-      // Use brake light status instead of brake pressed
-      brake_pressed = car_state_bp.getBrakeLightStatus().getBrakeLightsOn();
-    }
-  }
-
-  // Read current road name if available
-#ifdef SUNNYPILOT
-  if (sm.alive("liveMapDataSP") && sm.valid("liveMapDataSP")) {
-    const auto &map_data = sm["liveMapDataSP"].getLiveMapDataSP();
-    auto rn = QString::fromStdString(map_data.getRoadName());
-    road_name = rn.trimmed();
-  } else {
-    road_name.clear();
-  }
-#endif
 }
 
 void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
@@ -73,11 +47,12 @@ void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
   bg.setColorAt(1, QColor::fromRgbF(0, 0, 0, 0));
   p.fillRect(0, 0, surface_rect.width(), UI_HEADER_HEIGHT, bg);
 
-
+#ifndef SUNNYPILOT
   if (is_cruise_available) {
     drawSetSpeed(p, surface_rect);
   }
   drawCurrentSpeed(p, surface_rect);
+#endif
 
   p.restore();
 }
@@ -123,28 +98,10 @@ void HudRenderer::drawCurrentSpeed(QPainter &p, const QRect &surface_rect) {
   QString speedStr = QString::number(std::nearbyint(speed));
 
   p.setFont(InterFont(176, QFont::Bold));
-  QColor speedColor = getSpeedColor(255);
-  drawText(p, surface_rect.center().x(), 210, speedStr, speedColor);
+  drawText(p, surface_rect.center().x(), 210, speedStr);
 
   p.setFont(InterFont(66));
   drawText(p, surface_rect.center().x(), 290, is_metric ? tr("km/h") : tr("mph"), 200);
-}
-
-QColor HudRenderer::getSpeedColor(int alpha) {
-  // If brake status feature is disabled, return white
-  if (!show_brake_status) {
-    return QColor(0xff, 0xff, 0xff, alpha);
-  }
-
-  // If brake is pressed, fade to red
-  if (brake_pressed) {
-    // Clamp alpha to valid range (0-255)
-    alpha = std::clamp(alpha, 0, 255);
-    return QColor(0xff, 0x80, 0x80, alpha); // Lighter red color
-  }
-
-  // Otherwise return white
-  return QColor(0xff, 0xff, 0xff, alpha);
 }
 
 void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, int alpha) {
@@ -153,37 +110,4 @@ void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, int a
 
   p.setPen(QColor(0xff, 0xff, 0xff, alpha));
   p.drawText(real_rect.x(), real_rect.bottom(), text);
-}
-
-void HudRenderer::drawText(QPainter &p, int x, int y, const QString &text, const QColor &color) {
-  QRect real_rect = p.fontMetrics().boundingRect(text);
-  real_rect.moveCenter({x, y - real_rect.height() / 2});
-
-  p.setPen(color);
-  p.drawText(real_rect.x(), real_rect.bottom(), text);
-}
-
-void HudRenderer::drawRoadName(QPainter &p, const QRect &surface_rect) {
-#ifdef SUNNYPILOT
-  if (road_name.isEmpty()) return;
-
-  // Background gradient already drawn; overlay text with subtle shadow
-  QFont font = InterFont(42, QFont::DemiBold);
-  p.setFont(font);
-
-  // Text bounds centered at top
-  QString text = road_name;
-  QRect text_rect = p.fontMetrics().boundingRect(text);
-  int x = surface_rect.center().x();
-  int y = UI_HEADER_HEIGHT - 8; // slightly below header top
-  text_rect.moveCenter({x, y});
-
-  // Shadow
-  p.setPen(QColor(0, 0, 0, 180));
-  p.drawText(text_rect.translated(0, 2), Qt::AlignCenter, text);
-
-  // Foreground
-  p.setPen(QColor(255, 255, 255, 230));
-  p.drawText(text_rect, Qt::AlignCenter, text);
-#endif
 }

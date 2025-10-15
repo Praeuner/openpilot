@@ -13,7 +13,6 @@
 #include "selfdrive/ui/ui.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/radar_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/stop_sign_overlay.h"
-#include "selfdrive/ui/bluepilot/qt/onroad/overlays/standstill_timer_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/gforce_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.h"
 
@@ -49,8 +48,6 @@ private:
     bool left_blindspot = false, right_blindspot = false;
     int blinker_frame = 0;
 
-    // Standstill state
-    StandstillTimerOverlay::StandstillState standstill_state;
     float vehicle_speed = 0.0f;
 
     // Hybrid state
@@ -96,7 +93,6 @@ private:
   template<typename ModelType>
   static void updateFrameState(const UIState &s, const ModelType &model);
   static void renderBlinkers(QPainter &painter, const QRect &rect);
-  static void renderStandstillTimer(QPainter &painter, const QRect &rect, const UIState &s);
   static void renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s);
 
   // Rendering helpers for blinkers (still used by BluepilotRenderer)

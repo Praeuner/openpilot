@@ -28,26 +28,45 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
   int gauge_scale = s.scene.hybrid_drive_gauge_size;
   int gauge_width = rect.width() * 0.39;
   int gauge_height = 130;
+  bool sidebar_visible = s.scene.sidebar_visible;
 
   // Check for developer UI and adjust positioning accordingly
   bool dev_ui_right_panel = (s.scene.dev_ui_info != 0);  // Right panel visible
   bool dev_ui_bottom_panel = (s.scene.dev_ui_info == 2); // Bottom panel also visible
 
+  // Improved scaling logic with sidebar awareness for all sizes
+  // Note: Sizes increased after disabling gforce gauge for more screen real estate
   if (gauge_scale == 1) {
-    gauge_width = rect.width() * 0.30;
+    // Small size
     gauge_height = 100;
+    if (sidebar_visible) {
+      gauge_width = rect.width() * 0.28;   // Smaller when sidebar is visible
+    } else {
+      gauge_width = rect.width() * 0.30;   // Normal small size
+    }
   } else if (gauge_scale == 2) {
-    gauge_width = rect.width() * 0.345;
-    gauge_height = 115;
+    // Medium size
+    gauge_height = 120;  // Increased from 115
+    if (sidebar_visible) {
+      gauge_width = rect.width() * 0.34;   // Increased from 0.32
+    } else {
+      gauge_width = rect.width() * 0.37;   // Increased from 0.345
+    }
   } else if (gauge_scale == 3) {
-    gauge_width = rect.width() * 0.39;   // Original large size
-    gauge_height = 130;
+    // Large size
+    gauge_height = 140;  // Increased from 130
+    if (sidebar_visible) {
+      gauge_width = rect.width() * 0.38;   // Increased from 0.35
+    } else {
+      gauge_width = rect.width() * 0.43;   // Increased from 0.39
+    }
   } else {
-    gauge_width = rect.width() * 0.30;
+    // Default fallback to small size
     gauge_height = 100;
+    gauge_width = rect.width() * (sidebar_visible ? 0.28 : 0.30);
   }
 
-  // Developer UI adjustments
+  // Developer UI adjustments - reduce width when right panel is visible
   if (dev_ui_right_panel) {
     gauge_width *= 0.85; // Reduce width by 15% when right panel is visible
   }
@@ -58,12 +77,9 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
   }
 
   int y_position = rect.height() - gauge_height - bottom_margin;
-  int gauge_center_x = rect.width() / 2;
 
-  // Shift left when developer UI right panel is active
-  if (dev_ui_right_panel) {
-    gauge_center_x -= 50; // Move center left by 50px to avoid right panel (184px wide)
-  }
+  // Always center gauge on the full display
+  int gauge_center_x = rect.width() / 2;
 
   QRect gauge_rect(gauge_center_x - gauge_width / 2, y_position, gauge_width, gauge_height);
 
@@ -71,8 +87,28 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
                       hybrid_state.power_mode, hybrid_state.engine_reason);
 
   if (s.scene.show_hybrid_battery_overlay && hybrid_state.battery_available) {
-    int batt_width = gauge_width * 0.25;
-    QRect battery_rect(gauge_rect.right() + 10, y_position, batt_width, gauge_height);
+    // Improved battery gauge sizing with sidebar awareness
+    // Battery width scales proportionally with gauge size and adjusts for sidebar
+    float batt_width_ratio = 0.25f; // Base ratio of battery to gauge width
+
+    // Adjust battery width ratio based on gauge scale and sidebar visibility
+    if (gauge_scale == 1) {
+      // Small gauge - slightly larger battery proportion
+      batt_width_ratio = sidebar_visible ? 0.28f : 0.26f;
+    } else if (gauge_scale == 2) {
+      // Medium gauge - balanced proportion
+      batt_width_ratio = sidebar_visible ? 0.27f : 0.25f;
+    } else if (gauge_scale == 3) {
+      // Large gauge - standard proportion
+      batt_width_ratio = sidebar_visible ? 0.26f : 0.24f;
+    }
+
+    int batt_width = gauge_width * batt_width_ratio;
+
+    // Adjust spacing between gauges based on size
+    int gauge_spacing = sidebar_visible ? 8 : 10;
+
+    QRect battery_rect(gauge_rect.right() + gauge_spacing, y_position, batt_width, gauge_height);
 
     drawHybridBatteryGauge(painter, battery_rect,
                            hybrid_state.batt_soc_actual,
@@ -243,11 +279,11 @@ void HybridGaugesOverlay::drawInsetBorder(QPainter &p, QRect rect, QColor border
 }
 
 void HybridGaugesOverlay::drawMetallicBackground(QPainter &p, QRect rect, const QString &mode) {
-  // Draw neutral metallic background (not mode-dependent)
+  // Draw neutral metallic background (not mode-dependent) with slight transparency
   p.setPen(Qt::NoPen);
   QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
-  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
-  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  neutralBg.setColorAt(0, QColor(44, 62, 80, 230)); // Neutral center with opacity
+  neutralBg.setColorAt(1, QColor(26, 37, 47, 230)); // Dark edge with opacity
   p.setBrush(neutralBg);
   p.drawRoundedRect(rect, BAR_ROUND_RADIUS, BAR_ROUND_RADIUS);
 
@@ -626,11 +662,11 @@ void HybridGaugesOverlay::drawHybridBatteryGauge(QPainter &p, QRect rect, float 
   float fillPerc = (clampedActual - clampedMin) / (clampedMax - clampedMin);
   float batteryPercent = std::clamp(fillPerc * 100.0f, 0.0f, 100.0f);
 
-  // Draw automotive-style background (neutral metallic look)
+  // Draw automotive-style background (neutral metallic look) with slight transparency
   p.setPen(Qt::NoPen);
   QRadialGradient neutralBg(rect.center(), rect.width() * 0.7);
-  neutralBg.setColorAt(0, QColor(44, 62, 80)); // Neutral center
-  neutralBg.setColorAt(1, QColor(26, 37, 47)); // Dark edge
+  neutralBg.setColorAt(0, QColor(44, 62, 80, 230)); // Neutral center with opacity
+  neutralBg.setColorAt(1, QColor(26, 37, 47, 230)); // Dark edge with opacity
   p.setBrush(neutralBg);
   p.drawRoundedRect(rect, cornerRadius, cornerRadius);
 

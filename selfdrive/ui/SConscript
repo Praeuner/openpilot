@@ -1,8 +1,7 @@
 import json
 Import('env', 'qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
 
-logger_lib = File('#system/loggerd/liblogger.a')
-base_libs = [logger_lib, common, messaging, visionipc, transformations,
+base_libs = [common, messaging, visionipc, transformations,
              'm', 'OpenCL', 'ssl', 'crypto', 'pthread', 'avformat', 'avcodec', 'avutil', 'x264', 'yuv'] + qt_env["LIBS"]
 
 if arch == 'larch64':
@@ -22,41 +21,52 @@ if not GetOption('stock_ui'):
 bp_qt_src = [
   # BluePilot Core Logging
   "bluepilot/bp_logging.cc",
+  # BluePilot Offroad Extensions
+  "bluepilot/qt/offroad/offroad_home_bp.cc",
   # BluePilot Panel and Widgets
   # "bluepilot/qt/offroad/panels/bp_panel.cc",
   "bluepilot/qt/offroad/panels/bp_utils.cc",
   "bluepilot/qt/offroad/panels/bp_panel_controls.cc",
   "bluepilot/qt/offroad/panels/bp_panel_dialogs.cc",
   "bluepilot/qt/offroad/panels/bp_panel_conditions.cc",
+  "bluepilot/qt/offroad/panels/bp_panel_actions.cc",
   # BluePilot Views/Panels
   # Base View
   "bluepilot/qt/offroad/panels/bp_panel_base.cc",
   "bluepilot/qt/offroad/panels/bp_base_view.cc",
   "bluepilot/qt/offroad/panels/bp_nested_view.cc",
   "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
+  # Web-based routes panel (simplified - no video playback)
   "bluepilot/qt/offroad/routes_panel/bp_routes_panel.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
-  "bluepilot/qt/offroad/routes_panel/bp_video_dialog.cc",
-  "bluepilot/qt/offroad/routes_panel/bp_video_widget.cc",
-  "bluepilot/qt/offroad/routes_panel/bp_media_control_button.cc",
-  # New decoder infrastructure
-  "bluepilot/qt/offroad/routes_panel/bp_frame_reader.cc",
-  "bluepilot/qt/offroad/routes_panel/qcom_decoder.cc",
-  "bluepilot/qt/offroad/routes_panel/frame_provider.cc",
-  "bluepilot/qt/offroad/routes_panel/segment_buffer.cc",
-  "bluepilot/qt/offroad/routes_panel/segment_index.cc",
-  "bluepilot/qt/offroad/routes_panel/seek_controller.cc",
-  "bluepilot/qt/offroad/routes_panel/video_controller.cc",
-  "bluepilot/qt/offroad/routes_panel/video_metrics.cc",
-  "bluepilot/qt/offroad/routes_panel/watchdog_detector.cc",
+  # Old video playback code (disabled - using web interface now)
+  # "bluepilot/qt/offroad/routes_panel/bp_video_dialog.cc",
+  # "bluepilot/qt/offroad/routes_panel/bp_video_widget.cc",
+  # "bluepilot/qt/offroad/routes_panel/bp_media_control_button.cc",
+  # "bluepilot/qt/offroad/routes_panel/bp_frame_reader.cc",
+  # "bluepilot/qt/offroad/routes_panel/qcom_decoder.cc",
+  # "bluepilot/qt/offroad/routes_panel/frame_provider.cc",
+  # "bluepilot/qt/offroad/routes_panel/segment_buffer.cc",
+  # "bluepilot/qt/offroad/routes_panel/segment_index.cc",
+  # "bluepilot/qt/offroad/routes_panel/seek_controller.cc",
+  # "bluepilot/qt/offroad/routes_panel/video_controller.cc",
+  # "bluepilot/qt/offroad/routes_panel/video_metrics.cc",
+  # "bluepilot/qt/offroad/routes_panel/watchdog_detector.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
   # BluePilot Git Directory Panel
   "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
+  # BluePilot Network Panel (Native)
+  "bluepilot/qt/offroad/panels/bp_network_panel.cc",
+  # BluePilot Software Panel (Native)
+  "bluepilot/qt/offroad/panels/bp_software_panel.cc",
+  # BluePilot Models Panel (Native)
+  "bluepilot/qt/offroad/panels/bp_models_panel.cc",
+  # BluePilot OSM Panel (Native)
+  "bluepilot/qt/offroad/panels/bp_osm_panel.cc",
   # BluePilot Onroad Overlays
   "bluepilot/qt/onroad/overlays/radar_overlay.cc",
   "bluepilot/qt/onroad/overlays/stop_sign_overlay.cc",
-  "bluepilot/qt/onroad/overlays/standstill_timer_overlay.cc",
   "bluepilot/qt/onroad/overlays/gforce_overlay.cc",
   "bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.cc",
   # "bluepilot/qt/onroad/steer_graph_panel.cc",
@@ -72,11 +82,10 @@ bp_qt_src = [
   "bluepilot/qt/onroad/alerts_bp.cc",
   "bluepilot/qt/onroad/bluepilot_renderer.cc",
   # BluePilot Enhanced UI Components
+  "bluepilot/qt/onroad/buttons_bp.cc",
   "bluepilot/qt/onroad/model_bp.cc",
   "bluepilot/qt/home.cc",
   "bluepilot/qt/sidebar.cc",
-  # BluePilot Developer UI Components
-  "bluepilot/qt/onroad/developer_ui/developer_ui.cc",
 ]
 
 # FIXME: remove this once we're on 5.15 (24.04)

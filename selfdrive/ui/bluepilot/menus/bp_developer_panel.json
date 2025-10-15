@@ -1,0 +1,301 @@
+{
+  "type": "navigation",
+  "menuName": "BPDeveloper",
+  "menuIcon": "../assets/icons/shell.png",
+  "menuDescription": "Developer settings and tools",
+  "equalWidth": true,
+  "iconPosition": "top",
+  "tabs": [
+    {
+      "name": "Developer",
+      "icon": "../assets/icons/shell.png",
+      "groups": [
+        {
+          "groupName": "coreDevGroup",
+          "title": "Core Developer Tools",
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "AdbEnabled",
+              "title": "Enable ADB",
+              "desc": "ADB (Android Debug Bridge) allows connecting to your device over USB or over the network. See https://docs.comma.ai/how-to/connect-to-comma for more info.",
+              "icon": "../assets/icons/shell.png",
+              "enableConditions": {
+                "allConditionsTrue": [{ "isOffroad": true }]
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "SshEnabled",
+              "title": "Enable SSH",
+              "desc": "Enable SSH access to your device",
+              "icon": "../assets/icons/shell.png",
+              "enableConditions": {
+                "allConditionsTrue": [{ "isOffroad": true }]
+              }
+            },
+            {
+              "type": "command_button",
+              "title": "SSH Keys",
+              "desc": "Add your GitHub username to enable SSH access. It will fetch your public keys from GitHub.",
+              "button_text": "ADD",
+              "action": "manage_ssh_keys",
+              "icon": "../assets/icons/shell.png",
+              "enableConditions": {
+                "allConditionsTrue": [
+                  { "SshEnabled": true },
+                  { "isOffroad": true }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "debugModesGroup",
+          "title": "Debug Modes",
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "JoystickDebugMode",
+              "title": "Joystick Debug Mode",
+              "desc": "Enable joystick debug mode for testing",
+              "icon": "../assets/icons/shell.png",
+              "visibleConditions": {
+                "allConditionsTrue": [{ "isReleaseBranch": false }]
+              },
+              "enableConditions": {
+                "allConditionsTrue": [
+                  { "isOffroad": true, "reason": "Requires offroad" }
+                ]
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "LongitudinalManeuverMode",
+              "title": "Longitudinal Maneuver Mode",
+              "desc": "Enable longitudinal maneuver mode for testing",
+              "icon": "../assets/icons/shell.png",
+              "visibleConditions": {
+                "isReleaseBranch": false
+              },
+              "enableConditions": {
+                "allConditionsTrue": [
+                  { "isOffroad": true, "reason": "Requires offroad" },
+                  {
+                    "hasLongitudinalControl": true,
+                    "reason": "Requires longitudinal control"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "alphaLongitudinalGroup",
+          "title": "Experimental Features",
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "AlphaLongitudinalEnabled",
+              "title": "openpilot Longitudinal Control (Alpha)",
+              "desc": "<b>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</b><br><br>On this car, sunnypilot defaults to the car's built-in ACC instead of openpilot's longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.",
+              "icon": "../assets/icons/speed_limit.png",
+              "confirmation": true,
+              "visibleConditions": {
+                "allConditionsTrue": [
+                  { "isReleaseBranch": false },
+                  { "hasAlphaLongitudinalAvailable": true }
+                ]
+              },
+              "enableConditions": {
+                "allConditionsTrue": [
+                  {
+                    "hasAlphaLongitudinalAvailable": true,
+                    "reason": "Requires alpha longitudinal to be available"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "sunnypilotDevGroup",
+          "title": "sunnypilot Developer Tools",
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "ShowAdvancedControls",
+              "title": "Show Advanced Controls",
+              "desc": "Toggle visibility of advanced sunnypilot controls.\nThis only toggles the visibility of the controls; it does not toggle the actual control enabled/disabled state.",
+              "icon": "../assets/icons/shell.png"
+            },
+            {
+              "type": "toggle",
+              "param": "EnableGithubRunner",
+              "title": "Enable GitHub runner service",
+              "desc": "Enables or disables the github runner service.",
+              "icon": "../assets/icons/shell.png",
+              "visibleConditions": {
+                "allConditionsTrue": [{ "isReleaseBranch": false }]
+              }
+            },
+            {
+              "type": "toggle",
+              "param": "EnableCopyparty",
+              "title": "Enable Copyparty service",
+              "desc": "Copyparty is a very capable file server, you can use it to download your routes, view your logs and even make some edits on some files from your browser. Requires you to connect to your comma locally via it's IP.",
+              "icon": "../assets/icons/network.png"
+            },
+            {
+              "type": "toggle",
+              "param": "QuickBootToggle",
+              "title": "Enable Quickboot Mode",
+              "desc": "When toggled on, this creates a prebuilt file to allow accelerated boot times. When toggled off, it immediately removes the prebuilt file so compilation of locally edited cpp files can be made. <br><br><b>To edit C++ files locally on device, you MUST first turn off this toggle so the changes can recompile.</b>",
+              "icon": "../assets/icons/shell.png",
+              "dynamic_desc": true,
+              "descriptions": {
+                "needs_disable_updates": "Quickboot mode requires updates to be disabled.<br>Enable 'Disable Updates' in the Software panel first.",
+                "enabled": "When toggled on, this creates a prebuilt file to allow accelerated boot times. When toggled off, it immediately removes the prebuilt file so compilation of locally edited cpp files can be made. <br><br><b>To edit C++ files locally on device, you MUST first turn off this toggle so the changes can recompile.</b>"
+              },
+              "description_conditions": {
+                "needs_disable_updates": {
+                  "paramIsFalse": "DisableUpdates"
+                }
+              },
+              "visibleConditions": {
+                "allConditionsTrue": [
+                  { "isReleaseBranch": false },
+                  { "isTestedBranch": false },
+                  { "isDevelopmentBranch": false }
+                ]
+              },
+              "enableConditions": {
+                "allConditionsTrue": [
+                  {
+                    "paramIsTrue": "DisableUpdates",
+                    "reason": "Requires DisableUpdates"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "command_button",
+              "title": "Error Log",
+              "desc": "View the error log for sunnypilot crashes.",
+              "button_text": "VIEW",
+              "action": "view_error_log",
+              "icon": "../assets/icons/shell.png",
+              "visibleConditions": {
+                "allConditionsTrue": [
+                  {
+                    "isReleaseBranch": false,
+                    "reason": "Requires non-release branch"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "icon": "../assets/offroad/icon_debug.png",
+      "groups": [
+        {
+          "groupName": "paramViewerGroup",
+          "title": "Parameter Viewer",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "param_list_viewer",
+              "title": "All Parameters",
+              "desc": "View all available parameters in the system",
+              "hidden": false
+            },
+            {
+              "type": "param_viewer",
+              "param": "LiveParameters",
+              "title": "Live Parameters",
+              "desc": "Displays live parameters"
+            }
+          ]
+        },
+        {
+          "groupName": "debugPreferencesGroup",
+          "title": "Debug Preferences",
+          "enableResetButton": false,
+          "keepScreenAwake": true,
+          "controls": [
+            {
+              "type": "toggle",
+              "param": "FordPrefEnableDebugLogs",
+              "title": "Enable Debug Logging",
+              "desc": "[BLUEPILOT] Enable this to collect more detailed logs for the route.",
+              "icon": "../assets/icons/shell.png"
+            }
+          ]
+        },
+        {
+          "groupName": "utilityCommandsGroup",
+          "title": "Utility Commands",
+          "enableResetButton": false,
+          "controls": [
+            {
+              "type": "command_button",
+              "command": "echo \"Starting process...\" && for i in {1..5}; do echo \"[$(date '+%H:%M:%S')] Processing batch $i/5...\"; sleep 1; echo \"  -> Completed subtask $i\"; sleep 1; done && echo \"All tasks completed successfully!\"",
+              "working_dir": "/data/openpilot",
+              "title": "Test Command",
+              "desc": "Test Command",
+              "button_text": "Test Command",
+              "confirm": true,
+              "confirm_text": "Are you sure you want to run this command?",
+              "confirm_button_text": "Run",
+              "cancel_button_text": "Cancel",
+              "hidden": true
+            },
+            {
+              "type": "command_button",
+              "command": "wget https://raw.githubusercontent.com/tonesto7/op-utilities/main/CommaUtility.sh && chmod +x /data/CommaUtility.sh",
+              "working_dir": "/data",
+              "title": "Install Comma Utility",
+              "desc": "Install Comma Utility",
+              "button_text": "Install",
+              "confirm": false,
+              "hidden": false,
+              "OnlyOnCommaDevice": true
+            },
+            {
+              "type": "file_viewer",
+              "path": "/data/community/crashes/error.txt",
+              "title": "Recent Crashes",
+              "desc": "View the crashes file",
+              "button_text": "View Error",
+              "confirm": false,
+              "hidden": false
+            },
+            {
+              "type": "file_viewer",
+              "path": "/data/logs/bp_logger/bluepilot.log",
+              "title": "BluePilot Log",
+              "desc": "View the BluePilot log",
+              "button_text": "View Log",
+              "confirm": false,
+              "hidden": true
+            },
+            {
+              "type": "command_button",
+              "command": "ifconfig",
+              "working_dir": "/data/openpilot",
+              "title": "Get Network Info",
+              "desc": "Get network info using ifconfig",
+              "button_text": "Get Info",
+              "confirm": false,
+              "hidden": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

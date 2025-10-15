@@ -18,11 +18,21 @@
 #include <QPlainTextEdit>
 #include <QScroller>
 #include <QScrollArea>
+#include <QTextStream>
+
+#include "common/version.h"
 #include <QScrollBar>
 #include <QFrame>
 #include <QPropertyAnimation>
 #include <QStyle>
+#include <QTimer>
+#include <QGridLayout>
 #include <cmath>
+
+#ifdef QCOM2
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#endif
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "common/params.h"
@@ -44,17 +54,22 @@ public:
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded); // Changed from AlwaysOff to AsNeeded
     setStyleSheet("background-color: transparent; border:none");
 
-    // Update scrollbar styling to match nav bar
+    // Extra-large touch-friendly scrollbar styling (32px wide, 120px min-height, 16px radius)
     QString style = R"(
       QScrollBar:vertical {
-        width: 8px;
+        width: 32px;
         background: transparent;
         margin: 0px;
+        padding: 4px;
       }
       QScrollBar::handle:vertical {
         background: #666666;
-        border-radius: 4px;
-        min-height: 20px;
+        border-radius: 16px;
+        min-height: 120px;
+        margin: 0 6px;
+      }
+      QScrollBar::handle:vertical:hover {
+        background: #888888;
       }
       QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         height: 0px;
@@ -69,17 +84,69 @@ public:
     QScroller *scroller = QScroller::scroller(this->viewport());
     QScrollerProperties sp = scroller->scrollerProperties();
 
+    // Optimize for smooth kinetic scrolling on Comma 3X Wayland
+    sp.setScrollMetric(QScrollerProperties::DragStartDistance, 0.005);
+    sp.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+    sp.setScrollMetric(QScrollerProperties::MinimumVelocity, 0.15);
+    sp.setScrollMetric(QScrollerProperties::MaximumVelocity, 2.5);
+    sp.setScrollMetric(QScrollerProperties::AcceleratingFlickSpeedupFactor, 1.8);
+    sp.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.3);
+    sp.setScrollMetric(QScrollerProperties::FrameRate, QScrollerProperties::Fps60);
+    sp.setScrollMetric(QScrollerProperties::OvershootDragResistanceFactor, 0.5);
+    sp.setScrollMetric(QScrollerProperties::OvershootScrollDistanceFactor, 0.2);
     sp.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy, QVariant::fromValue<QScrollerProperties::OvershootPolicy>(QScrollerProperties::OvershootAlwaysOff));
     sp.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy, QVariant::fromValue<QScrollerProperties::OvershootPolicy>(QScrollerProperties::OvershootAlwaysOff));
     sp.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.01);
-    scroller->grabGesture(this->viewport(), QScroller::LeftMouseButtonGesture);
+
     scroller->setScrollerProperties(sp);
+    scroller->grabGesture(this->viewport(), QScroller::LeftMouseButtonGesture);
   }
 
 protected:
   void hideEvent(QHideEvent *e) override { verticalScrollBar()->setValue(0); }
 };
 
+// Helper class for making labels clickable
+class ClickableLabel : public QObject {
+  Q_OBJECT
+public:
+  ClickableLabel(QObject *parent, std::function<void()> callback) : QObject(parent), onClick(callback) {}
+
+protected:
+  bool eventFilter(QObject *obj, QEvent *event) override {
+    if (event->type() == QEvent::TouchBegin) {
+      BPLog::bpInfo() << "[ClickableLabel] TouchBegin event received" << std::endl;
+      touchActive = true;
+      event->accept();
+      return true;
+    } else if (event->type() == QEvent::TouchEnd && touchActive) {
+      BPLog::bpInfo() << "[ClickableLabel] TouchEnd event received - triggering onClick" << event << std::endl;
+      touchActive = false;
+      onClick();
+      event->accept();
+      return true;
+    } else if (event->type() == QEvent::TouchCancel) {
+      BPLog::bpInfo() << "[ClickableLabel] TouchCancel event received" << event << touchActive << std::endl;
+      touchActive = false;
+      event->accept();
+      return true;
+    } else if (event->type() == QEvent::MouseButtonPress) {
+      BPLog::bpInfo() << "[ClickableLabel] MouseButtonPress event received" << event << touchActive << std::endl;
+      event->accept();
+      return true;
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+      BPLog::bpInfo() << "[ClickableLabel] MouseButtonRelease event received - triggering onClick" << event << touchActive << std::endl;
+      onClick();
+      event->accept();
+      return true;
+    }
+    return QObject::eventFilter(obj, event);
+  }
+
+private:
+  std::function<void()> onClick;
+  bool touchActive = false;
+};
 class BPButton : public QPushButton {
   Q_OBJECT
 public:
@@ -169,6 +236,14 @@ public:
     update();
   }
 
+  // Set custom colors for the toggle based on state
+  void setStateColors(const QString &checkedColor, const QString &uncheckedColor) {
+    colorWhenChecked = checkedColor;
+    colorWhenUnchecked = uncheckedColor;
+    useCustomColors = true;
+    update();
+  }
+
 protected:
   void paintEvent(QPaintEvent *) override {
     QPainter painter(this);
@@ -178,7 +253,15 @@ protected:
     QPainterPath path;
     path.addRoundedRect(QRectF(0, 0, width(), height()), height() / 2, height() / 2);
 
-    painter.fillPath(path, isChecked() ? QColor("#2196F3") : QColor("#808080"));
+    // Use custom colors if set, otherwise use defaults
+    QColor bgColor;
+    if (useCustomColors) {
+      bgColor = isChecked() ? QColor(colorWhenChecked) : QColor(colorWhenUnchecked);
+    } else {
+      bgColor = isChecked() ? QColor("#2196F3") : QColor("#808080");
+    }
+
+    painter.fillPath(path, bgColor);
 
     if (!isEnabled()) {
       painter.fillPath(path, QColor(0, 0, 0, 128)); // Darken when disabled
@@ -205,6 +288,248 @@ protected:
 
 private:
   float position = 0.0;
+  bool useCustomColors = false;
+  QString colorWhenChecked;
+  QString colorWhenUnchecked;
+};
+
+// Parameter toggle button - button that toggles a boolean parameter with dynamic styling
+class BPParamToggleButton : public QFrame {
+  Q_OBJECT
+
+public:
+  BPParamToggleButton(const QString &param, const QString &title, const QString &desc,
+                      const QString &buttonText, QWidget *parent = nullptr)
+      : QFrame(parent), paramName(param.toStdString()), defaultButtonText(buttonText) {
+
+    QVBoxLayout *main_layout = new QVBoxLayout(this);
+    main_layout->setContentsMargins(25, 25, 25, 25);
+    main_layout->setSpacing(15);
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Title
+    titleLabel = new QLabel(title);
+    titleLabel->setStyleSheet(QString(R"(
+      QLabel {
+        font-size: %1px;
+        color: white;
+        font-weight: 500;
+      }
+    )").arg(sizes.titleSize));
+    titleLabel->setWordWrap(true);
+    main_layout->addWidget(titleLabel);
+
+    // Description
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc);
+      descLabel->setStyleSheet(QString(R"(
+        QLabel {
+          font-size: %1px;
+          color: #AAAAAA;
+        }
+      )").arg(sizes.descSize));
+      descLabel->setWordWrap(true);
+      main_layout->addWidget(descLabel);
+    }
+
+    // Button
+    button = new QPushButton(buttonText);
+    button->setMinimumHeight(150);
+    button->setStyleSheet(QString(R"(
+      QPushButton {
+        border-radius: 20px;
+        font-size: %1px;
+        font-weight: 450;
+        padding: 0 25px;
+        color: #FFFFFF;
+        background-color: #393939;
+      }
+      QPushButton:pressed {
+        background-color: #4A4A4A;
+      }
+    )").arg(sizes.buttonTextSize));
+    main_layout->addWidget(button);
+
+    setStyleSheet(R"(
+      BPParamToggleButton {
+        background-color: #242424;
+        border-radius: 10px;
+      }
+    )");
+
+    // Initialize param
+    ParamUtils::initializeParam(paramName);
+
+    QObject::connect(button, &QPushButton::clicked, [this]() {
+      bool currentValue = params.getBool(paramName);
+      bool newValue = !currentValue;
+
+      params.putBool(paramName, newValue);
+      ParamUtils::logParamChange(paramName, currentValue ? "On" : "Off", newValue ? "On" : "Off");
+
+      updateDynamicState();
+      emit valueChanged(newValue);
+    });
+
+    updateDynamicState();
+  }
+
+  void refresh() {
+    updateDynamicState();
+  }
+
+  void setDescription(const QString &desc) {
+    if (descLabel) {
+      descLabel->setText(desc);
+    }
+  }
+
+  // Enable dynamic button text based on parameter state
+  void enableDynamicButtonText(const QString &enabledText, const QString &disabledText) {
+    dynamicTextEnabled = true;
+    buttonTextWhenEnabled = enabledText;
+    buttonTextWhenDisabled = disabledText;
+    updateDynamicState();
+  }
+
+  // Enable dynamic styling based on parameter state
+  void enableDynamicStyling(const QString &bgColorEnabled, const QString &bgColorDisabled,
+                            const QString &bgColorEnabledPressed = QString(),
+                            const QString &bgColorDisabledPressed = QString(),
+                            const QString &textColor = "#FFFFFF") {
+    dynamicStylingEnabled = true;
+    bgColorWhenEnabled = bgColorEnabled;
+    bgColorWhenDisabled = bgColorDisabled;
+    bgColorWhenEnabledPressed = bgColorEnabledPressed.isEmpty() ? bgColorEnabled : bgColorEnabledPressed;
+    bgColorWhenDisabledPressed = bgColorDisabledPressed.isEmpty() ? bgColorDisabled : bgColorDisabledPressed;
+    textColorDynamic = textColor;
+    updateDynamicState();
+  }
+
+  // Set different confirmation texts for on/off
+  void setConfirmationTexts(const QString &confirmOn, const QString &confirmOff,
+                            const QString &confirmYes = "Confirm", const QString &confirmNo = "Cancel") {
+    confirmTextOn = confirmOn;
+    confirmTextOff = confirmOff;
+    confirmYesText = confirmYes;
+    confirmNoText = confirmNo;
+    requireConfirmation = true;
+  }
+
+  void setDisabledReasons(const QStringList &reasons) {
+    disabledReasons = reasons;
+    if (disabledReasons.isEmpty()) {
+      if (disabledReasonLabel) {
+        disabledReasonLabel->setVisible(false);
+      }
+    } else {
+      if (!disabledReasonLabel) {
+        createDisabledReasonUI();
+      }
+      disabledReasonLabel->setVisible(true);
+      QString reasonText = "• " + disabledReasons.join("\n• ");
+      disabledReasonLabel->setText(reasonText);
+    }
+  }
+
+signals:
+  void valueChanged(bool state);
+
+protected:
+  void showEvent(QShowEvent *event) override {
+    updateDynamicState();
+    QFrame::showEvent(event);
+  }
+
+private:
+  void createDisabledReasonUI() {
+    // Create disabled reason label showing reasons inline (hidden by default)
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    disabledReasonLabel = new QLabel();
+    disabledReasonLabel->setStyleSheet(QString(R"(
+        QLabel {
+            font-size: %1px;
+            color: #FF9800;
+            font-weight: 450;
+            padding: 10px 15px;
+            background-color: transparent;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+    )").arg(sizes.reasonLabelSize));
+    disabledReasonLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    disabledReasonLabel->setVisible(false);
+    disabledReasonLabel->setWordWrap(false);
+    disabledReasonLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+
+    // Add to main layout (QVBoxLayout is set in constructor) - align right
+    QLayout *layoutPtr = layout();
+    if (layoutPtr) {
+      layoutPtr->addWidget(disabledReasonLabel);
+      layoutPtr->setAlignment(disabledReasonLabel, Qt::AlignRight);
+    }
+  }
+
+  void updateDynamicState() {
+    bool paramValue = params.getBool(paramName);
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Update button text
+    if (dynamicTextEnabled) {
+      button->setText(paramValue ? buttonTextWhenEnabled : buttonTextWhenDisabled);
+    }
+
+    // Update styling
+    if (dynamicStylingEnabled) {
+      QString bgColor = paramValue ? bgColorWhenEnabled : bgColorWhenDisabled;
+      QString bgColorPressed = paramValue ? bgColorWhenEnabledPressed : bgColorWhenDisabledPressed;
+
+      button->setStyleSheet(QString(R"(
+        QPushButton {
+          border-radius: 20px;
+          font-size: %4px;
+          font-weight: 450;
+          padding: 0 25px;
+          color: %1;
+          background-color: %2;
+        }
+        QPushButton:pressed {
+          background-color: %3;
+        }
+      )").arg(textColorDynamic, bgColor, bgColorPressed).arg(sizes.buttonTextSize));
+    }
+  }
+
+  QPushButton *button;
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *disabledReasonLabel = nullptr;
+  QStringList disabledReasons;
+  std::string paramName;
+  Params params;
+  QString defaultButtonText;
+
+  // Dynamic text support
+  bool dynamicTextEnabled = false;
+  QString buttonTextWhenEnabled;
+  QString buttonTextWhenDisabled;
+
+  // Dynamic styling support
+  bool dynamicStylingEnabled = false;
+  QString bgColorWhenEnabled;
+  QString bgColorWhenDisabled;
+  QString bgColorWhenEnabledPressed;
+  QString bgColorWhenDisabledPressed;
+  QString textColorDynamic = "#FFFFFF";
+
+  // Confirmation support
+  bool requireConfirmation = false;
+  QString confirmTextOn;
+  QString confirmTextOff;
+  QString confirmYesText = "Confirm";
+  QString confirmNoText = "Cancel";
 };
 
 class BPToggleControl : public QFrame {
@@ -218,6 +543,9 @@ public:
     main_layout->setSpacing(50);                     // Increased spacing
     setLayout(main_layout);
 
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
     // Left side - toggle
     toggle = new BPToggle();
     main_layout->addWidget(toggle, 0, Qt::AlignLeft | Qt::AlignVCenter);
@@ -227,30 +555,30 @@ public:
     textLayout->setSpacing(10); // Increased spacing
 
     titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet(R"(
+    titleLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 40px;
+            font-size: %1px;
             color: white;
             font-weight: 500;
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
 
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc);
-      descLabel->setStyleSheet(R"(
+      descLabel->setStyleSheet(QString(R"(
           QLabel {
-              font-size: 32px;
+              font-size: %1px;
               color: #AAAAAA;
           }
           QLabel:disabled {
               color: #444444;
           }
-      )");
+      )").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -276,6 +604,11 @@ public:
       if (oldValue != checked) {
         params.putBool(paramName, checked);
         ParamUtils::logParamChange(paramName, oldValue ? "On" : "Off", checked ? "On" : "Off");
+
+        // Update dynamic title and styling after parameter change
+        updateDynamicTitle();
+        updateDynamicStyling();
+
         emit toggleFlipped(checked);
       }
     });
@@ -293,21 +626,142 @@ public:
     }
   }
 
+  void setDescription(const QString &desc) {
+    if (descLabel) {
+      descLabel->setText(desc);
+    }
+  }
+
+  QString getDescription() const {
+    if (descLabel) {
+      return descLabel->text();
+    }
+    return QString();
+  }
+
+  void setTitle(const QString &title) {
+    if (titleLabel) {
+      titleLabel->setText(title);
+    }
+  }
+
+  void setDisabledReasons(const QStringList &reasons) {
+    disabledReasons = reasons;
+    if (disabledReasons.isEmpty()) {
+      if (disabledReasonLabel) {
+        disabledReasonLabel->setVisible(false);
+      }
+    } else {
+      if (!disabledReasonLabel) {
+        createDisabledReasonUI();
+      }
+      disabledReasonLabel->setVisible(true);
+      QString reasonText = "• " + disabledReasons.join("\n• ");
+      disabledReasonLabel->setText(reasonText);
+    }
+  }
+
+  // Enable dynamic title updates based on parameter state
+  void enableDynamicTitle(const QString &enabledTitle, const QString &disabledTitle) {
+    dynamicTitleEnabled = true;
+    titleWhenEnabled = enabledTitle;
+    titleWhenDisabled = disabledTitle;
+    updateDynamicTitle();
+  }
+
+  // Enable dynamic styling based on parameter state
+  void enableDynamicStyling(const QString &bgColorEnabled, const QString &bgColorDisabled,
+                            const QString &bgColorEnabledPressed = QString(),
+                            const QString &bgColorDisabledPressed = QString(),
+                            const QString &textColor = "#FFFFFF") {
+    dynamicStylingEnabled = true;
+    bgColorWhenEnabled = bgColorEnabled;
+    bgColorWhenDisabled = bgColorDisabled;
+    bgColorWhenEnabledPressed = bgColorEnabledPressed.isEmpty() ? bgColorEnabled : bgColorEnabledPressed;
+    bgColorWhenDisabledPressed = bgColorDisabledPressed.isEmpty() ? bgColorDisabled : bgColorDisabledPressed;
+    textColorDynamic = textColor;
+    updateDynamicStyling();
+  }
+
+  void updateDynamicTitle() {
+    if (!dynamicTitleEnabled) return;
+    bool paramValue = params.getBool(paramName);
+    setTitle(paramValue ? titleWhenEnabled : titleWhenDisabled);
+  }
+
+  void updateDynamicStyling() {
+    if (!dynamicStylingEnabled) return;
+
+    // Apply colors to the toggle switch itself
+    // When checked (enabled), use "enabled" color
+    // When unchecked (disabled), use "disabled" color
+    toggle->setStateColors(bgColorWhenEnabled, bgColorWhenDisabled);
+  }
+
 signals:
   void toggleFlipped(bool state);
 
 protected:
   void showEvent(QShowEvent *event) override {
     refresh();
+    updateDynamicTitle();
+    updateDynamicStyling();
     QFrame::showEvent(event);
   }
 
 private:
+  void createDisabledReasonUI() {
+    // Create disabled reason label showing reasons inline (hidden by default)
+    disabledReasonLabel = new QLabel();
+    disabledReasonLabel->setStyleSheet(R"(
+        QLabel {
+            font-size: 28px;
+            color: #FF9800;
+            font-weight: 450;
+            padding: 10px 15px;
+            background-color: transparent;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+    )");
+    disabledReasonLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    disabledReasonLabel->setVisible(false);
+    disabledReasonLabel->setWordWrap(false);
+    disabledReasonLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+
+    // Add to layout - get the text layout which is the second item in the main HBoxLayout
+    QHBoxLayout *mainLayout = qobject_cast<QHBoxLayout*>(layout());
+    if (mainLayout && mainLayout->count() > 1) {
+      QLayoutItem *item = mainLayout->itemAt(1);
+      if (item && item->layout()) {
+        QVBoxLayout *textLayout = qobject_cast<QVBoxLayout*>(item->layout());
+        if (textLayout) {
+          textLayout->addWidget(disabledReasonLabel, 0, Qt::AlignRight);
+        }
+      }
+    }
+  }
+
   BPToggle *toggle;
   QLabel *titleLabel;
   QLabel *descLabel = nullptr;
+  QLabel *disabledReasonLabel = nullptr;
+  QStringList disabledReasons;
   std::string paramName;
   Params params;
+
+  // Dynamic title support
+  bool dynamicTitleEnabled = false;
+  QString titleWhenEnabled;
+  QString titleWhenDisabled;
+
+  // Dynamic styling support
+  bool dynamicStylingEnabled = false;
+  QString bgColorWhenEnabled;
+  QString bgColorWhenDisabled;
+  QString bgColorWhenEnabledPressed;
+  QString bgColorWhenDisabledPressed;
+  QString textColorDynamic = "#FFFFFF";
 };
 
 class BPSelectionControl : public QFrame {
@@ -315,6 +769,9 @@ class BPSelectionControl : public QFrame {
 
 public:
   BPSelectionControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr, bool hideDesc = false) : QFrame(parent), paramName(param.toStdString()), defaultDesc(desc), hideDescription(hideDesc) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     // Overall horizontal layout
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
@@ -339,16 +796,16 @@ public:
 
     // Title
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet(R"(
+    titleLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 40px;
+            font-size: %1px;
             color: white;
             font-weight: 500;
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     rightLayout->addWidget(titleLabel);
 
@@ -356,30 +813,30 @@ public:
     selectedValueLabel = new QLabel(this);
     selectedValueLabel->setWordWrap(true);
     selectedValueLabel->setText(defaultDesc);
-    selectedValueLabel->setStyleSheet(R"(
+    selectedValueLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 32px;
+            font-size: %1px;
             color: #AAAAAA;
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.descSize));
     rightLayout->addWidget(selectedValueLabel);
 
     // Description label: shows white description text below the selected value (unless hidden)
     if (!hideDescription) {
       descLabel = new QLabel(defaultDesc, this);
       descLabel->setWordWrap(true);
-      descLabel->setStyleSheet(R"(
+      descLabel->setStyleSheet(QString(R"(
           QLabel {
-              font-size: 32px;
+              font-size: %1px;
               color: #AAAAAA;
           }
           QLabel:disabled {
               color: #444444;
           }
-      )");
+      )").arg(sizes.descSize));
       rightLayout->addWidget(descLabel);
     } else {
       descLabel = nullptr;
@@ -413,7 +870,16 @@ public:
     if (!value.isEmpty() && options.contains(value)) {
       // Show selected value in blue
       selectedValueLabel->setText(options[value]);
-      selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      selectedValueLabel->setStyleSheet(R"(
+        QLabel {
+          font-size: 32px;
+          font-weight: 500;
+          color: #2196F3;
+        }
+        QLabel:disabled {
+          color: #555555;
+        }
+      )");
       // Show description below when value is selected
       if (descLabel) {
         descLabel->setText(defaultDesc);
@@ -422,7 +888,16 @@ public:
     } else if (!value.isEmpty()) {
       // Fallback: show the raw value if no mapping found
       selectedValueLabel->setText(value);
-      selectedValueLabel->setStyleSheet("font-size: 32px; font-weight: 500; color: #2196F3;");
+      selectedValueLabel->setStyleSheet(R"(
+        QLabel {
+          font-size: 32px;
+          font-weight: 500;
+          color: #2196F3;
+        }
+        QLabel:disabled {
+          color: #555555;
+        }
+      )");
       // Show description below when value is selected
       if (descLabel) {
         descLabel->setText(defaultDesc);
@@ -431,7 +906,15 @@ public:
     } else {
       // No value selected - show placeholder text and hide description to avoid duplication
       selectedValueLabel->setText(defaultDesc.isEmpty() ? "Select a value" : defaultDesc);
-      selectedValueLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      selectedValueLabel->setStyleSheet(R"(
+        QLabel {
+          font-size: 32px;
+          color: #AAAAAA;
+        }
+        QLabel:disabled {
+          color: #444444;
+        }
+      )");
       // Hide description when no value is selected to avoid duplication
       if (descLabel) {
         descLabel->setVisible(false);
@@ -439,14 +922,76 @@ public:
     }
   }
 
+  void setDescription(const QString &desc) {
+    defaultDesc = desc;
+    if (descLabel) {
+      descLabel->setText(desc);
+    }
+    // If no value selected, update selectedValueLabel too
+    std::string value = Params().get(paramName);
+    if (value.empty()) {
+      selectedValueLabel->setText(desc);
+    }
+  }
+
+  void setDisabledReasons(const QStringList &reasons) {
+    disabledReasons = reasons;
+    if (disabledReasons.isEmpty()) {
+      if (disabledReasonLabel) {
+        disabledReasonLabel->setVisible(false);
+      }
+    } else {
+      if (!disabledReasonLabel) {
+        createDisabledReasonUI();
+      }
+      disabledReasonLabel->setVisible(true);
+      QString reasonText = "• " + disabledReasons.join("\n• ");
+      disabledReasonLabel->setText(reasonText);
+    }
+  }
+
 signals:
   void clicked();
 
 private:
+  void createDisabledReasonUI() {
+    // Create disabled reason label showing reasons inline (hidden by default)
+    disabledReasonLabel = new QLabel();
+    disabledReasonLabel->setStyleSheet(R"(
+        QLabel {
+            font-size: 28px;
+            color: #FF9800;
+            font-weight: 450;
+            padding: 10px 15px;
+            background-color: transparent;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+    )");
+    disabledReasonLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    disabledReasonLabel->setVisible(false);
+    disabledReasonLabel->setWordWrap(false);
+    disabledReasonLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+
+    // Add to text layout (right side) - get the text layout which is the second item in the main HBoxLayout
+    QHBoxLayout *mainLayout = qobject_cast<QHBoxLayout*>(layout());
+    if (mainLayout && mainLayout->count() > 1) {
+      QLayoutItem *item = mainLayout->itemAt(1);
+      if (item && item->layout()) {
+        QVBoxLayout *textLayout = qobject_cast<QVBoxLayout*>(item->layout());
+        if (textLayout) {
+          textLayout->insertWidget(textLayout->count() - 1, disabledReasonLabel, 0, Qt::AlignRight);
+        }
+      }
+    }
+  }
+
   BPButton *selectButton;
   QLabel *titleLabel;
   QLabel *selectedValueLabel;
   QLabel *descLabel;
+  QLabel *disabledReasonLabel = nullptr;
+  QStringList disabledReasons;
   std::string paramName;
   QString defaultDesc;
   bool hideDescription;
@@ -458,12 +1003,25 @@ class BPSegmentedControl : public QFrame {
 
 public:
   BPSegmentedControl(const QString &param, const QString &title, const QString &desc, const QVector<QPair<QString, QString>> &options, const QString &defaultValue = QString(),
-                     QWidget *parent = nullptr)
-      : QFrame(parent), paramName(param.toStdString()) {
+                     QWidget *parent = nullptr, const QVector<QString> &descList = QVector<QString>(), bool showDescBottom = false)
+      : QFrame(parent), paramName(param.toStdString()), optionDescriptions(descList), useDescriptionList(!descList.isEmpty()), useBottomDescLayout(showDescBottom) {
 
-    QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(25, 25, 25, 25);
-    layout->setSpacing(50);
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Use vertical layout when showDescBottom is true, horizontal otherwise
+    QVBoxLayout *mainLayout = nullptr;
+    QHBoxLayout *layout = nullptr;
+
+    if (useBottomDescLayout) {
+      mainLayout = new QVBoxLayout(this);
+      mainLayout->setContentsMargins(25, 25, 25, 25);
+      mainLayout->setSpacing(15);
+    } else {
+      layout = new QHBoxLayout(this);
+      layout->setContentsMargins(25, 25, 25, 25);
+      layout->setSpacing(50);
+    }
 
     // Left side - segmented buttons
     QVBoxLayout *controlLayout = new QVBoxLayout();
@@ -481,13 +1039,13 @@ public:
       btn->setMinimumWidth(180);
       btn->setFixedHeight(80);
 
-      QString btnStyle = R"(
+      QString btnStyle = QString(R"(
         QPushButton {
           background-color: #363636;
           border: 1px solid #404040;
           border-right: 1px solid #505050;  /* Lighter right border */
           color: white;
-          font-size: 31px;
+          font-size: %1px;
           padding: 5px 15px;
           border-radius: 0px;
         }
@@ -503,7 +1061,7 @@ public:
           border-color: #303030;
           color: #666666;
         }
-      )";
+      )").arg(sizes.segmentedButtonSize);
 
       // Only add border radius to first and last buttons
       if (i == 0) {
@@ -526,48 +1084,96 @@ public:
 
     controlLayout->addLayout(segmentLayout);
 
-    // Min/Max labels
-    QHBoxLayout *labelsLayout = new QHBoxLayout();
-    labelsLayout->setSpacing(20);
-    labelsLayout->addStretch();
-    layout->addLayout(controlLayout);
-
-    // Right side - title and description
-    QVBoxLayout *textLayout = new QVBoxLayout();
-    textLayout->setSpacing(10);
-
+    // Title and description setup
     titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
-    titleLabel->setStyleSheet(R"(
+    titleLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 40px;
+            font-size: %1px;
             color: white;
             font-weight: 500;
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
-    textLayout->addWidget(titleLabel);
 
-    if (!desc.isEmpty()) {
+    // Create descLabel if we have a description OR if we'll be using description lists
+    if (!desc.isEmpty() || !descList.isEmpty()) {
       descLabel = new QLabel(desc);
-      descLabel->setStyleSheet(R"(
+      descLabel->setStyleSheet(QString(R"(
           QLabel {
-              font-size: 32px;
+              font-size: %1px;
               color: #AAAAAA;
           }
           QLabel:disabled {
-              color: #444444;
+              color: #555555;
           }
-      )");
+      )").arg(sizes.descSize));
       descLabel->setWordWrap(true);
-      textLayout->addWidget(descLabel);
+      descLabel->setTextFormat(Qt::RichText);
     }
 
-    textLayout->addStretch();
-    layout->addLayout(textLayout, 1);
+    // Create disabled reason label showing reasons inline (hidden by default)
+    disabledReasonLabel = new QLabel();
+    disabledReasonLabel->setStyleSheet(QString(R"(
+        QLabel {
+            font-size: %1px;
+            color: #FF9800;
+            font-weight: 450;
+            padding: 10px 15px;
+            background-color: transparent;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+    )").arg(sizes.reasonLabelSize));
+    disabledReasonLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    disabledReasonLabel->setVisible(false);
+    disabledReasonLabel->setWordWrap(false);
+    disabledReasonLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+
+    // Layout assembly based on showDescBottom
+    if (useBottomDescLayout) {
+      // Vertical layout: control at top, title below buttons, desc, then disabled info at bottom
+      // Wrap control in horizontal layout with stretch to prevent unnecessary expansion
+      QHBoxLayout *controlWrapper = new QHBoxLayout();
+      controlWrapper->addLayout(controlLayout);
+      controlWrapper->addStretch();
+      mainLayout->addLayout(controlWrapper);
+
+      // Add spacing between segmented control and title
+      mainLayout->addSpacing(20);
+
+      // Add title below the buttons
+      mainLayout->addWidget(titleLabel);
+
+      // Add description if we have one
+      if (descLabel) {
+        mainLayout->addWidget(descLabel);
+      }
+
+      // Add disabled reason on its own row at the bottom - align right
+      mainLayout->addWidget(disabledReasonLabel, 0, Qt::AlignRight);
+    } else {
+      // Horizontal layout: control left, title/desc right (original behavior)
+      layout->addLayout(controlLayout);
+
+      QVBoxLayout *textLayout = new QVBoxLayout();
+      textLayout->setSpacing(10);
+      textLayout->addWidget(titleLabel);
+
+      // Add description if we have one
+      if (descLabel) {
+        textLayout->addWidget(descLabel);
+      }
+
+      textLayout->addStretch();
+
+      // Add disabled reason on its own row at the bottom - align right
+      textLayout->addWidget(disabledReasonLabel, 0, Qt::AlignRight);
+
+      layout->addLayout(textLayout, 1);
+    }
 
     setStyleSheet(R"(
       BPSegmentedControl {
@@ -595,10 +1201,25 @@ public:
       std::string newValue = optionMap[id].toStdString();
       params.put(paramName, newValue);
       ParamUtils::logParamChange(paramName, oldValue, newValue);
+      updateDescriptionList(id);
       emit valueChanged();
     });
 
     refresh();
+
+    // Initialize description list if provided
+    if (useDescriptionList) {
+      int currentIndex = 0;
+      QString currentValue = QString::fromStdString(params.get(paramName));
+      for (auto it = optionMap.begin(); it != optionMap.end(); ++it) {
+        if (it.value() == currentValue) {
+          currentIndex = it.key();
+          break;
+        }
+      }
+      updateDescriptionList(currentIndex);
+      descLabel->setTextFormat(Qt::RichText);
+    }
   }
 
   void refresh() {
@@ -611,6 +1232,72 @@ public:
     }
   }
 
+  void setDescription(const QString &desc) {
+    if (descLabel) {
+      descLabel->setText(desc);
+    }
+  }
+
+  void updateDescriptionList(int selectedIndex, bool forceDisabled = false) {
+    if (!useDescriptionList || !descLabel || optionDescriptions.isEmpty()) {
+      return;
+    }
+
+    // Check if control is enabled to determine text colors
+    bool widgetEnabled = isEnabled();
+    bool actuallyEnabled = !forceDisabled && widgetEnabled;
+    QString selectedColor = actuallyEnabled ? "white" : "#555555";
+    QString unselectedColor = actuallyEnabled ? "#AAAAAA" : "#444444";
+
+    BPLog::bpDebugGeneral() << "[BPSegmentedControl]" << QString::fromStdString(paramName).toStdString()
+             << "updateDescriptionList - widgetEnabled:" << widgetEnabled
+             << "forceDisabled:" << forceDisabled
+             << "actuallyEnabled:" << actuallyEnabled
+             << "selectedColor:" << selectedColor.toStdString()
+             << std::endl;
+
+    QStringList formattedDescriptions;
+    for (int i = 0; i < optionDescriptions.size(); i++) {
+      QString desc = optionDescriptions[i];
+      if (i == selectedIndex) {
+        // Highlight selected option with appropriate color based on enabled state
+        formattedDescriptions.append(QString("<font color='%1'><b>⦿ %2</b></font>").arg(selectedColor, desc));
+      } else {
+        // Gray out non-selected options with appropriate color based on enabled state
+        formattedDescriptions.append(QString("<font color='%1'>⦿ %2</font>").arg(unselectedColor, desc));
+      }
+    }
+
+    QString formattedText = formattedDescriptions.join("<br>");
+    descLabel->setText(formattedText);
+  }
+
+  void setButtonEnabled(int buttonIndex, bool enabled) {
+    QPushButton *btn = qobject_cast<QPushButton*>(buttonGroup->button(buttonIndex));
+    if (btn) {
+      btn->setEnabled(enabled);
+    }
+  }
+
+  void updateButtonStates(const QVector<bool> &enabledStates) {
+    for (int i = 0; i < enabledStates.size() && i < buttonGroup->buttons().size(); i++) {
+      setButtonEnabled(i, enabledStates[i]);
+    }
+  }
+
+  void setDisabledReasons(const QStringList &reasons) {
+    disabledReasons = reasons;
+    if (disabledReasons.isEmpty()) {
+      if (disabledReasonLabel) {
+        disabledReasonLabel->setVisible(false);
+      }
+    } else {
+      disabledReasonLabel->setVisible(true);
+      QString reasonText = "• " + disabledReasons.join("\n• ");
+      disabledReasonLabel->setText(reasonText);
+    }
+  }
+
 signals:
   void valueChanged();
 
@@ -618,9 +1305,14 @@ private:
   QButtonGroup *buttonGroup;
   QLabel *titleLabel;
   QLabel *descLabel = nullptr;
+  QLabel *disabledReasonLabel = nullptr;
+  QStringList disabledReasons;
   std::string paramName;
   QMap<int, QString> optionMap;
   Params params;
+  QVector<QString> optionDescriptions;
+  bool useDescriptionList = false;
+  bool useBottomDescLayout = false;
 };
 
 class BPNumericControl : public QFrame {
@@ -630,6 +1322,9 @@ public:
   BPNumericControl(const QString &param, const QString &title, const QString &desc, double minValue, double maxValue, double increment, bool isFloat = false, double division = 1.0,
                    QWidget *parent = nullptr)
       : QFrame(parent), paramName(param.toStdString()), min(minValue), max(maxValue), inc(increment), isFloatType(isFloat), div(division) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 10, 10, 10);
@@ -699,16 +1394,16 @@ public:
 
     // Value display - make it larger
     valueLabel = new QLabel();
-    valueLabel->setStyleSheet(R"(
+    valueLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 48px; /* Increased from 40px */
+            font-size: %1px;
             color: #2196F3;
             min-width: 150px; /* Increased from 120px */
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.valueDisplaySize));
     valueLabel->setAlignment(Qt::AlignCenter);
 
     // Increment button - make it larger
@@ -766,30 +1461,30 @@ public:
     textLayout->addStretch();
 
     titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet(R"(
+    titleLabel->setStyleSheet(QString(R"(
         QLabel {
-            font-size: 40px;
+            font-size: %1px;
             color: white;
             font-weight: 500;
         }
         QLabel:disabled {
             color: #666666;
         }
-    )");
+    )").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
 
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc);
-      descLabel->setStyleSheet(R"(
+      descLabel->setStyleSheet(QString(R"(
             QLabel {
-                font-size: 32px;
+                font-size: %1px;
                 color: #AAAAAA;
             }
             QLabel:disabled {
                 color: #444444;
             }
-        )");
+        )").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -837,10 +1532,64 @@ public:
     }
   }
 
+  void setDescription(const QString &desc) {
+    if (descLabel) {
+      descLabel->setText(desc);
+    }
+  }
+
+  void setDisabledReasons(const QStringList &reasons) {
+    disabledReasons = reasons;
+    if (disabledReasons.isEmpty()) {
+      if (disabledReasonLabel) {
+        disabledReasonLabel->setVisible(false);
+      }
+    } else {
+      if (!disabledReasonLabel) {
+        createDisabledReasonUI();
+      }
+      disabledReasonLabel->setVisible(true);
+      QString reasonText = "• " + disabledReasons.join("\n• ");
+      disabledReasonLabel->setText(reasonText);
+    }
+  }
+
 signals:
   void valueChanged();
 
 private:
+  void createDisabledReasonUI() {
+    // Create disabled reason label showing reasons inline (hidden by default)
+    disabledReasonLabel = new QLabel();
+    disabledReasonLabel->setStyleSheet(R"(
+        QLabel {
+            font-size: 28px;
+            color: #FF9800;
+            font-weight: 450;
+            padding: 10px 15px;
+            background-color: transparent;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+    )");
+    disabledReasonLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    disabledReasonLabel->setVisible(false);
+    disabledReasonLabel->setWordWrap(false);
+    disabledReasonLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+
+    // Add to text layout (right side) - get the text layout which is the second item in the main HBoxLayout
+    QHBoxLayout *mainLayout = qobject_cast<QHBoxLayout*>(layout());
+    if (mainLayout && mainLayout->count() > 1) {
+      QLayoutItem *item = mainLayout->itemAt(1);
+      if (item && item->layout()) {
+        QVBoxLayout *textLayout = qobject_cast<QVBoxLayout*>(item->layout());
+        if (textLayout) {
+          textLayout->insertWidget(textLayout->count() - 1, disabledReasonLabel, 0, Qt::AlignRight);
+        }
+      }
+    }
+  }
+
   void updateValue(double change) {
     // Get the current value
     double currentValue;
@@ -872,6 +1621,8 @@ private:
   QLabel *valueLabel = nullptr;
   QLabel *minLabel = nullptr;
   QLabel *maxLabel = nullptr;
+  QLabel *disabledReasonLabel = nullptr;
+  QStringList disabledReasons;
   QPushButton *decrementBtn;
   QPushButton *incrementBtn;
   std::string paramName;
@@ -884,11 +1635,15 @@ class BPCommandControl : public QFrame {
   Q_OBJECT
 
 public:
-  explicit BPCommandControl(const QString &title, const QString &desc, const QString &buttonText, const QString &command, const QString &workingDir = QString(),
+  explicit BPCommandControl(const QString &title, const QString &desc, const QString &buttonText, const QString &command, const QString &action = QString(),
+                            const QJsonObject &actionData = QJsonObject(), const QString &workingDir = QString(),
                             bool requireConfirm = false, const QString &confirmText = QString(), const QString &confirmYesText = QString(),
                             const QString &confirmNoText = QString(), const QJsonArray &actionButtons = QJsonArray(), QWidget *parent = nullptr)
-      : QFrame(parent), cmd(command), cmdTitle(title), cmdWorkingDir(workingDir), cmdRequireConfirm(requireConfirm), cmdConfirmText(confirmText), cmdConfirmYesText(confirmYesText),
+      : QFrame(parent), cmd(command), actionName(action), actionConfig(actionData), cmdTitle(title), cmdWorkingDir(workingDir), cmdRequireConfirm(requireConfirm), cmdConfirmText(confirmText), cmdConfirmYesText(confirmYesText),
         cmdConfirmNoText(confirmNoText), cmdActionButtons(actionButtons) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     setStyleSheet(R"(
       BPCommandControl {
@@ -917,12 +1672,12 @@ public:
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(10);
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc, this);
-      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -931,16 +1686,52 @@ public:
 
     // Connect the button
     connect(executeButton, &BPButton::clicked, this, [=]() {
-      emit commandRequested(cmd,      // the actual shell command
-                            cmdTitle, // for the command dialog title
-                            cmdWorkingDir, cmdActionButtons, cmdRequireConfirm, cmdConfirmText, cmdConfirmYesText, cmdConfirmNoText);
+      // If action is defined, use action handler; otherwise use command handler
+      if (!actionName.isEmpty()) {
+        emit actionRequested(actionName, actionConfig);
+      } else {
+        emit commandRequested(cmd,      // the actual shell command
+                              cmdTitle, // for the command dialog title
+                              cmdWorkingDir, cmdActionButtons, cmdRequireConfirm, cmdConfirmText, cmdConfirmYesText, cmdConfirmNoText);
+      }
     });
+  }
+
+  // Set custom button color (preserves existing BPButton styling)
+  void setButtonStyle(const QString &bgColor, const QString &bgColorPressed, const QString &textColor) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    QString styleSheet = QString(R"(
+      QPushButton {
+        background-color: %1;
+        border: none;
+        border-radius: 40px;
+        color: %2;
+        font-size: %4px;
+        font-weight: 500;
+        padding: 15px 30px;
+      }
+      QPushButton:hover {
+        background-color: %1;
+      }
+      QPushButton:pressed {
+        background-color: %3;
+      }
+      QPushButton:disabled {
+        background-color: #202020;
+        color: #666666;
+      }
+    )").arg(bgColor, textColor, bgColorPressed).arg(sizes.descSize);
+
+    executeButton->setStyleSheet(styleSheet);
   }
 
 signals:
   // Emitted when the user clicks "execute". Parent handles confirm logic + launching the dialog.
   void commandRequested(const QString &command, const QString &title, const QString &workingDir, const QJsonArray &actionButtons, bool requireConfirm, const QString &confirmText,
                         const QString &confirmYesText, const QString &confirmNoText);
+
+  // Emitted when the button is configured to use action handler
+  void actionRequested(const QString &action, const QJsonObject &actionData);
 
 private:
   // UI
@@ -950,6 +1741,8 @@ private:
 
   // Internals
   QString cmd;
+  QString actionName;
+  QJsonObject actionConfig;
   QString cmdTitle;
   QString cmdWorkingDir;
   bool cmdRequireConfirm;
@@ -966,6 +1759,9 @@ public:
   // The 'path' is the relative file path to read. We also store 'title', 'desc', etc.
   explicit BPFileViewerControl(const QString &title, const QString &desc, const QString &path, const QString &header, QWidget *parent = nullptr)
       : QFrame(parent), filePath(path), fileHeader(header), ctrlTitle(title), ctrlDesc(desc) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     setStyleSheet(R"(
       BPFileViewerControl {
@@ -994,12 +1790,12 @@ public:
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(10);
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc, this);
-      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -1094,6 +1890,9 @@ class BPParamViewerControl : public QFrame {
 public:
   BPParamViewerControl(const QString &param, const QString &title, const QString &desc, QWidget *parent = nullptr) : QFrame(parent), paramName(param) {
 
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
     // Main layout with consistent margins/spacing
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(25, 25, 25, 25);
@@ -1119,13 +1918,13 @@ public:
     textLayout->setSpacing(10);
 
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
 
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc, this);
-      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -1146,10 +1945,11 @@ public:
   }
 
   void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
     viewButton->setEnabled(enabled);
-    titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;").arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
     if (descLabel) {
-      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;").arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
     }
   }
 
@@ -1168,6 +1968,9 @@ class BPParamListViewerControl : public QFrame {
 
 public:
   BPParamListViewerControl(const QString &title, const QString &desc, QWidget *parent = nullptr) : QFrame(parent) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     // Main layout with consistent margins/spacing
     QHBoxLayout *layout = new QHBoxLayout(this);
@@ -1191,13 +1994,13 @@ public:
     textLayout->setSpacing(10);
 
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
 
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc, this);
-      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -1217,10 +2020,11 @@ public:
   }
 
   void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
     viewButton->setEnabled(enabled);
-    titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;").arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
     if (descLabel) {
-      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;").arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
     }
   }
 
@@ -1236,11 +2040,226 @@ private:
   QLabel *descLabel = nullptr;
 };
 
+class BPStaticParamDisplay : public QFrame {
+  Q_OBJECT
+
+public:
+  BPStaticParamDisplay(const QString &param, const QString &title, const QString &desc,
+                       const QString &processor = "", QWidget *parent = nullptr)
+    : QFrame(parent), paramName(param), valueProcessor(processor) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Main layout with consistent margins/spacing
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: Title & Description
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+
+    layout->addLayout(textLayout, 1);
+
+    // Right side: Value display - vertically centered
+    QVBoxLayout *valueLayout = new QVBoxLayout();
+    valueLayout->setContentsMargins(0, 0, 0, 0);
+    valueLayout->setSpacing(0);
+
+    valueLabel = new QLabel(this);
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: #2196F3; font-weight: 600;").arg(sizes.valueDisplaySize));
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    valueLabel->setWordWrap(true);
+    valueLayout->addWidget(valueLabel);
+
+    // Center the value vertically
+    layout->addLayout(valueLayout, 0);
+    layout->setAlignment(valueLayout, Qt::AlignVCenter);
+
+    // Frame styling
+    setStyleSheet(R"(
+      BPStaticParamDisplay {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    refresh();
+  }
+
+  void refresh() {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    std::string value = params.get(paramName.toStdString());
+    if (value.empty()) {
+      valueLabel->setText(tr("Not Set"));
+      valueLabel->setStyleSheet(QString("font-size: %1px; color: #666666; font-weight: 600;").arg(sizes.valueDisplaySize));
+    } else {
+      QString displayValue = QString::fromStdString(value);
+
+      // Apply value processor if specified
+      if (valueProcessor == "first_part") {
+        // Extract first part before " / " separator
+        QStringList parts = displayValue.split(" / ");
+        if (!parts.isEmpty()) {
+          displayValue = parts[0].trimmed();
+        }
+      }
+
+      valueLabel->setText(displayValue);
+      valueLabel->setStyleSheet(QString("font-size: %1px; color: #2196F3; font-weight: 600;").arg(sizes.valueDisplaySize));
+    }
+  }
+
+  void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;").arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;").arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
+    }
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 600;").arg(sizes.valueDisplaySize).arg(enabled ? "#2196F3" : "#444444"));
+  }
+
+private:
+  QString paramName;
+  QString valueProcessor;
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *valueLabel;
+  Params params;
+};
+
+// BPFileParamDisplay - Similar to BPStaticParamDisplay but reads from a file
+class BPFileParamDisplay : public QFrame {
+  Q_OBJECT
+
+public:
+  BPFileParamDisplay(const QString &filePath, const QString &title, const QString &desc,
+                     const QString &prefix = "", const QString &suffix = "", QWidget *parent = nullptr)
+    : QFrame(parent), fileName(filePath), valuePrefix(prefix), valueSuffix(suffix) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Main layout with consistent margins/spacing
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: Title & Description
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+
+    layout->addLayout(textLayout, 1);
+
+    // Right side: Value display - vertically centered
+    QVBoxLayout *valueLayout = new QVBoxLayout();
+    valueLayout->setContentsMargins(0, 0, 0, 0);
+    valueLayout->setSpacing(0);
+
+    valueLabel = new QLabel(this);
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: #2196F3; font-weight: 600;").arg(sizes.valueDisplaySize));
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    valueLabel->setWordWrap(true);
+    valueLayout->addWidget(valueLabel);
+
+    // Center the value vertically
+    layout->addLayout(valueLayout, 0);
+    layout->setAlignment(valueLayout, Qt::AlignVCenter);
+
+    // Frame styling
+    setStyleSheet(R"(
+      BPFileParamDisplay {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    refresh();
+  }
+
+  void refresh() {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    QString value;
+
+    // Special case: if fileName is "COMMA_VERSION", use the define from version.h
+    if (fileName == "COMMA_VERSION") {
+      value = QString(COMMA_VERSION);
+    } else {
+      QFile file(fileName);
+
+      if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        // For regular files, just read the first line
+        value = in.readLine().trimmed();
+        file.close();
+      }
+    }
+
+    if (value.isEmpty()) {
+      valueLabel->setText(tr("Not Found"));
+      valueLabel->setStyleSheet(QString("font-size: %1px; color: #666666; font-weight: 600;").arg(sizes.valueDisplaySize));
+    } else {
+      QString displayValue = valuePrefix + value + valueSuffix;
+      valueLabel->setText(displayValue);
+      valueLabel->setStyleSheet(QString("font-size: %1px; color: #2196F3; font-weight: 600;").arg(sizes.valueDisplaySize));
+    }
+  }
+
+  void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;").arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;").arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
+    }
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 600;").arg(sizes.valueDisplaySize).arg(enabled ? "#2196F3" : "#444444"));
+  }
+
+private:
+  QString fileName;
+  QString valuePrefix;
+  QString valueSuffix;
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *valueLabel;
+};
+
 class BPNestedControlsButton : public QFrame {
   Q_OBJECT
 
 public:
   BPNestedControlsButton(const QString &title, const QString &desc, const QString &buttonText, const QString &icon = QString(), QWidget *parent = nullptr) : QFrame(parent) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
 
     setStyleSheet(R"(
       BPNestedControlsButton {
@@ -1267,11 +2286,11 @@ public:
         openButton->setIconSize(QSize(40, 40));
 
         // Combined base styling with icon spacing
-        openButton->setStyleSheet(R"(
+        openButton->setStyleSheet(QString(R"(
           BPButton {
             background-color: #363636;
             border-radius: 30px;
-            font-size: 36px;
+            font-size: %1px;
             font-weight: 500;
             color: white;
             padding: 15px 30px;
@@ -1291,7 +2310,7 @@ public:
           BPButton::text {
             margin-left: 10px;
           }
-        )");
+        )").arg(sizes.valueDisplaySize));
       }
     }
 
@@ -1308,14 +2327,14 @@ public:
 
     if (!title.isEmpty()) {
       titleLabel = new QLabel(title);
-      titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+      titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
       titleLabel->setWordWrap(true);
       textLayout->addWidget(titleLabel);
     }
 
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc);
-      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -1331,12 +2350,13 @@ public:
   }
 
   void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
     openButton->setEnabled(enabled);
     if (titleLabel) {
-      titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#666666"));
+      titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;").arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
     }
     if (descLabel) {
-      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;").arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
     }
   }
 
@@ -1348,3 +2368,295 @@ private:
   QLabel *titleLabel = nullptr;
   QLabel *descLabel = nullptr;
 };
+
+class BPTextInputControl : public QFrame {
+  Q_OBJECT
+
+public:
+  BPTextInputControl(const QString &param, const QString &title, const QString &desc,
+                     const QString &buttonText = "ADD", const QString &placeholder = "",
+                     QWidget *parent = nullptr)
+      : QFrame(parent), paramName(param.toStdString()), placeholderText(placeholder) {
+
+    setStyleSheet(R"(
+      BPTextInputControl {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: button
+    QVBoxLayout *buttonLayout = new QVBoxLayout();
+    inputButton = new BPButton(buttonText, this);
+    inputButton->setMinimumWidth(250);
+    inputButton->setMinimumHeight(100);
+    buttonLayout->addWidget(inputButton);
+    layout->addLayout(buttonLayout, 0);
+    layout->setAlignment(buttonLayout, Qt::AlignVCenter);
+
+    // Right side: title, description, and current value
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+
+    // Current value display
+    valueLabel = new QLabel(this);
+    valueLabel->setStyleSheet("font-size: 36px; color: #2196F3; font-weight: 600;");
+    valueLabel->setWordWrap(true);
+    textLayout->addWidget(valueLabel);
+
+    layout->addLayout(textLayout, 1);
+
+    connect(inputButton, &BPButton::clicked, this, &BPTextInputControl::onButtonClicked);
+    refresh();
+  }
+
+  void refresh() {
+    std::string value = params.get(paramName);
+    if (value.empty()) {
+      valueLabel->setText("");
+      valueLabel->setVisible(false);
+      inputButton->setText(initialButtonText);
+    } else {
+      valueLabel->setText(QString::fromStdString(value));
+      valueLabel->setVisible(true);
+      inputButton->setText("REMOVE");
+    }
+  }
+
+  void setButtonText(const QString &text) {
+    initialButtonText = text;
+    refresh();
+  }
+
+signals:
+  void textEntered(const QString &text);
+  void textRemoved();
+
+private slots:
+  void onButtonClicked() {
+    if (inputButton->text() == "REMOVE") {
+      params.remove(paramName);
+      emit textRemoved();
+      refresh();
+    } else {
+      emit showTextInputDialog(QString::fromStdString(paramName), titleLabel->text(), placeholderText);
+    }
+  }
+
+signals:
+  void showTextInputDialog(const QString &param, const QString &title, const QString &placeholder);
+
+private:
+  BPButton *inputButton;
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *valueLabel;
+  std::string paramName;
+  QString placeholderText;
+  QString initialButtonText = "ADD";
+  Params params;
+};
+
+class BPHtmlViewerControl : public QFrame {
+  Q_OBJECT
+
+public:
+  BPHtmlViewerControl(const QString &title, const QString &desc, const QString &htmlPath,
+                      const QString &dialogTitle = "", QWidget *parent = nullptr)
+      : QFrame(parent), htmlFilePath(htmlPath), dialogHeader(dialogTitle.isEmpty() ? title : dialogTitle) {
+
+    setStyleSheet(R"(
+      BPHtmlViewerControl {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: button
+    QVBoxLayout *buttonLayout = new QVBoxLayout();
+    openButton = new BPButton("VIEW", this);
+    openButton->setMinimumWidth(250);
+    openButton->setMinimumHeight(100);
+    buttonLayout->addWidget(openButton);
+    layout->addLayout(buttonLayout, 0);
+    layout->setAlignment(buttonLayout, Qt::AlignVCenter);
+
+    // Right side: title and description
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet("font-size: 32px; color: #AAAAAA;");
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+
+    layout->addLayout(textLayout, 1);
+
+    connect(openButton, &BPButton::clicked, this, [=]() {
+      emit htmlViewRequested(htmlFilePath, dialogHeader);
+    });
+  }
+
+  void setEnabled(bool enabled) {
+    QWidget::setEnabled(enabled);
+    openButton->setEnabled(enabled);
+
+    if (titleLabel) {
+      titleLabel->setStyleSheet(QString("font-size: 40px; color: %1; font-weight: 500;").arg(enabled ? "white" : "#555555"));
+    }
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: 32px; color: %1;").arg(enabled ? "#AAAAAA" : "#444444"));
+    }
+  }
+
+signals:
+  void htmlViewRequested(const QString &htmlPath, const QString &header);
+
+private:
+  BPButton *openButton;
+  QLabel *titleLabel = nullptr;
+  QLabel *descLabel = nullptr;
+  QString htmlFilePath;
+  QString dialogHeader;
+};
+
+// WiFi List Control - displays available WiFi networks
+#include "selfdrive/ui/qt/network/wifi_manager.h"
+#include <QMouseEvent>
+
+class BPWifiItem : public QFrame {
+  Q_OBJECT
+
+public:
+  explicit BPWifiItem(QWidget *parent = nullptr);
+  void setNetwork(const Network &n, const QPixmap &statusIcon, const QPixmap &strengthIcon, bool showForget);
+
+signals:
+  void connectToNetwork(const Network n);
+  void forgetNetwork(const Network n);
+
+protected:
+  void mousePressEvent(QMouseEvent *event) override;
+  void mouseReleaseEvent(QMouseEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
+
+private:
+  Network network;
+  QLabel *ssidLabel;
+  QLabel *statusIconLabel;
+  QLabel *strengthLabel;
+  QPushButton *connectingLabel;
+  QPushButton *forgetBtn;
+
+  // Track drag for scroll detection
+  QPoint pressPos;
+  bool isDragging = false;
+};
+
+class BPWifiListControl : public QFrame {
+  Q_OBJECT
+
+public:
+  // Constructor with title/desc only (creates own WifiManager) - for legacy JSON panel use
+  explicit BPWifiListControl(const QString &title, const QString &desc, QWidget *parent = nullptr);
+
+  // Constructor with shared WifiManager (for native panels) - PREFERRED
+  explicit BPWifiListControl(const QString &title, const QString &desc, WifiManager *sharedWifi, QWidget *parent = nullptr);
+
+  void refreshNetworks();
+  void connectHiddenNetwork();
+  void scanNetworks();
+  void changeTetheringPassword();
+  void editApn();
+  void configureWifiMetered();
+
+  WifiManager* getWifiManager() { return wifi; }
+
+protected:
+  void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
+
+private:
+  void loadNetworkIcons();
+  BPWifiItem *getWifiItem(int index);
+  void onConnectToNetwork(const Network n);
+  void onForgetNetwork(const Network n);
+  void init(const QString &title, const QString &desc);
+
+  WifiManager *wifi;
+  Params params;
+  bool ownsWifiManager = true;  // True if we created the WifiManager, false if shared
+
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *scanningLabel;
+  QWidget *wifiListContainer;
+  QVBoxLayout *wifiListLayout;
+  QTimer *tetheringTimer;
+
+  std::vector<BPWifiItem*> wifiItems;
+  QPixmap lockIcon, checkmarkIcon, slashIcon;
+  std::vector<QPixmap> strengthIcons;
+};
+
+/**
+ * BPWifiMeteredControl - Segmented control for WiFi metered settings
+ *
+ * This control manages the WiFi network metered state (default/metered/unmetered)
+ * directly through NetworkManager, not through params.
+ */
+class BPWifiMeteredControl : public QFrame {
+  Q_OBJECT
+
+public:
+  explicit BPWifiMeteredControl(const QString &title, const QString &desc, QWidget *parent = nullptr);
+  void refresh();
+
+protected:
+  void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
+
+private:
+  void updateSelectedButton();
+  BPWifiListControl* findWifiListControl();
+
+  QString titleText;
+  QString descText;
+  QLabel *titleLabel = nullptr;
+  QLabel *descLabel = nullptr;
+  QVector<QPushButton*> buttons;
+  QTimer *refreshTimer;
+  MeteredType currentMetered = MeteredType::UNKNOWN;
+};
+

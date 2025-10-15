@@ -58,17 +58,18 @@ void StopSignOverlay::render(QPainter &painter, const QRect &rect, const UIState
         int gauge_scale = s.scene.hybrid_drive_gauge_size;
         int gauge_width = rect.width() * 0.39;
         int gauge_height = 130;
+        bool sidebar_visible = s.scene.sidebar_visible;
 
-        // Adjust gauge dimensions based on scale
+        // Adjust gauge dimensions based on scale (match hybrid_gauges_overlay.cc sizing)
         if (gauge_scale == 1) {
-          gauge_width = rect.width() * 0.30;
+          gauge_width = rect.width() * (sidebar_visible ? 0.28 : 0.30);
           gauge_height = 100;
         } else if (gauge_scale == 2) {
-          gauge_width = rect.width() * 0.345;
-          gauge_height = 115;
+          gauge_width = rect.width() * (sidebar_visible ? 0.34 : 0.37);
+          gauge_height = 120;
         } else if (gauge_scale == 3) {
-          gauge_width = rect.width() * 0.39;
-          gauge_height = 130;
+          gauge_width = rect.width() * (sidebar_visible ? 0.38 : 0.43);
+          gauge_height = 140;
         }
 
         // Adjust for developer UI
@@ -82,11 +83,9 @@ void StopSignOverlay::render(QPainter &painter, const QRect &rect, const UIState
         }
 
         int y_position = rect.height() - gauge_height - bottom_margin;
-        int gauge_center_x = rect.width() / 2;
 
-        if (dev_ui_right_panel) {
-          gauge_center_x -= 50; // Move center left by 50px
-        }
+        // Always center gauge on the full display
+        int gauge_center_x = rect.width() / 2;
 
         // Add padding around hybrid gauge
         int padding = 20;
@@ -276,8 +275,9 @@ void StopSignOverlay::drawStopSignOverlay(QPainter &painter, const QPointF &poin
   }
 
   if (stopSign.size() == 8) {
-    painter.setPen(QPen(Qt::white, 4));
-    painter.setBrush(QColor(255, 0, 0, int(220 * pulseOpacity)));
+    // Match standstill timer style: white border (6px), red pastel fill
+    painter.setPen(QPen(Qt::white, 6));
+    painter.setBrush(QColor(255, 90, 81, int(200 * pulseOpacity)));  // Red pastel color
     painter.drawPolygon(stopSign);
 
     // Draw "STOP" text

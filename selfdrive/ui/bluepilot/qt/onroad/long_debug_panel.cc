@@ -47,7 +47,7 @@ void LongDataWorker::processData(const UIState *s) {
         if (cache.controlData.size() > LONG_MAX_DATA_POINTS)
           cache.controlData.pop_back();
 
-        cache.targetSpeed = control.getVCruise();
+        cache.targetSpeed = control.getHudControl().getSetSpeed();
       } catch (const std::exception &) {
         cache.gasSignal = 0.0f;
         cache.brakeSignal = 0.0f;
@@ -178,9 +178,15 @@ LongDebugPanel::LongDebugPanel(QWidget *parent) : QWidget(parent), m_dataProcess
 }
 
 LongDebugPanel::~LongDebugPanel() {
+  // Properly cleanup worker thread
   m_workerThread.quit();
-  m_workerThread.wait();
-  delete m_worker;
+  m_workerThread.wait(5000); // Add timeout for safety
+
+  // Use deleteLater since worker is on another thread
+  if (m_worker) {
+    m_worker->deleteLater();
+    m_worker = nullptr;
+  }
 }
 
 void LongDebugPanel::updateState(const UIState &s) {

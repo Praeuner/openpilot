@@ -261,7 +261,7 @@
       "enabled": true
     },
     {
-      "name": "StandstillTimer",
+      "name": "ShowGForceMeter",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
@@ -378,6 +378,32 @@
       "name": "BluepilotShowEnhancedOnroadUI",
       "default": true,
       "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": true,
+      "enabled": true
+    },
+    {
+      "name": "BPUiTextSize",
+      "default": 1,
+      "type": "int",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": true,
+      "enabled": true,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "name": "BPWebServerEnabled",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "BPWebServerPort",
+      "default": 8088,
+      "type": "int",
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": true,
       "enabled": true

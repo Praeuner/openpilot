@@ -4,8 +4,17 @@
 #include "selfdrive/ui/bluepilot/qt/home.h"
 
 HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
+  // CRITICAL FIX: Disconnect all signals from old sidebar before deletion
+  // Parent class HomeWindow connected offroadTransition signal to the sidebar at line 40
+  // If we delete without disconnecting, the signal will try to deliver to deleted memory -> CRASH
+  if (sidebar) {
+    QObject::disconnect(uiState(), &UIState::offroadTransition, sidebar, nullptr);
+    QObject::disconnect(sidebar, nullptr, nullptr, nullptr);
+    delete sidebar;
+    sidebar = nullptr;
+  }
+
   // Replace stock sidebar with BluePilot sidebar
-  delete sidebar;
   sidebar = new SidebarBP(this);
 
   // Connect the debug panel signal

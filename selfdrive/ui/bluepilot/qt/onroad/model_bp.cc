@@ -259,8 +259,8 @@ void ModelRendererBP::drawLaneGlowEffects(QPainter &painter) {
     if (!is_current_lane) base_alpha *= 0.4f;
 
     // Three-layer glow for smooth falloff
-    const float glow_widths[] = {24.0f, 16.0f, 8.0f};
-    const float glow_alphas[] = {0.08f, 0.15f, 0.3f};
+    const float glow_widths[] = {20.0f, 12.0f, 6.0f};
+    const float glow_alphas[] = {0.05f, 0.10f, 0.20f};
 
     for (int layer = 0; layer < 3; ++layer) {
       stroker.setWidth(glow_widths[layer]);
@@ -286,8 +286,8 @@ void ModelRendererBP::drawRoadEdgeGlowEffects(QPainter &painter) {
     edge_path.addPolygon(road_edge_vertices[i]);
 
     // Red warning glow with three layers
-    const float glow_widths[] = {36.0f, 24.0f, 12.0f};
-    const float glow_alphas[] = {0.05f, 0.1f, 0.2f};
+    const float glow_widths[] = {28.0f, 18.0f, 10.0f};
+    const float glow_alphas[] = {0.03f, 0.07f, 0.15f};
 
     for (int layer = 0; layer < 3; ++layer) {
       stroker.setWidth(glow_widths[layer]);
@@ -320,8 +320,8 @@ void ModelRendererBP::drawEnhancedPath(QPainter &painter, const cereal::ModelDat
   painter.setRenderHint(QPainter::Antialiasing, true);
 
   // Multi-layer glow effect - wider spread with subtle transparency
-  const float glow_widths[] = {40.0f, 28.0f, 18.0f, 10.0f, 4.0f};
-  const float glow_alphas[] = {0.03f, 0.06f, 0.10f, 0.18f, 0.30f};
+  const float glow_widths[] = {32.0f, 22.0f, 14.0f, 8.0f, 3.0f};
+  const float glow_alphas[] = {0.02f, 0.04f, 0.08f, 0.14f, 0.24f};
 
   for (int i = 0; i < 5; ++i) {
     border_color.setAlphaF(glow_alphas[i]);

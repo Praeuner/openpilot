@@ -308,7 +308,8 @@ void OnroadControlsDebugPanel::tabSelected(int index) {
 void OnroadControlsDebugPanel::updateState(const UIState &s) { scheduleUpdate(s); }
 
 void OnroadControlsDebugPanel::scheduleUpdate(const UIState &s) {
-  // Store a pointer to the state for processing in the timer callback
+  // Store pointer to state - safe because timer interval (50ms) is much shorter
+  // than the updateState call frequency, and we only dereference in timer callback
   QMutexLocker locker(&m_updateMutex);
   m_lastState = &s;
   m_updatePending.store(true);

@@ -69,7 +69,7 @@ private:
   QTimer *m_updateTimer;
   QMutex m_updateMutex;
   std::atomic<bool> m_updatePending;
-  const UIState *m_lastState = nullptr; // Store pointer instead of copy
+  const UIState *m_lastState = nullptr; // Pointer is safe - only used within timer cycle
 
   // UI Components
   QVBoxLayout *m_navLayout;

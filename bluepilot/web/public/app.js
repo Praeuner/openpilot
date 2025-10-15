@@ -1,0 +1,2698 @@
+// BluePilot Routes - Web Application
+// Complete rewrite matching old Qt panel behavior
+
+class BluePilotRoutes {
+  constructor() {
+    this.API_BASE = window.location.origin;
+    this.routes = [];
+    this.currentRoute = null;
+    this.currentSegment = 0;
+    this.currentCamera = "front"; // Prefer front camera by default
+    this.player = null; // h265web.js player instance
+    this.hls = null; // HLS.js instance
+    this.hevcSupported = false; // Will be set during init
+    this.webglSupported = false; // Will be set during init
+    this.retryCount = 0; // Track retry attempts for network errors
+    this.maxRetries = 3; // Maximum retry attempts
+    this.retryDelay = 1000; // Initial retry delay in ms
+    this.isRetrying = false; // Flag to prevent multiple simultaneous retries
+    this.lastPlaybackTime = 0; // Store playback time for camera switching sync
+
+    // WebSocket support
+    this.websocket = null;
+    this.websocketSupported = false;
+    this.websocketConnected = false;
+    this.useWebSocket = false; // Will be determined during init
+    this.isRetrying = false; // Flag to prevent multiple simultaneous retries
+
+    // Fallback polling
+    this.routesPollingInterval = null;
+    this.statusPollingInterval = null;
+
+    this.init();
+  }
+
+  async init() {
+    this.cacheElements();
+    this.attachEventListeners();
+
+    // Detect browser capabilities once at startup
+    await this.detectBrowserCapabilities();
+
+    // Initialize WebSocket support
+    await this.initWebSocket();
+
+    this.loadRoutes();
+
+    // Setup fallback polling (will be disabled if WebSocket works)
+    this.setupFallbackPolling();
+  }
+
+  async detectBrowserCapabilities() {
+    // Check for native HEVC support
+    this.hevcSupported = await this.checkNativeHEVCSupport();
+
+    // Check for WebGL support (for h265-web-player fallback)
+    this.webglSupported = this.checkWebGLSupport();
+
+    const playerAvailable =
+      typeof Player !== "undefined" &&
+      typeof Player.prototype.init === "function";
+
+    console.log("=== Browser Capabilities Detected ===");
+    console.log("Native HEVC support:", this.hevcSupported);
+    console.log("WebGL support:", this.webglSupported);
+    console.log("h265-web-player available:", playerAvailable);
+    console.log("Can play HEVC videos:", this.canPlayHEVC());
+  }
+
+  canPlayHEVC() {
+    // Server-side remuxing is now implemented!
+    // Raw HEVC files are converted to MP4 containers on-the-fly
+    // All browsers with native HEVC support can play these
+
+    return this.hevcSupported; // Use native browser HEVC support
+
+    // Note: h265-web-player fallback is disabled for now
+    // If needed, uncomment below to enable WebGL fallback:
+    // const playerAvailable = typeof Player !== "undefined" &&
+    //                        typeof Player.prototype.init === "function";
+    // return this.hevcSupported || (this.webglSupported && playerAvailable);
+  }
+
+  cacheElements() {
+    // Containers
+    this.$loading = document.getElementById("loading");
+    this.$error = document.getElementById("error");
+    this.$empty = document.getElementById("empty");
+    this.$routesContainer = document.getElementById("routes-container");
+
+    // Header
+    this.$routeCount = document.getElementById("route-count");
+    this.$totalSize = document.getElementById("total-size");
+    this.$deviceStatus = document.getElementById("device-status");
+    this.$statusText = document.getElementById("status-text");
+    this.$metricsBtn = document.getElementById("metrics-btn");
+    this.$clearCacheBtn = document.getElementById("clear-cache-btn");
+    this.$refreshBtn = document.getElementById("refresh-btn");
+    this.$retryBtn = document.getElementById("retry-btn");
+
+    // Metrics modal
+    this.$metricsModal = document.getElementById("metrics-modal");
+    this.$closeMetricsBtn = document.getElementById("close-metrics-btn");
+    this.$refreshMetricsBtn = document.getElementById("refresh-metrics-btn");
+
+    // Video player
+    this.$videoPlayer = document.getElementById("video-player");
+    this.$videoTitle = document.getElementById("video-title");
+    this.$videoRouteId = document.getElementById("video-route-id");
+    this.$videoCanvas = document.getElementById("video-canvas");
+    this.$videoLoading = document.getElementById("video-loading");
+    this.$closeVideo = document.getElementById("close-video");
+    this.$segmentInfo = document.getElementById("segment-info");
+    this.$cameraButtons = document.querySelectorAll(".camera-btn");
+
+    // Player sidebar elements
+    this.$playerStarBtn = document.getElementById("player-star-btn");
+    this.$playerStarText = document.getElementById("player-star-text");
+    this.$playerDeleteBtn = document.getElementById("player-delete-btn");
+
+    // Stats elements
+    this.$statDuration = document.getElementById("stat-duration");
+    this.$statSegments = document.getElementById("stat-segments");
+    this.$statSize = document.getElementById("stat-size");
+    this.$statDistance = document.getElementById("stat-distance");
+
+    // Debug canvas element
+    console.log("Canvas element found:", !!this.$videoCanvas);
+    console.log("Canvas element:", this.$videoCanvas);
+    if (this.$videoCanvas) {
+      console.log(
+        "Canvas width:",
+        this.$videoCanvas.width,
+        "height:",
+        this.$videoCanvas.height
+      );
+      console.log(
+        "Canvas style:",
+        this.$videoCanvas.style.width,
+        "x",
+        this.$videoCanvas.style.height
+      );
+    }
+
+    // Validate canvas element exists
+    if (!this.$videoCanvas) {
+      console.error("Canvas element not found! Video playback will not work.");
+      console.error("Available elements with ID:");
+      const allElements = document.querySelectorAll("[id]");
+      allElements.forEach((el) => console.error("  -", el.id));
+    }
+  }
+
+  attachEventListeners() {
+    this.$metricsBtn.addEventListener("click", () => this.openMetrics());
+    this.$closeMetricsBtn.addEventListener("click", () => this.closeMetrics());
+    this.$refreshMetricsBtn.addEventListener("click", () => this.loadMetrics());
+
+    // Close metrics modal when clicking backdrop
+    this.$metricsModal.addEventListener("click", (e) => {
+      if (e.target === this.$metricsModal) {
+        this.closeMetrics();
+      }
+    });
+
+    this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
+    this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
+    this.$retryBtn.addEventListener("click", () => this.loadRoutes());
+    this.$closeVideo.addEventListener("click", () => this.closeVideo());
+
+    // Monitor connection status periodically
+    this.startConnectionMonitoring();
+
+    // Camera switching
+    this.$cameraButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const camera = btn.dataset.camera;
+        this.switchCamera(camera);
+      });
+    });
+
+    // Player sidebar actions
+    this.$playerStarBtn.addEventListener("click", () => {
+      if (this.currentRoute) {
+        this.toggleStarFromPlayer();
+      }
+    });
+
+    this.$playerDeleteBtn.addEventListener("click", () => {
+      if (this.currentRoute) {
+        this.deleteRouteFromPlayer();
+      }
+    });
+
+    // Download buttons
+    this.$playerDownloadRouteBtn = document.getElementById(
+      "player-download-route-btn"
+    );
+    this.$playerDownloadSegmentBtn = document.getElementById(
+      "player-download-segment-btn"
+    );
+
+    this.$playerDownloadRouteBtn.addEventListener("click", () => {
+      if (this.currentRoute) {
+        this.downloadCurrentRoute();
+      }
+    });
+
+    this.$playerDownloadSegmentBtn.addEventListener("click", () => {
+      if (this.currentRoute) {
+        this.downloadCurrentSegment();
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+  }
+
+  showLoading() {
+    this.$loading.classList.remove("hidden");
+    this.$error.classList.add("hidden");
+    this.$empty.classList.add("hidden");
+    this.$routesContainer.innerHTML = "";
+  }
+
+  hideLoading() {
+    this.$loading.classList.add("hidden");
+  }
+
+  showError(message) {
+    this.$error.classList.remove("hidden");
+    this.$error.querySelector(".error-message").textContent = message;
+    this.$loading.classList.add("hidden");
+    this.$empty.classList.add("hidden");
+  }
+
+  showEmpty() {
+    this.$empty.classList.remove("hidden");
+    this.$loading.classList.add("hidden");
+    this.$error.classList.add("hidden");
+  }
+
+  async clearCache() {
+    // Confirm before clearing cache
+    if (
+      !confirm(
+        "Clear all cached data? This will remove cached videos, thumbnails, and GPS metrics. Route files will NOT be deleted."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // Disable button and show loading state
+      this.$clearCacheBtn.disabled = true;
+      this.$clearCacheBtn.style.opacity = "0.5";
+
+      const response = await fetch(`${this.API_BASE}/api/clear-cache`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to clear cache: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const { cleared } = data;
+        const totalCleared =
+          cleared.remux_cache +
+          cleared.thumbnails +
+          cleared.gps_metrics +
+          cleared.gps_coordinates;
+
+        alert(
+          `Cache cleared successfully!\n\n` +
+            `• Remuxed videos: ${cleared.remux_cache}\n` +
+            `• Thumbnails: ${cleared.thumbnails}\n` +
+            `• GPS metrics: ${cleared.gps_metrics}\n` +
+            `• GPS coordinates: ${cleared.gps_coordinates}\n\n` +
+            `Total items cleared: ${totalCleared}`
+        );
+
+        // Reload routes to refresh thumbnails and stats
+        this.loadRoutes();
+      } else {
+        throw new Error(data.error || "Failed to clear cache");
+      }
+    } catch (error) {
+      console.error("Error clearing cache:", error);
+      alert(`Error clearing cache: ${error.message}`);
+    } finally {
+      // Re-enable button
+      this.$clearCacheBtn.disabled = false;
+      this.$clearCacheBtn.style.opacity = "1";
+    }
+  }
+
+  async loadRoutes() {
+    try {
+      this.showLoading();
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(`${this.API_BASE}/api/routes`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 0) {
+          throw new Error(
+            "Cannot connect to server. Please check if the server is running."
+          );
+        } else {
+          throw new Error(
+            `Server error: ${response.status} ${response.statusText}`
+          );
+        }
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to load routes");
+      }
+
+      this.routes = data.routes;
+      this.hideLoading();
+
+      if (this.routes.length === 0) {
+        this.showEmpty();
+        return;
+      }
+
+      this.renderRoutes();
+      this.updateStats();
+      this.updateDeviceStatus();
+
+      // Trigger background geocoding for routes with GPS data
+      setTimeout(() => this.startBackgroundGeocoding(), 1000);
+    } catch (error) {
+      console.error("Error loading routes:", error);
+
+      let errorMessage = "Failed to load routes. Please try again.";
+
+      if (error.name === "AbortError") {
+        errorMessage =
+          "Request timed out. The server may be overloaded or unavailable.";
+        this.updateDeviceStatus("offline");
+      } else if (error.message.includes("Cannot connect to server")) {
+        errorMessage =
+          error.message + " Make sure the BluePilot server is running.";
+        this.updateDeviceStatus("offline");
+      } else if (error.message.includes("Server error")) {
+        errorMessage = error.message;
+        this.updateDeviceStatus("error");
+      } else {
+        errorMessage = error.message || errorMessage;
+        this.updateDeviceStatus("error");
+      }
+
+      this.showError(errorMessage);
+    }
+  }
+
+  async updateDeviceStatus(forceStatus = null) {
+    if (forceStatus) {
+      // Use forced status (for error states)
+      this.setDeviceStatusUI(forceStatus);
+      return;
+    }
+
+    try {
+      // Try to fetch device status from backend
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(`${this.API_BASE}/api/status`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        // Backend should return {onroad: true/false, online: true}
+        if (data.onroad) {
+          this.setDeviceStatusUI("onroad");
+        } else {
+          this.setDeviceStatusUI("online");
+        }
+      } else {
+        this.setDeviceStatusUI("online"); // Server responding but no status endpoint
+      }
+    } catch (error) {
+      // If status check fails, assume offline
+      this.setDeviceStatusUI("offline");
+    }
+  }
+
+  setDeviceStatusUI(status) {
+    // Remove all status classes
+    this.$deviceStatus.classList.remove("online", "onroad", "offline", "error");
+
+    // Add current status class
+    this.$deviceStatus.classList.add(status);
+
+    // Update status text
+    const statusTexts = {
+      online: "Online",
+      onroad: "Onroad",
+      offline: "Offline",
+      error: "Error",
+    };
+
+    this.$statusText.textContent = statusTexts[status] || "Unknown";
+  }
+
+  updateStats() {
+    this.$routeCount.textContent = `${this.routes.length} route${
+      this.routes.length !== 1 ? "s" : ""
+    }`;
+
+    // Calculate total size
+    const totalBytes = this.routes.reduce(
+      (sum, route) => sum + (route.sizeBytes || 0),
+      0
+    );
+    const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(1);
+    this.$totalSize.textContent = `${totalGB} GB`;
+  }
+
+  async startBackgroundGeocoding() {
+    // Geocode each route individually in the background
+    // This spreads out the API calls and respects rate limits
+    const routesWithGps = this.routes.filter((r) => r.hasGpsData);
+
+    if (routesWithGps.length === 0) return;
+
+    // Track which routes we've already tried to geocode in this session
+    if (!this.geocodedRoutes) {
+      this.geocodedRoutes = new Set();
+    }
+
+    // Filter out routes we've already checked
+    const routesToGeocode = routesWithGps.filter(
+      (r) => !this.geocodedRoutes.has(r.baseName)
+    );
+
+    if (routesToGeocode.length === 0) {
+      console.log("All routes already geocoded in this session");
+      return;
+    }
+
+    console.log(
+      `Starting background geocoding for ${routesToGeocode.length} routes...`
+    );
+
+    // Geocode routes one at a time with rate limiting
+    for (let i = 0; i < routesToGeocode.length; i++) {
+      const route = routesToGeocode[i];
+
+      try {
+        const response = await fetch(
+          `${this.API_BASE}/api/geocode/${route.baseName}`
+        );
+        const data = await response.json();
+
+        // Mark this route as geocoded (even if result is null)
+        this.geocodedRoutes.add(route.baseName);
+
+        if (data.success) {
+          // Update this route with location data
+          const routeIndex = this.routes.findIndex(
+            (r) => r.baseName === route.baseName
+          );
+          if (routeIndex !== -1) {
+            this.routes[routeIndex].startLocation = data.startLocation;
+            this.routes[routeIndex].endLocation = data.endLocation;
+
+            // Re-render just this route's card
+            this.updateRouteCard(this.routes[routeIndex]);
+          }
+        }
+      } catch (error) {
+        // Mark as tried even if failed, to avoid retrying immediately
+        this.geocodedRoutes.add(route.baseName);
+
+        // Silent failure for individual routes
+        console.debug(
+          `Geocoding failed for ${route.baseName} (offline?)`,
+          error
+        );
+      }
+
+      // Rate limit: wait 1.2 seconds between requests (Nominatim requires 1 req/sec)
+      if (i < routesToGeocode.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+
+    console.log("Background geocoding complete");
+  }
+
+  updateRouteCard(route) {
+    // Find and update the specific route card with new location data
+    const cards = document.querySelectorAll(".route-card");
+    for (const card of cards) {
+      // Check if this card matches the route (by looking for its base name in click handler)
+      if (card.dataset && card.dataset.baseName === route.baseName) {
+        // Find the location subtitle element
+        const locationEl = card.querySelector(".route-location");
+        if (locationEl) {
+          const start = route.startLocation || "N/A";
+          const end = route.endLocation || "N/A";
+          if (start === end) {
+            locationEl.textContent = start;
+          } else {
+            locationEl.textContent = `${start} → ${end}`;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  renderRoutes() {
+    this.$routesContainer.innerHTML = "";
+
+    // Group routes by date (use server-provided displayDate)
+    const grouped = {};
+    for (const route of this.routes) {
+      const dateKey = route.displayDate || "Unknown";
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(route);
+    }
+
+    // Render each date group
+    for (const [date, routes] of Object.entries(grouped)) {
+      const dateGroup = this.createDateGroup(date, routes);
+      this.$routesContainer.appendChild(dateGroup);
+    }
+  }
+
+  createDateGroup(date, routes) {
+    const group = document.createElement("div");
+    group.className = "date-group";
+
+    const header = document.createElement("div");
+    header.className = "date-header";
+    header.textContent = date;
+
+    group.appendChild(header);
+
+    for (const route of routes) {
+      const card = this.createRouteCard(route);
+      group.appendChild(card);
+    }
+
+    return group;
+  }
+
+  createRouteCard(route) {
+    const card = document.createElement("div");
+    card.className = "route-card";
+    card.dataset.baseName = route.baseName; // For finding card later during geocoding
+
+    // Use server-provided displayTime directly (no conversion)
+    const displayTime = route.displayTime;
+
+    // Thumbnail - try to load from cache
+    const thumbnailHTML = `
+            <div class="route-thumbnail">
+                <img src="${this.API_BASE}/api/thumbnail/${route.baseName}"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polygon points="10 8 16 12 10 16 10 8"/>
+                </svg>
+            </div>
+        `;
+
+    // Camera badges
+    const cameras = [];
+    if (route.hasVideo?.front)
+      cameras.push('<span class="camera-badge available">Front</span>');
+    if (route.hasVideo?.wide)
+      cameras.push('<span class="camera-badge available">Wide</span>');
+    if (route.hasVideo?.driver)
+      cameras.push('<span class="camera-badge available">Driver</span>');
+    if (route.hasVideo?.lq)
+      cameras.push('<span class="camera-badge available">LQ</span>');
+
+    const starIcon = route.isStarred ? '<span class="star-icon">★</span>' : "";
+
+    // Show display time as the title
+    const displayTitle = displayTime || route.baseName;
+
+    // Format location subtitle (start -> end)
+    let locationSubtitle = "";
+    if (route.startLocation || route.endLocation) {
+      const start = route.startLocation || "N/A";
+      const end = route.endLocation || "N/A";
+      if (start === end) {
+        locationSubtitle = `<div class="route-location">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          ${start}
+        </div>`;
+      } else {
+        locationSubtitle = `<div class="route-location">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          ${start} → ${end}
+        </div>`;
+      }
+    }
+
+    card.innerHTML = `
+            <div class="route-card-content">
+                ${thumbnailHTML}
+                <div class="route-info">
+                    <div class="route-title">
+                        ${starIcon}
+                        ${displayTitle}
+                    </div>
+                    ${locationSubtitle}
+                    <div class="route-meta">
+                        <span class="route-meta-item meta-time">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            ${route.duration}
+                        </span>
+                        <span class="route-meta-item meta-segments">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            </svg>
+                            ${route.segments} segments
+                        </span>
+                        <span class="route-meta-item meta-size">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                <polyline points="13 2 13 9 20 9"/>
+                            </svg>
+                            ${route.size}
+                        </span>
+                        ${
+                          route.hasGpsData && route.mileage
+                            ? `<span class="route-meta-item meta-distance">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>
+                                <path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z"/>
+                            </svg>
+                            ${route.mileage}
+                        </span>`
+                            : ""
+                        }
+                        ${
+                          route.hasGpsData && route.avgSpeed
+                            ? `<span class="route-meta-item meta-speed-avg">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
+                                <path d="M12 7v5l3 3"/>
+                            </svg>
+                            ${route.avgSpeed} avg
+                        </span>`
+                            : ""
+                        }
+                        ${
+                          route.hasGpsData && route.topSpeed
+                            ? `<span class="route-meta-item meta-speed-top">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 0 1 9 -9a9.75 9.75 0 0 1 6.74 2.74l-4.74 4.76"/>
+                                <path d="M12 3v9l3 3"/>
+                            </svg>
+                            ${route.topSpeed} top
+                        </span>`
+                            : ""
+                        }
+                    </div>
+                    <div class="route-cameras">
+                        ${cameras.join("")}
+                    </div>
+                </div>
+            </div>
+        `;
+
+    // Make entire card clickable
+    card.addEventListener("click", () => {
+      this.playRoute(route);
+    });
+
+    return card;
+  }
+
+  async playRoute(route) {
+    try {
+      // Load route details
+      const response = await fetch(
+        `${this.API_BASE}/api/routes/${route.baseName}`
+      );
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to load route details");
+      }
+
+      this.currentRoute = data;
+      this.currentSegment = 0;
+
+      // Determine best camera to start with based on HEVC support
+      const firstSegmentVideos = data.segments[0]?.videos || {};
+      const availableCameras = Object.keys(firstSegmentVideos);
+
+      // Define camera priority based on HEVC support
+      let cameraPriority;
+      if (this.canPlayHEVC()) {
+        // HEVC supported: prioritize HEVC cameras (front -> wide -> driver -> lq)
+        cameraPriority = ["front", "wide", "driver", "lq"];
+        console.log("HEVC playback available - prioritizing HEVC cameras");
+      } else {
+        // No HEVC support: only use LQ camera
+        cameraPriority = ["lq"];
+        console.log("HEVC not supported - using LQ camera only");
+      }
+
+      // Select first available camera from priority list
+      this.currentCamera = null;
+      for (const camera of cameraPriority) {
+        if (availableCameras.includes(camera)) {
+          this.currentCamera = camera;
+          break;
+        }
+      }
+
+      if (!this.currentCamera) {
+        throw new Error("No playable video cameras available for this route");
+      }
+
+      this.openVideo();
+      this.updateCameraButtons();
+      this.loadSegment(0);
+    } catch (error) {
+      console.error("Error playing route:", error);
+      alert("Failed to play route: " + error.message);
+    }
+  }
+
+  openVideo() {
+    this.$videoPlayer.classList.remove("hidden");
+
+    // Set title: Display date and time on first line
+    const displayDate = this.currentRoute.displayDate || "";
+    const displayTime = this.currentRoute.displayTime || "";
+    this.$videoTitle.textContent =
+      displayDate + (displayDate && displayTime ? " - " : "") + displayTime;
+
+    // Set route ID on second line
+    this.$videoRouteId.textContent = this.currentRoute.baseName;
+
+    // Populate stats
+    this.updatePlayerStats();
+
+    // Update star button text
+    this.updatePlayerStarButton();
+
+    document.body.style.overflow = "hidden";
+  }
+
+  updatePlayerStats() {
+    if (!this.currentRoute) return;
+
+    // Duration
+    this.$statDuration.textContent = this.currentRoute.duration || "--";
+
+    // Segments
+    this.$statSegments.textContent =
+      this.currentRoute.totalSegments ||
+      this.currentRoute.segments?.length ||
+      "--";
+
+    // Size
+    this.$statSize.textContent = this.currentRoute.size || "--";
+
+    // Distance - use GPS metrics if available
+    this.$statDistance.textContent = this.currentRoute.mileage || "--";
+  }
+
+  updatePlayerStarButton() {
+    if (!this.currentRoute) return;
+
+    const isStarred = this.currentRoute.isStarred || false;
+    this.$playerStarText.textContent = isStarred ? "Unstar" : "Star";
+
+    // Update button styling based on starred state
+    if (isStarred) {
+      this.$playerStarBtn.classList.add("starred");
+    } else {
+      this.$playerStarBtn.classList.remove("starred");
+    }
+  }
+
+  closeVideo() {
+    // Set flag to prevent error alerts during intentional cleanup
+    this.isClosingVideo = true;
+
+    this.$videoPlayer.classList.add("hidden");
+
+    // Clear segment timer
+    if (this.segmentTimer) {
+      clearTimeout(this.segmentTimer);
+      this.segmentTimer = null;
+    }
+
+    // Stop connection monitoring
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
+
+    // Clean up HLS.js instance if it exists
+    if (this.hls) {
+      try {
+        this.hls.destroy();
+        console.log("HLS.js instance destroyed");
+      } catch (e) {
+        console.error("Error destroying HLS:", e);
+      }
+      this.hls = null;
+    }
+
+    // Clean up h265-web-player instance if it exists
+    if (this.player) {
+      try {
+        // Try different cleanup methods that might be available
+        if (typeof this.player.destroy === "function") {
+          this.player.destroy();
+        } else if (typeof this.player.dispose === "function") {
+          this.player.dispose();
+        } else if (typeof this.player.cleanup === "function") {
+          this.player.cleanup();
+        } else if (typeof this.player.stop === "function") {
+          this.player.stop();
+        } else {
+          // If no cleanup method exists, just null the reference
+          console.log(
+            "Player object has no cleanup method, just clearing reference"
+          );
+        }
+      } catch (e) {
+        console.error("Error destroying player:", e);
+      }
+      this.player = null;
+    }
+
+    // Clear global canvas reference
+    if (window.canvas) {
+      window.canvas = null;
+    }
+
+    // Clean up standard video element if it exists
+    if (this.$videoElement) {
+      this.$videoElement.pause();
+      this.$videoElement.src = "";
+      this.$videoElement.load();
+    }
+
+    document.body.style.overflow = "";
+    this.currentRoute = null;
+
+    // Clear closing flag after cleanup completes
+    setTimeout(() => {
+      this.isClosingVideo = false;
+    }, 100);
+  }
+
+  loadSegment(segmentIndex) {
+    if (
+      !this.currentRoute ||
+      segmentIndex >= this.currentRoute.segments.length
+    ) {
+      return;
+    }
+
+    this.currentSegment = segmentIndex;
+    const segment = this.currentRoute.segments[segmentIndex];
+    const segmentNumber = segment.number;
+
+    // UI is already updated above with camera type info
+
+    // Check if current camera is available in this segment
+    const availableCameras = Object.keys(segment.videos);
+    if (!availableCameras.includes(this.currentCamera)) {
+      // Fall back to first available camera
+      if (availableCameras.length > 0) {
+        this.currentCamera = availableCameras[0];
+        this.updateCameraButtons();
+      } else {
+        console.error("No video available for this segment");
+        return;
+      }
+    }
+
+    // Get video URL - use selected camera (HEVC or LQ)
+    let videoUrl = `${this.API_BASE}/api/video/${this.currentRoute.baseName}/${segmentNumber}/${this.currentCamera}`;
+    const videoCamera = this.currentCamera;
+    const videoInfo = segment.videos[this.currentCamera];
+
+    this.showVideoLoading();
+
+    // Update UI to show camera type
+    const cameraType =
+      videoCamera === "lq"
+        ? "LQ (H.264)"
+        : `${videoCamera.toUpperCase()} (HEVC)`;
+    this.$segmentInfo.textContent = `Segment ${segmentIndex + 1} of ${
+      this.currentRoute.totalSegments
+    } - ${cameraType}`;
+
+    // Clean up any existing player instance
+    if (this.player) {
+      try {
+        // Try different cleanup methods that might be available
+        if (typeof this.player.destroy === "function") {
+          this.player.destroy();
+        } else if (typeof this.player.dispose === "function") {
+          this.player.dispose();
+        } else if (typeof this.player.cleanup === "function") {
+          this.player.cleanup();
+        } else if (typeof this.player.stop === "function") {
+          this.player.stop();
+        } else {
+          // If no cleanup method exists, just null the reference
+          console.log(
+            "Player object has no cleanup method, just clearing reference"
+          );
+        }
+      } catch (e) {
+        console.error("Error destroying old player:", e);
+      }
+      this.player = null;
+    }
+
+    // Detect video type
+    const isHEVC = videoCamera !== "lq";
+
+    console.log("=== Video Playback Strategy ===");
+    console.log("Video camera:", videoCamera);
+    console.log("Is HEVC:", isHEVC);
+    console.log("Native HEVC support:", this.hevcSupported);
+    console.log("WebGL support:", this.webglSupported);
+
+    // Strategy:
+    // 1. Browser with native HEVC support -> Use HTML5 video (Chrome 107+, Safari, Edge)
+    // 2. Browser without native HEVC -> Try h265-web-player (WebGL decoder)
+    // 3. Any browser + LQ -> Use HTML5 video (MPEG-TS works everywhere)
+
+    if (isHEVC) {
+      if (this.hevcSupported) {
+        console.log("Using native browser HEVC playback");
+        this.fallbackToStandardVideo(videoUrl);
+      } else {
+        // Try h265-web-player for browsers without native HEVC
+        const playerAvailable =
+          typeof Player !== "undefined" &&
+          typeof Player.prototype.init === "function";
+
+        console.log("Player available:", playerAvailable);
+
+        if (playerAvailable && this.webglSupported) {
+          console.log("Attempting to use h265-web-player for HEVC video");
+          this.initH265WebPlayer(videoUrl, videoCamera);
+        } else {
+          console.log(
+            "h265-web-player not available, falling back to LQ camera"
+          );
+          // Switch to LQ camera as final fallback for HEVC content
+          if (this.currentCamera !== "lq") {
+            this.currentCamera = "lq";
+            this.updateCameraButtons();
+            this.loadSegment(this.currentSegment);
+          } else {
+            // LQ not available or already trying LQ, try standard video anyway
+            this.fallbackToStandardVideo(videoUrl);
+          }
+        }
+      }
+    } else {
+      // LQ camera - use HTML5 video
+      console.log("Using standard HTML5 video for LQ camera");
+      this.fallbackToStandardVideo(videoUrl);
+    }
+  }
+
+  playNextSegment() {
+    const nextSegment = this.currentSegment + 1;
+    if (nextSegment < this.currentRoute.segments.length) {
+      this.loadSegment(nextSegment);
+    } else {
+      // End of route
+      this.closeVideo();
+    }
+  }
+
+  switchCamera(camera) {
+    if (camera === this.currentCamera) return;
+
+    // Check if camera is available for current segment
+    const segment = this.currentRoute.segments[this.currentSegment];
+    if (!segment.videos[camera]) {
+      return;
+    }
+
+    // Prevent switching to HEVC cameras if not supported
+    const isHEVCCamera = camera !== "lq";
+    if (isHEVCCamera && !this.canPlayHEVC()) {
+      console.warn(`Cannot switch to ${camera} camera - HEVC not supported`);
+      return;
+    }
+
+    // Store current playback time for sync
+    if (this.$videoElement) {
+      this.lastPlaybackTime = this.$videoElement.currentTime || 0;
+      console.log(
+        `Storing playback time for camera sync: ${this.lastPlaybackTime}s`
+      );
+    }
+
+    this.currentCamera = camera;
+    this.updateCameraButtons();
+    this.loadSegment(this.currentSegment);
+  }
+
+  updateCameraButtons() {
+    if (
+      !this.currentRoute ||
+      this.currentSegment >= this.currentRoute.segments.length
+    ) {
+      return;
+    }
+
+    const segment = this.currentRoute.segments[this.currentSegment];
+    const availableVideos = segment.videos || {};
+    const canPlayHEVC = this.canPlayHEVC();
+
+    this.$cameraButtons.forEach((btn) => {
+      const camera = btn.dataset.camera;
+      const isAvailable = availableVideos[camera];
+      const isActive = camera === this.currentCamera;
+      const isHEVCCamera = camera !== "lq";
+
+      // Hide HEVC camera buttons if HEVC is not supported
+      if (isHEVCCamera && !canPlayHEVC) {
+        btn.style.display = "none";
+        btn.disabled = true;
+        return;
+      }
+
+      // Show button and update state
+      btn.style.display = "";
+      btn.disabled = !isAvailable;
+      btn.classList.toggle("active", isActive);
+
+      // Add visual indicator for camera type
+      btn.title = `${camera.toUpperCase()} camera${
+        isHEVCCamera ? " (HEVC)" : " (H.264)"
+      }`;
+    });
+  }
+
+  showVideoLoading() {
+    this.$videoLoading.style.display = "block";
+  }
+
+  hideVideoLoading() {
+    this.$videoLoading.style.display = "none";
+  }
+
+  async checkNativeHEVCSupport() {
+    // Check if browser supports HEVC/H.265 natively
+    // This works on Safari (all versions), Chrome 107+, Edge 107+, and other Chromium browsers
+
+    try {
+      const video = document.createElement("video");
+
+      // Test multiple HEVC codec strings
+      const hevcCodecs = [
+        'video/mp4; codecs="hvc1.1.6.L93.B0"', // HEVC Main profile
+        'video/mp4; codecs="hev1.1.6.L93.B0"', // Alternative HEVC format
+        'video/mp4; codecs="hvc1"', // Simplified
+        'video/mp4; codecs="hev1"', // Simplified alternative
+      ];
+
+      for (const codec of hevcCodecs) {
+        const support = video.canPlayType(codec);
+        if (support === "probably" || support === "maybe") {
+          console.log(
+            `Native HEVC support detected with codec: ${codec} (${support})`
+          );
+          return true;
+        }
+      }
+
+      console.log("No native HEVC support detected");
+      return false;
+    } catch (e) {
+      console.warn("Error checking HEVC support:", e);
+      return false;
+    }
+  }
+
+  checkWebGLSupport() {
+    try {
+      const canvas = document.createElement("canvas");
+
+      // Check for WebGL 2.0 first (preferred)
+      let gl = canvas.getContext("webgl2");
+      let version = "WebGL 2.0";
+
+      // Fall back to WebGL 1.0
+      if (!gl) {
+        gl =
+          canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        version = "WebGL 1.0";
+      }
+
+      if (!gl) {
+        console.warn("WebGL not supported at all");
+        return false;
+      }
+
+      console.log(`WebGL support detected: ${version}`);
+
+      // Check WebGL context attributes
+      const contextAttributes = gl.getContextAttributes();
+      console.log("WebGL context attributes:", contextAttributes);
+
+      // Check for hardware acceleration (antialiasing enabled usually indicates HW acceleration)
+      const hasHardwareAcceleration = contextAttributes.antialias !== false;
+      console.log(
+        "Hardware acceleration:",
+        hasHardwareAcceleration ? "Enabled" : "Disabled (software rendering)"
+      );
+
+      // Check for WebGL extensions (some may be optional for basic functionality)
+      const requiredExtensions = [
+        "OES_texture_float",
+        "OES_standard_derivatives",
+      ];
+
+      const optionalExtensions = ["WEBGL_lose_context"];
+
+      const missingRequired = requiredExtensions.filter((ext) => {
+        if (!gl.getExtension(ext)) {
+          console.warn(`Missing WebGL extension: ${ext}`);
+          return true;
+        }
+        return false;
+      });
+
+      const missingOptional = optionalExtensions.filter((ext) => {
+        if (!gl.getExtension(ext)) {
+          console.log(`Missing optional WebGL extension: ${ext}`);
+          return true;
+        }
+        return false;
+      });
+
+      // For now, don't fail completely if extensions are missing
+      // The h265-web-player might work without some extensions
+      if (missingRequired.length > 0) {
+        console.warn(
+          "Some WebGL extensions missing, but attempting HEVC playback anyway:",
+          missingRequired
+        );
+        // Continue instead of failing
+      }
+
+      // Additional check: ensure WebGL context can actually be used for video decoding
+      try {
+        // Test creating textures and framebuffers (required for video decoding)
+        const texture = gl.createTexture();
+        const framebuffer = gl.createFramebuffer();
+
+        if (!texture || !framebuffer) {
+          console.warn(
+            "Cannot create WebGL texture/framebuffer for video decoding"
+          );
+          gl.deleteTexture(texture);
+          gl.deleteFramebuffer(framebuffer);
+          // Continue anyway - h265-web-player might still work
+        } else {
+          gl.deleteTexture(texture);
+          gl.deleteFramebuffer(framebuffer);
+          console.log("WebGL texture/framebuffer creation test passed");
+        }
+      } catch (e) {
+        console.error("WebGL texture/framebuffer test failed:", e);
+        return false;
+      }
+
+      // Test basic WebGL functionality
+      try {
+        const shader = gl.createShader(gl.VERTEX_SHADER);
+        if (!shader) {
+          console.warn("Cannot create WebGL shader");
+          return false;
+        }
+        gl.deleteShader(shader);
+
+        // Test framebuffer creation (needed for video decoding)
+        const framebuffer = gl.createFramebuffer();
+        if (!framebuffer) {
+          console.warn("Cannot create WebGL framebuffer");
+          return false;
+        }
+        gl.deleteFramebuffer(framebuffer);
+
+        console.log("WebGL functionality test passed");
+      } catch (e) {
+        console.warn("WebGL functionality test failed:", e);
+        return false;
+      }
+
+      // Log WebGL capabilities
+      console.log("WebGL vendor:", gl.getParameter(gl.VENDOR));
+      console.log("WebGL renderer:", gl.getParameter(gl.RENDERER));
+      console.log("WebGL version:", gl.getParameter(gl.VERSION));
+      console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
+      console.log(
+        "Max renderbuffer size:",
+        gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)
+      );
+
+      return true;
+    } catch (e) {
+      console.warn("WebGL detection failed:", e);
+      return false;
+    }
+  }
+
+  switchToLQCamera() {
+    console.log("Switching to LQ camera for HTML5 playback");
+
+    // Check if LQ camera is available in current segment
+    const segment = this.currentRoute.segments[this.currentSegment];
+    if (segment && segment.videos && segment.videos.lq) {
+      // Switch camera and reload segment
+      this.currentCamera = "lq";
+      this.updateCameraButtons();
+      this.loadSegment(this.currentSegment);
+    } else {
+      // LQ not available, show error
+      this.hideVideoLoading();
+      console.error("LQ camera not available in current segment");
+      console.error(
+        "Available cameras:",
+        segment ? Object.keys(segment.videos) : "No segment data"
+      );
+      console.error(
+        "Route baseName:",
+        this.currentRoute ? this.currentRoute.baseName : "No route data"
+      );
+      console.error("Current segment:", this.currentSegment);
+
+      // Check if any cameras are available at all
+      const availableCameras = segment ? Object.keys(segment.videos) : [];
+      if (availableCameras.length === 0) {
+        alert("No video cameras available for this route segment.");
+      } else {
+        alert(
+          `Unable to play video. LQ camera not available. Available cameras: ${availableCameras.join(
+            ", "
+          )}`
+        );
+      }
+    }
+  }
+
+  initH265WebPlayer(videoUrl, videoCamera) {
+    // Validate canvas element
+    if (!this.$videoCanvas) {
+      this.hideVideoLoading();
+      alert("Canvas element not available. Please refresh the page.");
+      return;
+    }
+
+    try {
+      console.log("Initializing h265-web-player for:", videoUrl);
+
+      // Ensure canvas has proper dimensions and is visible
+      const canvasWidth = this.$videoCanvas.clientWidth || 1280;
+      const canvasHeight = this.$videoCanvas.clientHeight || 720;
+
+      // Set canvas dimensions explicitly
+      this.$videoCanvas.width = canvasWidth;
+      this.$videoCanvas.height = canvasHeight;
+      this.$videoCanvas.style.width = canvasWidth + "px";
+      this.$videoCanvas.style.height = canvasHeight + "px";
+
+      console.log("Canvas dimensions:", canvasWidth, "x", canvasHeight);
+
+      // Create WebGL context FIRST before initializing player
+      // This is required for h265-web-player to work properly
+      const glCtx =
+        this.$videoCanvas.getContext("webgl") ||
+        this.$videoCanvas.getContext("experimental-webgl");
+
+      if (!glCtx) {
+        console.warn(
+          "WebGL context not available, falling back to native video"
+        );
+        this.fallbackToStandardVideo(videoUrl);
+        return;
+      }
+
+      console.log("WebGL context created successfully");
+
+      // Set global canvas variable for h265-web-player library
+      window.canvas = this.$videoCanvas;
+
+      this.player = new Player();
+      this.player.init({
+        width: canvasWidth,
+        height: canvasHeight,
+        canvas: this.$videoCanvas,
+        url: videoUrl,
+      });
+
+      console.log("Player initialized successfully");
+
+      // Monitor for h265-web-player errors and fallback if needed
+      setTimeout(() => {
+        // Check if the canvas has any content (indicating successful decoding)
+        try {
+          const canvas = this.$videoCanvas;
+          if (canvas && this.player) {
+            // If player exists but canvas is still blank, assume failure
+            const context = canvas.getContext("2d");
+            const imageData = context.getImageData(0, 0, 1, 1);
+            const hasContent = imageData.data.some((value) => value > 0);
+
+            if (!hasContent) {
+              console.warn(
+                "h265-web-player initialized but no video content detected, falling back to LQ camera"
+              );
+              this.hideVideoLoading();
+              // Fall back to LQ camera
+              if (this.currentCamera !== "lq") {
+                this.currentCamera = "lq";
+                this.updateCameraButtons();
+                this.loadSegment(this.currentSegment);
+              } else {
+                this.fallbackToStandardVideo(videoUrl);
+              }
+            } else {
+              console.log("h265-web-player appears to be working");
+              this.hideVideoLoading();
+            }
+          } else {
+            console.log("h265-web-player appears to be working");
+            this.hideVideoLoading();
+          }
+        } catch (e) {
+          console.error("Error checking h265-web-player status:", e);
+          this.hideVideoLoading();
+          // Fall back to LQ camera on error
+          if (this.currentCamera !== "lq") {
+            this.currentCamera = "lq";
+            this.updateCameraButtons();
+            this.loadSegment(this.currentSegment);
+          } else {
+            this.fallbackToStandardVideo(videoUrl);
+          }
+        }
+      }, 3000); // Give it more time
+
+      // Auto-play next segment after 60 seconds (each segment is ~1 minute)
+      this.segmentTimer = setTimeout(() => {
+        console.log("Segment duration reached, playing next");
+        this.playNextSegment();
+      }, 60000);
+    } catch (error) {
+      console.error("Error initializing h265-web-player:", error);
+      this.hideVideoLoading();
+
+      // Fallback to LQ camera
+      console.log("Falling back to LQ camera due to h265-web-player error");
+      if (this.currentCamera !== "lq") {
+        this.currentCamera = "lq";
+        this.updateCameraButtons();
+        this.loadSegment(this.currentSegment);
+      } else {
+        this.fallbackToStandardVideo(videoUrl);
+      }
+    }
+  }
+
+  fallbackToDirectVideo() {
+    if (!this.currentRoute) return;
+
+    const routeBase = this.currentRoute.baseName;
+    const segmentNumber =
+      this.currentRoute.segments[this.currentSegment]?.number || 0;
+    const directUrl = `${this.API_BASE}/api/video/${routeBase}/${segmentNumber}/${this.currentCamera}`;
+
+    console.log("Falling back to direct video playback:", directUrl);
+
+    // Clean up HLS.js instance if it exists
+    if (this.hls) {
+      try {
+        this.hls.destroy();
+        console.log("HLS.js instance destroyed");
+      } catch (e) {
+        console.error("Error destroying HLS:", e);
+      }
+      this.hls = null;
+    }
+
+    // Try direct video playback
+    this.fallbackToStandardVideo(directUrl);
+  }
+
+  fallbackToStandardVideo(videoUrl) {
+    try {
+      console.log("Attempting HLS playback for full route:", videoUrl);
+
+      const isHEVC = this.currentCamera !== "lq";
+      console.log(
+        "Video format:",
+        isHEVC ? "HEVC (remuxed MP4)" : "LQ (MPEG-TS)"
+      );
+
+      // Create a video element if it doesn't exist
+      if (!this.$videoElement) {
+        this.$videoElement = document.createElement("video");
+        this.$videoElement.className = "video-element";
+        this.$videoElement.controls = true;
+        this.$videoElement.autoplay = true;
+        this.$videoElement.style.width = "100%";
+        this.$videoElement.style.height = "100%";
+        this.$videoElement.style.backgroundColor = "#000";
+
+        // Replace canvas with video element
+        const videoWrapper = this.$videoCanvas.parentElement;
+        videoWrapper.replaceChild(this.$videoElement, this.$videoCanvas);
+
+        // Add event listeners
+        this.$videoElement.addEventListener("loadstart", () => {
+          console.log("Video loadstart event");
+          this.showVideoLoading();
+        });
+        this.$videoElement.addEventListener("loadedmetadata", () => {
+          console.log("Video metadata loaded:", {
+            duration: this.$videoElement.duration,
+            videoWidth: this.$videoElement.videoWidth,
+            videoHeight: this.$videoElement.videoHeight,
+          });
+        });
+        this.$videoElement.addEventListener("canplay", () => {
+          console.log("Video can play");
+
+          // Sync to stored playback time when switching cameras (for direct video fallback)
+          if (this.lastPlaybackTime > 0 && !Hls.isSupported()) {
+            console.log(
+              `Seeking to synced time (direct video): ${this.lastPlaybackTime}s`
+            );
+            this.$videoElement.currentTime = this.lastPlaybackTime;
+            this.lastPlaybackTime = 0; // Reset after use
+          }
+
+          this.hideVideoLoading();
+        });
+        this.$videoElement.addEventListener("playing", () => {
+          console.log("Video is playing");
+          this.hideVideoLoading();
+        });
+        this.$videoElement.addEventListener("ended", () => {
+          console.log("Full route playback completed");
+          this.closeVideo();
+        });
+        this.$videoElement.addEventListener("error", (e) =>
+          this.handleVideoError(e)
+        );
+      }
+
+      // Clean up any existing HLS instance (shouldn't be necessary here, but just in case)
+      if (this.hls) {
+        try {
+          this.hls.destroy();
+          console.log("HLS.js instance destroyed");
+        } catch (e) {
+          console.error("Error destroying HLS:", e);
+        }
+        this.hls = null;
+      }
+
+      // Use HLS.js for the full route playlist (allows scrubbing and shows total duration)
+      const hlsUrl = `${this.API_BASE}/api/hls/${this.currentRoute.baseName}/${this.currentCamera}/playlist.m3u8`;
+
+      if (Hls.isSupported()) {
+        console.log("Using HLS.js for full route streaming");
+        console.log("HLS playlist URL:", hlsUrl);
+
+        this.hls = new Hls({
+          debug: true,
+          enableWorker: true,
+          lowLatencyMode: false,
+          // Improve buffer management for fragmented MP4
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 60 * 1000 * 1000, // 60MB
+          maxBufferHole: 0.5,
+          // Better error recovery
+          enableSoftwareAES: true,
+          fragLoadingTimeOut: 20000,
+          manifestLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 10000,
+        });
+
+        this.hls.loadSource(hlsUrl);
+        this.hls.attachMedia(this.$videoElement);
+
+        this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log(
+            "HLS manifest parsed successfully - full route available for scrubbing"
+          );
+
+          // Sync to stored playback time when switching cameras
+          if (this.lastPlaybackTime > 0) {
+            console.log(`Seeking to synced time: ${this.lastPlaybackTime}s`);
+            this.$videoElement.currentTime = this.lastPlaybackTime;
+            this.lastPlaybackTime = 0; // Reset after use
+          }
+
+          this.$videoElement.play().catch((e) => {
+            console.warn("Autoplay failed:", e);
+          });
+        });
+
+        this.hls.on(Hls.Events.ERROR, (_event, data) => {
+          console.error("HLS error:", data);
+
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error("Fatal network error, trying to recover...");
+                // For network errors, try to restart loading with retry logic
+                if (this.retryCount < this.maxRetries) {
+                  setTimeout(() => {
+                    console.log("Attempting to restart HLS loading...");
+                    this.hls.startLoad();
+                  }, 1000);
+                } else {
+                  console.error(
+                    "Max retries reached, falling back to direct video"
+                  );
+                  this.hls.destroy();
+                  this.fallbackToDirectVideo();
+                }
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error("Fatal media error, trying to recover...");
+                // For media errors, try to recover the media source
+                try {
+                  this.hls.recoverMediaError();
+                } catch (e) {
+                  console.error(
+                    "Media recovery failed, falling back to direct video"
+                  );
+                  this.hls.destroy();
+                  this.fallbackToDirectVideo();
+                }
+                break;
+              default:
+                console.error(
+                  "Cannot recover from HLS error, falling back to direct video"
+                );
+                this.hls.destroy();
+                this.fallbackToDirectVideo();
+                break;
+            }
+          } else {
+            // Non-fatal errors - log but don't take action
+            console.warn("Non-fatal HLS error:", data.details);
+          }
+        });
+
+        // Handle buffer issues for debugging
+        this.hls.on(Hls.Events.BUFFER_APPENDING, (_event, data) => {
+          // Log buffer events for debugging
+          if (data.type === "video") {
+            console.debug("Appending video buffer:", data.data.length, "bytes");
+          }
+        });
+
+        this.hls.on(Hls.Events.BUFFER_EOS, () => {
+          console.debug("Buffer reached end of stream");
+        });
+
+        this.hls.on(Hls.Events.BUFFER_RESET, () => {
+          console.debug("Buffer reset");
+        });
+      } else if (
+        this.$videoElement.canPlayType("application/vnd.apple.mpegurl")
+      ) {
+        // Safari native HLS support
+        console.log("Using native HLS playback (Safari)");
+        this.$videoElement.src = hlsUrl;
+        this.$videoElement.load();
+
+        setTimeout(() => {
+          this.$videoElement.play().catch((e) => {
+            console.warn("Autoplay failed:", e);
+          });
+        }, 100);
+      } else {
+        // HLS not supported, fallback to direct video (segment by segment)
+        console.warn(
+          "HLS not supported, falling back to direct video playback"
+        );
+        this.fallbackToDirectVideo();
+      }
+    } catch (error) {
+      console.error("Video initialization failed:", error);
+      this.hideVideoLoading();
+      alert("Video playback not available. Please check console for details.");
+    }
+  }
+
+  startConnectionMonitoring() {
+    // Check connection status every 30 seconds
+    this.connectionCheckInterval = setInterval(() => {
+      this.checkServerConnection();
+    }, 30000);
+
+    // Also check on page visibility changes (when user returns to tab)
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        this.checkServerConnection();
+      }
+    });
+  }
+
+  async checkServerConnection() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(`${this.API_BASE}/api/status`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        // Server is responsive, reset retry counter
+        this.retryCount = 0;
+        this.retryDelay = 1000;
+      }
+    } catch (error) {
+      console.warn("Server connection check failed:", error);
+      // Don't show alert for connection checks, just log
+    }
+  }
+
+  async initWebSocket() {
+    // Check if WebSocket is supported by the browser
+    this.websocketSupported = "WebSocket" in window;
+
+    if (!this.websocketSupported) {
+      console.log("WebSocket not supported by browser - using HTTP polling");
+      return;
+    }
+
+    // Try to connect immediately
+    this.attemptWebSocketConnection();
+
+    // Also check periodically in case websockets becomes available later
+    this.websocketCheckInterval = setInterval(() => {
+      if (!this.useWebSocket && !this.isRetrying) {
+        this.attemptWebSocketConnection();
+      }
+    }, 10000); // Check every 10 seconds
+  }
+
+  attemptWebSocketConnection() {
+    if (this.isRetrying) {
+      return; // Already trying to connect
+    }
+
+    // Construct WebSocket URL (same origin, different port)
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost = window.location.hostname;
+    const wsPort = 8089; // WebSocket server port
+    const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}`;
+
+    try {
+      console.log("Attempting to connect to WebSocket:", wsUrl);
+      this.isRetrying = true;
+
+      this.websocket = new WebSocket(wsUrl);
+
+      this.websocket.onopen = (event) => {
+        console.log("WebSocket connected successfully");
+        this.websocketConnected = true;
+        this.useWebSocket = true;
+        this.isRetrying = false;
+
+        // Disable fallback polling since WebSocket is working
+        this.disableFallbackPolling();
+
+        // Update connection status indicator
+        this.updateConnectionStatus("websocket");
+      };
+
+      this.websocket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          this.handleWebSocketMessage(message);
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+        }
+      };
+
+      this.websocket.onclose = (event) => {
+        console.log("WebSocket disconnected:", event.code, event.reason);
+        this.websocketConnected = false;
+        this.isRetrying = false;
+
+        // If WebSocket was previously working, try to reconnect
+        if (this.useWebSocket) {
+          console.log(
+            "WebSocket lost - attempting to reconnect in 5 seconds..."
+          );
+          setTimeout(() => {
+            this.attemptWebSocketConnection();
+          }, 5000);
+        } else {
+          // Fall back to HTTP polling
+          this.enableFallbackPolling();
+        }
+      };
+
+      this.websocket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        this.websocketConnected = false;
+        this.isRetrying = false;
+        // Don't show error to user - fallback to polling will handle it
+      };
+    } catch (error) {
+      console.error("Failed to create WebSocket connection:", error);
+      this.websocketSupported = false;
+      this.isRetrying = false;
+    }
+  }
+
+  handleWebSocketMessage(message) {
+    console.log("WebSocket message received:", message.type, message.data);
+
+    switch (message.type) {
+      case "connection_established":
+        this.handleWebSocketConnectionEstablished(message.data);
+        break;
+
+      case "routes_updated":
+        this.handleWebSocketRoutesUpdated(message.data);
+        break;
+
+      case "route_added":
+        this.handleWebSocketRouteAdded(message.data);
+        break;
+
+      case "route_deleted":
+        this.handleWebSocketRouteDeleted(message.data);
+        break;
+
+      case "route_starred":
+      case "route_unstarred":
+        this.handleWebSocketRouteStarred(message.data, message.type);
+        break;
+
+      case "status_changed":
+        this.handleWebSocketStatusChanged(message.data);
+        break;
+
+      case "processing_update":
+        this.handleWebSocketProcessingUpdate(message.data);
+        break;
+
+      case "processing_started":
+        this.handleWebSocketProcessingStarted(message.data);
+        break;
+
+      case "processing_completed":
+        this.handleWebSocketProcessingCompleted(message.data);
+        break;
+
+      case "cache_cleared":
+        this.handleWebSocketCacheCleared(message.data);
+        break;
+
+      case "heartbeat":
+        // Just a keep-alive message, ignore
+        break;
+
+      default:
+        console.log("Unknown WebSocket message type:", message.type);
+    }
+  }
+
+  handleWebSocketConnectionEstablished(data) {
+    // Update device status based on WebSocket connection
+    if (data.status) {
+      this.setDeviceStatusUI(data.status);
+    }
+  }
+
+  handleWebSocketRoutesUpdated(data) {
+    // Full routes list updated - reload everything
+    console.log("Routes updated via WebSocket - reloading");
+    this.loadRoutes();
+  }
+
+  handleWebSocketRouteAdded(data) {
+    // Individual route added - add to list without full reload
+    console.log("Route added via WebSocket:", data.route_base, data);
+
+    // Check if route already exists (avoid duplicates)
+    const existingRoute = this.routes.find((r) => r.baseName === data.route_base);
+    if (existingRoute) {
+      console.log("Route already exists, ignoring duplicate add event");
+      return;
+    }
+
+    // If we have full route data, add it directly
+    if (data.baseName && data.displayDate) {
+      // Add new route to the beginning of the list (most recent first)
+      this.routes.unshift(data);
+
+      // Re-render routes and update stats
+      this.renderRoutes();
+      this.updateStats();
+
+      // Show notification
+      this.showNotification(`New route recorded: ${data.displayDate} ${data.displayTime || ''}`);
+    } else {
+      // No full data, do a full reload
+      console.log("Incomplete route data, reloading routes list");
+      this.loadRoutes();
+    }
+  }
+
+  handleWebSocketRouteDeleted(data) {
+    // Individual route deleted - remove from list without full reload
+    console.log("Route deleted via WebSocket:", data.route_base);
+
+    // Remove from local routes array
+    this.routes = this.routes.filter((r) => r.baseName !== data.route_base);
+
+    // Re-render routes and update stats
+    this.renderRoutes();
+    this.updateStats();
+
+    // If currently viewing deleted route, close video player
+    if (this.currentRoute && this.currentRoute.baseName === data.route_base) {
+      this.closeVideo();
+    }
+  }
+
+  handleWebSocketRouteStarred(data, eventType) {
+    // Route starred/unstarred - update local state
+    console.log(
+      "Route starred status changed via WebSocket:",
+      data.route_base,
+      eventType
+    );
+
+    // Update in local routes array
+    const routeInList = this.routes.find((r) => r.baseName === data.route_base);
+    if (routeInList) {
+      routeInList.isStarred = data.is_starred;
+    }
+
+    // Update current route if it's the same
+    if (this.currentRoute && this.currentRoute.baseName === data.route_base) {
+      this.currentRoute.isStarred = data.is_starred;
+      this.updatePlayerStarButton();
+    }
+
+    // Re-render routes to show updated star status
+    this.renderRoutes();
+  }
+
+  handleWebSocketStatusChanged(data) {
+    // Device status changed (onroad/offroad)
+    console.log("Device status changed via WebSocket:", data.status);
+    this.setDeviceStatusUI(data.status);
+  }
+
+  handleWebSocketProcessingUpdate(data) {
+    // Background processing status update
+    console.log("Processing update via WebSocket:", data);
+
+    const { route_base, status, progress, message } = data;
+
+    // Update route in the list if it exists
+    const route = this.routes.find((r) => r.baseName === route_base);
+    if (route) {
+      // Add processing status to route object
+      route.processingStatus = status;
+      route.processingProgress = progress;
+
+      // If processing completed, refresh that specific route's data
+      if (status === 'completed') {
+        // Mark route as processed - it now has GPS data
+        console.log(`Route ${route_base} processing completed`);
+
+        // Reload just this route's data to get updated metrics
+        this.refreshSingleRoute(route_base);
+      }
+    }
+
+    // Log message if provided
+    if (message) {
+      console.info("Processing:", message);
+    }
+
+    // Could add visual indicators in the future:
+    // - Show spinner on route card while processing
+    // - Show progress bar
+    // - Show completion animation
+  }
+
+  handleWebSocketProcessingStarted(data) {
+    // Batch processing started
+    console.log("Processing started:", data.total_routes, "routes");
+    // Could show a global processing indicator
+  }
+
+  handleWebSocketProcessingCompleted(data) {
+    // Batch processing completed
+    console.log(
+      "Processing completed:",
+      data.processed_count,
+      "routes in",
+      data.total_time,
+      "seconds"
+    );
+    // Could show completion notification or hide processing indicator
+  }
+
+  handleWebSocketCacheCleared(data) {
+    // Cache was cleared - update UI
+    console.log("Cache cleared via WebSocket:", data.cleared);
+
+    // Show notification to user
+    const totalCleared = Object.values(data.cleared).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    if (totalCleared > 0) {
+      this.showNotification(`Cache cleared: ${totalCleared} items removed`);
+    }
+  }
+
+  async refreshSingleRoute(routeBase) {
+    // Refresh data for a single route without reloading entire list
+    try {
+      const response = await fetch(`/api/routes/${routeBase}`);
+      if (!response.ok) {
+        console.warn(`Failed to refresh route ${routeBase}`);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        // Update the route in our local array
+        const routeIndex = this.routes.findIndex(
+          (r) => r.baseName === routeBase
+        );
+        if (routeIndex >= 0) {
+          // Preserve any client-side properties (like processing status)
+          const oldRoute = this.routes[routeIndex];
+          this.routes[routeIndex] = {
+            ...data,
+            processingStatus: oldRoute.processingStatus,
+            processingProgress: oldRoute.processingProgress,
+          };
+
+          // Re-render to show updated data
+          this.renderRoutes();
+
+          console.log(`Refreshed route ${routeBase} with updated GPS data`);
+        }
+      }
+    } catch (error) {
+      console.error(`Error refreshing route ${routeBase}:`, error);
+    }
+  }
+
+  setupFallbackPolling() {
+    // Setup HTTP polling as fallback when WebSocket is not available or fails
+
+    // Routes polling (every 30 seconds when video player is closed)
+    this.routesPollingInterval = setInterval(() => {
+      if (
+        this.$videoPlayer.classList.contains("hidden") &&
+        !this.useWebSocket
+      ) {
+        this.loadRoutes();
+      }
+    }, 30000);
+
+    // Status polling (every 30 seconds)
+    this.statusPollingInterval = setInterval(() => {
+      if (!this.useWebSocket) {
+        this.updateDeviceStatus();
+      }
+    }, 30000);
+
+    // Also check on page visibility changes (when user returns to tab)
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && !this.useWebSocket) {
+        this.checkServerConnection();
+      }
+    });
+  }
+
+  enableFallbackPolling() {
+    console.log("Enabling HTTP fallback polling");
+    this.useWebSocket = false;
+    this.pollingDisabled = false;
+    this.updateConnectionStatus("http");
+
+    // Restart polling if it was stopped
+    if (!this.routesPollingInterval && !this.statusPollingInterval) {
+      this.setupFallbackPolling();
+    }
+  }
+
+  disableFallbackPolling() {
+    console.log("Disabling HTTP fallback polling (WebSocket active)");
+    this.pollingDisabled = true;
+
+    // Clear polling intervals completely
+    if (this.routesPollingInterval) {
+      clearInterval(this.routesPollingInterval);
+      this.routesPollingInterval = null;
+    }
+    if (this.statusPollingInterval) {
+      clearInterval(this.statusPollingInterval);
+      this.statusPollingInterval = null;
+    }
+
+    console.log("HTTP polling stopped - all updates now via WebSocket");
+  }
+
+  updateConnectionStatus(type) {
+    // Update UI to show connection type (websocket, http, offline)
+    const statusIndicator = document.getElementById("connection-status");
+    if (statusIndicator) {
+      const statusText = {
+        websocket: "WebSocket",
+        http: "Polling",
+        offline: "Offline",
+      }[type] || "Unknown";
+
+      statusIndicator.textContent = statusText;
+      statusIndicator.className = `connection-status connection-${type}`;
+      statusIndicator.title = type === "websocket"
+        ? "Real-time updates via WebSocket"
+        : type === "http"
+        ? "HTTP polling (fallback mode)"
+        : "No connection";
+    }
+  }
+
+  showNotification(message) {
+    // Simple notification system - could be enhanced
+    console.info("Notification:", message);
+
+    // For now, just show in console - could add toast notifications
+    // TODO: Implement proper toast notification system
+  }
+
+  async retryWithBackoff(operation, maxRetries = 3) {
+    if (this.isRetrying) {
+      console.log("Already retrying, skipping duplicate retry");
+      return false;
+    }
+
+    this.isRetrying = true;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await operation();
+        this.isRetrying = false;
+        this.retryCount = 0;
+        this.retryDelay = 1000;
+        return true; // Success
+      } catch (error) {
+        this.retryCount++;
+        console.warn(`Attempt ${attempt + 1} failed:`, error);
+
+        if (attempt < maxRetries - 1) {
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = this.retryDelay * Math.pow(2, attempt);
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    this.isRetrying = false;
+    return false; // All retries failed
+  }
+
+  isNetworkError(error) {
+    // Check if error is network-related (retryable)
+    if (error.name === "AbortError") return true; // Request timeout
+    if (error.message && error.message.includes("fetch")) return true; // Network fetch error
+    if (error.code === "NETWORK_ERR" || error.code === "NETWORK_ERROR")
+      return true;
+
+    // Check video element errors
+    if (error.target && error.target.error) {
+      const videoError = error.target.error;
+      return videoError.code === videoError.MEDIA_ERR_NETWORK;
+    }
+
+    return false;
+  }
+
+  isPermanentError(error) {
+    // Check if error is permanent (not retryable)
+    if (error.status === 404) return true; // File not found
+    if (error.status === 403) return true; // Forbidden
+    if (error.status >= 500) return false; // Server errors are retryable
+
+    // Check video element errors
+    if (error.target && error.target.error) {
+      const videoError = error.target.error;
+      // MEDIA_ERR_SRC_NOT_SUPPORTED and MEDIA_ERR_DECODE are permanent
+      return (
+        videoError.code === videoError.MEDIA_ERR_SRC_NOT_SUPPORTED ||
+        videoError.code === videoError.MEDIA_ERR_DECODE
+      );
+    }
+
+    return false;
+  }
+
+  handleVideoError(e) {
+    console.error("Video error:", e);
+    this.hideVideoLoading();
+
+    // Ignore errors during intentional video cleanup
+    if (this.isClosingVideo) {
+      console.log("Ignoring error during video close");
+      return;
+    }
+
+    // Determine error type and handle appropriately
+    const isNetworkErr = this.isNetworkError(e);
+    const isPermanentErr = this.isPermanentError(e);
+
+    if (isNetworkErr && !isPermanentErr) {
+      // Network error - try to retry
+      console.log("Network error detected, attempting retry...");
+
+      const retryOperation = async () => {
+        // Try to reload the current segment
+        if (this.currentRoute && this.currentSegment !== undefined) {
+          this.loadSegment(this.currentSegment);
+        }
+      };
+
+      // For network errors, try immediate retry without complex async logic
+      // since this method isn't async
+      if (this.currentRoute && this.currentSegment !== undefined) {
+        console.log("Attempting immediate retry for network error...");
+        this.loadSegment(this.currentSegment);
+        return; // Don't show error alert, trying again
+      }
+    }
+
+    // If HEVC format failed and we have LQ available, try fallback
+    if (this.currentRoute && this.currentCamera !== "lq" && !isPermanentErr) {
+      const segment = this.currentRoute.segments[this.currentSegment];
+      if (segment && segment.videos && segment.videos.lq) {
+        console.log("HEVC playback failed, falling back to LQ (H.264) camera");
+        this.currentCamera = "lq";
+        this.updateCameraButtons();
+        this.loadSegment(this.currentSegment);
+        return; // Don't show error, attempting fallback
+      }
+    }
+
+    // Permanent error or all retries/fallbacks failed - show user-friendly message
+    console.error("Video loading failed permanently");
+    console.error("Current camera:", this.currentCamera);
+    console.error(
+      "Route:",
+      this.currentRoute ? this.currentRoute.baseName : "No route"
+    );
+    console.error("Segment:", this.currentSegment);
+    console.error(
+      "Video element error:",
+      this.$videoElement ? this.$videoElement.error : "No video element"
+    );
+
+    // Provide helpful error message based on error type
+    let message = "Video playback error.";
+
+    if (isNetworkErr) {
+      message =
+        "Network connection issue. Please check your internet connection and server status.";
+    } else if (isPermanentErr) {
+      if (this.currentCamera === "lq") {
+        message =
+          "Video file not found or corrupted. The route may be missing video data.";
+      } else {
+        message =
+          "Video format not supported by your browser. Try using a different browser or the LQ camera option.";
+      }
+    } else {
+      message =
+        "Video failed to load. This may be due to server issues or corrupted video files.";
+    }
+
+    // Show error info in console for debugging (but not as alert spam)
+    console.error("Detailed error information:");
+    console.error("- Current camera:", this.currentCamera);
+    console.error("- Route:", this.currentRoute?.baseName);
+    console.error("- Segment:", this.currentSegment);
+    console.error("- Video URL attempted:", this.$videoElement?.src || "None");
+    console.error(
+      "- Error type:",
+      isNetworkErr ? "Network" : isPermanentErr ? "Permanent" : "Unknown"
+    );
+
+    // Only show alert for permanent errors or after retries fail
+    if (
+      isPermanentErr ||
+      (isNetworkErr && this.retryCount >= this.maxRetries)
+    ) {
+      alert(
+        message +
+          "\n\nIf this problem persists, try refreshing the page or check the browser console for more details."
+      );
+    }
+  }
+
+  async toggleStar(route) {
+    try {
+      const response = await fetch(
+        `${this.API_BASE}/api/star/${route.baseName}`,
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to toggle star");
+      }
+
+      // Update local state
+      route.isStarred = data.isStarred;
+
+      // Update the routes array
+      const routeInList = this.routes.find(
+        (r) => r.baseName === route.baseName
+      );
+      if (routeInList) {
+        routeInList.isStarred = data.isStarred;
+      }
+
+      // Refresh display without full reload
+      this.renderRoutes();
+    } catch (error) {
+      console.error("Error toggling star:", error);
+      alert("Failed to update star: " + error.message);
+    }
+  }
+
+  async toggleStarFromPlayer() {
+    if (!this.currentRoute) return;
+
+    try {
+      const response = await fetch(
+        `${this.API_BASE}/api/star/${this.currentRoute.baseName}`,
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to toggle star");
+      }
+
+      // Update current route state
+      this.currentRoute.isStarred = data.isStarred;
+
+      // Update the routes array
+      const routeInList = this.routes.find(
+        (r) => r.baseName === this.currentRoute.baseName
+      );
+      if (routeInList) {
+        routeInList.isStarred = data.isStarred;
+      }
+
+      // Update player UI
+      this.updatePlayerStarButton();
+
+      // Update routes list in background (no reload)
+      this.renderRoutes();
+    } catch (error) {
+      console.error("Error toggling star:", error);
+      alert("Failed to update star: " + error.message);
+    }
+  }
+
+  async deleteRoute(route) {
+    const confirmed = confirm(
+      `Delete route ${
+        route.displayTime || route.baseName
+      }?\n\nThis will delete ${route.segments} segments (${
+        route.size
+      }) permanently.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `${this.API_BASE}/api/delete/${route.baseName}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to delete route");
+      }
+
+      // Remove from local routes array
+      this.routes = this.routes.filter((r) => r.baseName !== route.baseName);
+
+      // Re-render without full reload
+      this.renderRoutes();
+      this.updateStats();
+    } catch (error) {
+      console.error("Error deleting route:", error);
+      alert("Failed to delete route: " + error.message);
+    }
+  }
+
+  async downloadCurrentRoute() {
+    if (!this.currentRoute) return;
+
+    try {
+      const routeBase = this.currentRoute.baseName;
+      const camera = this.currentCamera;
+
+      console.log(`Downloading full route: ${routeBase} camera: ${camera}`);
+
+      // Show loading state
+      this.$playerDownloadRouteBtn.disabled = true;
+      this.$playerDownloadRouteBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 2a10 10 0 0 1 10 10"/>
+        </svg>
+        Downloading...
+      `;
+
+      // Create download URL
+      const downloadUrl = `${this.API_BASE}/api/download/route/${routeBase}/${camera}`;
+
+      // Trigger download
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `${routeBase}_${camera}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.mp4`;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      console.log("Download initiated for full route");
+    } catch (error) {
+      console.error("Error downloading route:", error);
+      // Only show alert for permanent errors, not network issues
+      if (!this.isNetworkError(error)) {
+        alert("Failed to download route: " + error.message);
+      }
+    } finally {
+      // Reset button state
+      this.$playerDownloadRouteBtn.disabled = false;
+      this.$playerDownloadRouteBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download Route
+      `;
+    }
+  }
+
+  async downloadCurrentSegment() {
+    if (!this.currentRoute) return;
+
+    try {
+      const routeBase = this.currentRoute.baseName;
+      const segmentNumber =
+        this.currentRoute.segments[this.currentSegment]?.number || 0;
+      const camera = this.currentCamera;
+
+      console.log(
+        `Downloading segment: ${routeBase}/${segmentNumber} camera: ${camera}`
+      );
+
+      // Show loading state
+      this.$playerDownloadSegmentBtn.disabled = true;
+      this.$playerDownloadSegmentBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 2a10 10 0 0 1 10 10"/>
+        </svg>
+        Downloading...
+      `;
+
+      // Create download URL
+      const downloadUrl = `${this.API_BASE}/api/download/segment/${routeBase}/${segmentNumber}/${camera}`;
+
+      // Trigger download
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `${routeBase}_segment_${segmentNumber
+        .toString()
+        .padStart(3, "0")}_${camera}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.mp4`;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      console.log("Download initiated for segment");
+    } catch (error) {
+      console.error("Error downloading segment:", error);
+      // Only show alert for permanent errors, not network issues
+      if (!this.isNetworkError(error)) {
+        alert("Failed to download segment: " + error.message);
+      }
+    } finally {
+      // Reset button state
+      this.$playerDownloadSegmentBtn.disabled = false;
+      this.$playerDownloadSegmentBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download Segment
+      `;
+    }
+  }
+
+  handleKeyboard(e) {
+    // Only handle keyboard shortcuts when video player is open
+    if (this.$videoPlayer.classList.contains("hidden")) return;
+
+    switch (e.key) {
+      case "Escape":
+        this.closeVideo();
+        break;
+      case " ":
+        e.preventDefault();
+        const videoElement = this.$videoElement || this.player;
+        if (videoElement) {
+          if (this.$videoElement) {
+            if (this.$videoElement.paused) {
+              this.$videoElement.play();
+            } else {
+              this.$videoElement.pause();
+            }
+          } else if (this.player && typeof this.player.play === "function") {
+            if (this.player.isPlaying()) {
+              this.player.pause();
+            } else {
+              this.player.play();
+            }
+          }
+        }
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        if (this.$videoElement) {
+          this.$videoElement.currentTime += 10;
+        } else if (this.player && typeof this.player.seek === "function") {
+          const currentTime = this.player.getCurrentTime() || 0;
+          this.player.seek(currentTime + 10);
+        }
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        if (this.$videoElement) {
+          this.$videoElement.currentTime -= 10;
+        } else if (this.player && typeof this.player.seek === "function") {
+          const currentTime = this.player.getCurrentTime() || 0;
+          this.player.seek(Math.max(0, currentTime - 10));
+        }
+        break;
+      case "f":
+        e.preventDefault();
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          this.$videoPlayer.requestFullscreen();
+        }
+        break;
+    }
+  }
+
+  // System Metrics Methods
+  async openMetrics() {
+    this.$metricsModal.classList.remove("hidden");
+    await this.loadMetrics();
+  }
+
+  closeMetrics() {
+    this.$metricsModal.classList.add("hidden");
+  }
+
+  async loadMetrics() {
+    try {
+      const response = await fetch(`${this.API_BASE}/api/system/metrics`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.metrics) {
+        this.displayMetrics(data.metrics);
+      }
+    } catch (error) {
+      console.error("Error loading metrics:", error);
+      this.showNotification("Failed to load system metrics");
+    }
+  }
+
+  displayMetrics(metrics) {
+    // CPU Metrics
+    if (metrics.cpu) {
+      const cpuLoad = metrics.cpu.load_1min || 0;
+      document.getElementById("metric-cpu-load").textContent = cpuLoad.toFixed(2);
+      document.getElementById("metric-cpu-1min").textContent = cpuLoad.toFixed(2);
+      document.getElementById("metric-cpu-5min").textContent = (metrics.cpu.load_5min || 0).toFixed(2);
+      document.getElementById("metric-cpu-cores").textContent = metrics.cpu.core_count || "--";
+
+      // Color based on load (4 cores, so load > 3 is high)
+      const cpuElement = document.getElementById("metric-cpu-load");
+      cpuElement.className = "value-large";
+      if (cpuLoad > 3) cpuElement.classList.add("danger");
+      else if (cpuLoad > 2) cpuElement.classList.add("warning");
+    }
+
+    // Memory Metrics
+    if (metrics.memory) {
+      const memPercent = metrics.memory.percent_used || 0;
+      document.getElementById("metric-memory-percent").textContent = Math.round(memPercent);
+      document.getElementById("metric-memory-used").textContent =
+        `${(metrics.memory.total_gb - metrics.memory.available_gb).toFixed(1)} GB`;
+      document.getElementById("metric-memory-available").textContent =
+        `${metrics.memory.available_gb.toFixed(1)} GB`;
+
+      // Update progress bar
+      const memBar = document.getElementById("metric-memory-bar");
+      memBar.style.width = `${memPercent}%`;
+      memBar.className = "bar-fill";
+      if (memPercent > 90) memBar.classList.add("danger");
+      else if (memPercent > 75) memBar.classList.add("warning");
+
+      // Color percentage
+      const memElement = document.getElementById("metric-memory-percent");
+      memElement.className = "value-large";
+      if (memPercent > 90) memElement.classList.add("danger");
+      else if (memPercent > 75) memElement.classList.add("warning");
+    }
+
+    // Disk Metrics
+    if (metrics.disk && metrics.disk["/data"]) {
+      const disk = metrics.disk["/data"];
+      const diskPercent = disk.percent_used || 0;
+      document.getElementById("metric-disk-percent").textContent = Math.round(diskPercent);
+      document.getElementById("metric-disk-used").textContent = `${(disk.total_gb - disk.free_gb).toFixed(1)} GB`;
+      document.getElementById("metric-disk-free").textContent = `${disk.free_gb.toFixed(1)} GB`;
+
+      // Update progress bar
+      const diskBar = document.getElementById("metric-disk-bar");
+      diskBar.style.width = `${diskPercent}%`;
+      diskBar.className = "bar-fill";
+      if (diskPercent > 90) diskBar.classList.add("danger");
+      else if (diskPercent > 80) diskBar.classList.add("warning");
+
+      // Color percentage
+      const diskElement = document.getElementById("metric-disk-percent");
+      diskElement.className = "value-large";
+      if (diskPercent > 90) diskElement.classList.add("danger");
+      else if (diskPercent > 80) diskElement.classList.add("warning");
+    }
+
+    // Temperature Metrics
+    if (metrics.temperature && metrics.temperature.celsius) {
+      const tempC = metrics.temperature.celsius;
+      document.getElementById("metric-temp-value").textContent = tempC.toFixed(1);
+      document.getElementById("metric-temp-fahrenheit").textContent =
+        `${metrics.temperature.fahrenheit.toFixed(1)}°F`;
+
+      // Color based on temperature
+      const tempElement = document.getElementById("metric-temp-value");
+      tempElement.className = "value-large";
+      if (tempC > 70) tempElement.classList.add("danger");
+      else if (tempC > 60) tempElement.classList.add("warning");
+      else tempElement.classList.add("success");
+    }
+
+    // FFmpeg Metrics
+    if (metrics.ffmpeg) {
+      const active = metrics.ffmpeg.active_processes || 0;
+      const max = metrics.ffmpeg.max_processes || 3;
+      document.getElementById("metric-ffmpeg-active").textContent = active;
+      document.getElementById("metric-ffmpeg-max").textContent = max;
+      document.getElementById("metric-ffmpeg-status").textContent =
+        active > 0 ? `${active} active` : "Idle";
+
+      // Color based on utilization
+      const ffmpegElement = document.getElementById("metric-ffmpeg-active");
+      ffmpegElement.className = "value-large";
+      if (active >= max) ffmpegElement.classList.add("warning");
+      else if (active > 0) ffmpegElement.classList.add("success");
+    }
+
+    // Cache Metrics
+    if (metrics.cache) {
+      document.getElementById("metric-cache-size").textContent =
+        metrics.cache.remux_cache_gb.toFixed(2);
+    }
+
+    // Update timestamp
+    if (metrics.timestamp) {
+      const date = new Date(metrics.timestamp);
+      document.getElementById("metrics-timestamp").textContent =
+        date.toLocaleTimeString();
+    }
+  }
+}
+
+// Initialize app when DOM is ready
+function initializeApp() {
+  console.log("Initializing BluePilot Routes app...");
+  console.log("DOM ready state:", document.readyState);
+  console.log("Document body:", !!document.body);
+
+  // Wait a bit more to ensure all elements are loaded
+  setTimeout(() => {
+    const app = new BluePilotRoutes();
+    console.log("App initialized successfully");
+  }, 100);
+}
+
+// Initialize app when DOM is ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeApp);
+} else {
+  initializeApp();
+}

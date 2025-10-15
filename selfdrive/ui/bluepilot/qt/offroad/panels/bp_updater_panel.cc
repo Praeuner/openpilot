@@ -24,6 +24,7 @@
 #include <QtConcurrent>
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
+#include "selfdrive/ui/bluepilot/concurrent_tracker.h"
 #include "bp_updater_panel.h"
 #include "bp_panel_dialogs.h"
 #include "common/params.h"
@@ -89,6 +90,7 @@ void GitStatusWidget::refresh() {
 
   lastCheckTime = QDateTime::currentDateTime();
   QtConcurrent::run([=]() {
+    TRACK_CONCURRENT_TASK("GitStatusWidget::refresh");
     QProcess process;
     process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
 
@@ -316,6 +318,7 @@ void SubmoduleWidget::refresh() {
   lastCheckTime = QDateTime::currentDateTime();
 
   QtConcurrent::run([=]() {
+    TRACK_CONCURRENT_TASK(QString("SubmoduleWidget::refresh(%1)").arg(submoduleName));
     QProcess process;
     QString workingDir = qApp->applicationDirPath() + "/../.." + "/" + submoduleName;
     process.setWorkingDirectory(workingDir);
@@ -416,11 +419,8 @@ BPUpdaterPanel::BPUpdaterPanel(QWidget *parent) : QWidget(parent), branchSelecto
   activityTimer->setInterval(9000); // 9 seconds
   connect(activityTimer, &QTimer::timeout, this, &BPUpdaterPanel::simulateActivity);
 
-  // Add automatic update check timer
-  autoUpdateCheckTimer = new QTimer(static_cast<QObject *>(this));
-  autoUpdateCheckTimer->setInterval(1800000); // 30 minutes
-  connect(autoUpdateCheckTimer, &QTimer::timeout, this, &BPUpdaterPanel::checkForUpdates);
-  autoUpdateCheckTimer->start();
+  // Add automatic update check timer (started in showEvent)
+  autoUpdateCheckTimer = nullptr;
 
   // Add the timer before setting up the layout
   QTimer *timeUpdateTimer = new QTimer(static_cast<QObject *>(this));
@@ -884,6 +884,7 @@ void BPUpdaterPanel::refreshAll() {
 
   // Check for updates and local changes
   QtConcurrent::run([=]() {
+    TRACK_CONCURRENT_TASK("BPUpdaterPanel::refreshAll");
     bool hasLocal = hasUncommittedChanges();
     bool hasUpdates = hasUpdatesAvailable();
 
@@ -992,6 +993,7 @@ void BranchSelector::getBranchesAsync(bool includeRemote, std::function<void(QSt
   showLoadingOverlay(true);
 
   QtConcurrent::run([this, includeRemote, callback]() {
+    TRACK_CONCURRENT_TASK(QString("BranchSelector::getBranchesAsync(remote=%1)").arg(includeRemote ? "yes" : "no"));
     QStringList branches;
     QString workingDir = qApp->applicationDirPath() + "/../..";
     bool isShallow = false;
@@ -1252,6 +1254,12 @@ bool BPUpdaterPanel::hasUpdatesAvailable() const {
 }
 
 void BPUpdaterPanel::checkForUpdates() {
+  // Don't run if panel is not visible
+  if (!isVisible()) {
+    BPLog::bpDebugGeneral() << "[bp.updater.panel] checkForUpdates | Skipped - panel not visible" << std::endl;
+    return;
+  }
+
   // Skip check if another error dialog is showing
   if (errorDialogShowing) {
     return;
@@ -1267,11 +1275,6 @@ void BPUpdaterPanel::checkForUpdates() {
     return;
   }
 
-  // Check if panel is visible for manual updates
-  if (!isVisible() && !autoUpdateCheckTimer) {
-    return;
-  }
-
   // Kill system.updated.updated
   std::system("killall system.updated.updated");
 
@@ -1282,6 +1285,7 @@ void BPUpdaterPanel::checkForUpdates() {
   updateChkBtnTimeTxt->setText("");
 
   QtConcurrent::run([=]() {
+    TRACK_CONCURRENT_TASK("BPUpdaterPanel::checkForUpdates");
     QString workingDir = qApp->applicationDirPath() + "/../..";
 
     // First check if current branch has an upstream branch
@@ -1536,6 +1540,7 @@ void BPUpdaterPanel::staggeredInit() {
     BPLog::bpDebugGeneral() << "[bp.updater.panel] staggeredInit | Stage 3 - Checking local changes and updates" << std::endl;
     QTimer::singleShot(300, this, [this]() {
       QtConcurrent::run([=]() {
+        TRACK_CONCURRENT_TASK("BPUpdaterPanel::staggeredInit_stage3");
         bool hasLocal = hasUncommittedChanges();
         bool hasUpdates = hasUpdatesAvailable();
 
@@ -1691,7 +1696,7 @@ void BranchSelector::setValue(const QString &branchName, const QString &status, 
 }
 
 void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir, int timeoutMs, bool showKillBtn, bool showRetryBtn,
-                                             bool showRebootBtn) {
+                                             bool showRebootBtn, bool showRestartUIBtn) {
   // Clean up any existing dialog
   if (currentDialog) {
     currentDialog->close();
@@ -1890,6 +1895,27 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
             }
         )");
     buttonLayout->addWidget(rebootButton);
+  }
+
+  // Add restart UI button (if enabled)
+  QPushButton *restartUIButton = nullptr;
+  if (showRestartUIBtn) {
+    restartUIButton = new QPushButton(tr("Restart UI"), currentDialog);
+    restartUIButton->setFixedHeight(100);
+    restartUIButton->setVisible(false); // Hide initially
+    restartUIButton->setStyleSheet(R"(
+            QPushButton {
+                background-color: #465BEA;
+                font-size: 55px;
+                font-weight: 400;
+                border-radius: 20px;
+                color: white;
+            }
+            QPushButton:pressed {
+                background-color: #3049F4;
+            }
+        )");
+    buttonLayout->addWidget(restartUIButton);
   }
 
   // Close button (initially disabled)
@@ -2110,9 +2136,22 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
         retryButton->setVisible(false);
       }
 
-      // Show reboot button on success if reboot is enabled
-      if (rebootButton) {
-        rebootButton->setVisible(true);
+      // Intelligently show reboot or restart UI button based on changes
+      if (rebootButton || restartUIButton) {
+        bool uiOnlyChanges = checkIfUIOnlyChanges();
+        if (uiOnlyChanges && restartUIButton) {
+          // Only UI changes detected - show restart UI button
+          restartUIButton->setVisible(true);
+          if (rebootButton) {
+            rebootButton->setVisible(false);
+          }
+        } else if (rebootButton) {
+          // Non-UI changes detected or restart UI not available - show reboot button
+          rebootButton->setVisible(true);
+          if (restartUIButton) {
+            restartUIButton->setVisible(false);
+          }
+        }
       }
 
       // Refresh everything after successful completion
@@ -2188,6 +2227,16 @@ void BPUpdaterPanel::showCommandOutputDialog(const QString &title, const QString
       if (BPUpdateConfirmDialog::confirm(tr("Reboot"), tr("Are you sure you want to reboot?"), tr("Reboot"), tr("Cancel"), currentDialog)) {
         params.putBool("DoReboot", true);
         QProcess::execute("reboot");
+      }
+    });
+  }
+
+  // Connect restart UI button
+  if (restartUIButton) {
+    connect(restartUIButton, &QPushButton::clicked, [=]() {
+      if (BPUpdateConfirmDialog::confirm(tr("Restart UI"), tr("Are you sure you want to restart the UI?"), tr("Restart"), tr("Cancel"), currentDialog)) {
+        // Exit with code 18 - manager will restart the UI automatically
+        qApp->exit(18);
       }
     });
   }
@@ -2504,7 +2553,7 @@ void BPUpdaterPanel::handleRepoUpdate() {
   command += " && scons -j$(nproc)";
 
   showCommandOutputDialog(tr("Update Openpilot"), command, "", 1800000, true, true,
-                          true); // 30 minutes timeout
+                          true, true); // 30 minutes timeout, enable reboot and restart UI buttons
 }
 
 void BPUpdaterPanel::handleRepoUpdateAll() {
@@ -2534,7 +2583,7 @@ void BPUpdaterPanel::handleRepoUpdateAll() {
   command += " && scons -j$(nproc)";
 
   showCommandOutputDialog(tr("Update All Submodules"), command, "", 180000, true, true,
-                          true);
+                          true, true); // Enable reboot and restart UI buttons
 }
 
 void BPUpdaterPanel::handleRepoRepair() {
@@ -2775,6 +2824,7 @@ bool BPUpdaterPanel::checkAndRestoreSSH() {
 
   // Move disk space check to a concurrent operation
   QtConcurrent::run([this]() {
+    TRACK_CONCURRENT_TASK("BPUpdaterPanel::checkAndRestoreSSH");
     if (!checkRootDiskSpace()) {
       BPLog::bpError() << "[bp.updater.panel] checkAndRestoreSSH | Disk space check failed" << std::endl;
       return;
@@ -3304,4 +3354,44 @@ bool BPUpdaterPanel::hasSubmodules() const {
 
   QString output = QString::fromUtf8(process.readAllStandardOutput());
   return !output.trimmed().isEmpty();
+}
+
+bool BPUpdaterPanel::checkIfUIOnlyChanges() const {
+  // Check if the last pull/update only touched UI files under selfdrive/ui/
+  QProcess process;
+  process.setWorkingDirectory(qApp->applicationDirPath() + "/../..");
+
+  // Get the list of changed files in the last commit (HEAD vs HEAD~1)
+  // This checks what was just pulled/updated
+  process.start("/bin/bash", QStringList() << "-c" << "git diff --name-only HEAD@{1} HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null");
+
+  if (!process.waitForFinished(5000)) {
+    process.kill();
+    process.waitForFinished(1000);
+    return false; // Default to requiring full reboot on timeout
+  }
+
+  QString output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+
+  if (output.isEmpty()) {
+    // No changes detected, safe to just restart UI
+    return true;
+  }
+
+  // Check each changed file
+  QStringList changedFiles = output.split('\n', QString::SkipEmptyParts);
+  for (const QString &file : changedFiles) {
+    QString trimmedFile = file.trimmed();
+    if (trimmedFile.isEmpty()) {
+      continue;
+    }
+
+    // If any file is outside selfdrive/ui/, we need a full reboot
+    if (!trimmedFile.startsWith("selfdrive/ui/")) {
+      return false;
+    }
+  }
+
+  // All changed files are under selfdrive/ui/
+  return true;
 }

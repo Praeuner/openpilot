@@ -11,6 +11,10 @@
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/widgets/prime.h"
 
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/offroad/offroad_home_bp.h"
+#endif
+
 // OffroadHome: the offroad home page
 
 OffroadHome::OffroadHome(QWidget* parent) : QFrame(parent) {
@@ -34,8 +38,14 @@ OffroadHome::OffroadHome(QWidget* parent) : QFrame(parent) {
   QObject::connect(alert_notif, &QPushButton::clicked, [=] { center_layout->setCurrentIndex(2); });
   header_layout->addWidget(alert_notif, 0, Qt::AlignHCenter | Qt::AlignLeft);
 
+#ifdef BLUEPILOT
+  // BluePilot version badges
+  bp_version_widget = createBluePilotVersionWidget(this);
+  header_layout->addWidget(bp_version_widget, 0, Qt::AlignHCenter | Qt::AlignRight);
+#else
   version = new ElidedLabel();
   header_layout->addWidget(version, 0, Qt::AlignHCenter | Qt::AlignRight);
+#endif
 
   main_layout->addLayout(header_layout);
 
@@ -134,7 +144,11 @@ void OffroadHome::hideEvent(QHideEvent *event) {
 }
 
 void OffroadHome::refresh() {
+#ifdef BLUEPILOT
+  refreshBluePilotVersion(bp_version_widget, params);
+#else
   version->setText(getBrand() + " " +  QString::fromStdString(params.get("UpdaterCurrentDescription")));
+#endif
 
   bool updateAvailable = update_widget->refresh();
   int alerts = alerts_widget->refresh();

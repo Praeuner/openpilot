@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QFontMetrics>
+#include <QRegularExpression>
 #include <algorithm>
 
 #include "common/model.h"
@@ -39,7 +40,7 @@ ModelInfoWidget::ModelInfoWidget(QWidget* parent) : QFrame(parent) {
 
   model_name_label = new QLabel();
   model_name_label->setProperty("type", "model_name");
-  model_name_label->setWordWrap(false);
+  model_name_label->setWordWrap(true);
   model_name_label->setAlignment(Qt::AlignCenter);
   model_name_label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   model_layout->addWidget(model_name_label);
@@ -82,7 +83,7 @@ ModelInfoWidget::ModelInfoWidget(QWidget* parent) : QFrame(parent) {
       font-weight: 500;
       color: #18b4ff;
       padding: 8px 0px;
-      min-height: 45px;
+      min-height: 90px;
     }
 
     QFrame[type="model_container"] {
@@ -95,28 +96,34 @@ ModelInfoWidget::ModelInfoWidget(QWidget* parent) : QFrame(parent) {
 
 void ModelInfoWidget::updateModelName() {
   QString model_name = getActiveModelName();
+
+  // Insert newline before date pattern (e.g., "Model Name (Month DD, YYYY)" -> "Model Name\n(Month DD, YYYY)")
+  // Matches patterns like: (October 03, 2023), (November 07, 2023), etc.
+  QRegularExpression date_pattern(R"(\s+(\([A-Za-z]+\s+\d{1,2},\s+\d{4}\)))");
+  model_name.replace(date_pattern, "\n\\1");
+
   model_name_label->setText(model_name);
-  
+
   // Scale font size to fit width if necessary
   QFont font = model_name_label->font();
   font.setPixelSize(38);
   QFontMetrics fm(font);
-  
+
   int container_width = width() - 80; // Account for margins and padding
   int text_width = fm.horizontalAdvance(model_name);
-  
+
   if (text_width > container_width && container_width > 0) {
     int new_size = 38 * container_width / text_width;
     new_size = std::max(new_size, 24); // Minimum font size
     font.setPixelSize(new_size);
   }
-  
+
   model_name_label->setFont(font);
 }
 
 void ModelInfoWidget::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
-    emit openSettings(6); // Models panel is at index 6
+    emit openSettings(0, tr("Models"));
   }
 }
 

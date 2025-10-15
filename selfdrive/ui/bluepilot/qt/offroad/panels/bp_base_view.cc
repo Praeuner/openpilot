@@ -36,33 +36,10 @@ bool BPBaseView::initialize(const QJsonObject &config) {
 
 void BPBaseView::setupBaseViewStyle() {
   // Base view specific styling
+  // Note: Scrollbar styling is now handled by the parent ScrollView wrapper
   setStyleSheet(QString(R"(
         BPBaseView {
             background: transparent;
-        }
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollBar:vertical {
-            width: 24px;
-            margin: 0px;
-            padding: 2px;
-            background: transparent;
-        }
-        QScrollBar::handle:vertical {
-            background: #666666;
-            min-height: 100px;
-            border-radius: 12px;
-            margin: 0 4px;
-        }
-        QScrollBar::add-line:vertical,
-        QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-        QScrollBar::add-page:vertical,
-        QScrollBar::sub-page:vertical {
-            background: none;
         }
     )"));
 

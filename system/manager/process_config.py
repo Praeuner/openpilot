@@ -95,6 +95,20 @@ def is_stock_model(started, params, CP: car.CarParams) -> bool:
 def mapd_ready(started: bool, params: Params, CP: car.CarParams) -> bool:
   return bool(os.path.exists(Paths.mapd_root()))
 
+def uploader_ready(started: bool, params: Params, CP: car.CarParams) -> bool:
+  if not params.get_bool("OnroadUploads"):
+    return only_offroad(started, params, CP)
+
+  return always_run(started, params, CP)
+
+def web_server_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
+  """Web routes server - only run when enabled and not onroad"""
+  return params.get_bool("BPWebServerEnabled") and only_offroad(started, params, CP)
+
+def route_preprocessor_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
+  """Route preprocessor - only run when web server enabled and offroad"""
+  return params.get_bool("BPWebServerEnabled") and only_offroad(started, params, CP)
+
 def or_(*fns):
   return lambda *args: operator.or_(*(fn(*args) for fn in fns))
 
@@ -111,8 +125,8 @@ procs = [
 
   NativeProcess("camerad", "system/camerad", ["./camerad"], driverview, enabled=not WEBCAM),
   PythonProcess("webcamerad", "tools.webcam.camerad", driverview, enabled=WEBCAM),
-  NativeProcess("logcatd", "system/logcatd", ["./logcatd"], only_onroad, platform.system() != "Darwin"),
-  NativeProcess("proclogd", "system/proclogd", ["./proclogd"], only_onroad, platform.system() != "Darwin"),
+  PythonProcess("proclogd", "system.proclogd", only_onroad, enabled=platform.system() != "Darwin"),
+  PythonProcess("journald", "system.journald", only_onroad, platform.system() != "Darwin"),
   PythonProcess("micd", "system.micd", iscar),
   PythonProcess("timed", "system.timed", always_run, enabled=not PC),
 
@@ -137,7 +151,7 @@ procs = [
   PythonProcess("pandad", "selfdrive.pandad.pandad", always_run),
   PythonProcess("paramsd", "selfdrive.locationd.paramsd", only_onroad),
   PythonProcess("lagd", "selfdrive.locationd.lagd", only_onroad),
-  NativeProcess("ubloxd", "system/ubloxd", ["./ubloxd"], ublox, enabled=TICI),
+  PythonProcess("ubloxd", "system.ubloxd.ubloxd", ublox, enabled=TICI),
   PythonProcess("pigeond", "system.ubloxd.pigeond", ublox, enabled=TICI),
   PythonProcess("plannerd", "selfdrive.controls.plannerd", not_long_maneuver),
   PythonProcess("maneuversd", "tools.longitudinal_maneuvers.maneuversd", long_maneuver),
@@ -145,7 +159,7 @@ procs = [
   PythonProcess("hardwared", "system.hardware.hardwared", always_run),
   PythonProcess("tombstoned", "system.tombstoned", always_run, enabled=not PC),
   PythonProcess("updated", "system.updated.updated", only_offroad, enabled=not PC),
-  PythonProcess("uploader", "system.loggerd.uploader", always_run),
+  PythonProcess("uploader", "system.loggerd.uploader", uploader_ready),
   PythonProcess("statsd", "system.statsd", always_run),
   PythonProcess("feedbackd", "selfdrive.ui.feedback.feedbackd", only_onroad),
 
@@ -173,6 +187,17 @@ procs += [
   # mapd
   NativeProcess("mapd", Paths.mapd_root(), ["bash", "-c", f"{MAPD_PATH} > /dev/null 2>&1"], mapd_ready),
   PythonProcess("mapd_manager", "sunnypilot.mapd.mapd_manager", always_run),
+
+  # locationd
+  NativeProcess("locationd_llk", "sunnypilot/selfdrive/locationd", ["./locationd"], only_onroad),
+]
+
+# bluepilot
+procs += [
+  # Web routes server
+  PythonProcess("bp_web_routes_server", "bluepilot.backend.web_routes_server", web_server_enabled),
+  # Route preprocessor (runs in background during idle time)
+  PythonProcess("bp_route_preprocessor", "bluepilot.backend.route_preprocessor", route_preprocessor_enabled),
 ]
 
 if os.path.exists("./github_runner.sh"):

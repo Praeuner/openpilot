@@ -247,7 +247,6 @@ struct CarState {
     nonAdaptive @5 :Bool;
 
     speedOffsetDEPRECATED @3 :Float32;
-    speedLimit @7 :Float32;
   }
 
   enum GearShifter {
@@ -345,7 +344,6 @@ struct CarControl {
   enabled @0 :Bool;
   latActive @11: Bool;
   longActive @12: Bool;
-  vCruise @18 :Float32;  # actual set speed
 
   # Final actuator commands
   actuators @6 :Actuators;

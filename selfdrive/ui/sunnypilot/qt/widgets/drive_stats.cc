@@ -24,18 +24,19 @@ static QLabel* newLabel(const QString& text, const QString &type) {
 DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
   metric_ = Params().getBool("IsMetric");
 
-  QVBoxLayout* main_layout = new QVBoxLayout(this);
+  main_layout_ = new QVBoxLayout(this);
   // Use minimal margins to maximize width usage
-  main_layout->setContentsMargins(20, 30, 20, 30);
-  main_layout->setSpacing(10);
+  main_layout_->setContentsMargins(20, 30, 20, 30);
+  main_layout_->setSpacing(10);
 
-  auto add_stats_layouts = [=](const QString &title, StatsLabels& labels) {
+  auto add_stats_layouts = [=](const QString &title, StatsLabels& labels, QLabel** title_label) {
     QVBoxLayout* section_layout = new QVBoxLayout;
     section_layout->setContentsMargins(0, 0, 0, 0);
     section_layout->setSpacing(10);
 
     // Title
-    section_layout->addWidget(newLabel(title, "title"));
+    *title_label = newLabel(title, "title");
+    section_layout->addWidget(*title_label);
 
     // Single background container for all stats
     QFrame* stats_container = new QFrame;
@@ -69,12 +70,16 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
     stats_layout->addLayout(hours_layout);
 
     section_layout->addWidget(stats_container);
-    main_layout->addLayout(section_layout);
+    main_layout_->addLayout(section_layout);
   };
 
-  add_stats_layouts(tr("ALL TIME"), all_);
-  main_layout->addSpacing(5);
-  add_stats_layouts(tr("PAST WEEK"), week_);
+  add_stats_layouts(tr("ALL TIME"), all_, &all_title_);
+  main_layout_->addSpacing(5);
+  add_stats_layouts(tr("PAST WEEK"), week_, &week_title_);
+
+  // Set initial height to full size, but allow dynamic scaling down to ~192px (0.35 scale)
+  setMinimumHeight(200);
+  resize(width(), 550);
 
   if (auto dongleId = getDongleId()) {
     QString url = CommaApi::BASE_URL + "/v1.1/devices/" + *dongleId + "/stats";
@@ -91,24 +96,21 @@ DriveStats::DriveStats(QWidget* parent) : QFrame(parent) {
     }
 
     QLabel[type="title"] {
-      font-size: 48px;
       font-weight: 600;
       color: #ffffff;
-      padding: 10px 0px;
+      padding: 5px 0px;
     }
 
     QLabel[type="number"] {
-      font-size: 66px;
       font-weight: 700;
       color: #18b4ff;
-      padding: 8px 0px;
+      padding: 2px 0px;
     }
 
     QLabel[type="unit"] {
-      font-size: 42px;
       font-weight: 400;
       color: #b0b0b0;
-      padding: 5px 0px;
+      padding: 2px 0px;
     }
 
     QFrame[type="stats_container"] {
@@ -149,5 +151,73 @@ void DriveStats::showEvent(QShowEvent* event) {
   if (metric_ != metric) {
     metric_ = metric;
     updateStats();
+  }
+}
+
+void DriveStats::resizeEvent(QResizeEvent* event) {
+  QFrame::resizeEvent(event);
+  updateFontSizes();
+}
+
+void DriveStats::updateFontSizes() {
+  int available_height = height();
+  if (available_height <= 0) return;
+
+  // Calculate scale factor based on available height
+  // Base sizes: title=48, number=66, unit=42
+  // Total base content height: ~550px (2 sections with padding)
+  // Use the actual height to determine scale, capping at 1.0
+  float scale = available_height / 550.0f;
+
+  // Cap maximum at 1.0 (original size), minimum at 0.35
+  scale = std::max(0.35f, std::min(1.0f, scale));
+
+  int title_size = static_cast<int>(48 * scale);
+  int number_size = static_cast<int>(66 * scale);
+  int unit_size = static_cast<int>(42 * scale);
+
+  // Ensure minimum readable sizes and maximum original sizes
+  title_size = std::min(48, std::max(20, title_size));
+  number_size = std::min(66, std::max(26, number_size));
+  unit_size = std::min(42, std::max(18, unit_size));
+
+  // Adjust margins and spacing based on scale
+  int top_bottom_margin = static_cast<int>(30 * scale);
+  int side_margin = static_cast<int>(20 * scale);
+  int main_spacing = static_cast<int>(10 * scale);
+
+  top_bottom_margin = std::min(30, std::max(10, top_bottom_margin));
+  side_margin = std::min(20, std::max(10, side_margin));
+  main_spacing = std::min(10, std::max(3, main_spacing));
+
+  main_layout_->setContentsMargins(side_margin, top_bottom_margin, side_margin, top_bottom_margin);
+  main_layout_->setSpacing(main_spacing);
+
+  // Update title fonts
+  QFont title_font = all_title_->font();
+  title_font.setPixelSize(title_size);
+  all_title_->setFont(title_font);
+  week_title_->setFont(title_font);
+
+  // Update number fonts
+  QFont number_font;
+  number_font.setPixelSize(number_size);
+  all_.routes->setFont(number_font);
+  all_.distance->setFont(number_font);
+  all_.hours->setFont(number_font);
+  week_.routes->setFont(number_font);
+  week_.distance->setFont(number_font);
+  week_.hours->setFont(number_font);
+
+  // Update unit fonts
+  QFont unit_font;
+  unit_font.setPixelSize(unit_size);
+
+  // Find and update all unit labels
+  QList<QLabel*> all_labels = findChildren<QLabel*>();
+  for (QLabel* label : all_labels) {
+    if (label->property("type").toString() == "unit") {
+      label->setFont(unit_font);
+    }
   }
 }

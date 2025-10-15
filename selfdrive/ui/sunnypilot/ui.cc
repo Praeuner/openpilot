@@ -8,14 +8,15 @@
 #include "selfdrive/ui/sunnypilot/ui.h"
 
 #include "common/watchdog.h"
+#include "selfdrive/ui/bluepilot/performance_logger.h"
 
 void UIStateSP::updateStatus() {
   UIState::updateStatus();
+
   if (scene.started && scene.onroadScreenOffControl) {
     auto selfdriveState = (*sm)["selfdriveState"].getSelfdriveState();
-    if (selfdriveState.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE &&
-                   selfdriveState.getAlertStatus() != cereal::SelfdriveState::AlertStatus::NORMAL) {
-        reset_onroad_sleep_timer();
+    if (selfdriveState.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
+      reset_onroad_sleep_timer();
     } else if (scene.onroadScreenOffTimer > 0) {
       scene.onroadScreenOffTimer--;
     }
@@ -23,33 +24,97 @@ void UIStateSP::updateStatus() {
 }
 
 UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
-  sm = std::make_unique<SubMaster>(std::vector<const char*>{
+  // Build conditional socket list based on enabled features
+  auto params = Params();
+  std::vector<const char*> service_list = {
     "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState",
     "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-    "liveMapDataSP", "carStateBP", "carControl", "carOutput", "accelerometer", "gyroscope",
-    // Additional messages for developer UI
-    "gpsLocation", "gpsLocationExternal", "liveTorqueParameters", "liveParameters",
-  });
+    "carControl", "gpsLocationExternal", "gpsLocation", "liveTorqueParameters",
+    "carStateSP", "liveParameters", "liveMapDataSP",
+    "carStateBP",  // Always include for brake lights and hybrid data
+  };
+
+  // Conditionally add carOutput for debug panel
+  if (params.getInt("DevUIInfo") > 0) {
+    service_list.push_back("carOutput");
+  }
+
+  // DISABLED: G-Force meter disabled for performance/consistency issues
+  // Conditionally add sensor data for G-force meter
+  // if (params.getBool("ShowGForceMeter")) {
+  //   service_list.push_back("accelerometer");
+  //   service_list.push_back("gyroscope");
+  // }
+
+  sm = std::make_unique<SubMaster>(service_list);
 
   // update timer
   timer = new QTimer(this);
   QObject::connect(timer, &QTimer::timeout, this, &UIStateSP::update);
   timer->start(1000 / UI_FREQ);
+
+  // Param watcher for UIScene param updates
+  param_watcher = new ParamWatcher(this);
+  connect(param_watcher, &ParamWatcher::paramChanged, [=](const QString &param_name, const QString &param_value) {
+    ui_update_params_sp(this);
+  });
+  param_watcher->addParam("DevUIInfo");
+  param_watcher->addParam("StandstillTimer");
 }
 
 // This method overrides completely the update method from the parent class intentionally.
 void UIStateSP::update() {
-  update_sockets(this);
-  update_state(this);
-  updateStatus();
-  ui_update_params_sp(this);
+  PERF_LOG("UIStateSP::update", 100);  // Warn if full update takes >100ms
+
+  {
+    PERF_LOG("update_sockets", 50);
+    update_sockets(this);
+  }
+
+  {
+    PERF_LOG("update_state", 50);
+    update_state(this);
+  }
+
+  {
+    PERF_LOG("updateStatus", 20);
+    updateStatus();
+  }
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
-  emit uiUpdate(*this);
+
+  {
+    PERF_LOG("uiUpdate_emit", 50);
+    emit uiUpdate(*this);
+  }
+}
+
+void ui_update_params_sp(UIStateSP *s) {
+  auto params = Params();
+  s->scene.dev_ui_info = std::atoi(params.get("DevUIInfo").c_str());
+  s->scene.standstill_timer = params.getBool("StandstillTimer");
+  s->scene.speed_limit_mode = std::atoi(params.get("SpeedLimitMode").c_str());
+  s->scene.road_name = params.getBool("RoadNameToggle");
+  s->scene.trueVEgoUI = params.getBool("TrueVEgoUI");
+  s->scene.hideVEgoUI = params.getBool("HideVEgoUI");
+
+  // Onroad Screen Brightness
+  s->scene.onroadScreenOffBrightness = std::atoi(params.get("OnroadScreenOffBrightness").c_str());
+  s->scene.onroadScreenOffControl = params.getBool("OnroadScreenOffControl");
+  s->scene.onroadScreenOffTimerParam = std::atoi(params.get("OnroadScreenOffTimer").c_str());
+  s->reset_onroad_sleep_timer();
+}
+
+void UIStateSP::reset_onroad_sleep_timer() {
+  if (scene.onroadScreenOffTimerParam >= 0 and scene.onroadScreenOffControl) {
+    scene.onroadScreenOffTimer = scene.onroadScreenOffTimerParam * UI_FREQ;
+  } else {
+    scene.onroadScreenOffTimer = -1;
+  }
 }
 
 DeviceSP::DeviceSP(QObject *parent) : Device(parent) {
@@ -82,26 +147,4 @@ void DeviceSP::handleDisplayPowerChanged(bool on) {
   if (params.get("DeviceBootMode") == "1" && not on) {
     params.putBool("OffroadMode", true);
   }
-}
-
-void UIStateSP::reset_onroad_sleep_timer() {
-  auto params = Params();
-  int onroadTimer = std::atoi(params.get("OnroadScreenOffTimer").c_str());
-  if (onroadTimer >= 0 and scene.onroadScreenOffControl) {
-    scene.onroadScreenOffTimer = onroadTimer * UI_FREQ;
-  } else {
-    scene.onroadScreenOffTimer = -1;
-  }
-}
-
-void ui_update_params_sp(UIStateSP *s) {
-  auto params = Params();
-  s->scene.stand_still_timer = params.getBool("StandstillTimer");
-  s->scene.speed_limit_mode = std::atoi(params.get("SpeedLimitMode").c_str());
-  s->scene.road_name = params.getBool("RoadName");
-
-  // Onroad Screen Brightness
-  s->scene.onroadScreenOffBrightness = std::atoi(params.get("OnroadScreenOffBrightness").c_str());
-  s->scene.onroadScreenOffControl = params.getBool("OnroadScreenOffControl");
-  s->reset_onroad_sleep_timer();
 }
