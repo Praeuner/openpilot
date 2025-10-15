@@ -328,7 +328,7 @@ Export('envCython', 'np_version')
 
 # Qt build environment
 qt_env = env.Clone()
-qt_modules = ["Widgets", "Gui", "Core", "Network", "Concurrent", "Multimedia", "Quick", "Qml", "QuickWidgets", "Location", "Positioning", "DBus", "Xml", "MultimediaWidgets"]
+qt_modules = ["Widgets", "Gui", "Core", "Network", "Concurrent", "DBus", "Xml"]
 
 qt_libs = []
 if arch == "Darwin":
@@ -369,9 +369,6 @@ qt_flags = [
   "-DQT_NO_DEBUG",
   "-DQT_WIDGETS_LIB",
   "-DQT_GUI_LIB",
-  "-DQT_QUICK_LIB",
-  "-DQT_QUICKWIDGETS_LIB",
-  "-DQT_QML_LIB",
   "-DQT_CORE_LIB",
   "-DQT_MESSAGELOGCONTEXT",
 ]
