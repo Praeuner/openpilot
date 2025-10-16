@@ -425,5 +425,6 @@ template void BluepilotRenderer::updateFrameState<ModelRendererSP>(const UIState
 
 void BluepilotRenderer::cleanup() {
   RadarOverlay::cleanup();
+  HybridGaugesOverlay::cleanupAnimation();
   // StopSignOverlay doesn't need cleanup as octagon_template is just geometry data
 }

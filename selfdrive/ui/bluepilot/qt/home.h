@@ -14,6 +14,7 @@ public:
 
 public slots:
   void showDebugPanel();
+  void offroadTransition(bool offroad);
 
 protected:
   void updateState(const UIState &s) override;

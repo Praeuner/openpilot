@@ -99,6 +99,7 @@ private:
   static void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
   static void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
 
+public:
   // Cleanup
   static void cleanup();
 

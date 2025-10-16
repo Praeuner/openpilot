@@ -73,5 +73,7 @@ private:
   // Animation methods
   static void setupAnimation();
   static void checkBracketProximity(float currentValue, float threshold);
+
+public:
   static void cleanupAnimation();
 };

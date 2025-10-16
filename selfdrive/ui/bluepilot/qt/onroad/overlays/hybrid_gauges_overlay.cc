@@ -848,13 +848,23 @@ void HybridGaugesOverlay::checkBracketProximity(float currentValue, float thresh
 }
 
 void HybridGaugesOverlay::cleanupAnimation() {
+  // Stop and clean up animation first
   if (bracketAnimation) {
     bracketAnimation->stop();
+    // Disconnect all signals to prevent dangling connections
+    QObject::disconnect(bracketAnimation, nullptr, nullptr, nullptr);
     delete bracketAnimation;
     bracketAnimation = nullptr;
   }
+
+  // Clean up widget (this will also delete child objects if any)
   if (animationWidget) {
-    delete animationWidget;
+    // Deletelater is safer in Qt to avoid issues with event processing
+    animationWidget->deleteLater();
     animationWidget = nullptr;
   }
+
+  // Reset animation state
+  bracketScale = 1.0f;
+  wasNearBracket = false;
 }

@@ -2,6 +2,7 @@
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/bluepilot/qt/home.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
 
 HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
   // CRITICAL FIX: Disconnect all signals from old sidebar before deletion
@@ -33,6 +34,9 @@ HomeWindowBP::HomeWindowBP(QWidget *parent) : HomeWindow(parent) {
 }
 
 HomeWindowBP::~HomeWindowBP() {
+  // Clean up BluePilot renderer resources (animations, etc.)
+  BluepilotRenderer::cleanup();
+
   // Clean up debug panel if it was created
   if (debug_panel) {
     delete debug_panel;
@@ -76,6 +80,17 @@ void HomeWindowBP::updateState(const UIState &s) {
     // Keep debug panel on top during state updates
     debug_panel->raise();
   }
+}
+
+void HomeWindowBP::offroadTransition(bool offroad) {
+  // Clean up animations when going offroad to prevent crashes
+  if (offroad) {
+    BPLog::bpDebugGeneral() << "[bp.home] offroadTransition | Cleaning up BluePilot renderer resources" << std::endl;
+    BluepilotRenderer::cleanup();
+  }
+
+  // Call parent implementation
+  HomeWindow::offroadTransition(offroad);
 }
 
 void HomeWindowBP::resizeEvent(QResizeEvent *event) {
