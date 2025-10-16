@@ -1038,9 +1038,6 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
         if (mapToScreen(x, y, z + path_offset_z, &screen_point)) {
           stop_state.last_valid_position = screen_point;
         }
-
-        float target_size = 120.0f * (1.0 - std::min(0.7f, (stopping_distance - 5.0f) / 45.0f));
-        stop_state.smoothed_size = stop_state.smoothed_size * 0.9f + target_size * 0.1f;
       }
     } else {
       stop_state.stability_counter = std::max(0, stop_state.stability_counter - 1);

@@ -54,11 +54,11 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
     }
   } else if (gauge_scale == 3) {
     // Large size
-    gauge_height = 140;  // Increased from 130
+    gauge_height = 155;  // Moderately increased for better visibility
     if (sidebar_visible) {
-      gauge_width = rect.width() * 0.38;   // Increased from 0.35
+      gauge_width = rect.width() * 0.42;   // Moderately increased
     } else {
-      gauge_width = rect.width() * 0.43;   // Increased from 0.39
+      gauge_width = rect.width() * 0.48;   // Moderately increased
     }
   } else {
     // Default fallback to small size

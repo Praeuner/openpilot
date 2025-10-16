@@ -186,7 +186,6 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
       frame_state.stop_state.stability_counter = model_stop_state.stability_counter;
       frame_state.stop_state.stopping_distance = model_stop_state.stopping_distance;
       frame_state.stop_state.display_distance = model_stop_state.display_distance;
-      frame_state.stop_state.smoothed_size = model_stop_state.smoothed_size;
       frame_state.stop_state.fade_alpha = model_stop_state.fade_alpha;
       frame_state.stop_state.last_valid_position = model_stop_state.last_valid_position;
     } else {

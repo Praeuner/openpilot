@@ -48,7 +48,6 @@ public:
     int stability_counter = 0;
     float stopping_distance = 0.0f;
     float display_distance = 0.0f;
-    float smoothed_size = 120.0f;
     float fade_alpha = 0.0f;
     QPointF last_valid_position;
   };
