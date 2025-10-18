@@ -12,6 +12,7 @@
 #include <QFile>
 
 #include <QrCode.hpp>
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.h"
 
 using qrcodegen::QrCode;
 
@@ -311,16 +312,49 @@ void BPRoutesPanel::setupUI() {
     "Select how long cellular access stays enabled before auto-disabling"
   );
 
-  // Add timeout options as QPair<display, value>
-  QVector<QPair<QString, QString>> timeoutOptions;
-  timeoutOptions.append(qMakePair(QString("15 minutes"), QString("15")));
-  timeoutOptions.append(qMakePair(QString("30 minutes"), QString("30")));
-  timeoutOptions.append(qMakePair(QString("1 hour"), QString("60")));
-  timeoutOptions.append(qMakePair(QString("2 hours"), QString("120")));
-  timeoutOptions.append(qMakePair(QString("4 hours"), QString("240")));
-  timeoutOptions.append(qMakePair(QString("8 hours"), QString("480")));
+  // Add timeout options - BPSelectionDialog::Option is {displayName, value}
+  // The dialog shows displayName, returns value, and stores value in param
+  QVector<BPSelectionDialog::Option> dialogOptions;
+  dialogOptions.append(BPSelectionDialog::Option{"15 minutes", "15"});
+  dialogOptions.append(BPSelectionDialog::Option{"30 minutes", "30"});
+  dialogOptions.append(BPSelectionDialog::Option{"1 hour", "60"});
+  dialogOptions.append(BPSelectionDialog::Option{"2 hours", "120"});
+  dialogOptions.append(BPSelectionDialog::Option{"4 hours", "240"});
+  dialogOptions.append(BPSelectionDialog::Option{"8 hours", "480"});
 
-  cellularTimeoutSelection->setOptions(timeoutOptions);
+  // For the selection control, we need value->displayName mapping (QPair<display, value>)
+  QVector<QPair<QString, QString>> optionPairs;
+  optionPairs.append(qMakePair(QString("15 minutes"), QString("15")));  // display -> value
+  optionPairs.append(qMakePair(QString("30 minutes"), QString("30")));
+  optionPairs.append(qMakePair(QString("1 hour"), QString("60")));
+  optionPairs.append(qMakePair(QString("2 hours"), QString("120")));
+  optionPairs.append(qMakePair(QString("4 hours"), QString("240")));
+  optionPairs.append(qMakePair(QString("8 hours"), QString("480")));
+
+  cellularTimeoutSelection->setOptions(optionPairs);
+
+  // Set default to 1 hour if not already set
+  std::string currentTimeout = params.get("BPWebServerCellularTimeout");
+  if (currentTimeout.empty()) {
+    params.put("BPWebServerCellularTimeout", "60");
+    cellularTimeoutSelection->setSelectedValue("60");
+  } else {
+    cellularTimeoutSelection->setSelectedValue(QString::fromStdString(currentTimeout));
+  }
+
+  connect(cellularTimeoutSelection, &BPSelectionControl::clicked, [this, dialogOptions]() {
+    QString currentValue = QString::fromStdString(params.get("BPWebServerCellularTimeout"));
+    QString newValue = BPSelectionDialog::getValue("Auto-Disable Timeout", dialogOptions, currentValue, this);
+
+    if (!newValue.isEmpty() && newValue != currentValue) {
+      params.put("BPWebServerCellularTimeout", newValue.toStdString());
+      cellularTimeoutSelection->setSelectedValue(newValue);
+
+      // Update cellular status to reflect new timeout
+      QTimer::singleShot(500, this, &BPRoutesPanel::updateCellularStatus);
+    }
+  });
+
   cellularLayout->addWidget(cellularTimeoutSelection);
 
   // Status display
@@ -676,13 +710,21 @@ void BPRoutesPanel::fetchDetailedStatus() {
         }
 
         cellularStatusLabel->setText(statusText);
+      } else {
+        // JSON parsing failed
+        cellularStatusLabel->setText("Status: Invalid server response");
+        qWarning() << "Failed to parse cellular status JSON:" << response;
       }
     } else {
-      cellularStatusLabel->setText("Status: Failed to fetch");
+      // Network error
+      QString errorMsg = QString("Status: Failed to fetch (%1)").arg(reply->errorString());
+      cellularStatusLabel->setText(errorMsg);
+      qWarning() << "Cellular status fetch error:" << reply->error() << reply->errorString();
+      qWarning() << "URL:" << reply->url().toString();
     }
 
     reply->deleteLater();
   });
 
-  timeoutTimer->start(3000);
+  timeoutTimer->start(5000);  // Increased timeout to 5 seconds
 }
