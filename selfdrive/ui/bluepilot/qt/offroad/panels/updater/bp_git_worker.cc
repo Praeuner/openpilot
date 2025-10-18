@@ -233,7 +233,7 @@ void BPGitWorker::fetchBranches(bool includeRemote) {
   GitResult result = executeCommand(command, 10000);
 
   if (result.success) {
-    QStringList branches = result.output.split('\n', Qt::SkipEmptyParts);
+    QStringList branches = result.output.split('\n', QString::SkipEmptyParts);
     branches.removeAll("HEAD");
     emit branchListReady(branches);
   } else {
@@ -476,7 +476,7 @@ void BPGitWorker::fetchCommitHistory(int count) {
   GitResult result = executeCommand(command, 10000);
 
   if (result.success) {
-    QStringList commits = result.output.split('\n', Qt::SkipEmptyParts);
+    QStringList commits = result.output.split('\n', QString::SkipEmptyParts);
     emit commitHistoryReady(commits);
   } else {
     emit errorOccurred("Failed to fetch commit history: " + result.error);
