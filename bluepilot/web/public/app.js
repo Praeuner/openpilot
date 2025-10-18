@@ -87,6 +87,22 @@ class BluePilotRoutes {
     this.$empty = document.getElementById("empty");
     this.$routesContainer = document.getElementById("routes-container");
 
+    // Status overlay
+    this.$statusOverlay = document.getElementById("status-overlay");
+    this.$statusOverlayTitle = document.getElementById("status-overlay-title");
+    this.$statusOverlayMessage = document.getElementById("status-overlay-message");
+    this.$statusOverlayDetails = document.getElementById("status-overlay-details");
+    this.$statusOverlayRetry = document.getElementById("status-overlay-retry");
+    this.$statusOverlaySpinner = document.getElementById("status-overlay-spinner");
+    this.$detailConnection = document.getElementById("detail-connection");
+    this.$detailRateLimit = document.getElementById("detail-rate-limit");
+    this.$detailLastUpdate = document.getElementById("detail-last-update");
+
+    // Cellular warning
+    this.$cellularWarning = document.getElementById("cellular-warning");
+    this.$cellularWarningDetails = document.getElementById("cellular-warning-details");
+    this.$cellularWarningClose = document.getElementById("cellular-warning-close");
+
     // Header
     this.$routeCount = document.getElementById("route-count");
     this.$totalSize = document.getElementById("total-size");
@@ -160,6 +176,13 @@ class BluePilotRoutes {
       if (e.target === this.$metricsModal) {
         this.closeMetrics();
       }
+    });
+
+    // Cellular warning close
+    this.$cellularWarningClose.addEventListener("click", () => {
+      this.$cellularWarning.classList.add("hidden");
+      // Store dismissal in session storage
+      sessionStorage.setItem("cellularWarningDismissed", "true");
     });
 
     this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
@@ -417,6 +440,144 @@ class BluePilotRoutes {
     };
 
     this.$statusText.textContent = statusTexts[status] || "Unknown";
+
+    // Show/hide status overlay based on status
+    this.updateStatusOverlay(status);
+  }
+
+  async updateStatusOverlay(status) {
+    // Show full-page overlay for onroad or offline states
+    if (status === "onroad") {
+      await this.showStatusOverlay("onroad");
+    } else if (status === "offline") {
+      await this.showStatusOverlay("offline");
+    } else {
+      this.hideStatusOverlay();
+    }
+  }
+
+  async showStatusOverlay(type) {
+    // Show overlay with appropriate message
+    this.$statusOverlay.classList.remove("hidden", "status-onroad", "status-offline", "status-reconnecting");
+    this.$statusOverlay.classList.add(`status-${type}`);
+
+    // Fetch detailed status
+    let detailedStatus = null;
+    try {
+      const response = await fetch(`${this.API_BASE}/api/status/detailed`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) {
+        detailedStatus = await response.json();
+        // Update cellular warning based on detailed status
+        this.updateCellularWarning(detailedStatus);
+      }
+    } catch (e) {
+      console.warn("Could not fetch detailed status:", e);
+    }
+
+    if (type === "onroad") {
+      this.$statusOverlayTitle.textContent = "Driving Mode";
+      this.$statusOverlayMessage.textContent =
+        "The device is currently onroad. The web interface is in read-only mode with limited functionality for safety.";
+
+      // Show details
+      this.$statusOverlayDetails.classList.remove("hidden");
+      this.$statusOverlayRetry.classList.add("hidden");
+      this.$statusOverlaySpinner.classList.add("hidden");
+
+      if (detailedStatus) {
+        this.$detailConnection.textContent = detailedStatus.network?.connection_type?.toUpperCase() || "Unknown";
+        this.$detailConnection.className = "detail-value warning";
+
+        this.$detailRateLimit.textContent = `${detailedStatus.rate_limit?.requests_per_minute || 6} req/min (Restricted)`;
+        this.$detailRateLimit.className = "detail-value warning";
+      } else {
+        this.$detailConnection.textContent = "Unknown";
+        this.$detailRateLimit.textContent = "Restricted";
+      }
+
+      this.$detailLastUpdate.textContent = new Date().toLocaleTimeString();
+
+    } else if (type === "offline") {
+      this.$statusOverlayTitle.textContent = "Server Offline";
+      this.$statusOverlayMessage.textContent =
+        "Cannot connect to the BluePilot server. Please check your network connection or verify the server is running.";
+
+      // Show retry button
+      this.$statusOverlayDetails.classList.add("hidden");
+      this.$statusOverlayRetry.classList.remove("hidden");
+      this.$statusOverlaySpinner.classList.add("hidden");
+
+      // Add retry handler
+      this.$statusOverlayRetry.onclick = () => this.retryConnection();
+    }
+  }
+
+  hideStatusOverlay() {
+    this.$statusOverlay.classList.add("hidden");
+  }
+
+  async retryConnection() {
+    // Show reconnecting state
+    this.$statusOverlay.classList.remove("status-offline");
+    this.$statusOverlay.classList.add("status-reconnecting");
+    this.$statusOverlayTitle.textContent = "Reconnecting...";
+    this.$statusOverlayMessage.textContent = "Attempting to reconnect to the server.";
+    this.$statusOverlayRetry.classList.add("hidden");
+    this.$statusOverlaySpinner.classList.remove("hidden");
+
+    // Try to reconnect
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    try {
+      await this.loadRoutes();
+      this.hideStatusOverlay();
+    } catch (e) {
+      // Still offline, show offline state again
+      this.showStatusOverlay("offline");
+    }
+  }
+
+  updateCellularWarning(detailedStatus) {
+    // Check if user dismissed the warning this session
+    const dismissed = sessionStorage.getItem("cellularWarningDismissed") === "true";
+
+    if (!detailedStatus || !detailedStatus.cellular_access) {
+      this.$cellularWarning.classList.add("hidden");
+      return;
+    }
+
+    const cellularStatus = detailedStatus.cellular_access;
+
+    // Show warning if cellular access is enabled and not dismissed
+    if (cellularStatus.active && !dismissed) {
+      this.$cellularWarning.classList.remove("hidden");
+
+      // Update details text
+      const remaining = cellularStatus.time_remaining_minutes;
+      const connectionType = detailedStatus.network?.connection_type || "unknown";
+
+      let detailText = `Server accessible over cellular network`;
+
+      if (remaining > 0) {
+        if (remaining > 60) {
+          const hours = Math.floor(remaining / 60);
+          const mins = remaining % 60;
+          detailText += ` • Auto-disables in ${hours}h ${mins}m`;
+        } else {
+          detailText += ` • Auto-disables in ${remaining} minutes`;
+        }
+      }
+
+      if (connectionType === "cellular") {
+        detailText += ` • Currently connected via cellular`;
+      }
+
+      this.$cellularWarningDetails.textContent = detailText;
+    } else {
+      this.$cellularWarning.classList.add("hidden");
+    }
   }
 
   updateStats() {
@@ -1906,7 +2067,16 @@ class BluePilotRoutes {
   handleWebSocketStatusChanged(data) {
     // Device status changed (onroad/offroad)
     console.log("Device status changed via WebSocket:", data.status);
-    this.setDeviceStatusUI(data.status);
+
+    // Determine UI status based on data
+    let uiStatus = data.status;
+    if (data.onroad === true) {
+      uiStatus = "onroad";
+    } else if (data.status === "online") {
+      uiStatus = "online";
+    }
+
+    this.setDeviceStatusUI(uiStatus);
   }
 
   handleWebSocketProcessingUpdate(data) {

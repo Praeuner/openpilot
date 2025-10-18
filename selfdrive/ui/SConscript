@@ -54,8 +54,13 @@ bp_qt_src = [
   # "bluepilot/qt/offroad/routes_panel/watchdog_detector.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
-  # BluePilot Git Directory Panel
+  # BluePilot Updater Panel (Old - for BPUpdateConfirmDialog)
   "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
+  # BluePilot Updater Panel (Refactored)
+  "bluepilot/qt/offroad/panels/updater/bp_git_worker.cc",
+  "bluepilot/qt/offroad/panels/updater/bp_status_card.cc",
+  "bluepilot/qt/offroad/panels/updater/bp_progress_overlay.cc",
+  "bluepilot/qt/offroad/panels/updater/bp_updater_panel_v2.cc",
   # BluePilot Network Panel (Native)
   "bluepilot/qt/offroad/panels/bp_network_panel.cc",
   # BluePilot Software Panel (Native)

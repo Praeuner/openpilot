@@ -102,8 +102,8 @@ def uploader_ready(started: bool, params: Params, CP: car.CarParams) -> bool:
   return always_run(started, params, CP)
 
 def web_server_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
-  """Web routes server - only run when enabled and not onroad"""
-  return params.get_bool("BPWebServerEnabled") and only_offroad(started, params, CP)
+  """Web routes server - always run when enabled (rate-limited onroad)"""
+  return params.get_bool("BPWebServerEnabled")
 
 def route_preprocessor_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
   """Route preprocessor - only run when web server enabled and offroad"""

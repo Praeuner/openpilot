@@ -38,6 +38,22 @@
   </head>
   <body>
     <div id="app">
+      <!-- Cellular Warning Banner -->
+      <div id="cellular-warning" class="cellular-warning hidden">
+        <div class="cellular-warning-content">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div class="cellular-warning-text">
+            <strong>Cellular Access Enabled</strong>
+            <span id="cellular-warning-details">Server accessible over cellular network</span>
+          </div>
+          <button id="cellular-warning-close" class="cellular-warning-close" title="Dismiss">×</button>
+        </div>
+      </div>
+
       <!-- Header -->
       <header class="header">
         <h1 class="header-title">BluePilot Routes</h1>
@@ -149,6 +165,37 @@
           No driving routes available yet. Start driving to see your routes
           here.
         </p>
+      </div>
+
+      <!-- Status Overlay (Onroad/Offline) -->
+      <div id="status-overlay" class="status-overlay hidden">
+        <div class="status-overlay-content">
+          <div class="status-icon">
+            <svg id="status-overlay-icon" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2 id="status-overlay-title">Status</h2>
+          <p id="status-overlay-message">Checking server status...</p>
+          <div id="status-overlay-details" class="status-details hidden">
+            <div class="status-detail-item">
+              <span class="detail-label">Connection:</span>
+              <span id="detail-connection" class="detail-value">Unknown</span>
+            </div>
+            <div class="status-detail-item">
+              <span class="detail-label">Rate Limit:</span>
+              <span id="detail-rate-limit" class="detail-value">Normal</span>
+            </div>
+            <div class="status-detail-item">
+              <span class="detail-label">Last Update:</span>
+              <span id="detail-last-update" class="detail-value">--</span>
+            </div>
+          </div>
+          <button id="status-overlay-retry" class="btn btn-primary hidden">Retry Connection</button>
+          <div id="status-overlay-spinner" class="spinner-small hidden"></div>
+        </div>
       </div>
 
       <!-- Routes Container -->

@@ -29,6 +29,8 @@ private slots:
   void updateServerStatus();
   void toggleServer(bool enabled);
   void refreshStats();
+  void toggleCellularAccess(bool enabled);
+  void updateCellularStatus();
 
 private:
   void setupUI();
@@ -37,6 +39,7 @@ private:
   QString getWiFiIP();
   void fetchRouteStats();
   void generateQRCode(const QString &url);
+  void fetchDetailedStatus();
 
   // UI Elements
   QVBoxLayout *mainLayout;
@@ -53,6 +56,13 @@ private:
   QLabel *totalSizeLabel;
   QLabel *newestRouteLabel;
   BPButton *refreshStatsButton;
+
+  // Cellular access section
+  QGroupBox *cellularGroup;
+  BPToggleControl *cellularToggle;
+  BPSelectionControl *cellularTimeoutSelection;
+  QLabel *cellularStatusLabel;
+  QLabel *cellularWarningLabel;
 
   // Help text
   QLabel *helpLabel;

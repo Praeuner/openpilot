@@ -108,6 +108,10 @@ THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data
 REMUX_CACHE = "/data/bluepilot/routes/remux_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/remux_cache")
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
 
+# Cellular access configuration
+CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes
+cellular_access_enabled_time = None  # Timestamp when cellular was enabled
+
 # WebSocket clients and event management
 websocket_clients = set()
 websocket_events = asyncio.Queue()
@@ -514,8 +518,12 @@ MAX_CONCURRENT_FFMPEG = 3  # Maximum concurrent FFmpeg processes
 # Rate limiting (prevent abuse)
 request_counter = defaultdict(list)
 rate_limit_lock = threading.Lock()
-MAX_REQUESTS_PER_MINUTE = 120  # 120 requests per minute per IP
+MAX_REQUESTS_PER_MINUTE_OFFROAD = 120  # 120 requests per minute per IP when offroad
+MAX_REQUESTS_PER_MINUTE_ONROAD = 6     # 6 requests per minute total when onroad (1 per 10s)
 RATE_LIMIT_WINDOW = 60  # 1 minute window
+
+# Global onroad request tracking
+onroad_request_timestamps = []
 
 
 def check_rate_limit(client_ip):
@@ -528,23 +536,32 @@ def check_rate_limit(client_ip):
         tuple: (is_allowed: bool, retry_after: int)
     """
     current_time = time.monotonic()
+    onroad = is_onroad()
 
     with rate_limit_lock:
-        # Get request timestamps for this IP
-        timestamps = request_counter[client_ip]
+        if onroad:
+            # Onroad: Global rate limit (all clients combined)
+            global onroad_request_timestamps
+            onroad_request_timestamps[:] = [t for t in onroad_request_timestamps
+                                           if current_time - t < RATE_LIMIT_WINDOW]
 
-        # Remove old timestamps outside the window
-        timestamps[:] = [t for t in timestamps if current_time - t < RATE_LIMIT_WINDOW]
+            if len(onroad_request_timestamps) >= MAX_REQUESTS_PER_MINUTE_ONROAD:
+                retry_after = int(RATE_LIMIT_WINDOW - (current_time - onroad_request_timestamps[0])) + 1
+                return False, retry_after
 
-        # Check if limit exceeded
-        if len(timestamps) >= MAX_REQUESTS_PER_MINUTE:
-            # Calculate retry_after based on oldest request
-            retry_after = int(RATE_LIMIT_WINDOW - (current_time - timestamps[0])) + 1
-            return False, retry_after
+            onroad_request_timestamps.append(current_time)
+            return True, 0
+        else:
+            # Offroad: Per-IP rate limit
+            timestamps = request_counter[client_ip]
+            timestamps[:] = [t for t in timestamps if current_time - t < RATE_LIMIT_WINDOW]
 
-        # Add current request
-        timestamps.append(current_time)
-        return True, 0
+            if len(timestamps) >= MAX_REQUESTS_PER_MINUTE_OFFROAD:
+                retry_after = int(RATE_LIMIT_WINDOW - (current_time - timestamps[0])) + 1
+                return False, retry_after
+
+            timestamps.append(current_time)
+            return True, 0
 
 
 def enable_performance_mode():
@@ -652,13 +669,146 @@ def is_onroad():
         return False
 
 def should_server_run():
-    """Check if server should be running (enabled and not onroad)"""
+    """Check if server should be running (always runs when enabled, rate-limited onroad)"""
     try:
-        enabled = params.get_bool("BPWebServerEnabled")
-        onroad = is_onroad()
-        return enabled and not onroad
+        return params.get_bool("BPWebServerEnabled")
     except:
         return True  # Default to running if we can't check
+
+def get_wifi_ip():
+    """Get WiFi interface IP address (wlan0 on Comma devices)"""
+    try:
+        import netifaces
+        for iface in netifaces.interfaces():
+            if iface.startswith('wlan'):
+                addrs = netifaces.ifaddresses(iface)
+                if netifaces.AF_INET in addrs:
+                    for addr in addrs[netifaces.AF_INET]:
+                        ip = addr.get('addr')
+                        if ip and not ip.startswith('127.'):
+                            return ip
+    except ImportError:
+        # Fallback without netifaces
+        import subprocess
+        try:
+            result = subprocess.run(['ip', 'addr', 'show', 'wlan0'],
+                                    capture_output=True, text=True, timeout=2)
+            for line in result.stdout.split('\n'):
+                if 'inet ' in line:
+                    ip = line.strip().split()[1].split('/')[0]
+                    return ip
+        except:
+            pass
+    return None
+
+def get_connection_type():
+    """Determine current network connection type"""
+    try:
+        import subprocess
+        # Check which interface is being used for default route
+        result = subprocess.run(['ip', 'route', 'get', '8.8.8.8'],
+                                capture_output=True, text=True, timeout=2)
+        output = result.stdout.lower()
+
+        if 'wlan' in output:
+            return 'wifi'
+        elif 'rmnet' in output or 'ccmni' in output:
+            return 'cellular'
+        elif 'eth' in output:
+            return 'ethernet'
+        else:
+            return 'unknown'
+    except:
+        return 'unknown'
+
+def is_cellular_access_allowed():
+    """Check if cellular access is currently allowed (within timeout window)"""
+    global cellular_access_enabled_time
+
+    try:
+        # Check if cellular access is enabled
+        cellular_enabled = params.get_bool("BPWebServerAllowCellular")
+
+        if not cellular_enabled:
+            cellular_access_enabled_time = None
+            return False
+
+        # Get timeout duration from params (in minutes)
+        timeout_str = params.get("BPWebServerCellularTimeout")
+        if timeout_str:
+            try:
+                timeout_minutes = int(timeout_str)
+            except:
+                timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+        else:
+            timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+
+        # If this is first time enabled, record timestamp
+        if cellular_access_enabled_time is None:
+            cellular_access_enabled_time = time.time()
+            logger.info(f"Cellular access enabled with {timeout_minutes} minute timeout")
+            return True
+
+        # Check if timeout has expired
+        elapsed_minutes = (time.time() - cellular_access_enabled_time) / 60
+        if elapsed_minutes >= timeout_minutes:
+            # Timeout expired, auto-disable
+            logger.warning(f"Cellular access timeout expired after {timeout_minutes} minutes - disabling")
+            params.put_bool("BPWebServerAllowCellular", False)
+            cellular_access_enabled_time = None
+
+            # Broadcast status change
+            broadcast_websocket_event(WebSocketEvent.STATUS_CHANGED, {
+                'cellular_access': False,
+                'reason': 'timeout_expired',
+                'message': f'Cellular access auto-disabled after {timeout_minutes} minutes'
+            })
+            return False
+
+        # Still within timeout window
+        remaining_minutes = int(timeout_minutes - elapsed_minutes)
+        logger.debug(f"Cellular access active, {remaining_minutes} minutes remaining")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error checking cellular access: {e}")
+        return False
+
+def get_cellular_access_status():
+    """Get detailed cellular access status for API responses"""
+    global cellular_access_enabled_time
+
+    enabled = params.get_bool("BPWebServerAllowCellular")
+
+    if not enabled or cellular_access_enabled_time is None:
+        return {
+            'enabled': False,
+            'active': False,
+            'time_remaining_minutes': 0,
+            'timeout_minutes': CELLULAR_ACCESS_TIMEOUT_DEFAULT
+        }
+
+    # Get timeout
+    timeout_str = params.get("BPWebServerCellularTimeout")
+    if timeout_str:
+        try:
+            timeout_minutes = int(timeout_str)
+        except:
+            timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+    else:
+        timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+
+    # Calculate remaining time
+    elapsed_minutes = (time.time() - cellular_access_enabled_time) / 60
+    remaining_minutes = max(0, int(timeout_minutes - elapsed_minutes))
+
+    return {
+        'enabled': enabled,
+        'active': is_cellular_access_allowed(),
+        'time_remaining_minutes': remaining_minutes,
+        'timeout_minutes': timeout_minutes,
+        'enabled_at': cellular_access_enabled_time
+    }
 
 
 def get_route_base_name(route_name):
@@ -1340,31 +1490,95 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 self.wfile.write(error_msg)
                 return
 
-            # Check if server should be running
+            # Check if server is enabled (always run when enabled, just rate-limited onroad)
             if not should_server_run():
-                if is_onroad():
-                    self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
-                else:
-                    self.send_json_response({'error': 'Server disabled by user'}, 503)
+                self.send_json_response({'error': 'Server disabled by user'}, 503)
                 return
 
-            # Check onroad status for API endpoints (redundant but kept for compatibility)
-            if path.startswith('/api/') and path != '/api/status':
-                if is_onroad():
-                    self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
+            # Onroad: Disable write operations (star/delete/remux)
+            # Read-only operations (status, routes list, video playback) are still allowed but rate-limited
+            onroad = is_onroad()
+            if onroad and path.startswith('/api/'):
+                # Allow read-only endpoints
+                readonly_endpoints = ['/api/status', '/api/routes', '/api/system/metrics']
+                is_readonly = any(path.startswith(ep) for ep in readonly_endpoints) or '/video/' in path
+
+                if not is_readonly:
+                    # Block write operations when onroad
+                    self.send_json_response({
+                        'error': 'Write operations disabled while driving for safety',
+                        'onroad': True,
+                        'readonly_mode': True
+                    }, 403)
                     return
 
             # Route handlers
             if path == '/' or path == '/index.html':
                 self.send_file_response(str(WEBAPP_DIR / 'index.html'), 'text/html')
 
-            elif path.startswith('/api/status'):
+            elif path == '/api/status':
+                # Basic status endpoint (lightweight, always available)
+                onroad = is_onroad()
                 self.send_json_response({
-                    'status': 'online',
-                    'onroad': is_onroad(),
+                    'status': 'onroad' if onroad else 'online',
+                    'onroad': onroad,
                     'routes_dir': ROUTES_DIR,
                     'routes_dir_exists': os.path.exists(ROUTES_DIR),
                     'isMetric': params.get_bool("IsMetric")
+                })
+
+            elif path == '/api/status/detailed':
+                # Detailed status endpoint with connection info
+                onroad = is_onroad()
+                connection_type = get_connection_type()
+                wifi_ip = get_wifi_ip()
+                cellular_status = get_cellular_access_status()
+
+                # Server uptime
+                import psutil
+                import os as os_module
+                try:
+                    process = psutil.Process(os_module.getpid())
+                    uptime_seconds = time.time() - process.create_time()
+                except:
+                    uptime_seconds = 0
+
+                # WebSocket client count
+                ws_clients = len(websocket_clients) if websocket_clients else 0
+
+                # Rate limit info
+                current_limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+
+                self.send_json_response({
+                    'status': 'onroad' if onroad else 'online',
+                    'onroad': onroad,
+                    'server': {
+                        'uptime_seconds': int(uptime_seconds),
+                        'version': '1.0.0',
+                        'python_version': sys.version.split()[0]
+                    },
+                    'network': {
+                        'connection_type': connection_type,
+                        'wifi_ip': wifi_ip,
+                        'wifi_available': wifi_ip is not None,
+                        'port': int(params.get("BPWebServerPort") or "8088")
+                    },
+                    'cellular_access': cellular_status,
+                    'clients': {
+                        'websocket_connected': ws_clients,
+                        'websocket_available': WEBSOCKETS_AVAILABLE
+                    },
+                    'rate_limit': {
+                        'requests_per_minute': current_limit,
+                        'window_seconds': RATE_LIMIT_WINDOW,
+                        'mode': 'global' if onroad else 'per_ip'
+                    },
+                    'features': {
+                        'read_only': onroad,  # Onroad = read-only mode
+                        'write_operations_enabled': not onroad,
+                        'ffmpeg_active': active_ffmpeg_processes,
+                        'ffmpeg_max': MAX_CONCURRENT_FFMPEG
+                    }
                 })
 
             elif path.startswith('/api/system/metrics'):
@@ -2363,31 +2577,59 @@ def main():
         broadcaster = WebSocketBroadcaster(http_fallback_port=port)
         logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
 
+    # Determine bind address based on WiFi availability and cellular access settings
+    wifi_ip = get_wifi_ip()
+    cellular_allowed = is_cellular_access_allowed()
+
+    if cellular_allowed:
+        # Cellular access explicitly enabled - bind to all interfaces
+        bind_address = '0.0.0.0'
+        cellular_status = get_cellular_access_status()
+        logger.warning("=" * 60)
+        logger.warning("CELLULAR ACCESS ENABLED")
+        logger.warning(f"Server will be accessible over cellular networks!")
+        logger.warning(f"Time remaining: {cellular_status['time_remaining_minutes']} minutes")
+        logger.warning(f"Timeout: {cellular_status['timeout_minutes']} minutes")
+        logger.warning("This may use significant cellular data!")
+        logger.warning("=" * 60)
+        if wifi_ip:
+            logger.info(f"WiFi also available at: {wifi_ip}")
+    elif wifi_ip:
+        # WiFi available, bind only to WiFi interface (secure default)
+        bind_address = wifi_ip
+        logger.info(f"Binding to WiFi interface: {wifi_ip} (cellular access disabled)")
+    else:
+        # No WiFi and cellular not allowed - bind to all with warning
+        bind_address = '0.0.0.0'
+        logger.warning("WiFi interface not found - binding to all interfaces (0.0.0.0)")
+        logger.warning("To enable cellular access, set BPWebServerAllowCellular param")
+
     # Create HTTP server with socket reuse to prevent "Address already in use" errors
     try:
-        server = ReuseAddressHTTPServer(('0.0.0.0', port), WebRoutesHandler)
+        server = ReuseAddressHTTPServer((bind_address, port), WebRoutesHandler)
         server.timeout = 30  # Set timeout to prevent hanging connections
     except OSError as e:
         if e.errno == 98:  # Address already in use
-            logger.error(f"Port {port} is already in use. Another instance may be running.")
+            logger.error(f"Port {port} is already in use on {bind_address}. Another instance may be running.")
             logger.error("Try: pkill -f web_routes_server or reboot the device")
             return
         raise
 
     # Track previous onroad status for change detection
-    last_onroad_status = None
+    last_onroad_status = [None]  # Use list for closure modification
 
-    # Check periodically if server should stop and restore power save
-    def check_stop_condition():
+    # Periodic status monitoring (no longer stops server)
+    def monitor_status():
         try:
-            global last_onroad_status
-
             # Check if we should restore power save mode
             check_and_restore_power_save()
 
+            # Check cellular access timeout
+            is_cellular_access_allowed()  # This checks and auto-disables if expired
+
             # Check for onroad status changes and broadcast via WebSocket
             current_onroad = is_onroad()
-            if last_onroad_status is not None and current_onroad != last_onroad_status:
+            if last_onroad_status[0] is not None and current_onroad != last_onroad_status[0]:
                 status_str = 'onroad' if current_onroad else 'online'
                 broadcast_websocket_event(WebSocketEvent.STATUS_CHANGED, {
                     'status': status_str,
@@ -2395,27 +2637,26 @@ def main():
                 })
                 logger.info(f"Device status changed to: {status_str}")
 
-            last_onroad_status = current_onroad
+            last_onroad_status[0] = current_onroad
+        except Exception as e:
+            logger.error(f"Error in status monitor: {e}")
 
-            return not should_server_run()
-        except:
-            return False
-
-    # Start HTTP server with periodic stop checks
+    # Start HTTP server - runs continuously until disabled or terminated
     try:
-        logger.info("Web server starting - will run until disabled or onroad")
+        logger.info(f"Web server starting on {bind_address}:{port}")
+        logger.info("Server will run continuously (rate-limited when onroad)")
 
-        # Override handle_timeout to check power save periodically
+        # Override handle_timeout to monitor status and power save periodically
         original_handle_timeout = server.handle_timeout
 
         def custom_handle_timeout():
-            check_and_restore_power_save()
+            monitor_status()  # Check onroad status and broadcast changes
             if original_handle_timeout:
                 original_handle_timeout()
 
         server.handle_timeout = custom_handle_timeout
 
-        server.serve_forever()
+        server.serve_forever()  # Run indefinitely until process killed
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
         server.shutdown()

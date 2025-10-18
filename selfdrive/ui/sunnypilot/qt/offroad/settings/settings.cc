@@ -26,7 +26,7 @@
 
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_base_view.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/updater/bp_updater_panel_v2.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_network_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_software_panel.h"
@@ -158,7 +158,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   };
 
   if (!hasPrebuiltFile) {
-    panels.append(PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
+    panels.append(PanelInfo("   " + tr("Updater"), new BPUpdaterPanelV2(this), "../assets/offroad/icon_updater.png"));
   }
 
   nav_btns = new QButtonGroup(this);
@@ -200,7 +200,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     QScrollArea *panel_frame;
     if (qobject_cast<BPBaseView*>(panel) || qobject_cast<BPNavBarView*>(panel) ||
         qobject_cast<BPRoutesPanel*>(panel) || qobject_cast<BPStatisticsPanel*>(panel) ||
-        qobject_cast<BPUpdaterPanel*>(panel) || qobject_cast<BPNetworkPanel*>(panel)) {
+        qobject_cast<BPUpdaterPanelV2*>(panel) || qobject_cast<BPNetworkPanel*>(panel)) {
       panel_frame = new BPScrollView(panel, this);
     } else {
       panel_frame = new ScrollViewSP(panel, this);

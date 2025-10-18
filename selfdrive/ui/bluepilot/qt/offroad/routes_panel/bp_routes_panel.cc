@@ -232,6 +232,113 @@ void BPRoutesPanel::setupUI() {
 
   mainLayout->addWidget(statsFrame);
 
+  // ========== CELLULAR ACCESS GROUP (ADVANCED) ==========
+  cellularGroup = new QGroupBox("Cellular Access (Advanced)");
+  cellularGroup->setStyleSheet(R"(
+    QGroupBox {
+      background-color: #242424;
+      border: none;
+      border-radius: 15px;
+      margin-top: 50px;
+      padding: 5px;
+      font-size: 40px;
+      font-weight: 500;
+    }
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      padding: 5px 15px;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+      border-bottom: none;
+      margin-left: 35px;
+      margin-top: 0px;
+      background-color: #242424;
+      color: #FF9800;
+    }
+    QGroupBox > QWidget {
+      background-color: transparent;
+    }
+    QGroupBox::indicator {
+      width: 0px;
+    }
+  )");
+  cellularGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+  QVBoxLayout *cellularLayout = new QVBoxLayout(cellularGroup);
+  cellularLayout->setContentsMargins(40, 40, 40, 40);
+  cellularLayout->setSpacing(25);
+
+  // Security warning
+  cellularWarningLabel = new QLabel(
+    "⚠️  <b>Security Warning</b><br/><br/>"
+    "Enabling cellular access allows the web server to be accessible over cellular networks. "
+    "This may:<br/>"
+    "• Use significant cellular data<br/>"
+    "• Expose server to wider network access<br/>"
+    "• Increase security risks<br/><br/>"
+    "Cellular access will <b>automatically disable</b> after the timeout period."
+  );
+  cellularWarningLabel->setStyleSheet(QString(R"(
+    QLabel {
+      font-size: %1px;
+      color: #FF9800;
+      padding: 20px;
+      background-color: rgba(255, 152, 0, 0.1);
+      border: 2px solid rgba(255, 152, 0, 0.3);
+      border-radius: 10px;
+      line-height: 1.6;
+    }
+  )").arg(sizes.descSize));
+  cellularWarningLabel->setWordWrap(true);
+  cellularLayout->addWidget(cellularWarningLabel);
+
+  // Cellular access toggle
+  cellularToggle = new BPToggleControl(
+    "BPWebServerAllowCellular",
+    "Enable Cellular Access",
+    "Allow web server access over cellular networks with automatic timeout"
+  );
+  cellularLayout->addWidget(cellularToggle);
+
+  // Connect to toggleFlipped signal
+  QObject::connect(cellularToggle, &BPToggleControl::toggleFlipped, this, &BPRoutesPanel::toggleCellularAccess);
+
+  // Timeout selection
+  cellularTimeoutSelection = new BPSelectionControl(
+    "BPWebServerCellularTimeout",
+    "Auto-Disable Timeout",
+    "Select how long cellular access stays enabled before auto-disabling"
+  );
+
+  // Add timeout options as QPair<display, value>
+  QVector<QPair<QString, QString>> timeoutOptions;
+  timeoutOptions.append(qMakePair(QString("15 minutes"), QString("15")));
+  timeoutOptions.append(qMakePair(QString("30 minutes"), QString("30")));
+  timeoutOptions.append(qMakePair(QString("1 hour"), QString("60")));
+  timeoutOptions.append(qMakePair(QString("2 hours"), QString("120")));
+  timeoutOptions.append(qMakePair(QString("4 hours"), QString("240")));
+  timeoutOptions.append(qMakePair(QString("8 hours"), QString("480")));
+
+  cellularTimeoutSelection->setOptions(timeoutOptions);
+  cellularLayout->addWidget(cellularTimeoutSelection);
+
+  // Status display
+  cellularStatusLabel = new QLabel("Status: Disabled");
+  cellularStatusLabel->setStyleSheet(QString(R"(
+    QLabel {
+      font-size: %1px;
+      color: #AAAAAA;
+      padding: 20px;
+      background-color: #1C1C1C;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+  )").arg(sizes.descSize + 2));
+  cellularLayout->addWidget(cellularStatusLabel);
+
+  mainLayout->addWidget(cellularGroup);
+
   mainLayout->addStretch();
 }
 
@@ -239,6 +346,7 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
   statusTimer->start();
   updateServerStatus();
+  updateCellularStatus();
   if (serverEnabled) {
     refreshStats();
   }
@@ -275,6 +383,9 @@ void BPRoutesPanel::updateServerStatus() {
     serverToggle->blockSignals(true);
     serverToggle->setChecked(true);
     serverToggle->blockSignals(false);
+
+    // Update cellular status when server is running
+    updateCellularStatus();
 
     QString url = getServerUrl();
     urlLabel->setText(url);
@@ -480,4 +591,98 @@ void BPRoutesPanel::generateQRCode(const QString &url) {
     qWarning() << "Failed to generate QR code:" << e.what();
     qrCodeLabel->setVisible(false);
   }
+}
+
+void BPRoutesPanel::toggleCellularAccess(bool enabled) {
+  // Toggle is already handled by BPToggleControl
+  // Just trigger status update
+  QTimer::singleShot(500, this, &BPRoutesPanel::updateCellularStatus);
+}
+
+void BPRoutesPanel::updateCellularStatus() {
+  // Fetch detailed status from server
+  fetchDetailedStatus();
+}
+
+void BPRoutesPanel::fetchDetailedStatus() {
+  if (!isServerRunning()) {
+    cellularStatusLabel->setText("Status: Server not running");
+    cellularStatusLabel->setStyleSheet(cellularStatusLabel->styleSheet().replace("#AAAAAA", "#808080"));
+    return;
+  }
+
+  QNetworkRequest request(QUrl(getServerUrl() + "/api/status/detailed"));
+  QNetworkReply *reply = networkManager->get(request);
+
+  QTimer *timeoutTimer = new QTimer(reply);
+  timeoutTimer->setSingleShot(true);
+
+  connect(timeoutTimer, &QTimer::timeout, reply, [reply]() {
+    reply->abort();
+  });
+
+  connect(reply, &QNetworkReply::finished, this, [this, reply, timeoutTimer]() {
+    timeoutTimer->stop();
+
+    if (reply->error() == QNetworkReply::NoError) {
+      QByteArray response = reply->readAll();
+      QJsonDocument doc = QJsonDocument::fromJson(response);
+
+      if (!doc.isNull() && doc.isObject()) {
+        QJsonObject obj = doc.object();
+        QJsonObject cellularAccess = obj["cellular_access"].toObject();
+        QJsonObject network = obj["network"].toObject();
+
+        bool enabled = cellularAccess["enabled"].toBool();
+        bool active = cellularAccess["active"].toBool();
+        int timeRemaining = cellularAccess["time_remaining_minutes"].toInt();
+        QString connectionType = network["connection_type"].toString();
+
+        // Update status label
+        QString statusText;
+        QString colorStyle = "#AAAAAA";  // Default gray
+
+        if (active) {
+          // Cellular access is enabled and active
+          statusText = "Status: <span style='color: #FF9800;'>●</span> Active";
+
+          // Add time remaining
+          if (timeRemaining > 60) {
+            int hours = timeRemaining / 60;
+            int mins = timeRemaining % 60;
+            statusText += QString("<br/>Time Remaining: %1h %2m").arg(hours).arg(mins);
+          } else {
+            statusText += QString("<br/>Time Remaining: %1 minutes").arg(timeRemaining);
+          }
+
+          // Add connection type
+          if (connectionType == "cellular") {
+            statusText += "<br/>Connection: <span style='color: #FF9800;'>Cellular</span>";
+          } else if (connectionType == "wifi") {
+            statusText += "<br/>Connection: WiFi";
+          } else {
+            statusText += QString("<br/>Connection: %1").arg(connectionType);
+          }
+
+          colorStyle = "#FF9800";  // Orange when active
+        } else if (enabled && !active) {
+          // Enabled but timeout expired
+          statusText = "Status: <span style='color: #808080;'>●</span> Disabled (Timeout Expired)";
+          colorStyle = "#808080";
+        } else {
+          // Disabled
+          statusText = "Status: <span style='color: #808080;'>●</span> Disabled (WiFi-Only)";
+          colorStyle = "#808080";
+        }
+
+        cellularStatusLabel->setText(statusText);
+      }
+    } else {
+      cellularStatusLabel->setText("Status: Failed to fetch");
+    }
+
+    reply->deleteLater();
+  });
+
+  timeoutTimer->start(3000);
 }
