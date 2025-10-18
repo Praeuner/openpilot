@@ -7,17 +7,21 @@
 
 #include <QWidget>
 #include <QPushButton>
-#include <QComboBox>
 #include <QLabel>
 #include <QThread>
 #include <QTimer>
+#include <QGroupBox>
+#include <QVBoxLayout>
 
 #include "common/params.h"
 #include "bp_git_worker.h"
 #include "bp_status_card.h"
 #include "bp_progress_overlay.h"
 
-// Modern, simplified updater panel
+// Forward declarations
+class BPCommandControl;
+
+// Modern, simplified updater panel matching BP panel design
 class BPUpdaterPanelV2 : public QWidget {
   Q_OBJECT
 
@@ -58,17 +62,23 @@ private:
   BPGitWorker *gitWorker;
 
   // UI Components
+  QVBoxLayout *mainLayout;
   BPStatusCard *statusCard;
   BPProgressOverlay *progressOverlay;
 
-  QLabel *warningLabel;
-  QPushButton *checkUpdatesBtn;
-  QPushButton *updateBtn;
-  QPushButton *switchBranchBtn;
-  QPushButton *resetBtn;
-  QPushButton *repairBtn;
-  QPushButton *unshallowBtn;
-  QPushButton *historyBtn;
+  // Group Boxes
+  QGroupBox *statusGroup;
+  QGroupBox *actionsGroup;
+  QGroupBox *advancedGroup;
+
+  // Command Controls
+  BPCommandControl *checkUpdatesControl;
+  BPCommandControl *updateControl;
+  BPCommandControl *switchBranchControl;
+  BPCommandControl *viewHistoryControl;
+  BPCommandControl *resetControl;
+  BPCommandControl *repairControl;
+  BPCommandControl *unshallowControl;
 
   QTimer *onroadCheckTimer;
   bool isOnroad;
@@ -77,12 +87,15 @@ private:
 
   void setupUI();
   void setupWorker();
-  void showConfirmDialog(const QString &title, const QString &message,
-                        std::function<void()> onConfirm);
-  void showBranchSelector();
+  void createStatusGroup();
+  void createActionsGroup();
+  void createAdvancedGroup();
+
+  QGroupBox* createStyledGroupBox(const QString &title);
+
+  void showBranchSelector(const QStringList &branches);
   void showHistoryDialog(const QStringList &commits);
 
-  QString getOnroadWarning() const;
   bool canPerformOperations() const;
 };
 

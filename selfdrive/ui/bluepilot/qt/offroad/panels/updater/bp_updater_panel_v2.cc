@@ -3,6 +3,7 @@
 #include "bp_updater_panel_v2.h"
 #include "../bp_utils.h"
 #include "../bp_panel_dialogs.h"
+#include "../bp_panel_controls.h"
 #include "../bp_updater_panel.h"  // For BPUpdateConfirmDialog
 
 #include <QVBoxLayout>
@@ -14,6 +15,7 @@
 #include <QListWidget>
 #include <QHeaderView>
 #include <QGuiApplication>
+#include <QGroupBox>
 
 #ifdef QCOM2
 #include <qpa/qplatformnativeinterface.h>
@@ -24,7 +26,6 @@ BPUpdaterPanelV2::BPUpdaterPanelV2(QWidget *parent)
     : QWidget(parent), isOnroad(false), operationInProgress(false) {
 
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  setContentsMargins(20, 20, 20, 20);
 
   setupWorker();
   setupUI();
@@ -64,193 +65,206 @@ void BPUpdaterPanelV2::setupWorker() {
   workerThread->start();
 }
 
-void BPUpdaterPanelV2::setupUI() {
-  BPTextSizes sizes = BPTextSizes::getSizes();
-
-  QVBoxLayout *mainLayout = new QVBoxLayout(this);
-  mainLayout->setContentsMargins(0, 0, 0, 0);
-  mainLayout->setSpacing(25);
-
-  // Header
-  QLabel *headerLabel = new QLabel("Software Updates");
-  headerLabel->setStyleSheet(QString(R"(
-    font-size: %1px;
-    color: white;
-    font-weight: 600;
-    padding: 10px 0px;
-  )").arg(sizes.titleSize + 15));
-  mainLayout->addWidget(headerLabel);
-
-  // Warning label (for onroad status)
-  warningLabel = new QLabel();
-  warningLabel->setStyleSheet(QString(R"(
-    font-size: %1px;
-    color: #FF6B6B;
-    background-color: rgba(255, 107, 107, 0.1);
-    border: 2px solid #FF6B6B;
-    border-radius: 12px;
-    padding: 20px;
-    font-weight: 500;
-  )").arg(sizes.titleSize - 5));
-  warningLabel->setAlignment(Qt::AlignCenter);
-  warningLabel->setVisible(false);
-  mainLayout->addWidget(warningLabel);
-
-  // Status card
-  statusCard = new BPStatusCard(this);
-  mainLayout->addWidget(statusCard);
-
-  // Actions section
-  QFrame *actionsFrame = new QFrame(this);
-  actionsFrame->setObjectName("bp_actions_frame");
-  actionsFrame->setStyleSheet(R"(
-    QFrame#bp_actions_frame {
+QGroupBox* BPUpdaterPanelV2::createStyledGroupBox(const QString &title) {
+  QGroupBox *group = new QGroupBox(title, this);
+  group->setStyleSheet(R"(
+    QGroupBox {
       background-color: #242424;
+      border: none;
       border-radius: 15px;
+      margin-top: 50px;
+      padding: 5px;
+      font-size: 40px;
+      font-weight: 500;
+    }
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      padding: 5px 15px;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+      border-bottom: none;
+      margin-left: 35px;
+      margin-top: 0px;
+      background-color: #242424;
+      color: #2196F3;
+    }
+    QGroupBox > QWidget {
+      background-color: transparent;
+    }
+    QGroupBox::indicator {
+      width: 0px;
+    }
+  )");
+  group->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  return group;
+}
+
+void BPUpdaterPanelV2::setupUI() {
+  mainLayout = new QVBoxLayout(this);
+  mainLayout->setContentsMargins(40, 40, 40, 40);
+  mainLayout->setSpacing(30);
+
+  setStyleSheet(R"(
+    BPUpdaterPanelV2 {
+      background-color: #1B1B1B;
+    }
+    BPUpdaterPanelV2 QGroupBox BPCommandControl {
+      background-color: transparent;
     }
   )");
 
-  QVBoxLayout *actionsLayout = new QVBoxLayout(actionsFrame);
-  actionsLayout->setContentsMargins(30, 25, 30, 25);
-  actionsLayout->setSpacing(15);
+  createStatusGroup();
+  createActionsGroup();
+  createAdvancedGroup();
 
-  // Actions title
-  QLabel *actionsTitle = new QLabel("Actions");
-  actionsTitle->setStyleSheet(QString(R"(
-    font-size: %1px;
-    color: white;
-    font-weight: 600;
-  )").arg(sizes.titleSize));
-  actionsLayout->addWidget(actionsTitle);
-
-  // Primary actions (2 columns)
-  QGridLayout *primaryGrid = new QGridLayout();
-  primaryGrid->setSpacing(15);
-
-  QString primaryButtonStyle = QString(R"(
-    QPushButton {
-      background-color: #4A90E2;
-      color: white;
-      font-size: %1px;
-      font-weight: 500;
-      border-radius: 15px;
-      padding: 25px;
-      border: none;
-      min-height: 100px;
-    }
-    QPushButton:hover {
-      background-color: #5BA3F5;
-    }
-    QPushButton:pressed {
-      background-color: #3A7DC2;
-    }
-    QPushButton:disabled {
-      background-color: #2A2A2A;
-      color: #666666;
-    }
-  )").arg(sizes.buttonTextSize);
-
-  checkUpdatesBtn = new QPushButton("🔍 Check for Updates");
-  checkUpdatesBtn->setStyleSheet(primaryButtonStyle);
-  connect(checkUpdatesBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleCheckUpdates);
-  primaryGrid->addWidget(checkUpdatesBtn, 0, 0);
-
-  updateBtn = new QPushButton("📥 Update");
-  updateBtn->setStyleSheet(primaryButtonStyle);
-  updateBtn->setEnabled(false);
-  connect(updateBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleUpdate);
-  primaryGrid->addWidget(updateBtn, 0, 1);
-
-  switchBranchBtn = new QPushButton("🔀 Switch Branch");
-  switchBranchBtn->setStyleSheet(primaryButtonStyle);
-  connect(switchBranchBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleSwitchBranch);
-  primaryGrid->addWidget(switchBranchBtn, 1, 0);
-
-  historyBtn = new QPushButton("📜 View History");
-  historyBtn->setStyleSheet(primaryButtonStyle);
-  connect(historyBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleViewHistory);
-  primaryGrid->addWidget(historyBtn, 1, 1);
-
-  actionsLayout->addLayout(primaryGrid);
-
-  // Secondary actions (advanced)
-  QLabel *advancedTitle = new QLabel("Advanced");
-  advancedTitle->setStyleSheet(QString(R"(
-    font-size: %1px;
-    color: #AAAAAA;
-    font-weight: 500;
-    padding-top: 10px;
-  )").arg(sizes.descSize));
-  actionsLayout->addWidget(advancedTitle);
-
-  QString secondaryButtonStyle = QString(R"(
-    QPushButton {
-      background-color: #363636;
-      color: white;
-      font-size: %1px;
-      font-weight: 500;
-      border-radius: 12px;
-      padding: 20px;
-      border: none;
-      min-height: 80px;
-    }
-    QPushButton:hover {
-      background-color: #404040;
-    }
-    QPushButton:pressed {
-      background-color: #505050;
-    }
-    QPushButton:disabled {
-      background-color: #202020;
-      color: #666666;
-    }
-  )").arg(sizes.buttonTextSize - 5);
-
-  QGridLayout *secondaryGrid = new QGridLayout();
-  secondaryGrid->setSpacing(15);
-
-  resetBtn = new QPushButton("↩️ Reset");
-  resetBtn->setStyleSheet(secondaryButtonStyle);
-  connect(resetBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleReset);
-  secondaryGrid->addWidget(resetBtn, 0, 0);
-
-  repairBtn = new QPushButton("🔧 Repair");
-  repairBtn->setStyleSheet(secondaryButtonStyle);
-  connect(repairBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleRepair);
-  secondaryGrid->addWidget(repairBtn, 0, 1);
-
-  unshallowBtn = new QPushButton("📦 Unshallow");
-  unshallowBtn->setStyleSheet(secondaryButtonStyle);
-  connect(unshallowBtn, &QPushButton::clicked, this, &BPUpdaterPanelV2::handleUnshallow);
-  secondaryGrid->addWidget(unshallowBtn, 0, 2);
-
-  actionsLayout->addLayout(secondaryGrid);
-
-  mainLayout->addWidget(actionsFrame);
   mainLayout->addStretch();
 
   // Progress overlay
   progressOverlay = new BPProgressOverlay(this);
   connect(progressOverlay, &BPProgressOverlay::cancelRequested, this, [this]() {
-    // TODO: Implement cancellation
     progressOverlay->hide();
   });
   connect(progressOverlay, &BPProgressOverlay::retryRequested, this, [this]() {
     progressOverlay->hide();
-    // Last operation will be retried based on context
   });
   connect(progressOverlay, &BPProgressOverlay::closeRequested, this, [this]() {
     progressOverlay->hide();
-    // Refresh status after operation
     QMetaObject::invokeMethod(gitWorker, "checkStatus", Qt::QueuedConnection);
   });
+}
+
+void BPUpdaterPanelV2::createStatusGroup() {
+  statusGroup = createStyledGroupBox(tr("Repository Status"));
+  QVBoxLayout *layout = new QVBoxLayout(statusGroup);
+  layout->setSpacing(10);
+  layout->setContentsMargins(10, 10, 10, 10);
+
+  // Status card
+  statusCard = new BPStatusCard(this);
+  statusCard->setStyleSheet("BPStatusCard { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(statusCard);
+
+  mainLayout->addWidget(statusGroup);
+}
+
+void BPUpdaterPanelV2::createActionsGroup() {
+  actionsGroup = createStyledGroupBox(tr("Update Actions"));
+  QVBoxLayout *layout = new QVBoxLayout(actionsGroup);
+  layout->setSpacing(10);
+  layout->setContentsMargins(10, 10, 10, 10);
+
+  // Check for Updates
+  checkUpdatesControl = new BPCommandControl(
+    tr("Check for Updates"),
+    tr("Fetch latest changes from the remote repository"),
+    tr("CHECK"),
+    "check_updates",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(checkUpdatesControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleCheckUpdates);
+  checkUpdatesControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(checkUpdatesControl);
+
+  // Update Repository
+  updateControl = new BPCommandControl(
+    tr("Update Repository"),
+    tr("Pull latest changes and update all submodules"),
+    tr("UPDATE"),
+    "update_repo",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(updateControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleUpdate);
+  updateControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  updateControl->setEnabled(false);
+  layout->addWidget(updateControl);
+
+  // Switch Branch
+  switchBranchControl = new BPCommandControl(
+    tr("Switch Branch"),
+    tr("Change to a different branch"),
+    tr("SWITCH"),
+    "switch_branch",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(switchBranchControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleSwitchBranch);
+  switchBranchControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(switchBranchControl);
+
+  // View History
+  viewHistoryControl = new BPCommandControl(
+    tr("Commit History"),
+    tr("View recent commit history"),
+    tr("VIEW"),
+    "view_history",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(viewHistoryControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleViewHistory);
+  viewHistoryControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(viewHistoryControl);
+
+  mainLayout->addWidget(actionsGroup);
+}
+
+void BPUpdaterPanelV2::createAdvancedGroup() {
+  advancedGroup = createStyledGroupBox(tr("Advanced Operations"));
+  QVBoxLayout *layout = new QVBoxLayout(advancedGroup);
+  layout->setSpacing(10);
+  layout->setContentsMargins(10, 10, 10, 10);
+
+  // Reset Repository
+  resetControl = new BPCommandControl(
+    tr("Reset Repository"),
+    tr("Discard all local changes and reset to HEAD"),
+    tr("RESET"),
+    "reset_repo",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(resetControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleReset);
+  resetControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(resetControl);
+
+  // Repair Repository
+  repairControl = new BPCommandControl(
+    tr("Repair Repository"),
+    tr("Run git fsck and gc to repair and optimize the repository"),
+    tr("REPAIR"),
+    "repair_repo",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(repairControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleRepair);
+  repairControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(repairControl);
+
+  // Unshallow Repository
+  unshallowControl = new BPCommandControl(
+    tr("Unshallow Repository"),
+    tr("Fetch complete git history (uses significant disk space)"),
+    tr("UNSHALLOW"),
+    "unshallow_repo",
+    "", QJsonObject(), "", false, "", "", "", QJsonArray(),
+    this
+  );
+  connect(unshallowControl, &BPCommandControl::commandRequested, this, &BPUpdaterPanelV2::handleUnshallow);
+  unshallowControl->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(unshallowControl);
+
+  mainLayout->addWidget(advancedGroup);
 }
 
 void BPUpdaterPanelV2::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
 
-  // Refresh status when shown
-  QMetaObject::invokeMethod(gitWorker, "checkStatus", Qt::QueuedConnection);
+  // Defer status refresh to avoid blocking showEvent
+  QTimer::singleShot(0, this, [this]() {
+    QMetaObject::invokeMethod(gitWorker, "checkStatus", Qt::QueuedConnection);
+  });
 }
 
 void BPUpdaterPanelV2::hideEvent(QHideEvent *event) {
@@ -260,7 +274,6 @@ void BPUpdaterPanelV2::hideEvent(QHideEvent *event) {
 void BPUpdaterPanelV2::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
-  // Resize overlay to match panel
   if (progressOverlay) {
     progressOverlay->setGeometry(rect());
   }
@@ -271,18 +284,8 @@ void BPUpdaterPanelV2::checkOnroadStatus() {
   isOnroad = params.getBool("IsOnroad");
 
   if (isOnroad != wasOnroad) {
-    if (isOnroad) {
-      warningLabel->setText(getOnroadWarning());
-      warningLabel->setVisible(true);
-    } else {
-      warningLabel->setVisible(false);
-    }
     updateButtonStates();
   }
-}
-
-QString BPUpdaterPanelV2::getOnroadWarning() const {
-  return "⚠️ Vehicle is in motion - Updates disabled for safety";
 }
 
 bool BPUpdaterPanelV2::canPerformOperations() const {
@@ -292,13 +295,13 @@ bool BPUpdaterPanelV2::canPerformOperations() const {
 void BPUpdaterPanelV2::updateButtonStates() {
   bool canOperate = canPerformOperations();
 
-  checkUpdatesBtn->setEnabled(canOperate);
-  updateBtn->setEnabled(canOperate && currentStatus.hasUpdatesAvailable);
-  switchBranchBtn->setEnabled(canOperate);
-  historyBtn->setEnabled(canOperate);
-  resetBtn->setEnabled(canOperate && currentStatus.hasLocalChanges);
-  repairBtn->setEnabled(canOperate);
-  unshallowBtn->setEnabled(canOperate);
+  if (checkUpdatesControl) checkUpdatesControl->setEnabled(canOperate);
+  if (updateControl) updateControl->setEnabled(canOperate && currentStatus.hasUpdatesAvailable);
+  if (switchBranchControl) switchBranchControl->setEnabled(canOperate);
+  if (viewHistoryControl) viewHistoryControl->setEnabled(canOperate);
+  if (resetControl) resetControl->setEnabled(canOperate && currentStatus.hasLocalChanges);
+  if (repairControl) repairControl->setEnabled(canOperate);
+  if (unshallowControl) unshallowControl->setEnabled(canOperate);
 }
 
 void BPUpdaterPanelV2::onStatusReady(const GitStatus &status) {
@@ -312,15 +315,113 @@ void BPUpdaterPanelV2::onUpdatesCheckComplete(bool hasUpdates, int count) {
 }
 
 void BPUpdaterPanelV2::onBranchListReady(const QStringList &branches) {
-  // Show branch selector dialog
+  showBranchSelector(branches);
+}
+
+void BPUpdaterPanelV2::onCommitHistoryReady(const QStringList &commits) {
+  showHistoryDialog(commits);
+}
+
+void BPUpdaterPanelV2::onOperationStarted(const QString &operation) {
+  operationInProgress = true;
+  updateButtonStates();
+  progressOverlay->showOperation(operation);
+}
+
+void BPUpdaterPanelV2::onOperationProgress(const QString &message) {
+  progressOverlay->updateProgress(message);
+}
+
+void BPUpdaterPanelV2::onOperationComplete(bool success, const QString &message) {
+  operationInProgress = false;
+  updateButtonStates();
+  progressOverlay->showComplete(success, message);
+}
+
+void BPUpdaterPanelV2::onErrorOccurred(const QString &error) {
+  progressOverlay->showError(error);
+  operationInProgress = false;
+  updateButtonStates();
+}
+
+void BPUpdaterPanelV2::onCanOperateChanged(bool canOperate) {
+  updateButtonStates();
+}
+
+void BPUpdaterPanelV2::handleCheckUpdates() {
+  if (!canPerformOperations()) return;
+
+  statusCard->setCheckingState(true);
+  QMetaObject::invokeMethod(gitWorker, "checkForUpdates", Qt::QueuedConnection);
+}
+
+void BPUpdaterPanelV2::handleUpdate() {
+  if (!canPerformOperations()) return;
+
+  if (BPUpdateConfirmDialog::confirm(
+    tr("Update Repository"),
+    tr("This will update the repository to the latest version. Continue?"),
+    tr("Update"), tr("Cancel"), this)) {
+    QMetaObject::invokeMethod(gitWorker, "updateRepository", Qt::QueuedConnection);
+  }
+}
+
+void BPUpdaterPanelV2::handleSwitchBranch() {
+  if (!canPerformOperations()) return;
+
+  QMetaObject::invokeMethod(gitWorker, "fetchBranches",
+    Qt::QueuedConnection, Q_ARG(bool, true));
+}
+
+void BPUpdaterPanelV2::handleReset() {
+  if (!canPerformOperations()) return;
+
+  if (BPUpdateConfirmDialog::confirm(
+    tr("Reset Repository"),
+    tr("⚠️ This will discard all local changes and reset to HEAD. This cannot be undone. Continue?"),
+    tr("Reset"), tr("Cancel"), this)) {
+    QMetaObject::invokeMethod(gitWorker, "resetRepository", Qt::QueuedConnection);
+  }
+}
+
+void BPUpdaterPanelV2::handleRepair() {
+  if (!canPerformOperations()) return;
+
+  if (BPUpdateConfirmDialog::confirm(
+    tr("Repair Repository"),
+    tr("This will run git fsck and gc to repair the repository. This may take several minutes. Continue?"),
+    tr("Repair"), tr("Cancel"), this)) {
+    QMetaObject::invokeMethod(gitWorker, "repairRepository", Qt::QueuedConnection);
+  }
+}
+
+void BPUpdaterPanelV2::handleUnshallow() {
+  if (!canPerformOperations()) return;
+
+  if (BPUpdateConfirmDialog::confirm(
+    tr("Unshallow Repository"),
+    tr("This will fetch the complete git history. This may take a long time and use significant disk space. Continue?"),
+    tr("Unshallow"), tr("Cancel"), this)) {
+    QMetaObject::invokeMethod(gitWorker, "unshallowRepository", Qt::QueuedConnection);
+  }
+}
+
+void BPUpdaterPanelV2::handleViewHistory() {
+  if (!canPerformOperations()) return;
+
+  QMetaObject::invokeMethod(gitWorker, "fetchCommitHistory",
+    Qt::QueuedConnection, Q_ARG(int, 30));
+}
+
+void BPUpdaterPanelV2::showBranchSelector(const QStringList &branches) {
   if (branches.isEmpty()) {
-    BPUpdateConfirmDialog::alert("No branches found", this);
+    BPUpdateConfirmDialog::alert(tr("No branches found"), this);
     return;
   }
 
   QString current = currentStatus.currentBranch;
   QDialog *dialog = new QDialog(this);
-  dialog->setWindowTitle("Select Branch");
+  dialog->setWindowTitle(tr("Select Branch"));
   dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
 #ifdef QCOM2
@@ -340,7 +441,7 @@ void BPUpdaterPanelV2::onBranchListReady(const QStringList &branches) {
   layout->setContentsMargins(50, 50, 50, 50);
   layout->setSpacing(20);
 
-  QLabel *title = new QLabel("Select Branch");
+  QLabel *title = new QLabel(tr("Select Branch"));
   title->setStyleSheet(QString(R"(
     font-size: %1px;
     color: white;
@@ -384,7 +485,7 @@ void BPUpdaterPanelV2::onBranchListReady(const QStringList &branches) {
   QHBoxLayout *buttonLayout = new QHBoxLayout();
   buttonLayout->setSpacing(20);
 
-  QPushButton *cancelBtn = new QPushButton("Cancel");
+  QPushButton *cancelBtn = new QPushButton(tr("Cancel"));
   cancelBtn->setMinimumHeight(90);
   cancelBtn->setStyleSheet(QString(R"(
     QPushButton {
@@ -398,7 +499,7 @@ void BPUpdaterPanelV2::onBranchListReady(const QStringList &branches) {
   connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
   buttonLayout->addWidget(cancelBtn);
 
-  QPushButton *selectBtn = new QPushButton("Switch");
+  QPushButton *selectBtn = new QPushButton(tr("Switch"));
   selectBtn->setMinimumHeight(90);
   selectBtn->setStyleSheet(QString(R"(
     QPushButton {
@@ -428,116 +529,9 @@ void BPUpdaterPanelV2::onBranchListReady(const QStringList &branches) {
   dialog->deleteLater();
 }
 
-void BPUpdaterPanelV2::onCommitHistoryReady(const QStringList &commits) {
-  showHistoryDialog(commits);
-}
-
-void BPUpdaterPanelV2::onOperationStarted(const QString &operation) {
-  operationInProgress = true;
-  updateButtonStates();
-  progressOverlay->showOperation(operation);
-}
-
-void BPUpdaterPanelV2::onOperationProgress(const QString &message) {
-  progressOverlay->updateProgress(message);
-}
-
-void BPUpdaterPanelV2::onOperationComplete(bool success, const QString &message) {
-  operationInProgress = false;
-  updateButtonStates();
-  progressOverlay->showComplete(success, message);
-}
-
-void BPUpdaterPanelV2::onErrorOccurred(const QString &error) {
-  progressOverlay->showError(error);
-  operationInProgress = false;
-  updateButtonStates();
-}
-
-void BPUpdaterPanelV2::onCanOperateChanged(bool canOperate) {
-  updateButtonStates();
-}
-
-void BPUpdaterPanelV2::handleCheckUpdates() {
-  if (!canPerformOperations()) return;
-
-  statusCard->setCheckingState(true);
-  QMetaObject::invokeMethod(gitWorker, "checkForUpdates", Qt::QueuedConnection);
-}
-
-void BPUpdaterPanelV2::handleUpdate() {
-  if (!canPerformOperations()) return;
-
-  showConfirmDialog(
-    "Update Repository",
-    "This will update the repository to the latest version. Continue?",
-    [this]() {
-      QMetaObject::invokeMethod(gitWorker, "updateRepository", Qt::QueuedConnection);
-    }
-  );
-}
-
-void BPUpdaterPanelV2::handleSwitchBranch() {
-  if (!canPerformOperations()) return;
-
-  // Request branch list
-  QMetaObject::invokeMethod(gitWorker, "fetchBranches",
-    Qt::QueuedConnection, Q_ARG(bool, true));
-}
-
-void BPUpdaterPanelV2::handleReset() {
-  if (!canPerformOperations()) return;
-
-  showConfirmDialog(
-    "Reset Repository",
-    "⚠️ This will discard all local changes and reset to HEAD. This cannot be undone. Continue?",
-    [this]() {
-      QMetaObject::invokeMethod(gitWorker, "resetRepository", Qt::QueuedConnection);
-    }
-  );
-}
-
-void BPUpdaterPanelV2::handleRepair() {
-  if (!canPerformOperations()) return;
-
-  showConfirmDialog(
-    "Repair Repository",
-    "This will run git fsck and gc to repair the repository. This may take several minutes. Continue?",
-    [this]() {
-      QMetaObject::invokeMethod(gitWorker, "repairRepository", Qt::QueuedConnection);
-    }
-  );
-}
-
-void BPUpdaterPanelV2::handleUnshallow() {
-  if (!canPerformOperations()) return;
-
-  showConfirmDialog(
-    "Unshallow Repository",
-    "This will fetch the complete git history. This may take a long time and use significant disk space. Continue?",
-    [this]() {
-      QMetaObject::invokeMethod(gitWorker, "unshallowRepository", Qt::QueuedConnection);
-    }
-  );
-}
-
-void BPUpdaterPanelV2::handleViewHistory() {
-  if (!canPerformOperations()) return;
-
-  QMetaObject::invokeMethod(gitWorker, "fetchCommitHistory",
-    Qt::QueuedConnection, Q_ARG(int, 30));
-}
-
-void BPUpdaterPanelV2::showConfirmDialog(const QString &title, const QString &message,
-                                        std::function<void()> onConfirm) {
-  if (BPUpdateConfirmDialog::confirm(title, message, "Continue", "Cancel", this)) {
-    onConfirm();
-  }
-}
-
 void BPUpdaterPanelV2::showHistoryDialog(const QStringList &commits) {
   QDialog *dialog = new QDialog(this);
-  dialog->setWindowTitle("Commit History");
+  dialog->setWindowTitle(tr("Commit History"));
   dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
 #ifdef QCOM2
@@ -557,7 +551,7 @@ void BPUpdaterPanelV2::showHistoryDialog(const QStringList &commits) {
   layout->setContentsMargins(50, 50, 50, 50);
   layout->setSpacing(20);
 
-  QLabel *title = new QLabel("Recent Commits");
+  QLabel *title = new QLabel(tr("Recent Commits"));
   title->setStyleSheet(QString(R"(
     font-size: %1px;
     color: white;
@@ -567,7 +561,7 @@ void BPUpdaterPanelV2::showHistoryDialog(const QStringList &commits) {
 
   QTableWidget *table = new QTableWidget();
   table->setColumnCount(3);
-  table->setHorizontalHeaderLabels({"Hash", "Message", "Author (Time)"});
+  table->setHorizontalHeaderLabels({tr("Hash"), tr("Message"), tr("Author (Time)")});
   table->setStyleSheet(QString(R"(
     QTableWidget {
       background-color: #1B1B1B;
@@ -605,7 +599,7 @@ void BPUpdaterPanelV2::showHistoryDialog(const QStringList &commits) {
 
   layout->addWidget(table);
 
-  QPushButton *closeBtn = new QPushButton("Close");
+  QPushButton *closeBtn = new QPushButton(tr("Close"));
   closeBtn->setMinimumHeight(90);
   closeBtn->setStyleSheet(QString(R"(
     QPushButton {
