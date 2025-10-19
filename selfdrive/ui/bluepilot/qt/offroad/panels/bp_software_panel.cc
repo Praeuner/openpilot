@@ -7,9 +7,17 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QEventLoop>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QScroller>
+#include <QScrollerProperties>
+
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_recent_changes.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/software/bp_git_manager.h"
+#include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
 #include "selfdrive/ui/sunnypilot/qt/util.h"
 #include "system/hardware/hw.h"
@@ -47,11 +55,17 @@ static void showBPAlert(const QString &message, QWidget *parent) {
 }
 
 BPSoftwarePanel::BPSoftwarePanel(QWidget *parent) : QWidget(parent) {
+  // Initialize git manager
+  gitManager = new BPGitManager(this);
+
+  // Setup UI with tabs
   setupUI();
 
-  // Refresh timer for periodic updates (only active when visible)
-  refreshTimer = new QTimer(this);
-  connect(refreshTimer, &QTimer::timeout, this, &BPSoftwarePanel::refreshAll);
+  // Setup ParamWatcher for reactive updates (like stock SoftwarePanel)
+  fs_watch = new ParamWatcher(this);
+  QObject::connect(fs_watch, &ParamWatcher::paramChanged, [=](const QString &param_name, const QString &param_value) {
+    updateLabels();
+  });
 
   // Connect to offroad transition
   connect(uiState(), &UIState::offroadTransition, this, [this](bool offroad) {
@@ -59,19 +73,34 @@ BPSoftwarePanel::BPSoftwarePanel(QWidget *parent) : QWidget(parent) {
     updateLabels();
     updateDisableUpdatesToggle(offroad);
   });
+
+  // Timer for repo status updates (Advanced tab)
+  repoStatusTimer = new QTimer(this);
+  connect(repoStatusTimer, &QTimer::timeout, this, &BPSoftwarePanel::updateRepoStatus);
 }
 
 void BPSoftwarePanel::setupUI() {
   mainLayout = new QVBoxLayout(this);
-  mainLayout->setContentsMargins(40, 40, 40, 40);
-  mainLayout->setSpacing(30);
+  mainLayout->setContentsMargins(40, 20, 40, 20);
+  mainLayout->setSpacing(20);
 
-  // Create all groups
+  // Create all groups in order
   createVersionInfoGroup();
   createUpdateControlsGroup();
   createBranchSelectionGroup();
-  createAdvancedGroup();
+  createRepoStatusGroup();
+  createGitOperationsGroup();
+  createSystemGroup();
+  createAdvancedWarning();
 
+  // Add all groups to main layout
+  mainLayout->addWidget(versionInfoGroup);
+  mainLayout->addWidget(updateControlsGroup);
+  mainLayout->addWidget(branchSelectionGroup);
+  mainLayout->addWidget(repoStatusGroup);
+  mainLayout->addWidget(gitOperationsGroup);
+  mainLayout->addWidget(systemGroup);
+  mainLayout->addWidget(advancedWarningLabel);
   mainLayout->addStretch();
 
   setStyleSheet(R"(
@@ -84,6 +113,7 @@ void BPSoftwarePanel::setupUI() {
     }
   )");
 }
+
 
 QGroupBox* BPSoftwarePanel::createStyledGroupBox(const QString &title) {
   QGroupBox *group = new QGroupBox(title, this);
@@ -201,7 +231,23 @@ void BPSoftwarePanel::createVersionInfoGroup() {
   layout->addWidget(newVersionWidget);
   newVersionWidget->setVisible(false);
 
-  mainLayout->addWidget(versionInfoGroup);
+  // Recent Changes button (using BPCommandControl style)
+  recentChangesBtn = new BPCommandControl(
+    tr("Recent Changes"),
+    tr("View the latest changes and updates to BluePilot"),
+    tr("VIEW"),
+    "recent_changes",
+    "",
+    QJsonObject(),
+    "",
+    false,
+    "", "", "",
+    QJsonArray(),
+    this
+  );
+  connect(recentChangesBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onRecentChangesClicked);
+  recentChangesBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(recentChangesBtn);
 }
 
 void BPSoftwarePanel::createUpdateControlsGroup() {
@@ -353,9 +399,9 @@ void BPSoftwarePanel::createBranchSelectionGroup() {
   mainLayout->addWidget(branchSelectionGroup);
 }
 
-void BPSoftwarePanel::createAdvancedGroup() {
-  advancedGroup = createStyledGroupBox(tr("Advanced"));
-  QVBoxLayout *layout = new QVBoxLayout(advancedGroup);
+void BPSoftwarePanel::createSystemGroup() {
+  systemGroup = createStyledGroupBox(tr("System"));
+  QVBoxLayout *layout = new QVBoxLayout(systemGroup);
   layout->setSpacing(15);
   layout->setContentsMargins(10, 10, 10, 10);
 
@@ -387,8 +433,6 @@ void BPSoftwarePanel::createAdvancedGroup() {
   connect(uninstallBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onUninstallClicked);
   uninstallBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(uninstallBtn);
-
-  mainLayout->addWidget(advancedGroup);
 }
 
 void BPSoftwarePanel::showEvent(QShowEvent *event) {
@@ -399,27 +443,33 @@ void BPSoftwarePanel::showEvent(QShowEvent *event) {
     // Update initial state
     is_onroad = uiState()->scene.started;
 
-    // Start refresh timer
-    refreshTimer->start(1000);  // Refresh every second
-
     // Initial update
     updateLabels();
     updateDisableUpdatesToggle(!is_onroad);
+
+    // Start repo status updates
+    updateRepoStatus();
+    repoStatusTimer->start(5000);  // Update every 5 seconds
+
+    // Nice for testing on PC
+    installBtn->setEnabled(true);
   });
 }
 
 void BPSoftwarePanel::hideEvent(QHideEvent *event) {
   QWidget::hideEvent(event);
 
-  // Stop refresh timer
-  refreshTimer->stop();
-}
-
-void BPSoftwarePanel::refreshAll() {
-  updateLabels();
+  // Stop repo status updates when panel is hidden
+  repoStatusTimer->stop();
 }
 
 void BPSoftwarePanel::updateLabels() {
+  // Add params back in case the files got removed (like stock panel)
+  fs_watch->addParam("LastUpdateTime");
+  fs_watch->addParam("UpdateFailedCount");
+  fs_watch->addParam("UpdaterState");
+  fs_watch->addParam("UpdateAvailable");
+
   if (!isVisible()) {
     return;
   }
@@ -609,4 +659,557 @@ void BPSoftwarePanel::updateDisableUpdatesToggle(bool offroad) {
   } else {
     disableUpdatesToggle->setDescription(tr("Please enable always offroad mode or turn off vehicle to adjust this toggle"));
   }
+}
+
+// ========== Advanced Tab Methods (Stubs for now) ==========
+
+void BPSoftwarePanel::createRepoStatusGroup() {
+  repoStatusGroup = createStyledGroupBox(tr("Repository Status"));
+  QVBoxLayout *layout = new QVBoxLayout(repoStatusGroup);
+  layout->setSpacing(15);
+  layout->setContentsMargins(25, 25, 25, 25);
+
+  // Branch name with color
+  repoBranchLabel = new QLabel(tr("Loading..."), this);
+  repoBranchLabel->setStyleSheet("QLabel { color: #4CAF50; font-size: 40px; font-weight: 600; }");
+  layout->addWidget(repoBranchLabel);
+
+  // Commit message
+  repoCommitLabel = new QLabel("", this);
+  repoCommitLabel->setStyleSheet("QLabel { color: #E0E0E0; font-size: 34px; }");
+  repoCommitLabel->setWordWrap(true);
+  layout->addWidget(repoCommitLabel);
+
+  // Timestamp and hash on same line
+  QWidget *metadataWidget = new QWidget(this);
+  QHBoxLayout *metadataLayout = new QHBoxLayout(metadataWidget);
+  metadataLayout->setContentsMargins(0, 0, 0, 0);
+  metadataLayout->setSpacing(20);
+
+  repoTimestampLabel = new QLabel("", this);
+  repoTimestampLabel->setStyleSheet("QLabel { color: #999999; font-size: 30px; }");
+  metadataLayout->addWidget(repoTimestampLabel);
+
+  repoHashLabel = new QLabel("", this);
+  repoHashLabel->setStyleSheet("QLabel { color: #2196F3; font-size: 30px; font-family: monospace; }");
+  metadataLayout->addWidget(repoHashLabel);
+
+  metadataLayout->addStretch();
+  layout->addWidget(metadataWidget);
+
+  // Status with color
+  repoStatusLabel = new QLabel("", this);
+  repoStatusLabel->setStyleSheet("QLabel { color: #FFA726; font-size: 32px; font-weight: 500; }");
+  layout->addWidget(repoStatusLabel);
+}
+
+void BPSoftwarePanel::createGitOperationsGroup() {
+  gitOperationsGroup = createStyledGroupBox(tr("Git Operations"));
+  QVBoxLayout *layout = new QVBoxLayout(gitOperationsGroup);
+  layout->setSpacing(15);
+  layout->setContentsMargins(10, 10, 10, 10);
+
+  // Advanced badge helper - adds orange "ADVANCED" badge to the right
+  auto addAdvancedBadge = [](BPCommandControl *control) {
+    // Create a container widget to hold both the control and the badge
+    QWidget *container = new QWidget();
+    QHBoxLayout *hLayout = new QHBoxLayout(container);
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hLayout->setSpacing(15);
+
+    hLayout->addWidget(control, 1);  // Control takes up most space
+
+    // Advanced badge
+    QLabel *badge = new QLabel("ADVANCED");
+    badge->setStyleSheet(R"(
+      QLabel {
+        background-color: #FF6B00;
+        color: white;
+        font-size: 26px;
+        font-weight: 700;
+        padding: 8px 20px;
+        border-radius: 6px;
+        letter-spacing: 1px;
+      }
+    )");
+    badge->setAlignment(Qt::AlignCenter);
+    badge->setFixedHeight(50);
+    hLayout->addWidget(badge);
+
+    return container;
+  };
+
+  // Manual Update button
+  manualUpdateBtn = new BPCommandControl(
+    tr("Manual Update"),
+    tr("Bypass update daemon and perform direct git pull + build"),
+    tr("UPDATE"),
+    "manual_update",
+    "",
+    QJsonObject(),
+    "",
+    false,
+    "", "", "",
+    QJsonArray(),
+    this
+  );
+  connect(manualUpdateBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onManualUpdateClicked);
+  manualUpdateBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(addAdvancedBadge(manualUpdateBtn));
+
+  // Repair button
+  repairBtn = new BPCommandControl(
+    tr("Repair Repository"),
+    tr("Clean and reset the repository to a known good state"),
+    tr("REPAIR"),
+    "repair",
+    "",
+    QJsonObject(),
+    "",
+    false,
+    "", "", "",
+    QJsonArray(),
+    this
+  );
+  connect(repairBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onRepairClicked);
+  repairBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(addAdvancedBadge(repairBtn));
+
+  // Reset button
+  resetBtn = new BPCommandControl(
+    tr("Reset Changes"),
+    tr("Discard all local changes and reset to HEAD"),
+    tr("RESET"),
+    "reset",
+    "",
+    QJsonObject(),
+    "",
+    false,
+    "", "", "",
+    QJsonArray(),
+    this
+  );
+  connect(resetBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onResetClicked);
+  resetBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(addAdvancedBadge(resetBtn));
+
+  // History button
+  historyBtn = new BPCommandControl(
+    tr("View Commit History"),
+    tr("Show the last 30 commits for this branch"),
+    tr("HISTORY"),
+    "history",
+    "",
+    QJsonObject(),
+    "",
+    false,
+    "", "", "",
+    QJsonArray(),
+    this
+  );
+  connect(historyBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onHistoryClicked);
+  historyBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(addAdvancedBadge(historyBtn));
+}
+
+void BPSoftwarePanel::createAdvancedWarning() {
+  QLabel *warningLabel = new QLabel(tr("WARNING: Advanced operations bypass the update daemon and are for experienced users only."), this);
+  warningLabel->setStyleSheet(R"(
+    QLabel {
+      color: #FFA500;
+      font-size: 30px;
+      font-weight: 500;
+      padding: 15px 20px;
+      background-color: rgba(255, 165, 0, 0.15);
+      border-radius: 8px;
+      border-left: 4px solid #FFA500;
+    }
+  )");
+  warningLabel->setWordWrap(true);
+  warningLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+  advancedWarningLabel = warningLabel;
+}
+
+void BPSoftwarePanel::updateRepoStatus() {
+  // Update repo status asynchronously using gitManager
+  gitManager->getRepoStatus([this](const BPGitManager::RepoStatus &status) {
+    if (!status.isValid) {
+      repoBranchLabel->setText(tr("Error: %1").arg(status.error));
+      repoCommitLabel->setText("");
+      repoTimestampLabel->setText("");
+      repoHashLabel->setText("");
+      repoStatusLabel->setText("");
+      return;
+    }
+
+    // Update branch (green, bold)
+    repoBranchLabel->setText(status.branch);
+
+    // Update commit message
+    repoCommitLabel->setText(status.commitMessage.isEmpty() ? tr("No commit message") : status.commitMessage);
+
+    // Update timestamp and hash on same line
+    repoTimestampLabel->setText(status.commitDate.isEmpty() ? tr("Unknown time") : status.commitDate);
+    repoHashLabel->setText(status.commit);
+
+    // Update status with color coding
+    QStringList statusParts;
+    QString statusColor = "#4CAF50"; // Green for clean
+
+    if (status.hasLocalChanges) {
+      statusParts << tr("Modified");
+      statusColor = "#FF9800"; // Orange for modified
+    } else {
+      statusParts << tr("Clean");
+    }
+
+    if (status.hasUpdatesAvailable) {
+      statusParts << tr("Updates Available");
+      statusColor = "#2196F3"; // Blue for updates
+    }
+
+    repoStatusLabel->setText(tr("Status: %1").arg(statusParts.join(", ")));
+    repoStatusLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 32px; font-weight: 500; }").arg(statusColor));
+  });
+}
+
+
+void BPSoftwarePanel::onRecentChangesClicked() {
+  BPRecentChangesDialog *dialog = new BPRecentChangesDialog(this);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->exec();
+}
+
+void BPSoftwarePanel::onManualUpdateClicked() {
+  if (commandInProgress) {
+    showBPAlert(tr("A command is already running. Please wait."), this);
+    return;
+  }
+
+  // Check for uncommitted changes
+  gitManager->hasUncommittedChanges([this](bool hasChanges) {
+    QString message;
+    if (hasChanges) {
+      message = tr("You have uncommitted changes that will be lost. Continue with update?");
+    } else {
+      message = tr("This will pull the latest changes and rebuild. Continue?");
+    }
+
+    if (showBPConfirmation(tr("Manual Update"), message, tr("Update"), tr("Cancel"), this)) {
+      manualUpdate();
+    }
+  });
+}
+
+void BPSoftwarePanel::onRepairClicked() {
+  if (commandInProgress) {
+    showBPAlert(tr("A command is already running. Please wait."), this);
+    return;
+  }
+
+  if (showBPConfirmation(
+        tr("Repair Repository"),
+        tr("This will reset and clean the repository. All local changes will be lost. Continue?"),
+        tr("Repair"),
+        tr("Cancel"),
+        this)) {
+    repairRepository();
+  }
+}
+
+void BPSoftwarePanel::onResetClicked() {
+  if (commandInProgress) {
+    showBPAlert(tr("A command is already running. Please wait."), this);
+    return;
+  }
+
+  if (showBPConfirmation(
+        tr("Reset Changes"),
+        tr("This will discard all uncommitted changes. This cannot be undone. Continue?"),
+        tr("Reset"),
+        tr("Cancel"),
+        this)) {
+    resetRepository();
+  }
+}
+
+void BPSoftwarePanel::onHistoryClicked() {
+  viewHistory();
+}
+
+void BPSoftwarePanel::manualUpdate() {
+  commandInProgress = true;
+
+  // Simple implementation for now - show progress dialog
+  showBPAlert(
+    tr("Manual update functionality will be available in a future update. "
+       "For now, please use the Updates tab for software updates."),
+    this
+  );
+
+  commandInProgress = false;
+  updateRepoStatus();
+}
+
+void BPSoftwarePanel::repairRepository() {
+  commandInProgress = true;
+
+  // Run git reset and clean
+  QtConcurrent::run([this]() {
+    auto result = BPGitManager::executeCommand("git reset --hard HEAD && git clean -xdff", "", 60000);
+
+    QMetaObject::invokeMethod(this, [this, result]() {
+      commandInProgress = false;
+
+      if (result.success) {
+        showBPAlert(tr("Repository repaired successfully!"), this);
+      } else {
+        showBPAlert(
+          tr("Repair failed: %1").arg(result.error.isEmpty() ? result.output : result.error),
+          this
+        );
+      }
+
+      updateRepoStatus();
+    }, Qt::QueuedConnection);
+  });
+}
+
+void BPSoftwarePanel::resetRepository() {
+  commandInProgress = true;
+
+  // Run git reset
+  QtConcurrent::run([this]() {
+    auto result = BPGitManager::executeCommand("git reset --hard HEAD", "", 30000);
+
+    QMetaObject::invokeMethod(this, [this, result]() {
+      commandInProgress = false;
+
+      if (result.success) {
+        showBPAlert(tr("Changes reset successfully!"), this);
+      } else {
+        showBPAlert(
+          tr("Reset failed: %1").arg(result.error.isEmpty() ? result.output : result.error),
+          this
+        );
+      }
+
+      updateRepoStatus();
+    }, Qt::QueuedConnection);
+  });
+}
+
+void BPSoftwarePanel::viewHistory() {
+  gitManager->getRepoStatus([this](const BPGitManager::RepoStatus &status) {
+    QString title = tr("%1 - Last 30 Commits").arg(status.branch);
+    showCommitHistory(title, BPGitManager::getGitRoot());
+  });
+}
+
+void BPSoftwarePanel::showCommitHistory(const QString &title, const QString &workingDir) {
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowTitle(title);
+  dialog->setModal(true);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->setContentsMargins(30, 30, 30, 30);
+  layout->setSpacing(20);
+
+  // Add title
+  QLabel *titleLabel = new QLabel(title);
+  titleLabel->setStyleSheet("QLabel { font-size: 45px; font-weight: 600; color: #FFFFFF; }");
+  layout->addWidget(titleLabel);
+
+  // Create scroll area
+  QScrollArea *scrollArea = new QScrollArea(dialog);
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scrollArea->setStyleSheet(R"(
+    QScrollArea { border: none; background-color: #1B1B1B; }
+    QScrollBar:vertical {
+      width: 10px;
+      background: #1e1e1e;
+      margin: 0px;
+    }
+    QScrollBar::handle:vertical {
+      min-height: 30px;
+      border-radius: 5px;
+      background: #465BEA;
+    }
+  )");
+
+  QWidget *scrollContent = new QWidget(scrollArea);
+  QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
+  scrollLayout->setContentsMargins(0, 0, 0, 0);
+
+  // Create table
+  QTableWidget *table = new QTableWidget(scrollContent);
+  table->setColumnCount(4);
+  table->setHorizontalHeaderLabels({tr("Hash"), tr("Description"), tr("Time"), tr("Actions")});
+  table->setShowGrid(false);
+  table->setSelectionMode(QAbstractItemView::NoSelection);
+  table->setFocusPolicy(Qt::NoFocus);
+  table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  table->horizontalHeader()->setStretchLastSection(false);
+  table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+  table->verticalHeader()->hide();
+  table->verticalHeader()->setDefaultSectionSize(90);
+  table->setAlternatingRowColors(true);
+  table->setWordWrap(true);
+  table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+  table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
+  table->setColumnWidth(0, 180);
+  table->setColumnWidth(2, 300);
+  table->setColumnWidth(3, 220);
+  table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+  table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+  table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+  // Enable touch scrolling
+  QScroller::grabGesture(table->viewport(), QScroller::LeftMouseButtonGesture);
+  QScroller::grabGesture(scrollArea->viewport(), QScroller::LeftMouseButtonGesture);
+
+  table->setStyleSheet(R"(
+    QTableWidget {
+      font-family: Inter, sans-serif;
+      font-size: 32px;
+      padding: 10px;
+      background-color: #1B1B1B;
+      color: #E0E0E0;
+      border: none;
+      alternate-background-color: #232323;
+    }
+    QHeaderView::section {
+      background-color: #2D2D2D;
+      color: #FFFFFF;
+      padding: 12px;
+      border: none;
+      font-weight: 600;
+      font-size: 34px;
+    }
+    QTableWidget::item {
+      padding: 15px;
+      border-right: 1px solid #404040;
+    }
+  )");
+
+  // Fetch commits asynchronously
+  QtConcurrent::run([dialog, table, workingDir, this]() {
+    auto result = BPGitManager::executeCommand(
+      "git log --all -n 30 --pretty=format:'%h|||%s|||%cr'",
+      workingDir,
+      10000
+    );
+
+    QMetaObject::invokeMethod(dialog, [dialog, table, result, workingDir, this]() {
+      if (!result.success) {
+        BPLog::bpError() << "[bp.software.panel] showCommitHistory | Git log failed: "
+                         << result.error.toStdString() << std::endl;
+        return;
+      }
+
+      QStringList commits = result.output.split("\n", QString::SkipEmptyParts);
+      table->setRowCount(commits.size());
+
+      for (int i = 0; i < commits.size(); ++i) {
+        QStringList parts = commits[i].split("|||");
+        if (parts.size() == 3) {
+          auto createItem = [](const QString &text, Qt::Alignment alignment) {
+            QTableWidgetItem *item = new QTableWidgetItem(text);
+            item->setTextAlignment(alignment);
+            return item;
+          };
+
+          table->setItem(i, 0, createItem(parts[0], Qt::AlignLeft | Qt::AlignVCenter));
+          table->setItem(i, 1, createItem(parts[1], Qt::AlignLeft | Qt::AlignVCenter));
+          table->setItem(i, 2, createItem(parts[2], Qt::AlignLeft | Qt::AlignVCenter));
+
+          // Add checkout button
+          QWidget *buttonContainer = new QWidget();
+          QHBoxLayout *buttonLayout = new QHBoxLayout(buttonContainer);
+          buttonLayout->setContentsMargins(5, 0, 5, 0);
+          buttonLayout->setSpacing(5);
+
+          QPushButton *checkoutButton = new QPushButton(tr("Checkout"));
+          checkoutButton->setStyleSheet(R"(
+            QPushButton {
+              border-radius: 8px;
+              font-size: 28px;
+              padding: 10px 15px;
+              background-color: #465BEA;
+              color: white;
+              min-width: 140px;
+              min-height: 50px;
+            }
+            QPushButton:pressed { background-color: #3049F4; }
+          )");
+
+          QString commitHash = parts[0];
+          connect(checkoutButton, &QPushButton::clicked, [dialog, commitHash, workingDir, this]() {
+            if (showBPConfirmation(
+                  tr("Checkout Commit"),
+                  tr("Checkout commit %1?\n\nThis will discard all local changes.").arg(commitHash),
+                  tr("Checkout"),
+                  tr("Cancel"),
+                  dialog)) {
+
+              dialog->accept();
+
+              QtConcurrent::run([commitHash, workingDir, this]() {
+                QString command = QString("git checkout %1 -f && git reset --hard && git clean -fd").arg(commitHash);
+                auto result = BPGitManager::executeCommand(command, workingDir, 60000);
+
+                QMetaObject::invokeMethod(this, [result, this]() {
+                  if (result.success) {
+                    showBPAlert(tr("Checkout successful! Please restart the UI."), this);
+                  } else {
+                    showBPAlert(tr("Checkout failed: %1").arg(result.error), this);
+                  }
+                  updateRepoStatus();
+                }, Qt::QueuedConnection);
+              });
+            }
+          });
+
+          buttonLayout->addWidget(checkoutButton);
+          table->setCellWidget(i, 3, buttonContainer);
+        }
+      }
+    }, Qt::QueuedConnection);
+  });
+
+  scrollLayout->addWidget(table);
+  scrollArea->setWidget(scrollContent);
+  layout->addWidget(scrollArea);
+
+  // Close button
+  QPushButton *closeButton = new QPushButton(tr("Close"), dialog);
+  closeButton->setStyleSheet(R"(
+    QPushButton {
+      border-radius: 10px;
+      font-size: 40px;
+      padding: 15px;
+      background-color: #465BEA;
+      color: white;
+      min-height: 70px;
+    }
+    QPushButton:pressed { background-color: #3049F4; }
+  )");
+  connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+  layout->addWidget(closeButton);
+
+  // Setup fullscreen
+  QScreen *screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    dialog->setFixedSize(2160, 1080);
+  }
+
+  dialog->exec();
+}
+
+void BPSoftwarePanel::showRecentChanges() {
+  onRecentChangesClicked();
 }

@@ -1,6 +1,11 @@
 // selfdrive/ui/bluepilot/qt/offroad/panels/bp_software_panel.h
-// BluePilot Software Panel - Native implementation with BP styling
-// Handles software updates, branch selection, and version management
+// BluePilot Software Panel - Unified software management panel
+//
+// Features:
+// - Daemon-based updates (safe, automatic)
+// - Direct git operations (manual, power user)
+// - ParamWatcher for reactive UI updates
+// - Non-blocking QtConcurrent operations
 
 #pragma once
 
@@ -9,17 +14,29 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QTimer>
+#include <QProcess>
+#include <QScreen>
+#include <QtConcurrent>
 
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
+#include "selfdrive/ui/qt/util.h"
 #include "common/params.h"
 #include "common/util.h"
 
+// Forward declarations
+class BPCommandDialog;
+class BPGitManager;
+class BPRecentChangesDialog;
+
 /**
- * BPSoftwarePanel - Native software update panel with BP styling
+ * BPSoftwarePanel - Unified software management panel
  *
- * This panel provides software update management, branch selection,
- * and version display using BluePilot controls and styling.
+ * Combines daemon-based updates with advanced git operations
+ * - ParamWatcher for reactive UI updates
+ * - Works with system/updated/updated.py
+ * - Direct git operations for advanced features
+ * - Non-blocking QtConcurrent operations
  */
 class BPSoftwarePanel : public QWidget {
   Q_OBJECT
@@ -32,62 +49,92 @@ protected:
   void hideEvent(QHideEvent *event) override;
 
 private:
+  // === UI Setup ===
   void setupUI();
   void createVersionInfoGroup();
   void createUpdateControlsGroup();
   void createBranchSelectionGroup();
-  void createAdvancedGroup();
+  void createRepoStatusGroup();
+  void createGitOperationsGroup();
+  void createSystemGroup();
+  void createAdvancedWarning();
 
   // Helper methods
   QGroupBox* createStyledGroupBox(const QString &title);
-  void refreshAll();
   void updateLabels();
   void updateVersionInfo();
   void updateDownloadButton();
   void updateInstallButton();
   void updateBranchSelector();
+  void updateRepoStatus();
   void checkForUpdates();
   void searchBranches(const QString &query);
 
+  // Advanced operations (async, non-blocking)
+  void manualUpdate();
+  void repairRepository();
+  void resetRepository();
+  void viewHistory();
+  void showRecentChanges();
+  void showCommitHistory(const QString &title, const QString &workingDir);
+
   // Core components
   Params params;
+  ParamWatcher *fs_watch;
+  BPGitManager *gitManager;
 
-  // Layout
+  // === Main Layout ===
   QVBoxLayout *mainLayout;
 
-  // Groups
+  // === Version Info ===
   QGroupBox *versionInfoGroup;
-  QGroupBox *updateControlsGroup;
-  QGroupBox *branchSelectionGroup;
-  QGroupBox *advancedGroup;
-
-  // Version Info Group
   QLabel *onroadLabel;
   QLabel *currentVersionLabel;
   QLabel *currentVersionDesc;
   QLabel *newVersionLabel;
   QLabel *newVersionDesc;
+  BPCommandControl *recentChangesBtn;
 
-  // Update Controls Group
+  // === Update Controls ===
+  QGroupBox *updateControlsGroup;
   QPushButton *downloadBtn;
   QLabel *downloadStatusLabel;
   QPushButton *installBtn;
   QLabel *installStatusLabel;
 
-  // Branch Selection Group
+  // === Branch Selection ===
+  QGroupBox *branchSelectionGroup;
   QPushButton *branchBtn;
   QLabel *branchStatusLabel;
 
-  // Advanced Group
+  // === Repository Status ===
+  QGroupBox *repoStatusGroup;
+  QLabel *repoBranchLabel;
+  QLabel *repoCommitLabel;
+  QLabel *repoTimestampLabel;
+  QLabel *repoHashLabel;
+  QLabel *repoStatusLabel;
+  QTimer *repoStatusTimer;
+
+  // === Git Operations ===
+  QGroupBox *gitOperationsGroup;
+  BPCommandControl *manualUpdateBtn;
+  BPCommandControl *repairBtn;
+  BPCommandControl *resetBtn;
+  BPCommandControl *historyBtn;
+
+  // === System ===
+  QGroupBox *systemGroup;
   BPToggleControl *disableUpdatesToggle;
   BPCommandControl *uninstallBtn;
+
+  // === Warning ===
+  QLabel *advancedWarningLabel;
 
   // State tracking
   bool is_onroad = false;
   QString updater_state;
-
-  // Timers
-  QTimer *refreshTimer;
+  bool commandInProgress = false;
 
 private slots:
   void onDownloadClicked();
@@ -96,4 +143,9 @@ private slots:
   void onUninstallClicked();
   void onDisableUpdatesToggled(bool enabled);
   void updateDisableUpdatesToggle(bool offroad);
+  void onManualUpdateClicked();
+  void onRepairClicked();
+  void onResetClicked();
+  void onHistoryClicked();
+  void onRecentChangesClicked();
 };

@@ -110,6 +110,10 @@
               "enableConditions": {
                 "allConditionsTrue": [
                   {
+                    "isReleaseBranch": false,
+                    "reason": "Not available on release branches"
+                  },
+                  {
                     "hasAlphaLongitudinalAvailable": true,
                     "reason": "Requires alpha longitudinal to be available"
                   }
