@@ -36,13 +36,11 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_base_view.cc",
   "bluepilot/qt/offroad/panels/bp_nested_view.cc",
   "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
-  # Web-based routes panel (simplified - no video playback)
+  # Web-based routes pane
   "bluepilot/qt/offroad/routes_panel/bp_routes_panel.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
-  # BluePilot Updater Panel
-  # "bluepilot/qt/offroad/panels/bp_updater_panel.cc",
   # BluePilot Network Panel (Native)
   "bluepilot/qt/offroad/panels/bp_network_panel.cc",
   # BluePilot Software Panel (Native)

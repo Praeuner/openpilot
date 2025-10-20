@@ -11,22 +11,22 @@
 #include "selfdrive/ui/qt/offroad/firehose.h"
 #include "selfdrive/ui/sunnypilot/qt/network/networking.h"
 
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/developer_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/display_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/models_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/software_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/developer_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/device_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/display_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/models_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/software_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnylink_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/lateral_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/longitudinal_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/lateral_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/longitudinal_panel.h"
 // #include "selfdrive/ui/sunnypilot/qt/offroad/settings/osm_panel.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/trips_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle_panel.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/visuals_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/vehicle_panel.h"
+// #include "selfdrive/ui/sunnypilot/qt/offroad/settings/visuals_panel.h"
 
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_base_view.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_nav_bar_view.h"
-// #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_updater_panel.h"
+
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_statistics_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_network_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_software_panel.h"
@@ -119,11 +119,6 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   BPBaseView *bpVehicleView = new BPBaseView(this);
   bpVehicleView->initialize("/selfdrive/ui/bluepilot/menus/bp_vehicle_panel.json");
 
-  // Check if prebuilt file exists in root directory
-  // QString rootPath = qApp->applicationDirPath() + "/../..";
-  // QString prebuiltPath = rootPath + "/prebuilt";
-  // bool hasPrebuiltFile = QFile::exists(prebuiltPath);
-
   QList<PanelInfo> panels = {
     // PanelInfo("   " + tr("Device"), device, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
     PanelInfo("   " + tr("Device"), bpDeviceView, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
@@ -154,12 +149,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
     // PanelInfo("   " + tr("Developer"), new DeveloperPanelSP(this), "../assets/icons/shell.png"),
     PanelInfo("   " + tr("Developer"), bpDeveloperView, "../assets/icons/shell.png"),
     PanelInfo("   " + tr("Statistics"), new BPStatisticsPanel(this), "../assets/offroad/icon_statistics.png"),
-    // PanelInfo("   " + tr("Data Collect"), new BPDataCollectPanel(this), "../assets/offroad/icon_data.png"),
   };
-
-  // if (!hasPrebuiltFile) {
-  //   panels.append(PanelInfo("   " + tr("Updater"), new BPUpdaterPanel(this), "../assets/offroad/icon_updater.png"));
-  // }
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel, icon] : panels) {

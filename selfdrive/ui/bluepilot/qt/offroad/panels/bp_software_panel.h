@@ -17,6 +17,13 @@
 #include <QProcess>
 #include <QScreen>
 #include <QtConcurrent>
+#include <QDialog>
+#include <QGuiApplication>
+
+#ifdef QCOM2
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#endif
 
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
@@ -69,6 +76,23 @@ private:
   void updateRepoStatus();
   void checkForUpdates();
   void searchBranches(const QString &query);
+
+  // Dialog setup for QCOM2 rotation
+  static void setupFullscreenDialog(QDialog *dialog) {
+#ifdef QCOM2
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+    dialog->setWindowState(Qt::WindowFullScreen);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->layout()->activate();
+    void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
+    assert(egl != nullptr);
+#endif
+  }
 
   // Advanced operations (async, non-blocking)
   void manualUpdate();

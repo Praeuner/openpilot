@@ -11,6 +11,8 @@
 #include <QHeaderView>
 #include <QScroller>
 #include <QScrollerProperties>
+#include <QTextEdit>
+#include <QScrollBar>
 
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
@@ -939,17 +941,159 @@ void BPSoftwarePanel::onHistoryClicked() {
 }
 
 void BPSoftwarePanel::manualUpdate() {
+  if (commandInProgress) {
+    showBPAlert(tr("A command is already running. Please wait."), this);
+    return;
+  }
+
+  // Confirm before proceeding
+  if (!showBPConfirmation(
+        tr("Manual Update"),
+        tr("This will fetch and pull the latest changes, then rebuild.\n\n"
+           "Any local changes will be discarded. Continue?"),
+        tr("Update"),
+        tr("Cancel"),
+        this)) {
+    return;
+  }
+
   commandInProgress = true;
 
-  // Simple implementation for now - show progress dialog
-  showBPAlert(
-    tr("Manual update functionality will be available in a future update. "
-       "For now, please use the Updates tab for software updates."),
-    this
-  );
+  // Kill the update daemon to prevent conflicts
+  QProcess::execute("killall", QStringList() << "system.updated.updated");
 
-  commandInProgress = false;
-  updateRepoStatus();
+  // Build the update command
+  QString command = "git reset --hard HEAD && "
+                    "git clean -fd && "
+                    "rm -f .git/index.lock && "
+                    "git fetch && "
+                    "git pull && "
+                    "scons -j$(nproc)";
+
+  // Create progress dialog
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+  dialog->setStyleSheet("background-color: black;");
+  dialog->setModal(true);
+
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->setContentsMargins(45, 35, 45, 45);
+  layout->setSpacing(20);
+
+  // Title
+  QLabel *titleLabel = new QLabel(tr("Manual Update"), dialog);
+  titleLabel->setStyleSheet("font-size: 60px; font-weight: 600; color: white;");
+  layout->addWidget(titleLabel);
+
+  // Output text
+  QTextEdit *outputText = new QTextEdit(dialog);
+  outputText->setReadOnly(true);
+  outputText->setStyleSheet(R"(
+    QTextEdit {
+      background-color: #1B1B1B;
+      color: #00FF00;
+      font-family: monospace;
+      font-size: 28px;
+      border: none;
+      padding: 15px;
+    }
+  )");
+  layout->addWidget(outputText);
+
+  // Status label
+  QLabel *statusLabel = new QLabel(tr("Running..."), dialog);
+  statusLabel->setStyleSheet("font-size: 35px; color: #FFD700; font-weight: 500;");
+  layout->addWidget(statusLabel);
+
+  // Close button (initially disabled)
+  QPushButton *closeButton = new QPushButton(tr("Close"), dialog);
+  closeButton->setEnabled(false);
+  closeButton->setStyleSheet(R"(
+    QPushButton {
+      background-color: #465BEA;
+      color: white;
+      font-size: 55px;
+      font-weight: 500;
+      border-radius: 10px;
+      padding: 15px;
+      min-height: 60px;
+    }
+    QPushButton:pressed {
+      background-color: #3049F4;
+    }
+    QPushButton:disabled {
+      background-color: #404040;
+      color: #888888;
+    }
+  )");
+  connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+  layout->addWidget(closeButton);
+
+  // Setup fullscreen
+  QScreen *screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    dialog->setFixedSize(2160, 1080);
+  }
+
+  dialog->show();
+  setupFullscreenDialog(dialog);
+
+  // Create process
+  QProcess *process = new QProcess(dialog);
+  process->setWorkingDirectory(BPGitManager::getGitRoot());
+  process->setProcessChannelMode(QProcess::MergedChannels);
+
+  // Connect output
+  connect(process, &QProcess::readyReadStandardOutput, [process, outputText]() {
+    QString output = QString::fromUtf8(process->readAllStandardOutput());
+    outputText->append(output);
+    outputText->verticalScrollBar()->setValue(outputText->verticalScrollBar()->maximum());
+  });
+
+  // Connect finish
+  connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          [this, statusLabel, closeButton, outputText](int exitCode, QProcess::ExitStatus exitStatus) {
+            commandInProgress = false;
+
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+              statusLabel->setText(tr("✓ Update completed successfully!"));
+              statusLabel->setStyleSheet("font-size: 35px; color: #4CAF50; font-weight: 600;");
+              outputText->append(tr("\n\n=== UPDATE COMPLETED ===\n"));
+            } else {
+              statusLabel->setText(tr("✗ Update failed (exit code: %1)").arg(exitCode));
+              statusLabel->setStyleSheet("font-size: 35px; color: #FF5252; font-weight: 600;");
+              outputText->append(tr("\n\n=== UPDATE FAILED ===\n"));
+            }
+
+            closeButton->setEnabled(true);
+            updateRepoStatus();
+          });
+
+  // Connect error
+  connect(process, &QProcess::errorOccurred, [this, statusLabel, closeButton, outputText](QProcess::ProcessError error) {
+    commandInProgress = false;
+    statusLabel->setText(tr("✗ Process error: %1").arg(error));
+    statusLabel->setStyleSheet("font-size: 35px; color: #FF5252; font-weight: 600;");
+    outputText->append(tr("\n\n=== PROCESS ERROR ===\n"));
+    closeButton->setEnabled(true);
+    updateRepoStatus();
+  });
+
+  // Start process
+  outputText->append(tr("Executing command:\n\n%1\n\n").arg(command));
+  process->start("/bin/bash", QStringList() << "-c" << command);
+
+  // Cleanup on dialog close
+  connect(dialog, &QDialog::finished, [process, this]() {
+    if (process->state() == QProcess::Running) {
+      process->kill();
+      process->waitForFinished(3000);
+    }
+    process->deleteLater();
+    commandInProgress = false;
+  });
+
+  dialog->exec();
 }
 
 void BPSoftwarePanel::repairRepository() {
@@ -1009,17 +1153,26 @@ void BPSoftwarePanel::viewHistory() {
 
 void BPSoftwarePanel::showCommitHistory(const QString &title, const QString &workingDir) {
   QDialog *dialog = new QDialog(this);
-  dialog->setWindowTitle(title);
+  dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+  dialog->setStyleSheet("background-color: black;");
   dialog->setModal(true);
-  dialog->setAttribute(Qt::WA_DeleteOnClose);
 
   QVBoxLayout *layout = new QVBoxLayout(dialog);
-  layout->setContentsMargins(30, 30, 30, 30);
-  layout->setSpacing(20);
+  layout->setContentsMargins(45, 35, 45, 45);
+  layout->setSpacing(30);
 
   // Add title
   QLabel *titleLabel = new QLabel(title);
-  titleLabel->setStyleSheet("QLabel { font-size: 45px; font-weight: 600; color: #FFFFFF; }");
+  titleLabel->setStyleSheet(R"(
+    QLabel {
+      font-size: 50px;
+      font-weight: 600;
+      margin: 0px;
+      padding: 0px;
+      background-color: transparent;
+      color: white;
+    }
+  )");
   layout->addWidget(titleLabel);
 
   // Create scroll area
@@ -1190,22 +1343,25 @@ void BPSoftwarePanel::showCommitHistory(const QString &title, const QString &wor
   closeButton->setStyleSheet(R"(
     QPushButton {
       border-radius: 10px;
-      font-size: 40px;
+      font-size: 55px;
       padding: 15px;
       background-color: #465BEA;
       color: white;
-      min-height: 70px;
+      min-height: 60px;
     }
     QPushButton:pressed { background-color: #3049F4; }
   )");
   connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
   layout->addWidget(closeButton);
 
-  // Setup fullscreen
+  // Apply fullscreen settings
   QScreen *screen = QGuiApplication::primaryScreen();
   if (screen) {
     dialog->setFixedSize(2160, 1080);
   }
+
+  dialog->show();
+  setupFullscreenDialog(dialog);
 
   dialog->exec();
 }
