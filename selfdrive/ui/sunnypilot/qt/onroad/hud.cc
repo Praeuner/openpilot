@@ -12,6 +12,7 @@
 
 #ifdef BLUEPILOT
 #include "selfdrive/ui/bluepilot/qt/onroad/bluepilot_renderer.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/hud_bp.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/model_bp.h"
 #endif
 
@@ -125,18 +126,10 @@ void HudRendererSP::updateState(const UIState &s) {
   speed = std::max<float>(0.0f, v_ego * (is_metric ? MS_TO_KPH : MS_TO_MPH));
   hideVEgoUI = s.scene.hideVEgoUI;
 
-  // Update brake status and show_brake_status
-  show_brake_status = s.scene.show_brake_status;
-  brake_pressed = car_state.getBrakePressed(); // fallback to original behavior
-
-  // Check if we have carStateBP with brake light status
-  if (sm.rcv_frame("carStateBP") >= s.scene.started_frame && sm.valid("carStateBP")) {
-    const auto &car_state_bp = sm["carStateBP"].getCarStateBP();
-    if (car_state_bp.getBrakeLightStatus().getDataAvailable()) {
-      // Use brake light status instead of brake pressed
-      brake_pressed = car_state_bp.getBrakeLightStatus().getBrakeLightsOn();
-    }
-  }
+#ifdef BLUEPILOT
+  // BluePilot-specific: Update brake status
+  BluepilotHudOverrides::updateBrakeStatus(brake_status, s);
+#endif
 }
 
 void HudRendererSP::draw(QPainter &p, const QRect &surface_rect) {
@@ -756,7 +749,7 @@ void HudRendererSP::drawSetSpeedSP(QPainter &p, const QRect &surface_rect) {
   p.drawText(set_speed_rect.adjusted(0, 77, 0, 0), Qt::AlignTop | Qt::AlignHCenter, setSpeedStr);
 }
 
-void HudRendererSP::drawE2eAlert(QPainter &p, const QRect &surface_rect) {
+void HudRendererSP::drawE2eAlert(QPainter &p, const QRect &surface_rect, const QString &alert_alt_text) {
   int size = devUiInfo > 0 ? e2e_alert_small : e2e_alert_large;
   int x = surface_rect.center().x() + surface_rect.width() / 4;
   int y = surface_rect.center().y() + 40;
@@ -791,27 +784,18 @@ void HudRendererSP::drawCurrentSpeedSP(QPainter &p, const QRect &surface_rect) {
   QString speedStr = QString::number(std::nearbyint(speed));
 
   p.setFont(InterFont(176, QFont::Bold));
-  QColor speedColor = getSpeedColor(255);
+#ifdef BLUEPILOT
+  QColor speedColor = BluepilotHudOverrides::getSpeedColor(brake_status, 255);
+#else
+  QColor speedColor = QColor(255, 255, 255, 255);
+#endif
   drawText(p, surface_rect.center().x(), 210, speedStr, speedColor);
 
   p.setFont(InterFont(66));
-  QColor unitColor = getSpeedColor(200);
+#ifdef BLUEPILOT
+  QColor unitColor = BluepilotHudOverrides::getSpeedColor(brake_status, 200);
+#else
+  QColor unitColor = QColor(255, 255, 255, 200);
+#endif
   drawText(p, surface_rect.center().x(), 290, is_metric ? tr("km/h") : tr("mph"), unitColor);
-}
-
-QColor HudRendererSP::getSpeedColor(int alpha) {
-  // If brake status feature is disabled, return white
-  if (!show_brake_status) {
-    return QColor(0xff, 0xff, 0xff, alpha);
-  }
-
-  // If brake is pressed, fade to red
-  if (brake_pressed) {
-    // Clamp alpha to valid range (0-255)
-    alpha = std::clamp(alpha, 0, 255);
-    return QColor(0xff, 0x80, 0x80, alpha); // Lighter red color
-  }
-
-  // Otherwise return white
-  return QColor(0xff, 0xff, 0xff, alpha);
 }

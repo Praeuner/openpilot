@@ -13,6 +13,7 @@
 
 #ifdef BLUEPILOT
 #include "selfdrive/ui/bluepilot/ui_scene_bp.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/hud_bp.h"
 #endif
 
 constexpr int SPEED_LIMIT_AHEAD_VALID_FRAME_THRESHOLD = 5;
@@ -46,8 +47,9 @@ private:
   void drawRoadName(QPainter &p, const QRect &surface_rect);
   void drawSpeedLimitPreActiveArrow(QPainter &p, QRect &sign_rect);
   void drawSetSpeedSP(QPainter &p, const QRect &surface_rect);
-  void drawE2eAlert(QPainter &p, const QRect &surface_rect);
+  void drawE2eAlert(QPainter &p, const QRect &surface_rect, const QString &alert_alt_text = "");
   void drawCurrentSpeedSP(QPainter &p, const QRect &surface_rect);
+  void drawBlinker(QPainter &p, const QRect &surface_rect);
 
   bool lead_status;
   float lead_d_rel;
@@ -92,6 +94,7 @@ private:
   bool speedLimitValid;
   bool speedLimitLastValid;
   float speedLimitFinalLast;
+  cereal::LongitudinalPlanSP::SpeedLimit::Source speedLimitSource;
   bool speedLimitAheadValid;
   float speedLimitAhead;
   float speedLimitAheadDistance;
@@ -118,7 +121,9 @@ private:
   QString alert_text;
   QPixmap alert_img;
   bool hideVEgoUI;
-  bool brake_pressed;
-  bool show_brake_status;
-  QColor getSpeedColor(int alpha = 255);
+
+#ifdef BLUEPILOT
+  // BluePilot-specific brake status tracking
+  BluepilotHudOverrides::BrakeStatus brake_status;
+#endif
 };
