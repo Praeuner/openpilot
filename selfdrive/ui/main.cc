@@ -6,6 +6,7 @@
 #include "system/hardware/hw.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/window.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/CrashHooks.h"
 
 #ifdef SUNNYPILOT
 #include "selfdrive/ui/sunnypilot/qt/window.h"
@@ -28,6 +29,9 @@ int main(int argc, char *argv[]) {
 
   QApplication a(argc, argv);
   a.installTranslator(&translator);
+
+  // Install crash capture (hang detection handled by watchdog pre-kill hook)
+  CrashHooks::install("/data/crashlogs/ui_crash.log");
 
   MainWindow w;
   setMainWindow(&w);

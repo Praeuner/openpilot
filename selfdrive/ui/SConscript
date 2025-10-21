@@ -23,6 +23,8 @@ bp_qt_src = [
   "bluepilot/bp_logging.cc",
   # BluePilot Offroad Extensions
   "bluepilot/qt/offroad/offroad_home_bp.cc",
+  # BluePilot Crash Hooks
+  "bluepilot/qt/offroad/CrashHooks.cc",
   # BluePilot Panel and Widgets
   # "bluepilot/qt/offroad/panels/bp_panel.cc",
   "bluepilot/qt/offroad/panels/bp_utils.cc",
