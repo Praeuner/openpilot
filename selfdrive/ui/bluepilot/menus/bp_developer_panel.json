@@ -101,12 +101,6 @@
               "desc": "<b>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</b><br><br>On this car, sunnypilot defaults to the car's built-in ACC instead of openpilot's longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha.",
               "icon": "../assets/icons/speed_limit.png",
               "confirmation": true,
-              "visibleConditions": {
-                "allConditionsTrue": [
-                  { "isReleaseBranch": false },
-                  { "hasAlphaLongitudinalAvailable": true }
-                ]
-              },
               "enableConditions": {
                 "allConditionsTrue": [
                   {

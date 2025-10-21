@@ -194,13 +194,13 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     return CP.getAlphaLongitudinalAvailable();
   } else if (conditionType == "isReleaseBranch") {
-    return params.getBool("IsReleaseBranch");
+    return params.getBool("IsReleaseBranch") == condition.toBool();
   } else if (conditionType == "isTestedBranch") {
-    return params.getBool("IsTestedBranch");
+    return params.getBool("IsTestedBranch") == condition.toBool();
   } else if (conditionType == "isDevelopmentBranch") {
-    return params.getBool("IsDevelopmentBranch");
+    return params.getBool("IsDevelopmentBranch") == condition.toBool();
   } else if (conditionType == "isNotReleaseBranch") {
-    return !params.getBool("IsReleaseBranch");
+    return !params.getBool("IsReleaseBranch") == condition.toBool();
   } else if (conditionType == "disableUpdates") {
     return params.getBool("DisableUpdates");
   } else if (conditionType == "isOffroad") {
