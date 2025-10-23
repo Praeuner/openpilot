@@ -171,6 +171,34 @@ THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data
 REMUX_CACHE = "/data/bluepilot/routes/remux_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/remux_cache")
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
 
+# FFmpeg binary detection - find the binary or fail gracefully
+def find_ffmpeg_binary():
+    """Find ffmpeg binary with fallback paths for different systems"""
+    # Try standard PATH lookup first
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        logger.info(f"Found ffmpeg in PATH: {ffmpeg_path}")
+        return ffmpeg_path
+
+    # Try common installation paths for Comma devices and Ubuntu
+    fallback_paths = [
+        '/usr/bin/ffmpeg',
+        '/usr/local/bin/ffmpeg',
+        '/data/openpilot/third_party/ffmpeg',  # Comma device custom install
+        '/opt/homebrew/bin/ffmpeg',  # macOS
+    ]
+
+    for path in fallback_paths:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            logger.info(f"Found ffmpeg at fallback path: {path}")
+            return path
+
+    logger.error("FFmpeg binary not found! Video playback will not work.")
+    logger.error("Install with: apt-get install ffmpeg")
+    return None
+
+FFMPEG_BINARY = find_ffmpeg_binary()
+
 # Cellular access configuration
 CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes
 
@@ -400,21 +428,40 @@ async def start_websocket_server():
 
     try:
         logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT}")
-        server = await websockets.serve(
-            websocket_handler,
-            WEBSOCKET_HOST,
-            WEBSOCKET_PORT,
-            ping_interval=30,
-            ping_timeout=10,
-            close_timeout=5
-        )
 
-        logger.info("WebSocket server started successfully")
+        # Try to bind, retry once on port conflict
+        retry_count = 0
+        max_retries = 2
+        while retry_count < max_retries:
+            try:
+                server = await websockets.serve(
+                    websocket_handler,
+                    WEBSOCKET_HOST,
+                    WEBSOCKET_PORT,
+                    ping_interval=30,
+                    ping_timeout=10,
+                    close_timeout=5
+                )
+                logger.info("WebSocket server started successfully")
+                break
+            except OSError as e:
+                if e.errno == 98 and retry_count < max_retries - 1:  # Address already in use
+                    logger.warning(f"WebSocket port {WEBSOCKET_PORT} in use, clearing...")
+                    kill_port_process(WEBSOCKET_PORT)
+                    await asyncio.sleep(1)
+                    retry_count += 1
+                    continue
+                else:
+                    raise
+
         await server.wait_closed()
 
     except Exception as e:
         logger.error(f"Failed to start WebSocket server: {e}")
-        raise
+        # Don't raise - let the main server continue without WebSocket
+        # The main thread will handle fallback to HTTP polling
+        logger.warning("WebSocket server failed to start, but this is non-fatal")
+        return
 
 
 def start_websocket_server_thread():
@@ -554,11 +601,14 @@ class FFmpegProcess:
     def start(self, cmd):
         """Start FFmpeg process and register it"""
         try:
+            # Start process with stderr redirected to prevent buffer deadlock
+            # FFmpeg outputs progress/warnings to stderr which can fill the pipe buffer
+            # causing the process to hang. We only read stderr after completion.
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=8192
+                bufsize=65536  # Larger buffer to prevent deadlock during streaming
             )
             self.pid = self.process.pid
 
@@ -611,9 +661,15 @@ def remux_segment_to_cache(hevc_path, route_base, segment_num, camera):
 
     route_info = f"prefetch:{route_base}:{segment_num}:{camera}"
     try:
+        # Check if ffmpeg is available
+        if FFMPEG_BINARY is None:
+            logger.error("FFmpeg not available, cannot prefetch video")
+            return False
+
         with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
             cmd = [
-                'ffmpeg',
+                FFMPEG_BINARY,
+                '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
                 '-f', 'hevc',
                 '-r', '20',
                 '-i', hevc_path,
@@ -1124,6 +1180,65 @@ def check_and_restore_power_save():
         last_activity_time = None  # Reset so we don't keep trying
 
 
+def kill_port_process(port):
+    """Kill any process using the specified port
+
+    Args:
+        port: Port number to check and clear
+
+    Returns:
+        bool: True if a process was killed, False otherwise
+    """
+    try:
+        import psutil
+
+        killed = False
+        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+            try:
+                connections = proc.connections()
+                for conn in connections:
+                    if conn.laddr.port == port:
+                        logger.warning(f"Found process {proc.pid} ({proc.name()}) using port {port}")
+                        logger.info(f"Killing process {proc.pid} to free port {port}")
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=3)
+                        except psutil.TimeoutExpired:
+                            logger.warning(f"Process {proc.pid} didn't terminate, force killing")
+                            proc.kill()
+                        killed = True
+                        logger.info(f"Successfully killed process {proc.pid}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+
+        return killed
+
+    except ImportError:
+        # Fallback without psutil - try lsof and kill
+        logger.warning("psutil not available, trying lsof fallback")
+        try:
+            result = subprocess.run(
+                ['lsof', '-t', '-i', f':{port}'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    try:
+                        logger.info(f"Killing process {pid} using port {port}")
+                        subprocess.run(['kill', '-9', pid], timeout=2)
+                        logger.info(f"Successfully killed process {pid}")
+                    except Exception as e:
+                        logger.warning(f"Failed to kill process {pid}: {e}")
+                return True
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+            logger.warning(f"Could not kill port process using lsof: {e}")
+
+    return False
+
+
 def cleanup_on_shutdown():
     """Critical cleanup on server shutdown - thread-safe"""
     logger.info("Server shutting down - performing cleanup...")
@@ -1158,8 +1273,11 @@ def cleanup_on_shutdown():
             except Exception as e:
                 logger.debug(f"Error killing process {pid}: {e}")
 
-        # Fallback: pkill any remaining ffmpeg processes
+        # Fallback: pkill any remaining ffmpeg processes (only as last resort)
+        # NOTE: This kills ALL ffmpeg processes, which might include user processes
+        # Only use this during actual server shutdown, not during regular cleanup
         try:
+            logger.warning("Using pkill -9 as last resort - this kills ALL ffmpeg processes")
             subprocess.run(['pkill', '-9', 'ffmpeg'], timeout=2, capture_output=True)
         except Exception as e:
             logger.debug(f"Error running pkill: {e}")
@@ -2434,11 +2552,23 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
         # Use FFmpegProcess context manager for guaranteed cleanup
         route_info = f"{route_base}:{segment_num}:{camera}"
         try:
+            # Check if ffmpeg is available
+            if FFMPEG_BINARY is None:
+                logger.error("FFmpeg not available, cannot stream video")
+                self.send_json_response({
+                    'error': 'FFmpeg not installed on server',
+                    'details': 'Video conversion tool is not available',
+                    'hint': 'Contact system administrator or install FFmpeg',
+                    'technical_hint': 'apt-get install ffmpeg'
+                }, 500)
+                return
+
             with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
                 # Use FFmpeg to remux raw HEVC to MP4 container
                 # Stream to stdout while also writing to cache file
                 cmd = [
-                    'ffmpeg',
+                    FFMPEG_BINARY,
+                    '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
                     '-f', 'hevc',
                     '-r', '20',  # Comma camera framerate (20 fps)
                     '-i', hevc_path,
@@ -2496,7 +2626,19 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 # Check result
                 if process.returncode != 0:
                     stderr = process.stderr.read().decode('utf-8', errors='ignore')
-                    logger.error(f"FFmpeg remux failed (exit {process.returncode}): {stderr[:500]}")
+
+                    # Exit -9 (SIGKILL) means the process was killed, possibly by OOM killer or cleanup
+                    if process.returncode == -9:
+                        logger.error(f"FFmpeg was killed (exit -9) - likely out of memory")
+                        logger.error(f"HEVC file: {hevc_path}, size: {os.path.getsize(hevc_path) / (1024*1024):.1f}MB")
+                        logger.error("This can happen if:")
+                        logger.error("  1. System is out of memory (check dmesg for OOM killer messages)")
+                        logger.error("  2. FFmpeg process exceeded resource limits")
+                        logger.error("  3. Server cleanup was triggered during playback")
+                        logger.error(f"FFmpeg stderr: {stderr[:500]}")
+                    else:
+                        logger.error(f"FFmpeg remux failed (exit {process.returncode}): {stderr[:500]}")
+
                     # Clean up incomplete cache file
                     if os.path.exists(cache_path):
                         try:
@@ -3332,6 +3474,16 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     f.write(f"file '{video_file}'\n")
 
             # Use FFmpeg to concatenate all segments
+            # Check if ffmpeg is available
+            if FFMPEG_BINARY is None:
+                logger.error("FFmpeg not available, cannot download route")
+                self.send_json_response({
+                    'error': 'FFmpeg not installed on server',
+                    'details': 'Video conversion tool is not available',
+                    'hint': 'Contact system administrator or install FFmpeg'
+                }, 500)
+                return
+
             # For HEVC raw streams, use concat protocol with proper input format
             if camera in ['front', 'wide', 'driver']:
                 # HEVC files are raw elementary streams
@@ -3339,7 +3491,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 concat_protocol = 'concat:' + '|'.join(concat_list)
 
                 cmd = [
-                    'ffmpeg',
+                    FFMPEG_BINARY,
+                    '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
                     '-f', 'hevc',  # Input format is raw HEVC
                     '-r', '20',  # Comma camera framerate (20 fps)
                     '-i', concat_protocol,  # Use concat protocol
@@ -3351,7 +3504,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             else:
                 # LQ files (qcamera.ts) can use concat demuxer
                 cmd = [
-                    'ffmpeg',
+                    FFMPEG_BINARY,
+                    '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
                     '-f', 'concat',
                     '-safe', '0',
                     '-i', concat_file,
@@ -3963,15 +4117,47 @@ def main():
         logger.warning("To enable cellular access, set BPWebServerAllowCellular param")
 
     # Create HTTP server with socket reuse to prevent "Address already in use" errors
+    # Kill any existing process using the port first
     try:
-        server = ReuseAddressHTTPServer((bind_address, port), WebRoutesHandler)
-        server.timeout = 30  # Set timeout to prevent hanging connections
-    except OSError as e:
-        if e.errno == 98:  # Address already in use
-            logger.error(f"Port {port} is already in use on {bind_address}. Another instance may be running.")
-            logger.error("Try: pkill -f web_routes_server or reboot the device")
-            return
-        raise
+        killed = kill_port_process(port)
+        if killed:
+            logger.info(f"Cleared port {port}, waiting 1 second for socket cleanup...")
+            time.sleep(1)
+    except Exception as e:
+        logger.warning(f"Error checking/killing port {port}: {e}")
+
+    # Try to create server, retry once if port is still in use
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            server = ReuseAddressHTTPServer((bind_address, port), WebRoutesHandler)
+            server.timeout = 30  # Set timeout to prevent hanging connections
+            logger.info(f"Successfully bound to {bind_address}:{port}")
+            break
+        except OSError as e:
+            if e.errno == 98:  # Address already in use
+                if attempt < max_retries - 1:
+                    logger.warning(f"Port {port} still in use, retrying...")
+                    kill_port_process(port)
+                    time.sleep(2)
+                    continue
+                else:
+                    logger.error(f"Port {port} is still in use after retries. Forcing cleanup...")
+                    # Last resort: kill all python processes with web_routes_server
+                    try:
+                        subprocess.run(['pkill', '-9', '-f', 'web_routes_server.py'], timeout=2)
+                        time.sleep(2)
+                        logger.info("Killed all web_routes_server processes, attempting final bind...")
+                        server = ReuseAddressHTTPServer((bind_address, port), WebRoutesHandler)
+                        server.timeout = 30
+                        logger.info(f"Successfully bound to {bind_address}:{port} after force cleanup")
+                        break
+                    except Exception as final_error:
+                        logger.error(f"Failed to start server even after force cleanup: {final_error}")
+                        logger.error("Manual intervention required. Try: sudo reboot")
+                        return
+            else:
+                raise
 
     # Track previous onroad status for change detection
     last_onroad_status = [None]  # Use list for closure modification

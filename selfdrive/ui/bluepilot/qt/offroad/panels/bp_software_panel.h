@@ -85,6 +85,19 @@ private:
   void showRecentChanges();
   void showCommitHistory(const QString &title, const QString &workingDir);
 
+  // Command execution with advanced features (from bp_updater_panel)
+  void showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir,
+                                int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn,
+                                bool showRestartUIBtn = false);
+  bool checkIfUIOnlyChanges() const;
+
+  // Power management methods
+  bool isPowerSaveActive() const;
+  void disablePowerSave();
+  void restorePowerSave();
+
+  static void setupFullscreenDialog(QDialog *dialog);
+
   // Core components
   Params params;
   ParamWatcher *fs_watch;
@@ -142,6 +155,8 @@ private:
   bool is_onroad = false;
   QString updater_state;
   bool commandInProgress = false;
+  bool powerSaveWasActive = false;
+  QDialog *currentDialog = nullptr;
 
 private slots:
   void onDownloadClicked();
