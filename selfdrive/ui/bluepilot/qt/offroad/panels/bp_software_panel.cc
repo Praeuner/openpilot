@@ -326,7 +326,6 @@ void BPSoftwarePanel::createVersionInfoGroup() {
     QFrame {
       background-color: #242424;
       border-radius: 10px;
-      min-height: 150px;
     }
   )");
 
@@ -426,7 +425,6 @@ void BPSoftwarePanel::createBranchSelectionGroup() {
     QFrame {
       background-color: #242424;
       border-radius: 10px;
-      min-height: 150px;
     }
   )");
 
