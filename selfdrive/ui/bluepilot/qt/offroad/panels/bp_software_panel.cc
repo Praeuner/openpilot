@@ -1007,6 +1007,9 @@ void BPSoftwarePanel::onSunnypilotChangesClicked() {
     }
   )");
 
+  // Enable touch scrolling
+  QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
+
   QWidget *scrollContent = new QWidget(scrollArea);
   QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
   scrollLayout->setContentsMargins(20, 20, 20, 20);
