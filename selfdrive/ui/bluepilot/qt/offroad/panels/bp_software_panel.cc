@@ -343,7 +343,7 @@ void BPSoftwarePanel::createVersionInfoGroup() {
 
   QVBoxLayout *downloadTextLayout = new QVBoxLayout();
   downloadTextLayout->setContentsMargins(0, 0, 0, 0);
-  downloadTextLayout->setSpacing(10);
+  downloadTextLayout->setSpacing(5);
 
   QLabel *downloadTitleLabel = new QLabel(tr("Check for Updates"), this);
   downloadTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
@@ -356,6 +356,7 @@ void BPSoftwarePanel::createVersionInfoGroup() {
   downloadTextLayout->addWidget(downloadStatusLabel);
 
   downloadLayout->addLayout(downloadTextLayout, 1);
+  downloadLayout->setAlignment(downloadTextLayout, Qt::AlignVCenter);
   layout->addWidget(downloadFrame);
 }
 
@@ -442,7 +443,7 @@ void BPSoftwarePanel::createBranchSelectionGroup() {
 
   QVBoxLayout *branchTextLayout = new QVBoxLayout();
   branchTextLayout->setContentsMargins(0, 0, 0, 0);
-  branchTextLayout->setSpacing(10);
+  branchTextLayout->setSpacing(5);
 
   QLabel *branchTitleLabel = new QLabel(tr("Target Branch"), this);
   branchTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
@@ -455,6 +456,7 @@ void BPSoftwarePanel::createBranchSelectionGroup() {
   branchTextLayout->addWidget(branchStatusLabel);
 
   branchLayout->addLayout(branchTextLayout, 1);
+  branchLayout->setAlignment(branchTextLayout, Qt::AlignVCenter);
   layout->addWidget(branchFrame);
 
   mainLayout->addWidget(branchSelectionGroup);
