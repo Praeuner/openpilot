@@ -1192,6 +1192,15 @@ class BluePilotRoutes {
     const segment = this.currentRoute.segments[segmentIndex];
     const segmentNumber = segment.number;
 
+    // Auto-reload logs and cereal data if they were previously loaded
+    // This ensures sync stays accurate when switching segments
+    if (this.currentLogMessages && this.currentLogMessages.length > 0) {
+      this.loadLogs();
+    }
+    if (this.currentCerealData && this.currentCerealData.length > 0) {
+      this.loadCerealData();
+    }
+
     // UI is already updated above with camera type info
 
     // Check if current camera is available in this segment
@@ -1814,6 +1823,29 @@ class BluePilotRoutes {
         this.$videoElement.addEventListener("ended", () => {
           console.log("Full route playback completed");
           this.showReplayOverlay();
+        });
+        this.$videoElement.addEventListener("timeupdate", () => {
+          // Track which segment we're in during HLS playback for auto-reloading logs/cereal
+          if (this.hls && this.$videoElement) {
+            const currentTime = this.$videoElement.currentTime;
+            const calculatedSegment = Math.floor(currentTime / 60); // Each segment is 60 seconds
+
+            // If we've moved to a different segment, update and reload data
+            if (calculatedSegment !== this.currentSegment && calculatedSegment < this.currentRoute.totalSegments) {
+              this.currentSegment = calculatedSegment;
+
+              // Update segment info display
+              this.$segmentInfo.textContent = `Segment ${calculatedSegment + 1} of ${this.currentRoute.totalSegments} - ${this.currentCamera.toUpperCase()}`;
+
+              // Auto-reload logs and cereal data if they were previously loaded
+              if (this.currentLogMessages && this.currentLogMessages.length > 0) {
+                this.loadLogs();
+              }
+              if (this.currentCerealData && this.currentCerealData.length > 0) {
+                this.loadCerealData();
+              }
+            }
+          }
         });
         this.$videoElement.addEventListener("error", (e) =>
           this.handleVideoError(e)
@@ -3143,10 +3175,15 @@ class BluePilotRoutes {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
-      // Calculate absolute timestamp (segment start time + segment offset + video time)
-      // Each segment is 60 seconds, so we need to offset by currentSegment * 60
-      const segmentOffset = this.currentSegment * 60;
-      const absoluteTime = this.currentLogStartTime + segmentOffset + currentTime;
+      // Calculate absolute timestamp
+      // For HLS: currentTime is route-absolute, need time within current segment
+      // For single-segment: currentTime is already segment-relative
+      let segmentRelativeTime = currentTime;
+      if (this.hls) {
+        // HLS plays entire route continuously, so get time within current segment
+        segmentRelativeTime = currentTime % 60;
+      }
+      const absoluteTime = this.currentLogStartTime + segmentRelativeTime;
 
       // Find and highlight logs within 2 seconds of current playback
       const logElements = this.$logMessages.querySelectorAll(".log-message");
@@ -3351,10 +3388,15 @@ class BluePilotRoutes {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
-      // Calculate absolute timestamp (segment start time + segment offset + video time)
-      // Each segment is 60 seconds, so we need to offset by currentSegment * 60
-      const segmentOffset = this.currentSegment * 60;
-      const absoluteTime = this.currentCerealStartTime + segmentOffset + currentTime;
+      // Calculate absolute timestamp
+      // For HLS: currentTime is route-absolute, need time within current segment
+      // For single-segment: currentTime is already segment-relative
+      let segmentRelativeTime = currentTime;
+      if (this.hls) {
+        // HLS plays entire route continuously, so get time within current segment
+        segmentRelativeTime = currentTime % 60;
+      }
+      const absoluteTime = this.currentCerealStartTime + segmentRelativeTime;
 
       // Find the closest message to current time
       let closestMessage = this.currentCerealData[0];
