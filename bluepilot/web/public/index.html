@@ -296,6 +296,21 @@
               </div>
             </div>
 
+            <!-- Route Location Group -->
+            <div class="sidebar-group">
+              <h3 class="sidebar-group-title">Location</h3>
+              <div class="location-info">
+                <div class="location-item">
+                  <span class="location-label">Start</span>
+                  <span class="location-value" id="stat-location-start">--</span>
+                </div>
+                <div class="location-item">
+                  <span class="location-label">End</span>
+                  <span class="location-value" id="stat-location-end">--</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Route Actions Group -->
             <div class="sidebar-group">
               <h3 class="sidebar-group-title">Actions</h3>
@@ -398,11 +413,14 @@
                 </svg>
                 <span>Logs</span>
               </div>
-              <button type="button" id="load-logs-btn" class="btn btn-sm btn-primary panel-action-btn">Load Logs</button>
+              <div class="panel-header-actions">
+                <button type="button" id="stop-logs-btn" class="btn btn-sm btn-danger panel-action-btn hidden">Stop</button>
+                <button type="button" id="load-logs-btn" class="btn btn-sm btn-primary panel-action-btn">Load Logs</button>
+              </div>
             </div>
             <div class="panel-content hidden" id="log-panel-content">
-              <!-- Log Controls -->
-              <div class="log-controls">
+              <!-- Log Controls (Sticky) -->
+              <div class="log-controls log-controls-sticky">
                 <div class="log-control-row">
                   <div class="log-type-selector">
                     <button type="button" class="log-type-btn active" data-log-type="qlog">qlog</button>
@@ -456,11 +474,14 @@
                 </svg>
                 <span>Cereal Data Viewer</span>
               </div>
-              <button type="button" id="load-cereal-btn" class="btn btn-sm btn-primary panel-action-btn">Load Data</button>
+              <div class="panel-header-actions">
+                <button type="button" id="stop-cereal-btn" class="btn btn-sm btn-danger panel-action-btn hidden">Stop</button>
+                <button type="button" id="load-cereal-btn" class="btn btn-sm btn-primary panel-action-btn">Load Data</button>
+              </div>
             </div>
             <div class="panel-content hidden" id="cereal-panel-content">
-              <!-- Cereal Controls -->
-              <div class="cereal-controls">
+              <!-- Cereal Controls (Sticky) -->
+              <div class="cereal-controls cereal-controls-sticky">
                 <div class="cereal-control-row">
                   <label for="cereal-message-select">Message Type:</label>
                   <select id="cereal-message-select" class="cereal-message-select">

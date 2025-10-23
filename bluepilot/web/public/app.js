@@ -140,6 +140,8 @@ class BluePilotRoutes {
     this.$statSegments = document.getElementById("stat-segments");
     this.$statSize = document.getElementById("stat-size");
     this.$statDistance = document.getElementById("stat-distance");
+    this.$statLocationStart = document.getElementById("stat-location-start");
+    this.$statLocationEnd = document.getElementById("stat-location-end");
 
     // Debug canvas element
     console.log("Canvas element found:", !!this.$videoCanvas);
@@ -176,6 +178,7 @@ class BluePilotRoutes {
     this.$logSyncCheckbox = document.getElementById("log-sync-checkbox");
     this.$logSearchInput = document.getElementById("log-search-input");
     this.$loadLogsBtn = document.getElementById("load-logs-btn");
+    this.$stopLogsBtn = document.getElementById("stop-logs-btn");
     this.$reloadLogsBtn = document.getElementById("reload-logs-btn");
     this.$logViewerContainer = document.getElementById("log-viewer-container");
     this.$logMessages = document.getElementById("log-messages");
@@ -188,6 +191,7 @@ class BluePilotRoutes {
     this.$cerealPanelHeader = document.getElementById("cereal-panel-header");
     this.$cerealPanelContent = document.getElementById("cereal-panel-content");
     this.$loadCerealBtn = document.getElementById("load-cereal-btn");
+    this.$stopCerealBtn = document.getElementById("stop-cereal-btn");
     this.$reloadCerealBtn = document.getElementById("reload-cereal-btn");
     this.$cerealMessageSelect = document.getElementById("cereal-message-select");
     this.$cerealSyncCheckbox = document.getElementById("cereal-sync-checkbox");
@@ -296,6 +300,10 @@ class BluePilotRoutes {
       this.loadLogs();
     });
 
+    this.$stopLogsBtn.addEventListener("click", () => {
+      this.stopLogs();
+    });
+
     this.$reloadLogsBtn.addEventListener("click", () => {
       this.loadLogs();
     });
@@ -311,6 +319,10 @@ class BluePilotRoutes {
     this.$loadCerealBtn.addEventListener("click", () => {
       this.togglePanel(this.$cerealPanelContent, true); // Force open
       this.loadCerealData();
+    });
+
+    this.$stopCerealBtn.addEventListener("click", () => {
+      this.stopCereal();
     });
 
     this.$reloadCerealBtn.addEventListener("click", () => {
@@ -1058,6 +1070,10 @@ class BluePilotRoutes {
 
     // Distance - use GPS metrics if available
     this.$statDistance.textContent = this.currentRoute.mileage || "--";
+
+    // Location start and end
+    this.$statLocationStart.textContent = this.currentRoute.startLocation || "--";
+    this.$statLocationEnd.textContent = this.currentRoute.endLocation || "--";
   }
 
   updatePlayerStarButton() {
@@ -3051,6 +3067,10 @@ class BluePilotRoutes {
       return;
     }
 
+    // Show stop button, hide load button
+    this.$stopLogsBtn.classList.remove("hidden");
+    this.$loadLogsBtn.classList.add("hidden");
+
     // Get selected log type
     const activeLogTypeBtn = document.querySelector(".log-type-btn.active");
     const logType = activeLogTypeBtn ? activeLogTypeBtn.dataset.logType : "qlog";
@@ -3154,7 +3174,35 @@ class BluePilotRoutes {
     }
   }
 
+  stopLogs() {
+    // Stop syncing if active
+    if (this.logSyncInterval) {
+      clearInterval(this.logSyncInterval);
+      this.logSyncInterval = null;
+    }
+
+    // Uncheck sync checkbox
+    if (this.$logSyncCheckbox) {
+      this.$logSyncCheckbox.checked = false;
+    }
+
+    // Clear log data
+    this.currentLogMessages = null;
+    this.currentLogStartTime = null;
+    this.currentLogEndTime = null;
+
+    // Hide stop button, show load button
+    this.$stopLogsBtn.classList.add("hidden");
+    this.$loadLogsBtn.classList.remove("hidden");
+
+    console.log("Log streaming stopped");
+  }
+
   startLogSync() {
+    // Show stop button, hide load button
+    this.$stopLogsBtn.classList.remove("hidden");
+    this.$loadLogsBtn.classList.add("hidden");
+
     // Clear any existing sync interval
     if (this.logSyncInterval) {
       clearInterval(this.logSyncInterval);
@@ -3164,6 +3212,9 @@ class BluePilotRoutes {
     this.logSyncInterval = setInterval(() => {
       if (!this.currentLogMessages || !this.$logSyncCheckbox.checked) {
         clearInterval(this.logSyncInterval);
+        // Restore button states when sync stops naturally
+        this.$stopLogsBtn.classList.add("hidden");
+        this.$loadLogsBtn.classList.remove("hidden");
         return;
       }
 
@@ -3222,6 +3273,10 @@ class BluePilotRoutes {
       alert("Please select a message type");
       return;
     }
+
+    // Show stop button, hide load button
+    this.$stopCerealBtn.classList.remove("hidden");
+    this.$loadCerealBtn.classList.add("hidden");
 
     // Show loading
     this.$cerealLoading.classList.remove("hidden");
@@ -3367,7 +3422,36 @@ class BluePilotRoutes {
     return String(value);
   }
 
+  stopCereal() {
+    // Stop syncing if active
+    if (this.cerealSyncInterval) {
+      clearInterval(this.cerealSyncInterval);
+      this.cerealSyncInterval = null;
+    }
+
+    // Uncheck sync checkbox
+    if (this.$cerealSyncCheckbox) {
+      this.$cerealSyncCheckbox.checked = false;
+    }
+
+    // Clear cereal data
+    this.currentCerealData = null;
+    this.currentCerealStartTime = null;
+    this.currentCerealEndTime = null;
+    this.currentCerealType = null;
+
+    // Hide stop button, show load button
+    this.$stopCerealBtn.classList.add("hidden");
+    this.$loadCerealBtn.classList.remove("hidden");
+
+    console.log("Cereal data streaming stopped");
+  }
+
   startCerealSync() {
+    // Show stop button, hide load button
+    this.$stopCerealBtn.classList.remove("hidden");
+    this.$loadCerealBtn.classList.add("hidden");
+
     // Clear any existing sync interval
     if (this.cerealSyncInterval) {
       clearInterval(this.cerealSyncInterval);
@@ -3377,6 +3461,9 @@ class BluePilotRoutes {
     this.cerealSyncInterval = setInterval(() => {
       if (!this.currentCerealData || !this.$cerealSyncCheckbox.checked) {
         clearInterval(this.cerealSyncInterval);
+        // Restore button states when sync stops naturally
+        this.$stopCerealBtn.classList.add("hidden");
+        this.$loadCerealBtn.classList.remove("hidden");
         return;
       }
 

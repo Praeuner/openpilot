@@ -705,9 +705,10 @@ body {
 
 /* Player Container - Desktop: video left, sidebar right */
 .player-container {
-  flex: 1;
+  flex: 0 1 auto;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
 .video-section {
@@ -879,6 +880,33 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--bp-text-primary);
+}
+
+/* Route Location */
+.location-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.location-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.location-label {
+  font-size: 0.8rem;
+  color: var(--bp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.location-value {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--bp-text-primary);
+  line-height: 1.4;
 }
 
 /* Route Actions in Sidebar */
@@ -1222,14 +1250,23 @@ body {
   opacity: 0.7;
 }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .panel-action-btn {
   flex-shrink: 0;
 }
 
 .panel-content {
   padding: 16px;
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-content.hidden {
@@ -1242,6 +1279,17 @@ body {
 
 .log-controls {
   margin-bottom: 12px;
+}
+
+.log-controls-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  padding: 12px;
+  margin: -16px -16px 12px -16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .log-control-row {
@@ -1348,7 +1396,6 @@ body {
 .log-viewer-container {
   flex: 1;
   min-height: 200px;
-  max-height: 400px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -1517,6 +1564,17 @@ body {
   margin-bottom: 12px;
 }
 
+.cereal-controls-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  padding: 12px;
+  margin: -16px -16px 12px -16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .cereal-control-row {
   display: flex;
   gap: 8px;
@@ -1578,8 +1636,8 @@ body {
   border-radius: 8px;
   overflow: hidden;
   min-height: 200px;
-  max-height: 350px;
   overflow-y: auto;
+  flex: 1;
 }
 
 .cereal-viewer-empty {
