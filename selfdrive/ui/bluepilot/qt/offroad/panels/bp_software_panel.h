@@ -77,20 +77,18 @@ private:
   void checkForUpdates();
   void searchBranches(const QString &query);
 
-  // Dialog setup for QCOM2 rotation
+  // Dialog setup for QCOM2 rotation - must be called AFTER dialog->show()
   static void setupFullscreenDialog(QDialog *dialog) {
 #ifdef QCOM2
     QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
-    if (s) {
-      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-      wl_surface_commit(s);
+    if (native && dialog->windowHandle()) {
+      wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+      if (s) {
+        wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+        wl_surface_commit(s);
+      }
     }
     dialog->setWindowState(Qt::WindowFullScreen);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->layout()->activate();
-    void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
-    assert(egl != nullptr);
 #endif
   }
 
@@ -117,12 +115,12 @@ private:
   QLabel *currentVersionDesc;
   QLabel *newVersionLabel;
   QLabel *newVersionDesc;
-  BPCommandControl *recentChangesBtn;
+  BPCommandControl *sunnypilotChangesBtn;
+  QPushButton *downloadBtn;
+  QLabel *downloadStatusLabel;
 
   // === Update Controls ===
   QGroupBox *updateControlsGroup;
-  QPushButton *downloadBtn;
-  QLabel *downloadStatusLabel;
   QPushButton *installBtn;
   QLabel *installStatusLabel;
 
@@ -172,4 +170,5 @@ private slots:
   void onResetClicked();
   void onHistoryClicked();
   void onRecentChangesClicked();
+  void onSunnypilotChangesClicked();
 };

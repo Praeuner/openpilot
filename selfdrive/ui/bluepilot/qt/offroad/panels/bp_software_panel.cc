@@ -5,6 +5,7 @@
 #include <QScrollArea>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonDocument>
 #include <QDateTime>
 #include <QEventLoop>
 #include <QTableWidget>
@@ -13,6 +14,7 @@
 #include <QScrollerProperties>
 #include <QTextEdit>
 #include <QScrollBar>
+#include <QFile>
 
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
@@ -54,6 +56,70 @@ static void showBPAlert(const QString &message, QWidget *parent) {
   config.cancelText = "";
 
   BPConfirmationDialog::showMessage(config, parent);
+}
+
+// Helper functions for BP_CHANGES.json
+static QJsonObject loadBPChangesJson() {
+  QString gitRoot = BPGitManager::getGitRoot();
+  QString changesPath = QDir(gitRoot).filePath("BP_CHANGES.json");
+
+  QFile file(changesPath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    BPLog::bpError() << "[bp.software.panel] loadBPChangesJson | Failed to open BP_CHANGES.json" << std::endl;
+    return QJsonObject();
+  }
+
+  QByteArray data = file.readAll();
+  QJsonDocument doc = QJsonDocument::fromJson(data);
+
+  if (doc.isNull() || !doc.isObject()) {
+    BPLog::bpError() << "[bp.software.panel] loadBPChangesJson | Invalid JSON in BP_CHANGES.json" << std::endl;
+    return QJsonObject();
+  }
+
+  return doc.object();
+}
+
+static QString getCurrentBPVersion() {
+  QString gitRoot = BPGitManager::getGitRoot();
+  QString versionPath = QDir(gitRoot).filePath("BPVERSION");
+
+  QFile file(versionPath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return QString();
+  }
+
+  QString version = QString::fromUtf8(file.readAll()).trimmed();
+  return version;
+}
+
+static QString formatBPChanges(const QJsonObject &versionData, int maxItems = 6) {
+  QStringList allChanges;
+
+  // Combine changes and fixes
+  QJsonArray changes = versionData["changes"].toArray();
+  QJsonArray fixes = versionData["fixes"].toArray();
+
+  int count = 0;
+  for (const auto &item : changes) {
+    if (count >= maxItems) break;
+    allChanges << QString("• %1").arg(item.toString());
+    count++;
+  }
+
+  for (const auto &item : fixes) {
+    if (count >= maxItems) break;
+    allChanges << QString("• %1").arg(item.toString());
+    count++;
+  }
+
+  int totalItems = changes.size() + fixes.size();
+  if (totalItems > maxItems) {
+    // Make the "show more" text clickable
+    allChanges << QString("<a href=\"#\" style=\"color: #2196F3; text-decoration: none;\">... tap to show all %1 changes</a>").arg(totalItems);
+  }
+
+  return allChanges.join("<br>");
 }
 
 BPSoftwarePanel::BPSoftwarePanel(QWidget *parent) : QWidget(parent) {
@@ -199,6 +265,9 @@ void BPSoftwarePanel::createVersionInfoGroup() {
     }
   )");
   currentVersionDesc->setWordWrap(true);
+  currentVersionDesc->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  currentVersionDesc->setOpenExternalLinks(false);
+  connect(currentVersionDesc, &QLabel::linkActivated, this, &BPSoftwarePanel::onRecentChangesClicked);
   currentLayout->addWidget(currentVersionDesc);
 
   layout->addWidget(currentVersionWidget);
@@ -233,12 +302,12 @@ void BPSoftwarePanel::createVersionInfoGroup() {
   layout->addWidget(newVersionWidget);
   newVersionWidget->setVisible(false);
 
-  // Recent Changes button (using BPCommandControl style)
-  recentChangesBtn = new BPCommandControl(
-    tr("Recent Changes"),
-    tr("View the latest changes and updates to BluePilot"),
+  // Sunnypilot Changes button
+  sunnypilotChangesBtn = new BPCommandControl(
+    tr("Sunnypilot Changes"),
+    tr("View upstream changes from Sunnypilot"),
     tr("VIEW"),
-    "recent_changes",
+    "sp_changes",
     "",
     QJsonObject(),
     "",
@@ -247,61 +316,54 @@ void BPSoftwarePanel::createVersionInfoGroup() {
     QJsonArray(),
     this
   );
-  connect(recentChangesBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onRecentChangesClicked);
-  recentChangesBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
-  layout->addWidget(recentChangesBtn);
-}
+  connect(sunnypilotChangesBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onSunnypilotChangesClicked);
+  sunnypilotChangesBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
+  layout->addWidget(sunnypilotChangesBtn);
 
-void BPSoftwarePanel::createUpdateControlsGroup() {
-  updateControlsGroup = createStyledGroupBox(tr("Update Controls"));
-  QVBoxLayout *layout = new QVBoxLayout(updateControlsGroup);
-  layout->setSpacing(20);
-  layout->setContentsMargins(25, 25, 25, 25);
+  // Check for Updates button (styled like BPCommandControl)
+  QFrame *downloadFrame = new QFrame(this);
+  downloadFrame->setStyleSheet(R"(
+    QFrame {
+      background-color: #242424;
+      border-radius: 10px;
+      min-height: 150px;
+    }
+  )");
 
-  // Download/Check button with status
-  QWidget *downloadWidget = new QWidget(this);
-  QHBoxLayout *downloadLayout = new QHBoxLayout(downloadWidget);
-  downloadLayout->setSpacing(20);
-  downloadLayout->setContentsMargins(0, 0, 0, 0);
+  QHBoxLayout *downloadLayout = new QHBoxLayout(downloadFrame);
+  downloadLayout->setContentsMargins(25, 25, 25, 25);
+  downloadLayout->setSpacing(50);
 
   downloadBtn = new BPButton(tr("CHECK"), this);
   downloadBtn->setMinimumWidth(250);
   downloadBtn->setMinimumHeight(100);
-  downloadBtn->setStyleSheet(R"(
-    BPButton {
-      background-color: #2196F3;
-      border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-    }
-    BPButton:hover {
-      background-color: #1E88E5;
-    }
-    BPButton:pressed {
-      background-color: #1976D2;
-    }
-    BPButton:disabled {
-      background-color: #424242;
-      color: #888888;
-    }
-  )");
   connect(downloadBtn, &QPushButton::clicked, this, &BPSoftwarePanel::onDownloadClicked);
   downloadLayout->addWidget(downloadBtn);
+  downloadLayout->setAlignment(downloadBtn, Qt::AlignVCenter);
 
-  QVBoxLayout *downloadStatusLayout = new QVBoxLayout();
-  downloadStatusLayout->setSpacing(5);
+  QVBoxLayout *downloadTextLayout = new QVBoxLayout();
+  downloadTextLayout->setContentsMargins(0, 0, 0, 0);
+  downloadTextLayout->setSpacing(10);
 
-  QLabel *downloadTitle = new QLabel(tr("Download Update"), this);
-  downloadTitle->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
-  downloadStatusLayout->addWidget(downloadTitle);
+  QLabel *downloadTitleLabel = new QLabel(tr("Check for Updates"), this);
+  downloadTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+  downloadTitleLabel->setWordWrap(true);
+  downloadTextLayout->addWidget(downloadTitleLabel);
 
   downloadStatusLabel = new QLabel(tr("Check for available updates"), this);
   downloadStatusLabel->setStyleSheet("font-size: 34px; color: #AAAAAA;");
   downloadStatusLabel->setWordWrap(true);
-  downloadStatusLayout->addWidget(downloadStatusLabel);
+  downloadTextLayout->addWidget(downloadStatusLabel);
 
-  downloadLayout->addLayout(downloadStatusLayout, 1);
-  layout->addWidget(downloadWidget);
+  downloadLayout->addLayout(downloadTextLayout, 1);
+  layout->addWidget(downloadFrame);
+}
+
+void BPSoftwarePanel::createUpdateControlsGroup() {
+  updateControlsGroup = createStyledGroupBox(tr("Install Update"));
+  QVBoxLayout *layout = new QVBoxLayout(updateControlsGroup);
+  layout->setSpacing(20);
+  layout->setContentsMargins(25, 25, 25, 25);
 
   // Install button with status
   QWidget *installWidget = new QWidget(this);
@@ -354,49 +416,46 @@ void BPSoftwarePanel::createUpdateControlsGroup() {
 void BPSoftwarePanel::createBranchSelectionGroup() {
   branchSelectionGroup = createStyledGroupBox(tr("Branch Selection"));
   QVBoxLayout *layout = new QVBoxLayout(branchSelectionGroup);
-  layout->setSpacing(20);
-  layout->setContentsMargins(25, 25, 25, 25);
+  layout->setSpacing(15);
+  layout->setContentsMargins(10, 10, 10, 10);
 
-  // Branch selector button with status
-  QWidget *branchWidget = new QWidget(this);
-  QHBoxLayout *branchLayout = new QHBoxLayout(branchWidget);
-  branchLayout->setSpacing(20);
-  branchLayout->setContentsMargins(0, 0, 0, 0);
+  // Branch selector button (styled like BPCommandControl)
+  QFrame *branchFrame = new QFrame(this);
+  branchFrame->setStyleSheet(R"(
+    QFrame {
+      background-color: #242424;
+      border-radius: 10px;
+      min-height: 150px;
+    }
+  )");
+
+  QHBoxLayout *branchLayout = new QHBoxLayout(branchFrame);
+  branchLayout->setContentsMargins(25, 25, 25, 25);
+  branchLayout->setSpacing(50);
 
   branchBtn = new BPButton(tr("SELECT"), this);
   branchBtn->setMinimumWidth(250);
   branchBtn->setMinimumHeight(100);
-  branchBtn->setStyleSheet(R"(
-    BPButton {
-      background-color: #FF9800;
-      border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-    }
-    BPButton:hover {
-      background-color: #FB8C00;
-    }
-    BPButton:pressed {
-      background-color: #F57C00;
-    }
-  )");
   connect(branchBtn, &QPushButton::clicked, this, &BPSoftwarePanel::onBranchClicked);
   branchLayout->addWidget(branchBtn);
+  branchLayout->setAlignment(branchBtn, Qt::AlignVCenter);
 
-  QVBoxLayout *branchStatusLayout = new QVBoxLayout();
-  branchStatusLayout->setSpacing(5);
+  QVBoxLayout *branchTextLayout = new QVBoxLayout();
+  branchTextLayout->setContentsMargins(0, 0, 0, 0);
+  branchTextLayout->setSpacing(10);
 
-  QLabel *branchTitle = new QLabel(tr("Target Branch"), this);
-  branchTitle->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
-  branchStatusLayout->addWidget(branchTitle);
+  QLabel *branchTitleLabel = new QLabel(tr("Target Branch"), this);
+  branchTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+  branchTitleLabel->setWordWrap(true);
+  branchTextLayout->addWidget(branchTitleLabel);
 
   branchStatusLabel = new QLabel(tr("Select the branch to update from"), this);
   branchStatusLabel->setStyleSheet("font-size: 34px; color: #AAAAAA;");
   branchStatusLabel->setWordWrap(true);
-  branchStatusLayout->addWidget(branchStatusLabel);
+  branchTextLayout->addWidget(branchStatusLabel);
 
-  branchLayout->addLayout(branchStatusLayout, 1);
-  layout->addWidget(branchWidget);
+  branchLayout->addLayout(branchTextLayout, 1);
+  layout->addWidget(branchFrame);
 
   mainLayout->addWidget(branchSelectionGroup);
 }
@@ -486,21 +545,30 @@ void BPSoftwarePanel::updateVersionInfo() {
   // Show/hide onroad label
   onroadLabel->setVisible(is_onroad);
 
-  // Update current version
-  QString currentVersion = QString::fromStdString(params.get("UpdaterCurrentDescription"));
-  QString currentNotes = QString::fromStdString(params.get("UpdaterCurrentReleaseNotes"));
+  // Get BP version and changes
+  QString bpVersion = getCurrentBPVersion();
+  QJsonObject changesData = loadBPChangesJson();
+  QJsonObject versions = changesData["versions"].toObject();
 
-  if (!currentVersion.isEmpty()) {
-    currentVersionLabel->setText(tr("Current Version: %1").arg(currentVersion));
+  // Update current version with BP changes
+  if (!bpVersion.isEmpty()) {
+    currentVersionLabel->setText(tr("Current Version: BluePilot %1").arg(bpVersion));
+
+    if (versions.contains(bpVersion)) {
+      QJsonObject versionData = versions[bpVersion].toObject();
+      QString bpChanges = formatBPChanges(versionData, 3);
+      currentVersionDesc->setText(bpChanges);
+    } else {
+      currentVersionDesc->setText(tr("No change information available"));
+    }
   } else {
     currentVersionLabel->setText(tr("Current Version"));
+    currentVersionDesc->setText(tr("Version information unavailable"));
   }
-  currentVersionDesc->setText(currentNotes);
 
-  // Update new version (if available)
+  // Update new version (if available) - show BP changes for new version too
   bool updateAvailable = params.getBool("UpdateAvailable");
   QString newVersion = QString::fromStdString(params.get("UpdaterNewDescription"));
-  QString newNotes = QString::fromStdString(params.get("UpdaterNewReleaseNotes"));
 
   // Find the new version widget and show/hide it
   QWidget *newVersionWidget = newVersionLabel->parentWidget();
@@ -510,14 +578,15 @@ void BPSoftwarePanel::updateVersionInfo() {
 
   if (updateAvailable) {
     newVersionLabel->setText(tr("New Version: %1").arg(newVersion));
-    newVersionDesc->setText(newNotes);
+
+    // Try to extract BP version from new version string (if it contains BP version)
+    // For now, show a generic message
+    newVersionDesc->setText(tr("Update available. View Recent Changes for details."));
   }
 }
 
 void BPSoftwarePanel::updateDownloadButton() {
-  // Update download button visibility and state
-  downloadBtn->parentWidget()->setVisible(!is_onroad);
-
+  // Update download button state (button is now in version info group)
   updater_state = QString::fromStdString(params.get("UpdaterState"));
   bool failed = std::atoi(params.get("UpdateFailedCount").c_str()) > 0;
 
@@ -546,7 +615,8 @@ void BPSoftwarePanel::updateDownloadButton() {
 
 void BPSoftwarePanel::updateInstallButton() {
   bool updateAvailable = params.getBool("UpdateAvailable");
-  installBtn->parentWidget()->setVisible(!is_onroad && updateAvailable);
+  // Hide the entire Update Controls group when no update is available or onroad
+  updateControlsGroup->setVisible(!is_onroad && updateAvailable);
 
   if (updateAvailable) {
     QString newVersion = QString::fromStdString(params.get("UpdaterNewDescription"));
@@ -556,7 +626,7 @@ void BPSoftwarePanel::updateInstallButton() {
 
 void BPSoftwarePanel::updateBranchSelector() {
   QString targetBranch = QString::fromStdString(params.get("UpdaterTargetBranch"));
-  branchStatusLabel->setText(targetBranch);
+  branchStatusLabel->setText(targetBranch.isEmpty() ? tr("No branch selected") : targetBranch);
 }
 
 void BPSoftwarePanel::checkForUpdates() {
@@ -880,6 +950,125 @@ void BPSoftwarePanel::updateRepoStatus() {
 void BPSoftwarePanel::onRecentChangesClicked() {
   BPRecentChangesDialog *dialog = new BPRecentChangesDialog(this);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->exec();
+}
+
+void BPSoftwarePanel::onSunnypilotChangesClicked() {
+  // Get Sunnypilot release notes from params
+  QString currentNotes = QString::fromStdString(params.get("UpdaterCurrentReleaseNotes"));
+  QString newNotes = QString::fromStdString(params.get("UpdaterNewReleaseNotes"));
+  bool updateAvailable = params.getBool("UpdateAvailable");
+
+  // Create dialog
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+  dialog->setStyleSheet("background-color: black;");
+  dialog->setModal(true);
+
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->setContentsMargins(45, 35, 45, 45);
+  layout->setSpacing(30);
+
+  // Title
+  QLabel *titleLabel = new QLabel(tr("Sunnypilot Changes"), dialog);
+  titleLabel->setStyleSheet(R"(
+    QLabel {
+      font-size: 50px;
+      font-weight: 600;
+      margin: 0px;
+      padding: 0px;
+      background-color: transparent;
+      color: white;
+    }
+  )");
+  layout->addWidget(titleLabel);
+
+  // Scroll area for content
+  QScrollArea *scrollArea = new QScrollArea(dialog);
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scrollArea->setStyleSheet(R"(
+    QScrollArea { border: none; background-color: #1B1B1B; }
+    QScrollBar:vertical {
+      width: 10px;
+      background: #1e1e1e;
+      margin: 0px;
+    }
+    QScrollBar::handle:vertical {
+      min-height: 30px;
+      border-radius: 5px;
+      background: #465BEA;
+    }
+  )");
+
+  QWidget *scrollContent = new QWidget(scrollArea);
+  QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
+  scrollLayout->setContentsMargins(20, 20, 20, 20);
+  scrollLayout->setSpacing(30);
+
+  // Current version section
+  if (!currentNotes.isEmpty()) {
+    QLabel *currentHeader = new QLabel(tr("Current Version"), scrollContent);
+    currentHeader->setStyleSheet("font-size: 42px; font-weight: 600; color: #2196F3;");
+    scrollLayout->addWidget(currentHeader);
+
+    QLabel *currentText = new QLabel(currentNotes, scrollContent);
+    currentText->setStyleSheet("font-size: 32px; color: #E0E0E0; padding: 10px;");
+    currentText->setWordWrap(true);
+    scrollLayout->addWidget(currentText);
+  }
+
+  // New version section (if available)
+  if (updateAvailable && !newNotes.isEmpty()) {
+    scrollLayout->addSpacing(20);
+
+    QLabel *newHeader = new QLabel(tr("New Version"), scrollContent);
+    newHeader->setStyleSheet("font-size: 42px; font-weight: 600; color: #4CAF50;");
+    scrollLayout->addWidget(newHeader);
+
+    QLabel *newText = new QLabel(newNotes, scrollContent);
+    newText->setStyleSheet("font-size: 32px; color: #E0E0E0; padding: 10px;");
+    newText->setWordWrap(true);
+    scrollLayout->addWidget(newText);
+  }
+
+  // If no notes available
+  if (currentNotes.isEmpty() && (newNotes.isEmpty() || !updateAvailable)) {
+    QLabel *noData = new QLabel(tr("No Sunnypilot release notes available"), scrollContent);
+    noData->setStyleSheet("font-size: 36px; color: #888888; padding: 40px;");
+    noData->setAlignment(Qt::AlignCenter);
+    scrollLayout->addWidget(noData);
+  }
+
+  scrollLayout->addStretch();
+  scrollArea->setWidget(scrollContent);
+  layout->addWidget(scrollArea);
+
+  // Close button
+  QPushButton *closeButton = new QPushButton(tr("Close"), dialog);
+  closeButton->setStyleSheet(R"(
+    QPushButton {
+      border-radius: 10px;
+      font-size: 55px;
+      padding: 15px;
+      background-color: #465BEA;
+      color: white;
+      min-height: 60px;
+    }
+    QPushButton:pressed { background-color: #3049F4; }
+  )");
+  connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+  layout->addWidget(closeButton);
+
+  // Set fullscreen
+  QScreen *screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    dialog->setFixedSize(2160, 1080);
+  }
+
+  dialog->show();
+  setupFullscreenDialog(dialog);
+
   dialog->exec();
 }
 
