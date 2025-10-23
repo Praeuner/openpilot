@@ -105,7 +105,7 @@ try:
     XATTR_AVAILABLE = True
 except ImportError:
     XATTR_AVAILABLE = False
-    logger.warning("xattr not available - star/preserve functionality will be limited")
+    logger.warning("xattr not available - preserve functionality will be limited")
 
 # Import disk space utilities
 try:
@@ -1602,7 +1602,7 @@ def set_route_preserve(route_base, preserve=True):
 
     Args:
         route_base: Route base name (e.g., "2025-10-22--14-30-15")
-        preserve: True to preserve (star), False to unpreserve (unstar)
+        preserve: True to preserve, False to unpreserve
 
     Returns:
         dict with success status and message
@@ -1610,8 +1610,7 @@ def set_route_preserve(route_base, preserve=True):
     if not XATTR_AVAILABLE:
         return {
             'success': False,
-            'error': 'xattr support not available',
-            'fallback': 'star_file'
+            'error': 'xattr support not available'
         }
 
     try:
@@ -1626,7 +1625,7 @@ def set_route_preserve(route_base, preserve=True):
         if preserve:
             disk_info = get_disk_space_info()
 
-            # Don't allow starring if we can't safely record the next route
+            # Don't allow preserving if we can't safely record the next route
             if not disk_info['can_record']:
                 return {
                     'success': False,
@@ -2142,8 +2141,8 @@ def scan_routes():
             for camera in videos.keys():
                 has_video[camera] = True
 
-        # Check if route is preserved (starred) via xattr
-        is_starred = check_route_preserve_status(base_name)
+        # Check if route is preserved via xattr
+        is_preserved = check_route_preserve_status(base_name)
 
         # Calculate duration (1 minute per segment)
         duration_seconds = len(segments) * 60
@@ -2225,7 +2224,7 @@ def scan_routes():
             'size': format_size(total_size),
             'sizeBytes': total_size,
             'hasVideo': has_video,
-            'isStarred': is_starred,
+            'isPreserved': is_preserved,
             'dateTime': route_dt.isoformat(),  # For sorting
             # GPS metrics
             'mileage': mileage_str,
@@ -2827,9 +2826,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     # Fallback: use start time + duration if parsing fails
                     end_dt = route_dt + timedelta(seconds=duration_seconds)
 
-                # Check for star file
-                star_file = os.path.join(ROUTES_DIR, route_base, '.star')
-                is_starred = os.path.exists(star_file)
+                # Check if route is preserved via xattr
+                is_preserved = check_route_preserve_status(route_base)
 
                 # Load GPS metrics from cache if available
                 cache_file = os.path.join(METRICS_CACHE, f"{route_base}.json")
@@ -2884,7 +2882,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'hasGpsData': gps_metrics['has_gps_data'],
                     'startLocation': start_location,
                     'endLocation': end_location,
-                    'isStarred': is_starred,
+                    'isPreserved': is_preserved,
                     'segments': segments_detail,
                     'totalSegments': len(segments_detail)
                 })
@@ -3514,38 +3512,38 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 503)
                 return
 
-            if path.startswith('/api/star/'):
-                # Star/unstar a route using preserve xattr with disk space checking
-                route_base = path.split('/api/star/')[1].strip('/')
+            if path.startswith('/api/preserve/'):
+                # Preserve/unpreserve a route using preserve xattr with disk space checking
+                route_base = path.split('/api/preserve/')[1].strip('/')
 
                 # Check current preserve status
-                currently_starred = check_route_preserve_status(route_base)
+                currently_preserved = check_route_preserve_status(route_base)
 
-                # Toggle star status
-                preserve = not currently_starred
+                # Toggle preserve status
+                preserve = not currently_preserved
 
                 # Set or remove preserve xattr (includes disk space checks)
                 result = set_route_preserve(route_base, preserve)
 
                 if result['success']:
-                    is_starred = preserve
+                    is_preserved = preserve
 
                     # Include disk space info in response
                     disk_info = get_disk_space_info()
 
                     self.send_json_response({
                         'success': True,
-                        'isStarred': is_starred,
+                        'isPreserved': is_preserved,
                         'affected_segments': result.get('affected_segments', 0),
                         'message': result.get('message'),
                         'disk_space': disk_info
                     })
 
                     # Broadcast WebSocket event
-                    event_type = WebSocketEvent.ROUTE_STARRED if is_starred else WebSocketEvent.ROUTE_UNSTARRED
+                    event_type = WebSocketEvent.ROUTE_PRESERVED if is_preserved else WebSocketEvent.ROUTE_UNPRESERVED
                     broadcast_websocket_event(event_type, {
                         'route_base': route_base,
-                        'is_starred': is_starred,
+                        'is_preserved': is_preserved,
                         'disk_space': disk_info
                     })
                 else:
