@@ -1774,45 +1774,45 @@ def extract_log_messages(log_path, search_query=None, level_filter=None, max_mes
                 last_time = event_time
 
                 # Determine log level and message
+                # Get message text from event
                 if event_type == 'errorLogMessage':
-                    level = 'error'
                     message = event.errorLogMessage
+                    level = 'warning'  # Default errorLogMessage to warning, not error
                 else:
                     message = event.logMessage
+                    level = 'info'  # Default logMessage to info
 
-                    # Try to parse as JSON to get structured log data
-                    level = 'info'  # Default to info
-                    try:
-                        import json
-                        log_data = json.loads(message)
+                # Try to parse as JSON to get structured log data
+                # This applies to both logMessage and errorLogMessage
+                try:
+                    import json
+                    log_data = json.loads(message)
 
-                        # Extract level from JSON structure
-                        if isinstance(log_data, dict) and 'level' in log_data:
-                            json_level = log_data['level'].upper()
-                            if json_level in ('ERROR', 'CRITICAL', 'FATAL'):
-                                level = 'error'
-                            elif json_level in ('WARNING', 'WARN'):
-                                level = 'warning'
-                            elif json_level in ('INFO', 'DEBUG'):
-                                level = 'info'
-                            else:
-                                # Unknown level, default to info
-                                level = 'info'
-                        else:
-                            # JSON but no level field, default to info
+                    # Extract level from JSON structure
+                    if isinstance(log_data, dict) and 'level' in log_data:
+                        json_level = log_data['level'].upper()
+                        if json_level in ('ERROR', 'CRITICAL', 'FATAL'):
+                            level = 'error'
+                        elif json_level in ('WARNING', 'WARN'):
+                            level = 'warning'
+                        elif json_level in ('INFO', 'DEBUG'):
                             level = 'info'
+                        else:
+                            # Unknown level, keep default based on event type
+                            pass
+                    # If JSON but no level field, keep default based on event type
 
-                    except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
-                        # Not JSON or JSON parsing failed
-                        # Only use keyword detection for non-JSON messages
-                        # Don't search in JSON strings to avoid false positives
-                        if not message.strip().startswith('{'):
-                            message_upper = message.upper()
-                            if any(keyword in message_upper for keyword in ['ERROR', 'FATAL', 'CRITICAL', 'EXCEPTION', 'FAILED']):
-                                level = 'error'
-                            elif any(keyword in message_upper for keyword in ['WARN', 'WARNING', 'CAUTION']):
-                                level = 'warning'
-                        # Otherwise leave as default 'info'
+                except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
+                    # Not JSON or JSON parsing failed
+                    # Use keyword detection for non-JSON messages
+                    # Don't search in JSON strings to avoid false positives
+                    if not message.strip().startswith('{'):
+                        message_upper = message.upper()
+                        if any(keyword in message_upper for keyword in ['ERROR', 'FATAL', 'CRITICAL', 'EXCEPTION', 'FAILED']):
+                            level = 'error'
+                        elif any(keyword in message_upper for keyword in ['WARN', 'WARNING', 'CAUTION']):
+                            level = 'warning'
+                    # Otherwise keep default based on event type
 
                 # Apply level filter
                 if level_filter and level_filter != 'all':

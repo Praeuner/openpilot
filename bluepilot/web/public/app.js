@@ -3143,8 +3143,10 @@ class BluePilotRoutes {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
-      // Calculate absolute timestamp (segment start time + video time)
-      const absoluteTime = this.currentLogStartTime + currentTime;
+      // Calculate absolute timestamp (segment start time + segment offset + video time)
+      // Each segment is 60 seconds, so we need to offset by currentSegment * 60
+      const segmentOffset = this.currentSegment * 60;
+      const absoluteTime = this.currentLogStartTime + segmentOffset + currentTime;
 
       // Find and highlight logs within 2 seconds of current playback
       const logElements = this.$logMessages.querySelectorAll(".log-message");
@@ -3349,8 +3351,10 @@ class BluePilotRoutes {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
-      // Calculate absolute timestamp (segment start time + video time)
-      const absoluteTime = this.currentCerealStartTime + currentTime;
+      // Calculate absolute timestamp (segment start time + segment offset + video time)
+      // Each segment is 60 seconds, so we need to offset by currentSegment * 60
+      const segmentOffset = this.currentSegment * 60;
+      const absoluteTime = this.currentCerealStartTime + segmentOffset + currentTime;
 
       // Find the closest message to current time
       let closestMessage = this.currentCerealData[0];
