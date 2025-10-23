@@ -21,7 +21,6 @@
 #include "system/hardware/hw.h"
 
 #include "bluepilot/qt/offroad/panels/bp_recent_changes.h"
-#include "selfdrive/ui/bluepilot/performance_logger.h"
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include <limits>
 
@@ -206,31 +205,15 @@ UIState::UIState(QObject *parent) : QObject(parent) {
 
 void UIState::update() {
 #ifndef SUNNYPILOT
-  PERF_LOG("UIState::update", 100);
-
-  {
-    PERF_LOG("update_sockets", 50);
-    update_sockets(this);
-  }
-
-  {
-    PERF_LOG("update_state", 50);
-    update_state(this);
-  }
-
-  {
-    PERF_LOG("updateStatus", 20);
-    updateStatus();
-  }
+  update_sockets(this);
+  update_state(this);
+  updateStatus();
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
 
-  {
-    PERF_LOG("uiUpdate_emit", 50);
-    emit uiUpdate(*this);
-  }
+  emit uiUpdate(*this);
 #endif
 }
 

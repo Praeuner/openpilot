@@ -17,9 +17,45 @@ import os
 import json
 import logging
 import subprocess
+import tempfile
 from math import radians, cos, sin, asin, sqrt
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Atomic File Operations (to prevent corruption from crashes)
+# ============================================================================
+def atomic_json_write(filepath, data):
+    """Write JSON file atomically to prevent corruption"""
+    try:
+        # Create directory if needed
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        # Write to temp file first
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=os.path.dirname(filepath),
+            prefix='.tmp_',
+            suffix=os.path.basename(filepath)
+        )
+
+        try:
+            json_str = json.dumps(data, indent=2)
+            os.write(temp_fd, json_str.encode('utf-8'))
+            os.close(temp_fd)
+
+            # Atomic rename (overwrites target on POSIX)
+            os.replace(temp_path, filepath)
+            return True
+
+        except Exception as e:
+            os.close(temp_fd)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+
+    except Exception as e:
+        logger.error(f"Atomic JSON write failed for {filepath}: {e}")
+        return False
 
 # Configuration paths
 ROUTES_DIR = "/data/media/0/realdata" if os.path.exists("/data/media/0/realdata") else os.path.expanduser("~/comma_data/media/0/realdata")
@@ -73,12 +109,9 @@ def load_geocoding_cache():
 
 
 def save_geocoding_cache():
-    """Save geocoding cache to disk"""
-    try:
-        with open(GEOCODE_CACHE_FILE, 'w') as f:
-            json.dump(_geocoding_cache, f)
-    except Exception as e:
-        logger.warning(f"Error saving geocoding cache: {e}")
+    """Save geocoding cache to disk atomically"""
+    if not atomic_json_write(GEOCODE_CACHE_FILE, _geocoding_cache):
+        logger.warning(f"Error saving geocoding cache")
 
 
 # Load cache on module import
@@ -322,23 +355,19 @@ def get_route_gps_metrics(route_base, segments, include_coordinates=False):
         'has_gps_data': has_gps
     }
 
-    # Save to cache
-    try:
-        with open(cache_file, 'w') as f:
-            json.dump(result, f)
+    # Save to cache atomically
+    if atomic_json_write(cache_file, result):
         logger.debug(f"Cached GPS metrics for {route_base}")
-    except Exception as e:
-        logger.debug(f"Error caching GPS metrics for {route_base}: {e}")
+    else:
+        logger.debug(f"Error caching GPS metrics for {route_base}")
 
-    # Save coordinates to separate cache file if requested
+    # Save coordinates to separate cache file if requested (atomically)
     if include_coordinates and all_coordinates:
         result['coordinates'] = all_coordinates
-        try:
-            with open(coords_cache_file, 'w') as f:
-                json.dump(all_coordinates, f)
+        if atomic_json_write(coords_cache_file, all_coordinates):
             logger.debug(f"Cached GPS coordinates for {route_base}")
-        except Exception as e:
-            logger.debug(f"Error caching GPS coordinates for {route_base}: {e}")
+        else:
+            logger.debug(f"Error caching GPS coordinates for {route_base}")
 
     return result
 
@@ -516,23 +545,26 @@ def process_route(route_base, segments, check_idle_fn=None):
                 if end_location:
                     logger.debug(f"    End: {end_location}")
 
-                # Save location names to GPS metrics cache
+                # Save location names to GPS metrics cache atomically
                 cache_file = os.path.join(METRICS_CACHE, f"{route_base}.json")
                 try:
                     # Reload existing cache and add location data
-                    with open(cache_file, 'r') as f:
-                        cached_data = json.load(f)
+                    if os.path.exists(cache_file):
+                        with open(cache_file, 'r') as f:
+                            cached_data = json.load(f)
+                    else:
+                        cached_data = {}
 
                     cached_data['start_location'] = start_location
                     cached_data['end_location'] = end_location
 
-                    # Write back to cache
-                    with open(cache_file, 'w') as f:
-                        json.dump(cached_data, f)
-
-                    logger.debug("  Saved location names to cache")
+                    # Write back to cache atomically
+                    if atomic_json_write(cache_file, cached_data):
+                        logger.debug("  Saved location names to cache")
+                    else:
+                        logger.warning("  Error saving location names to cache")
                 except Exception as e:
-                    logger.warning(f"Error saving location names to cache: {e}")
+                    logger.warning(f"Error saving location names to cache: {e}", exc_info=True)
         else:
             logger.debug("  Geocoding already attempted, skipping")
 
@@ -554,7 +586,7 @@ def process_route(route_base, segments, check_idle_fn=None):
         return True
 
     except Exception as e:
-        logger.error(f"Error processing route {route_base}: {e}")
+        logger.error(f"Error processing route {route_base}: {e}", exc_info=True)
         return False
 
 

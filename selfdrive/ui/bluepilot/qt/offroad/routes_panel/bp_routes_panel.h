@@ -31,6 +31,7 @@ private slots:
   void refreshStats();
   void toggleCellularAccess(bool enabled);
   void updateCellularStatus();
+  void fetchServerErrors();
 
 private:
   void setupUI();
@@ -64,14 +65,22 @@ private:
   QLabel *cellularStatusLabel;
   QLabel *cellularWarningLabel;
 
+  // Server errors section (NEW)
+  QGroupBox *errorsFrame;
+  QLabel *errorStatusLabel;
+  QLabel *errorListLabel;
+  QPushButton *clearErrorsButton;
+
   // Help text
   QLabel *helpLabel;
 
   // State
   Params params;
   QTimer *statusTimer;
+  QTimer *errorTimer;  // Separate timer for error checking
   QNetworkAccessManager *networkManager;
   bool serverEnabled;
   int routeCount;
   QString totalSize;
+  int recentErrorCount;
 };

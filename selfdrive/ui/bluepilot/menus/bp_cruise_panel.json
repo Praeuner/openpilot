@@ -15,7 +15,61 @@
           "desc": "When enabled, sunnypilot will attempt to manage the built-in cruise control buttons by emulating button presses for limited longitudinal control.",
           "icon": "",
           "confirmation": true,
-          "dynamic_desc": false,
+          "dynamic_desc": true,
+          "descriptions": {
+            "default": "When enabled, sunnypilot will attempt to manage the built-in cruise control buttons by emulating button presses for limited longitudinal control.",
+            "unavailable_has_long": "Intelligent Cruise Button Management is currently unavailable on this platform. Disable the openpilot Longitudinal Control (alpha) toggle to allow Intelligent Cruise Button Management.",
+            "unavailable_default_long": "Intelligent Cruise Button Management is currently unavailable on this platform. openpilot Longitudinal Control is the default longitudinal control for this platform.",
+            "unavailable_generic": "Intelligent Cruise Button Management is currently unavailable on this platform.",
+            "offroad": "Start the vehicle to check vehicle compatibility."
+          },
+          "description_conditions": {
+            "offroad": {
+              "isOffroad": true
+            },
+            "unavailable_has_long": {
+              "allConditionsTrue": [
+                {
+                  "isOnroad": true
+                },
+                {
+                  "hasIntelligentCruiseButtonManagement": false
+                },
+                {
+                  "hasLongitudinalControl": true
+                },
+                {
+                  "hasAlphaLongitudinalAvailable": true
+                }
+              ]
+            },
+            "unavailable_default_long": {
+              "allConditionsTrue": [
+                {
+                  "isOnroad": true
+                },
+                {
+                  "hasIntelligentCruiseButtonManagement": false
+                },
+                {
+                  "hasLongitudinalControl": true
+                },
+                {
+                  "hasAlphaLongitudinalAvailable": false
+                }
+              ]
+            },
+            "unavailable_generic": {
+              "allConditionsTrue": [
+                {
+                  "isOnroad": true
+                },
+                {
+                  "hasIntelligentCruiseButtonManagement": false
+                }
+              ]
+            }
+          },
           "enableConditions": {
             "allConditionsTrue": [
               {
@@ -29,6 +83,21 @@
               {
                 "hasLongitudinalControl": false,
                 "reason": "Requires no openpilot longitudinal control"
+              }
+            ]
+          }
+        },
+        {
+          "type": "toggle",
+          "param": "DynamicExperimentalControl",
+          "title": "Dynamic Experimental Control (DEC)",
+          "desc": "Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal.",
+          "icon": "",
+          "enableConditions": {
+            "allConditionsTrue": [
+              {
+                "hasLongitudinalControl": true,
+                "reason": "Requires openpilot longitudinal control"
               }
             ]
           }

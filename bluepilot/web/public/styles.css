@@ -740,6 +740,50 @@ body {
   pointer-events: none;
 }
 
+.video-replay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10;
+}
+
+.replay-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 48px;
+  background: var(--bp-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.replay-btn:hover {
+  background: var(--bp-primary-hover);
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4);
+}
+
+.replay-btn:active {
+  transform: scale(0.98);
+}
+
+.replay-btn svg {
+  margin-bottom: 4px;
+}
+
 /* Sidebar */
 .player-sidebar {
   width: 380px;
@@ -1131,4 +1175,504 @@ body {
   .metrics-modal {
     max-width: 95vw;
   }
+}
+
+/* =================================================================
+   BOTTOM PANELS (Logs & Cereal Data)
+   ================================================================= */
+
+.bottom-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bottom-panel {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.2s;
+}
+
+.panel-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.panel-icon {
+  opacity: 0.7;
+}
+
+.panel-action-btn {
+  flex-shrink: 0;
+}
+
+.panel-content {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.panel-content.hidden {
+  display: none;
+}
+
+/* =================================================================
+   LOG VIEWER
+   ================================================================= */
+
+.log-controls {
+  margin-bottom: 12px;
+}
+
+.log-control-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.log-type-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.log-type-btn {
+  flex: 1;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.log-type-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.log-type-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.log-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.log-filter-select {
+  flex: 1;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.log-filter-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.log-sync-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.log-sync-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.log-search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.log-search-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.log-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.log-search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.log-viewer-container {
+  flex: 1;
+  min-height: 200px;
+  max-height: 400px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-viewer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 20px;
+}
+
+.log-viewer-empty svg {
+  opacity: 0.3;
+  margin-bottom: 12px;
+}
+
+.log-viewer-empty p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.log-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.log-message {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  word-wrap: break-word;
+  transition: all 0.2s;
+}
+
+.log-message:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.log-message.log-error {
+  border-left-color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.log-message.log-warning {
+  border-left-color: #ffaa00;
+  background: rgba(255, 170, 0, 0.1);
+}
+
+.log-message.log-info {
+  border-left-color: #4444ff;
+  background: rgba(68, 68, 255, 0.05);
+}
+
+.log-message.highlighted {
+  background: rgba(var(--primary-color-rgb, 74, 144, 226), 0.2);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.log-timestamp {
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+.log-level {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 8px;
+  text-transform: uppercase;
+}
+
+.log-level.error {
+  background: #ff4444;
+  color: white;
+}
+
+.log-level.warning {
+  background: #ffaa00;
+  color: #000;
+}
+
+.log-level.info {
+  background: #4444ff;
+  color: white;
+}
+
+.log-text {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.log-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.log-status {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+/* Scrollbar styling for log viewer */
+.log-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.log-messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.log-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.log-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* =================================================================
+   CEREAL DATA VIEWER
+   ================================================================= */
+
+.cereal-controls {
+  margin-bottom: 12px;
+}
+
+.cereal-control-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.cereal-control-row label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+.cereal-message-select {
+  flex: 1;
+  min-width: 250px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cereal-message-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cereal-sync-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cereal-sync-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.cereal-status-row {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.cereal-viewer-container {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.cereal-viewer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
+}
+
+.cereal-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+}
+
+.cereal-data-table thead {
+  background: rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.cereal-data-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.cereal-data-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cereal-data-table tbody tr {
+  transition: background 0.2s;
+}
+
+.cereal-data-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cereal-data-table tbody tr.updated {
+  background: rgba(74, 144, 226, 0.2);
+  animation: fadeUpdate 1s ease-out;
+}
+
+@keyframes fadeUpdate {
+  0% { background: rgba(74, 144, 226, 0.4); }
+  100% { background: rgba(74, 144, 226, 0.1); }
+}
+
+.cereal-field-name {
+  font-weight: 500;
+  color: rgba(255, 200, 100, 0.9);
+}
+
+.cereal-field-value {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+.cereal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+/* Scrollbar styling for cereal viewer */
+.cereal-viewer-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cereal-viewer-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.cereal-viewer-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.cereal-viewer-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }

@@ -20,7 +20,8 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
     : QWidget(parent),
       serverEnabled(false),
       routeCount(0),
-      totalSize("0 GB") {
+      totalSize("0 GB"),
+      recentErrorCount(0) {
 
   networkManager = new QNetworkAccessManager(this);
 
@@ -29,6 +30,11 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
   statusTimer->setInterval(3000);
   connect(statusTimer, &QTimer::timeout, this, &BPRoutesPanel::updateServerStatus);
 
+  // Error check timer - check every 10 seconds
+  errorTimer = new QTimer(this);
+  errorTimer->setInterval(10000);
+  connect(errorTimer, &QTimer::timeout, this, &BPRoutesPanel::fetchServerErrors);
+
   setupUI();
   updateServerStatus();
 }
@@ -36,6 +42,9 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
 BPRoutesPanel::~BPRoutesPanel() {
   if (statusTimer) {
     statusTimer->stop();
+  }
+  if (errorTimer) {
+    errorTimer->stop();
   }
 }
 
@@ -101,10 +110,22 @@ void BPRoutesPanel::setupUI() {
   // Status
   serverStatusLabel = new QLabel("Status: Checking...");
   serverStatusLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize + 6));
+  serverStatusLabel->setWordWrap(true);  // Prevent horizontal scrolling
   serverLayout->addWidget(serverStatusLabel);
 
-  // URL display with inset background
+  // QR Code
+  qrCodeLabel = new QLabel();
+  qrCodeLabel->setAlignment(Qt::AlignCenter);
+  qrCodeLabel->setStyleSheet("background-color: transparent; padding: 20px;");
+  qrCodeLabel->setVisible(false);
+  qrCodeLabel->setScaledContents(false);
+  qrCodeLabel->setMinimumHeight(380);
+  serverLayout->addWidget(qrCodeLabel);
+
+  // URL display with inset background - centered below QR code
   urlLabel = new QLabel("URL: Not running");
+  urlLabel->setAlignment(Qt::AlignCenter);
+  urlLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
   urlLabel->setStyleSheet(QString(R"(
     QLabel {
       font-size: %1px;
@@ -116,25 +137,22 @@ void BPRoutesPanel::setupUI() {
       font-weight: 500;
     }
   )").arg(sizes.descSize + 6));
-  urlLabel->setWordWrap(true);
+  urlLabel->setWordWrap(false);
   urlLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  serverLayout->addWidget(urlLabel);
 
-  // QR Code
-  qrCodeLabel = new QLabel();
-  qrCodeLabel->setAlignment(Qt::AlignCenter);
-  qrCodeLabel->setStyleSheet("background-color: transparent; padding: 20px;");
-  qrCodeLabel->setVisible(false);
-  qrCodeLabel->setScaledContents(false);
-  qrCodeLabel->setMinimumHeight(380);
-  serverLayout->addWidget(qrCodeLabel);
+  // Center the URL label in the layout
+  QHBoxLayout *urlLayout = new QHBoxLayout();
+  urlLayout->addStretch();
+  urlLayout->addWidget(urlLabel);
+  urlLayout->addStretch();
+  serverLayout->addLayout(urlLayout);
 
   mainLayout->addWidget(serverGroup);
 
   // ========== HELP TEXT - MOVED BELOW SERVER GROUP ==========
   helpLabel = new QLabel(
     "Open the URL in Safari or Chrome on your phone or tablet to view routes. "
-    "The server stops automatically while driving.");
+    "While driving, all interactions are disabled and the web interface shows a safety overlay. Park to access routes.");
   helpLabel->setStyleSheet(QString("font-size: %1px; color: #808080;").arg(sizes.descSize + 2));
   helpLabel->setWordWrap(true);
   mainLayout->addWidget(helpLabel);
@@ -307,7 +325,7 @@ void BPRoutesPanel::setupUI() {
 
   // Timeout selection
   cellularTimeoutSelection = new BPSelectionControl(
-    "BPWebServerCellularTimeout",
+    "BPWebServerCellularTimeoutMinutes",
     "Auto-Disable Timeout",
     "Select how long cellular access stays enabled before auto-disabling"
   );
@@ -334,20 +352,23 @@ void BPRoutesPanel::setupUI() {
   cellularTimeoutSelection->setOptions(optionPairs);
 
   // Set default to 1 hour if not already set
-  std::string currentTimeout = params.get("BPWebServerCellularTimeout");
+  std::string currentTimeout = params.get("BPWebServerCellularTimeoutMinutes");
   if (currentTimeout.empty()) {
-    params.put("BPWebServerCellularTimeout", "60");
+    // Params stores ints as strings, so use "60" as the string representation
+    params.put("BPWebServerCellularTimeoutMinutes", "60");
     cellularTimeoutSelection->setSelectedValue("60");
   } else {
+    // Value is already a string from params.get(), use it directly
     cellularTimeoutSelection->setSelectedValue(QString::fromStdString(currentTimeout));
   }
 
   connect(cellularTimeoutSelection, &BPSelectionControl::clicked, [this, dialogOptions]() {
-    QString currentValue = QString::fromStdString(params.get("BPWebServerCellularTimeout"));
+    QString currentValue = QString::fromStdString(params.get("BPWebServerCellularTimeoutMinutes"));
     QString newValue = BPSelectionDialog::getValue("Auto-Disable Timeout", dialogOptions, currentValue, this);
 
     if (!newValue.isEmpty() && newValue != currentValue) {
-      params.put("BPWebServerCellularTimeout", newValue.toStdString());
+      // Params stores all values as strings, so just convert QString to std::string
+      params.put("BPWebServerCellularTimeoutMinutes", newValue.toStdString());
       cellularTimeoutSelection->setSelectedValue(newValue);
 
       // Update cellular status to reflect new timeout
@@ -356,6 +377,9 @@ void BPRoutesPanel::setupUI() {
   });
 
   cellularLayout->addWidget(cellularTimeoutSelection);
+
+  // Hide timeout selection by default (shown when cellular enabled)
+  cellularTimeoutSelection->setVisible(params.getBool("BPWebServerAllowCellular"));
 
   // Status display
   cellularStatusLabel = new QLabel("Status: Disabled");
@@ -369,6 +393,7 @@ void BPRoutesPanel::setupUI() {
       font-weight: 500;
     }
   )").arg(sizes.descSize + 2));
+  cellularStatusLabel->setWordWrap(true);  // Prevent horizontal scrolling from long error messages
   cellularLayout->addWidget(cellularStatusLabel);
 
   mainLayout->addWidget(cellularGroup);
@@ -379,8 +404,10 @@ void BPRoutesPanel::setupUI() {
 void BPRoutesPanel::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
   statusTimer->start();
+  errorTimer->start();
   updateServerStatus();
   updateCellularStatus();
+  fetchServerErrors();
   if (serverEnabled) {
     refreshStats();
   }
@@ -389,55 +416,66 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
 void BPRoutesPanel::hideEvent(QHideEvent *event) {
   QWidget::hideEvent(event);
   statusTimer->stop();
+  errorTimer->stop();
 }
 
 void BPRoutesPanel::updateServerStatus() {
   bool running = isServerRunning();
   serverEnabled = running;
 
-  // Check onroad status first
+  // Check onroad status
   bool onroad = params.getBool("IsOnRoad");
 
-  if (onroad) {
-    serverStatusLabel->setText("Status: <span style='color: #FF9800;'>●</span> Disabled (Onroad)");
-    serverToggle->setEnabled(false);
-    urlLabel->setText("URL: Disabled while driving");
-    urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#2196F3", "#808080"));
-    qrCodeLabel->setVisible(false);
-    return;
-  }
-
-  serverToggle->setEnabled(true);
+  // Disable toggle when onroad (can't change server state while driving)
+  serverToggle->setEnabled(!onroad);
 
   if (running) {
-    serverStatusLabel->setText("Status: <span style='color: #4CAF50;'>●</span> Running");
+    if (onroad) {
+      // Server is running AND onroad = disabled for safety
+      serverStatusLabel->setText("Status: <span style='color: #FF9800;'>●</span> Disabled (Driving)");
 
-    // Block signals to prevent toggleServer() from being called
-    // when we update the checkbox state
+      QString url = getServerUrl();
+      urlLabel->setText(url + " (Blocked)");
+      urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#808080", "#FF9800").replace("#2196F3", "#FF9800"));
+
+      // Show QR code - though interface will show safety overlay when accessed
+      generateQRCode(url);
+    } else {
+      // Server is running AND offroad = normal mode
+      serverStatusLabel->setText("Status: <span style='color: #4CAF50;'>●</span> Running");
+
+      QString url = getServerUrl();
+      urlLabel->setText(url);
+      urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#FF9800", "#2196F3").replace("#808080", "#2196F3"));
+
+      generateQRCode(url);
+
+      // Update cellular status when server is running
+      updateCellularStatus();
+    }
+
+    // Update toggle to match running state
     serverToggle->blockSignals(true);
     serverToggle->setChecked(true);
     serverToggle->blockSignals(false);
 
-    // Update cellular status when server is running
-    updateCellularStatus();
-
-    QString url = getServerUrl();
-    urlLabel->setText(url);
-
-    // Generate and display QR code
-    generateQRCode(url);
-
   } else {
-    serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped");
+    // Server is not running
+    if (onroad) {
+      // Not running AND onroad = disabled for safety
+      serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped (Driving)");
+    } else {
+      // Not running AND offroad = user disabled or stopped
+      serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped");
+    }
 
-    // Block signals to prevent toggleServer() from being called
-    // when we update the checkbox state
+    // Update toggle to match stopped state
     serverToggle->blockSignals(true);
     serverToggle->setChecked(false);
     serverToggle->blockSignals(false);
 
     urlLabel->setText("URL: Not running");
-    urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#2196F3", "#808080"));
+    urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#2196F3", "#808080").replace("#FF9800", "#808080"));
     qrCodeLabel->setVisible(false);
   }
 }
@@ -629,6 +667,9 @@ void BPRoutesPanel::generateQRCode(const QString &url) {
 
 void BPRoutesPanel::toggleCellularAccess(bool enabled) {
   // Toggle is already handled by BPToggleControl
+  // Show/hide timeout selection based on cellular toggle state
+  cellularTimeoutSelection->setVisible(enabled);
+
   // Just trigger status update
   QTimer::singleShot(500, this, &BPRoutesPanel::updateCellularStatus);
 }
@@ -727,4 +768,42 @@ void BPRoutesPanel::fetchDetailedStatus() {
   });
 
   timeoutTimer->start(5000);  // Increased timeout to 5 seconds
+}
+
+void BPRoutesPanel::fetchServerErrors() {
+  // For now, just a stub implementation to fix the linker error
+  // This can be enhanced later to show errors in the UI
+  // The backend /api/logs endpoint is ready when needed
+
+  if (!serverEnabled) {
+    return;
+  }
+
+  // Optional: Uncomment below to fetch and log errors
+  /*
+  QString url = getServerUrl() + "/api/logs?limit=5&level=ERROR";
+  QNetworkRequest request(url);
+  QNetworkReply *reply = networkManager->get(request);
+
+  connect(reply, &QNetworkReply::finished, [this, reply]() {
+    reply->deleteLater();
+    if (reply->error() == QNetworkReply::NoError) {
+      QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+      if (doc.isObject()) {
+        QJsonObject obj = doc.object();
+        QJsonObject summary = obj["summary"].toObject();
+        int errorCount = summary["ERROR"].toInt(0);
+        int criticalCount = summary["CRITICAL"].toInt(0);
+
+        // Store error count for potential UI display
+        recentErrorCount = errorCount + criticalCount;
+
+        // Could display errors here if needed
+        if (recentErrorCount > 0) {
+          qDebug() << "Server has" << recentErrorCount << "errors";
+        }
+      }
+    }
+  });
+  */
 }

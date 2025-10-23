@@ -130,8 +130,6 @@ private:
   void applySmoothPath(); // Stub - currently disabled
 
   // Drawing utilities (from bluepilot_renderer)
-  void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
-  void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
   void drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color);
 
   // Enhanced blindspot polygons

@@ -2,7 +2,7 @@ import json
 Import('env', 'qt_env', 'arch', 'common', 'messaging', 'visionipc', 'transformations')
 
 base_libs = [common, messaging, visionipc, transformations,
-             'm', 'OpenCL', 'ssl', 'crypto', 'pthread', 'avformat', 'avcodec', 'avutil', 'x264', 'yuv'] + qt_env["LIBS"]
+             'm', 'OpenCL', 'ssl', 'crypto', 'pthread'] + qt_env["LIBS"]
 
 if arch == 'larch64':
   base_libs.append('EGL')
@@ -57,6 +57,7 @@ bp_qt_src = [
   "bluepilot/qt/onroad/overlays/stop_sign_overlay.cc",
   "bluepilot/qt/onroad/overlays/gforce_overlay.cc",
   "bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.cc",
+  "bluepilot/qt/onroad/overlays/standstill_timer_overlay.cc",
   # "bluepilot/qt/onroad/steer_graph_panel.cc",
   "bluepilot/qt/onroad/long_debug_panel.cc",
   "bluepilot/qt/onroad/lateral_debug_panel.cc",

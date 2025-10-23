@@ -8,7 +8,6 @@
 #include "selfdrive/ui/sunnypilot/ui.h"
 
 #include "common/watchdog.h"
-#include "selfdrive/ui/bluepilot/performance_logger.h"
 
 void UIStateSP::updateStatus() {
   UIState::updateStatus();
@@ -32,7 +31,7 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
     "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
     "carControl", "gpsLocationExternal", "gpsLocation", "liveTorqueParameters",
-    "carStateSP", "liveParameters", "liveMapDataSP",
+    "carStateSP", "liveParameters", "liveMapDataSP", "carParamsSP",
     "carStateBP",  // Always include for brake lights and hybrid data
   };
 
@@ -66,31 +65,15 @@ UIStateSP::UIStateSP(QObject *parent) : UIState(parent) {
 
 // This method overrides completely the update method from the parent class intentionally.
 void UIStateSP::update() {
-  PERF_LOG("UIStateSP::update", 100);  // Warn if full update takes >100ms
-
-  {
-    PERF_LOG("update_sockets", 50);
-    update_sockets(this);
-  }
-
-  {
-    PERF_LOG("update_state", 50);
-    update_state(this);
-  }
-
-  {
-    PERF_LOG("updateStatus", 20);
-    updateStatus();
-  }
+  update_sockets(this);
+  update_state(this);
+  updateStatus();
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
 
-  {
-    PERF_LOG("uiUpdate_emit", 50);
-    emit uiUpdate(*this);
-  }
+  emit uiUpdate(*this);
 }
 
 void ui_update_params_sp(UIStateSP *s) {
@@ -106,14 +89,21 @@ void ui_update_params_sp(UIStateSP *s) {
   s->scene.onroadScreenOffBrightness = std::atoi(params.get("OnroadScreenOffBrightness").c_str());
   s->scene.onroadScreenOffControl = params.getBool("OnroadScreenOffControl");
   s->scene.onroadScreenOffTimerParam = std::atoi(params.get("OnroadScreenOffTimer").c_str());
-  s->reset_onroad_sleep_timer();
+
+  s->scene.turn_signals = params.getBool("ShowTurnSignals");
+  s->scene.chevron_info = std::atoi(params.get("ChevronInfo").c_str());
+  s->scene.blindspot_ui = params.getBool("BlindSpot");
+  s->scene.rainbow_mode = params.getBool("RainbowMode");
 }
 
-void UIStateSP::reset_onroad_sleep_timer() {
-  if (scene.onroadScreenOffTimerParam >= 0 and scene.onroadScreenOffControl) {
-    scene.onroadScreenOffTimer = scene.onroadScreenOffTimerParam * UI_FREQ;
-  } else {
+void UIStateSP::reset_onroad_sleep_timer(OnroadTimerStatusToggle toggleTimerStatus) {
+  // Toggling from active state to inactive
+  if (toggleTimerStatus == OnroadTimerStatusToggle::PAUSE and scene.onroadScreenOffTimer != -1) {
     scene.onroadScreenOffTimer = -1;
+  }
+  // Toggling from a previously inactive state or resetting an active timer
+  else if ((scene.onroadScreenOffTimerParam >= 0 and scene.onroadScreenOffControl and scene.onroadScreenOffTimer != -1) or toggleTimerStatus == OnroadTimerStatusToggle::RESUME) {
+    scene.onroadScreenOffTimer = scene.onroadScreenOffTimerParam * UI_FREQ;
   }
 }
 

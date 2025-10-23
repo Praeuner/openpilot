@@ -68,18 +68,18 @@ void BluepilotRenderer::renderAllImpl(QPainter &painter, const QRect &rect, cons
   // PERFORMANCE: Single state update per frame - batch all data gathering
   updateFrameState(s, model);
 
-  // 1. BOTTOM LAYER: Blinkers
-  renderBlinkers(painter, rect);
-
-  // 2. MIDDLE LAYER: Model-dependent overlays (radar, stop signs)
+  // 1. BOTTOM LAYER: Model-dependent overlays (radar, stop signs)
   if (frame_state.show_radar || frame_state.show_stop) {
     renderModelEnhancements(painter, rect, s);
   }
 
-  // 3. TOP LAYER: Hybrid gauges (always on top)
+  // 2. MIDDLE LAYER: Hybrid gauges
   HybridGaugesOverlay::render(painter, rect, s, frame_state.hybrid_state);
 
-  // 4. G-FORCE METER: Bottom right corner
+  // 3. TOP LAYER: Standstill timer (renders on top)
+  StandstillTimerOverlay::render(painter, rect, s, frame_state.standstill_state);
+
+  // 4. G-FORCE METER: Bottom right corner (DISABLED)
   // DISABLED: G-Force meter disabled for performance/consistency issues
   // GForceOverlay::render(painter, rect, s, frame_state.gforce_state);
 }
@@ -98,12 +98,6 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   }
 
   const auto car_state = sm["carState"].getCarState();
-
-  // Update blinker state
-  frame_state.left_blinker = car_state.getLeftBlinker();
-  frame_state.right_blinker = car_state.getRightBlinker();
-  frame_state.left_blindspot = car_state.getLeftBlindspot();
-  frame_state.right_blindspot = car_state.getRightBlindspot();
 
   // Update vehicle speed
   frame_state.vehicle_speed = car_state.getVEgo();
@@ -141,6 +135,9 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   // Update G-force data
   // DISABLED: G-Force meter disabled for performance/consistency issues
   // GForceOverlay::updateGForceData(s, frame_state.gforce_state);
+
+  // Update standstill timer state
+  StandstillTimerOverlay::updateState(s, frame_state.standstill_state);
 
   // Debug logging
   static int debug_counter = 0;
@@ -289,30 +286,6 @@ void BluepilotRenderer::updateFrameState(const UIState &s, const ModelType &mode
   }
 }
 
-void BluepilotRenderer::renderBlinkers(QPainter &painter, const QRect &rect) {
-  if (!frame_state.left_blinker && !frame_state.right_blinker) {
-    frame_state.blinker_frame = 0;
-    return;
-  }
-
-  frame_state.blinker_frame++;
-  int state = (frame_state.blinker_frame % UI_FREQ < (UI_FREQ / 2)) ? 1 : 0;
-
-  int blinker_x = 180;
-  int blinker_y = 90;
-
-  if (frame_state.left_blinker) {
-    // Note: Drawing functions are now in ModelRendererBP
-    // For now, we'll keep the original implementation
-    drawLeftTurnSignal(painter, rect.center().x() - (blinker_x + BLINKER_SIZE),
-                      blinker_y, BLINKER_SIZE, state, frame_state.left_blindspot);
-  }
-  if (frame_state.right_blinker) {
-    drawRightTurnSignal(painter, rect.center().x() + blinker_x,
-                       blinker_y, BLINKER_SIZE, state, frame_state.right_blindspot);
-  }
-}
-
 void BluepilotRenderer::renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s) {
   // Lead tracking and stop detection are handled by ModelRendererBP
   // We just use the results from frame_state that was populated in updateFrameState
@@ -335,84 +308,6 @@ void BluepilotRenderer::renderModelEnhancements(QPainter &painter, const QRect &
                            frame_state.vehicle_speed);
   }
 }
-
-// Removed deprecated functions - now handled by ModelRendererBP
-
-void BluepilotRenderer::drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
-
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color, arrow_color;
-  if (blindspot) {
-    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
-  } else {
-    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
-  }
-
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(x, y, size, size);
-
-  int arrowSize = 50;
-  int arrowX = x + (size - arrowSize) / 4;
-  int arrowY = y + (size - arrowSize) / 2;
-  painter.setBrush(arrow_color);
-
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + 10, arrowY + arrowSize / 2)
-               << QPoint(arrowX + arrowSize - 3, arrowY)
-               << QPoint(arrowX + arrowSize, arrowY)
-               << QPoint(arrowX + arrowSize, arrowY + arrowSize)
-               << QPoint(arrowX + arrowSize - 3, arrowY + arrowSize)
-               << QPoint(arrowX + 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX + arrowSize - 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
-void BluepilotRenderer::drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
-
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color, arrow_color;
-  if (blindspot) {
-    circle_color = state ? QColor(204, 0, 1) : QColor(164, 0, 1);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(72, 1, 1);
-  } else {
-    circle_color = state ? QColor(30, 215, 96) : QColor(22, 156, 69);
-    arrow_color = state ? QColor(255, 255, 255) : QColor(9, 56, 27);
-  }
-
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(x, y, size, size);
-
-  int arrowSize = 50;
-  int arrowX = x + (size - arrowSize) / 2 + (arrowSize / 2.5) - 3;
-  int arrowY = y + (size - arrowSize) / 2;
-  painter.setBrush(arrow_color);
-
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2)
-               << QPoint(arrowX + 3, arrowY)
-               << QPoint(arrowX, arrowY)
-               << QPoint(arrowX, arrowY + arrowSize)
-               << QPoint(arrowX + 3, arrowY + arrowSize)
-               << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX - tailWidth + 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
-// drawColoredText removed - use ModelRendererBP::drawColoredText instead
 
 // Explicit template instantiations to ensure proper compilation
 template void BluepilotRenderer::renderAllImpl<ModelRenderer>(QPainter &painter, const QRect &rect, const UIState &s, const ModelRenderer &model);

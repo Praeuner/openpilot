@@ -1,193 +1,117 @@
-![](https://private-user-images.githubusercontent.com/56047663/329263894-14976646-2e10-4c51-946b-e5e0b91821ee.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MTUyNjIyMzksIm5iZiI6MTcxNTI2MTkzOSwicGF0aCI6Ii81NjA0NzY2My8zMjkyNjM4OTQtMTQ5NzY2NDYtMmUxMC00YzUxLTk0NmItZTVlMGI5MTgyMWVlLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDA1MDklMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQwNTA5VDEzMzg1OVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTMxMzQwZTE0NjQ0NjNmNTgxMzdmNGI2ZTc4ZGRmNWZmMGE4MmEwMTE2ODc1MDE5ODBjNzk0ZTlkNjc3ZjNmMjcmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JmFjdG9yX2lkPTAma2V5X2lkPTAmcmVwb19pZD0wIn0.cqqRUk4IZHyoqETqO2fRK89kfSrYXxI1eovSVQ7X0I4)
+![](https://user-images.githubusercontent.com/47793918/233812617-beab2e71-57b9-479e-8bff-c3931347ca40.png)
 
-Table of Contents
-=======================
+## 🌞 What is sunnypilot?
+[sunnypilot](https://github.com/sunnyhaibin/sunnypilot) is a fork of comma.ai's openpilot, an open source driver assistance system. sunnypilot offers the user a unique driving experience for over 300+ supported car makes and models with modified behaviors of driving assist engagements. sunnypilot complies with comma.ai's safety rules as accurately as possible.
 
-* [Updates on Branch Names and Links](#-updates-on-branch-names-and-links)
-* [Join our Discord](#-join-our-discord)
-* [What is bluepilot?](#-what-is-sunnypilot)
-* [Running in a car](#-running-on-a-dedicated-device-in-a-car)
-* [Read Before Installing](#-read-before-installing)
-* [Prohibited Safety Modifications](#-prohibited-safety-modifications)
-* [Installation](#-installation)
-* [Bluepilot Specific Features](#-bluepilot-specific-features)
-* [Special Thanks](#-special-thanks)
-* [User Data](#-user-data)
-* [Licensing](#licensing)
+## 💭 Join our Discord
+Join the official sunnypilot Discord server to stay up to date with all the latest features and be a part of shaping the future of sunnypilot!
+* https://discord.gg/sunnypilot
 
----
+  ![](https://dcbadge.vercel.app/api/server/wRW3meAgtx?style=flat) ![Discord Shield](https://discordapp.com/api/guilds/880416502577266699/widget.png?style=shield)
 
-<details><summary><h3>💭 Updates on Branch Names and Links</h3></summary>
+## Documentation
+https://docs.sunnypilot.ai/ is your one stop shop for everything from features to installation to FAQ about the sunnypilot
 
----
+## 🚘 Running on a dedicated device in a car
+* A supported device to run this software
+    * a [comma three](https://comma.ai/shop/products/three) or a [C3X](https://comma.ai/shop/comma-3x)
+* This software
+* One of [the 300+ supported cars](https://github.com/commaai/openpilot/blob/master/docs/CARS.md). We support Honda, Toyota, Hyundai, Nissan, Kia, Chrysler, Lexus, Acura, Audi, VW, Ford and more. If your car is not supported but has adaptive cruise control and lane-keeping assist, it's likely able to run sunnypilot.
+* A [car harness](https://comma.ai/shop/products/car-harness) to connect to your car
 
-As of May 2025, we are updating the way branches are named and how links are generated. We had intially intended to use a branch naming system similar to openpilot and sunnypilot where there was a "stable" or "release" branch which included all fully vetted code, and then "staging" or "beta" branches with new code that would eventually move into the stable/release branches.  However as we evolved we found everyone liked being able to bounce between newer and older branches to compare features and control. Moving forwards all releases will simply be named bp-"feature release number" as an example "staging-1.1" which features the bluepilot 1.1 features (custom tuning) will become "bp-1.1".  We will not delete older branches so that anyone can go back and view older code for references.  Branches that no longer work properly will be denoted as -deprecated.
+Detailed instructions for [how to mount the device in a car](https://comma.ai/setup).
 
-To install any version of bleupilot, use the following URL formula (URL is case sensitive)
+## Installation
+Please refer to [Recommended Branches](#-recommended-branches) to find your preferred/supported branch. This guide will assume you want to install the latest `staging-c3-new` branch.
 
-installer.comma.ai/BluePilotDev/"branch name"
+### If you want to use our newest branches (our rewrite)
+> [!TIP]
+>You can see the rewrite state on our [rewrite project board](https://github.com/orgs/sunnypilot/projects/2), and to install the new branches, you can use the following links
 
-For example
-
-installer.comma.ai/BluePilotDev/bp-2.1
-
-will install the bp-2.1 branch.  Branches known to no longer work due to changes in the comma codebase will be apended with -deprecated so it will be obvious they will not install or work correctly.
-
-</details>
-
-
----
-
-<details><summary><h3>💭 Join our Discord</h3></summary>
-
----
-
-Join the official #ford channel at the sunnypilot Discord server to stay up to date with all the latest features and be a part of shaping the future of bluepilot!
-* [sunnypilot Discord server](https://discord.sunnypilot.com)
-
-</details>
-
-<details><summary><h3>🌞 What is bluepilot?</h3></summary>
-
----
-
-[bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.
-
-</details>
-
-<details><summary><h3>⛔ Prohibited Safety Modifications</h3></summary>
-
----
-
-All [official sunnypilot branches](https://github.com/sunnyhaibin/sunnypilot/branches) strictly adhere to [comma.ai's safety policy](https://github.com/commaai/openpilot/blob/master/docs/SAFETY.md). Any changes that go against this policy will result in your fork and your device being banned from both comma.ai and sunnypilot channels. This same stipulation applies to all bluepilot instances as well.
-
-The following changes are a **VIOLATION** of this policy and **ARE NOT** included in any sunnypilot branches:
-* Driver Monitoring:
-    * ❌ "Nerfing" or reducing monitoring parameters.
-* Panda safety:
-    * ❌ No preventing disengaging of <ins>**LONGITUDINAL CONTROL**</ins> (acceleration/brake) on brake pedal press.
-    * ❌ No auto re-engaging of <ins>**LONGITUDINAL CONTROL**</ins> (acceleration/brake) on brake pedal release.
-    * ❌ No disengaging on ACC MAIN in OFF state.
-
-</details>
-
-
-<details><summary><h3>⚒ Installation</h3></summary>
-
-* bluepilot not installed
+* sunnypilot not installed or you installed a version before 0.8.17?
   1. [Factory reset/uninstall](https://github.com/commaai/openpilot/wiki/FAQ#how-can-i-reset-the-device) the previous software if you have another software/fork installed.
   2. After factory reset/uninstall and upon reboot, select `Custom Software` when given the option.
-  3. Input the installation URL based on the desired branch. Example: ```installter.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
+  3. Input the installation URL per [Recommended Branches](#-recommended-branches). Example: ```https://staging-c3-new.sunnypilot.ai```.
   4. Complete the rest of the installation following the onscreen instructions.
 
-* bluepilot already installed and you installed a version after 0.8.17?
+* sunnypilot already installed and you installed a version after 0.8.17?
   1. On the comma three, go to `Settings` ▶️ `Software`.
   2. At the `Download` option, press `CHECK`. This will fetch the list of latest branches from sunnypilot.
   3. At the `Target Branch` option, press `SELECT` to open the Target Branch selector.
-  4. Scroll to select the desired branch
+  4. Scroll to select the desired branch per  Recommended Branches (see below). Example: `staging-c3-new`
 
 
-Requires further assistance with software installation? Join the [sunnypilot Discord server](https://discord.sunnypilot.com) and message us in the `#ford` channel.
+|      Branch      |                 Installation URL              |
+|:----------------:|:---------------------------------------------:|
+| `staging-c3-new` | `https://staging-c3-new.sunnypilot.ai`        |
+|   `dev-c3-new`   | `https://dev-c3-new.sunnypilot.ai`            |
+| `custom-branch`  | `https://install.sunnypilot.ai/{branch_name}` |
+| `release-c3-new` |            **Not yet available**.             |
 
-  </details>
+> [!TIP]
+> You can use sunnypilot/targetbranch as an install URL. Example: 'sunnypilot/staging-c3-new'.
 
-<details><summary><h3>🚗 BluePilot Specific Features</h3></summary>
+> [!NOTE]
+> Do you require further assistance with software installation? Join the [sunnypilot Discord server](https://discord.sunnypilot.com) and message us in the `#installation-help` channel.
 
----
-In addition to all sunnypilot features, bluepilot incorporates the following Ford specific enhacements.
 
-- [**Improved Ford Longitudinal controls**] - logic to adjust stock OpenPilot single acceleration signal into seperate gas and brake signals for much smoother long control on ford vehicles.
-- [**Anti-Windup in Turns**] - Logic to reset the EPAS back to zero when a human turn is detected.  This prevents the EPAS from winding up and fighting to keep turning after the car has straightened up.  Makes experimental mode and MADS safer to use.
-- [**OEM Style Lateral Control Logic**] - This is a complete rewrite of the lateral control logic to match the behavior of the OEM EPAS system.  It includes a blend of desired curvature and predicted curvature to achieve smoother signals, incorporation of curvature_rate signal to help with getting in and out of curves more ontime and the path_offset and path_angle variables to increase the available steering torque and to allow for custom in lane positioning as well as enabling the legacy sunnypilot style lanefull mode.
-- [**Improved Lane Change Logic**] - Even further improvements to the lange change logic to help fix issues with the older logic that caused the lane change to overshoot and then have to correct back.
+<details>
 
-The following settings and tuning are available in the BluePilot menu (after completing one drive in a Ford vehnicle)
+<summary>Older legacy branches</summary>
 
-- [**Disable GPS Alert**] - Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted
-- [**Show Animated Steer Angle Icon**] - This option will animate the steering icon in the upper right to match the approximate angle of the steering wheel
-- [**Show Brake Status**] - This option will animate the color of the speed display on the UI to track brake light status
-- [**Custom Model Path Color**] - Choose different colors for the path animation on the UI.  This does not work when experimental mode is engaged.
-- [**Show Radar Lead Vehicle Overview**] - Animate the icon on the lead vehicle.  Blue equals radar lead, yellow means vision lead.
-- [**Show Hybrid Electric Data Overlays**] - Add a panel at the bottom of the UI showing how the electrical battery and motor are being utilized
-- [**Show Hybrid Battery Data Overlay**] - Add a panel at the bottom of the UI showing the hybrid or electic battery status
-- [**Hybrid Drive Gauge Size**] - Adjust the size of the hybrid/electric data panel on the UI
-- [**Show G-Force Meter**] - Displays a g-force meter when onroad
-- [**Show Blindspot Indicators**] - Another sunny feature not yet ported but available in BluePilot.  Get red inidcators on the UI of blindspot detection.
-- [**Show Stop Indicator Overlay**] - Add a stop sign on the UI where OpenPilot has detect a stop or redlight.  Great for knowing what experimental mode detected.
-- [**Show Wide Camera at Low Speed**] - Still a work in progress
-- [**Show Hands Free UI**] - This setting enables the hands free Blue Cruise dash.  This will only work in vehicles with a digital dash that can display the icon.  Known to work in Mach E, Lightning, Ranger, and F150s with digital dash.
-- [**Send Lane Depature Signals**] - This sends the lane depature alerts to the dash on vehicles with a supporting dash.
-- [**Enable Human Turn Detection**] - This setting enables the human turn detection logic.  This will help prevent the EPAS from winding up and fighting to keep turning after the car has straightened up.  Makes experimental mode and MADS safer to use.
-- [**Lane Change Factor**] - This is a tunable reduction in lane change signal to enable less aggressive lane changes.  Lower numbers equal slower lane changes.  Too low and the lane chagne might fail.
-- [**Use Custom Tuning Profile**] - There are 2 preset tuning profiles which are automatically selected based on the vehicle driven (CAN or CANFD). Toggling this parameter will enable custom tuning values for lateral control
-- [**Predicted Curvature Blend Ratio Low**] - This setting allows for a blend of desired curvature and predicted curvature on straight aways to achieve smoother signals.  Lower numbers will make steering more aggressive.  To tune this value begin to increase the blend ratio until the car starts to "wander" or experience a slow ping pong effect at highway speeds.  If using advanced lateral control, leave it at a wander, it is not desired for this number to be low enough for complete control, because if the signal is too strong it will conflict with the other signals. If not using advanced lateral control, then lower the PC Blend Ratio back down until wadnering stops. Default Values are CANFD = 0.65, CAN = 0.4
-- [**Predicted Curvature Blend Ratio High**] - This setting allows for a blend of desired curvature and predicted curvature in curves to achieve smoother signals.  Lower numbers will make steering more aggressive.  To tune this value begin to decrease the blend ratio until the car starts to ping pong inside of curves, then increase slightly until the behavior stops. Default Values are CANFD = 0.4, CAN = 0.2
-- [**Enable Advanced Lane Positioning**] - This settings enables the OEM style logic with path_offset and path_angle variables.  This allows for custom in lane positioning. Disabling this setting will revert to only using curvature and curvature_rate which was the previous behavior in bluepilot 1.0
-- [**Enable Legacy Style Lanefull Mode**] - This setting enables the legacy style lanefull mode which will use lane lines to determine the ideal path for the vehicle rather than Commas model.  This setting is only applicable when linelines are strong and the lane width is not too wide.
-- [**In lane offset**] - This setting allows for custom in lane positioning.  Negative numbers will move the car to the left, positive numbers will move the car to the right.
-- [**Low Curvature PID Gain**] - This setting controls how aggressive the path_angle signal is applied to correct for deviations from the ideal path.  Default Values are CANFD = 3.0, CAN = 5.0
+### If you want to use our older legacy branches (*not recommended*)
+
+> [**IMPORTANT**]
+> It is recommended to [re-flash AGNOS](https://flash.comma.ai/) if you intend to downgrade from the new branches.
+> You can still restore the latest sunnylink backup made on the old branches.
+
+|    Branch    |         Installation URL         |
+|:------------:|:--------------------------------:|
+| `release-c3` | https://release-c3.sunnypilot.ai |
+| `staging-c3` | https://staging-c3.sunnypilot.ai |
+|   `dev-c3`   | https://dev-c3.sunnypilot.ai     |
 
 </details>
 
-<details><summary><h3>📗 How To's</h3></summary>
 
----
+## 🎆 Pull Requests
+We welcome both pull requests and issues on GitHub. Bug fixes are encouraged.
 
-How-To instructions can be found in [HOW-TOS.md](https://github.com/sunnyhaibin/openpilot/blob/(!)README/HOW-TOS.md).
+Pull requests should be against the most current `master` branch.
 
-</details>
+## 📊 User Data
 
-<details><summary><h3>🏆 Special Thanks</h3></summary>
+By default, sunnypilot uploads the driving data to comma servers. You can also access your data through [comma connect](https://connect.comma.ai/).
 
----
+sunnypilot is open source software. The user is free to disable data collection if they wish to do so.
 
-* [twilsonco](https://github.com/twilsonco/openpilot)
-
-</details>
-
-<details><summary><h3>📊 User Data</h3></summary>
-
----
-
-By default, sunnypilot/bluepilot uploads the driving data to comma servers. You can also access your data through [comma connect](https://connect.comma.ai/).
-
-sunnypilot/bluepilot is open source software. The user is free to disable data collection if they wish to do so.
-
-sunnypilot/bluepilot logs the road-facing camera, CAN, GPS, IMU, magnetometer, thermal sensors, crashes, and operating system logs.
-The driver-facing camera is only logged if you explicitly opt-in in settings. The microphone is not recorded.
+sunnypilot logs the road-facing camera, CAN, GPS, IMU, magnetometer, thermal sensors, crashes, and operating system logs.
+The driver-facing camera and microphone are only logged if you explicitly opt-in in settings.
 
 By using this software, you understand that use of this software or its related services will generate certain types of user data, which may be logged and stored at the sole discretion of comma. By accepting this agreement, you grant an irrevocable, perpetual, worldwide right to comma for the use of this data.
 
-</details>
+## Licensing
 
-<details><summary><h3>Licensing</h3></summary>
+sunnypilot is released under the [MIT License](LICENSE). This repository includes original work as well as significant portions of code derived from [openpilot by comma.ai](https://github.com/commaai/openpilot), which is also released under the MIT license with additional disclaimers.
 
-openpilot is released under the MIT license. Some parts of the software are released under other licenses as specified.
+The original openpilot license notice, including comma.ai’s indemnification and alpha software disclaimer, is reproduced below as required:
 
-Any user of this software shall indemnify and hold harmless comma.ai, Inc. and its directors, officers, employees, agents, stockholders, affiliates, subcontractors and customers from and against all allegations, claims, actions, suits, demands, damages, liabilities, obligations, losses, settlements, judgments, costs and expenses (including without limitation attorneys’ fees and costs) which arise out of, relate to or result from any use of this software by user.
+> openpilot is released under the MIT license. Some parts of the software are released under other licenses as specified.
+>
+> Any user of this software shall indemnify and hold harmless Comma.ai, Inc. and its directors, officers, employees, agents, stockholders, affiliates, subcontractors and customers from and against all allegations, claims, actions, suits, demands, damages, liabilities, obligations, losses, settlements, judgments, costs and expenses (including without limitation attorneys’ fees and costs) which arise out of, relate to or result from any use of this software by user.
+>
+> **THIS IS ALPHA QUALITY SOFTWARE FOR RESEARCH PURPOSES ONLY. THIS IS NOT A PRODUCT.
+> YOU ARE RESPONSIBLE FOR COMPLYING WITH LOCAL LAWS AND REGULATIONS.
+> NO WARRANTY EXPRESSED OR IMPLIED.**
 
-**THIS IS ALPHA QUALITY SOFTWARE FOR RESEARCH PURPOSES ONLY. THIS IS NOT A PRODUCT.
-YOU ARE RESPONSIBLE FOR COMPLYING WITH LOCAL LAWS AND REGULATIONS.
-NO WARRANTY EXPRESSED OR IMPLIED.**
+For full license terms, please see the [`LICENSE`](LICENSE) file.
 
-</details>
-
-<details><summary><h3>Support sunnypilot</h3></summary>
-<h3>💰 Support sunnypilot</h3>
-
----
-
-If you find any of the features useful, consider becoming a [patron on Patreon](https://www.patreon.com/sunnyhaibin) or a [sponsor on GitHub](https://github.com/sponsors/sunnyhaibin) to support future feature development and improvements.
+## 💰 Support sunnypilot
+If you find any of the features useful, consider becoming a [sponsor on GitHub](https://github.com/sponsors/sunnyhaibin) to support future feature development and improvements.
 
 
-By becoming a patron/sponsor, you will gain access to exclusive content, early access to new features, and the opportunity to directly influence the project's development.
+By becoming a sponsor, you will gain access to exclusive content, early access to new features, and the opportunity to directly influence the project's development.
 
-<h3>Patreon</h3>
-
-<a href="https://www.patreon.com/sunnyhaibin">
-  <img src="https://user-images.githubusercontent.com/47793918/244128051-bc7e913e-a196-4455-926e-23aec9a4bd3b.png" alt="Become a Patron" width="300" style="max-width: 100%; height: auto;">
-</a>
-<br>
 
 <h3>GitHub Sponsor</h3>
 
@@ -202,7 +126,7 @@ By becoming a patron/sponsor, you will gain access to exclusive content, early a
 <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="PayPal this" title="PayPal - The safer, easier way to pay online!" border="0" />
 </a>
 <br></br>
-</details>
 
+Your continuous love and support are greatly appreciated! Enjoy 🥰
 
-<span>-</span> BluePilotDev Team
+<span>-</span> Jason, Founder of sunnypilot

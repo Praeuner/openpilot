@@ -7,6 +7,8 @@
 
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/longitudinal/speed_limit/speed_limit_settings.h"
 
+#include "selfdrive/ui/sunnypilot/qt/util.h"
+
 SpeedLimitSettings::SpeedLimitSettings(QWidget *parent) : QStackedWidget(parent) {
   subPanelFrame = new QFrame();
   QVBoxLayout *subPanelLayout = new QVBoxLayout(subPanelFrame);
@@ -25,10 +27,10 @@ SpeedLimitSettings::SpeedLimitSettings(QWidget *parent) : QStackedWidget(parent)
   speedLimitPolicyScreen = new SpeedLimitPolicy(this);
 
   std::vector<QString> speed_limit_mode_texts{
-    SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::OFF)],
-    SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::INFORMATION)],
-    SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::WARNING)],
-    SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::ASSIST)],
+    tr(SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::OFF)].toStdString().c_str()),
+    tr(SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::INFORMATION)].toStdString().c_str()),
+    tr(SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::WARNING)].toStdString().c_str()),
+    tr(SpeedLimitModeTexts[static_cast<int>(SpeedLimitMode::ASSIST)].toStdString().c_str())
   };
   speed_limit_mode_settings = new ButtonParamControlSP(
     "SpeedLimitMode",
@@ -64,9 +66,9 @@ SpeedLimitSettings::SpeedLimitSettings(QWidget *parent) : QStackedWidget(parent)
   QVBoxLayout *offsetLayout = new QVBoxLayout(offsetFrame);
 
   std::vector<QString> speed_limit_offset_texts{
-    SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::NONE)],
-    SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::FIXED)],
-    SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::PERCENT)]
+    tr(SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::NONE)].toStdString().c_str()),
+    tr(SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::FIXED)].toStdString().c_str()),
+    tr(SpeedLimitOffsetTypeTexts[static_cast<int>(SpeedLimitOffsetType::PERCENT)].toStdString().c_str())
   };
   speed_limit_offset_settings = new ButtonParamControlSP(
     "SpeedLimitOffsetType",
@@ -108,8 +110,7 @@ void SpeedLimitSettings::refresh() {
   SpeedLimitOffsetType offset_type_param = static_cast<SpeedLimitOffsetType>(std::atoi(params.get("SpeedLimitOffsetType").c_str()));
   QString offsetLabel = QString::fromStdString(params.get("SpeedLimitValueOffset"));
 
-  bool has_longitudinal_control;
-  bool intelligent_cruise_button_management_available;
+  bool sla_available;
   auto cp_bytes = params.get("CarParamsPersistent");
   auto cp_sp_bytes = params.get("CarParamsSPPersistent");
   if (!cp_bytes.empty() && !cp_sp_bytes.empty()) {
@@ -120,11 +121,20 @@ void SpeedLimitSettings::refresh() {
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
 
-    has_longitudinal_control = hasLongitudinalControl(CP);
-    intelligent_cruise_button_management_available = CP_SP.getIntelligentCruiseButtonManagementAvailable();
+    bool has_longitudinal_control = hasLongitudinalControl(CP);
+    bool has_icbm = hasIntelligentCruiseButtonManagement(CP_SP);
+
+    /*
+     * Speed Limit Assist is available when:
+     * - has_longitudinal_control or has_icbm
+     */
+    sla_available = has_longitudinal_control || has_icbm;
+
+    if (!sla_available && speed_limit_mode_param == SpeedLimitMode::ASSIST) {
+      params.put("SpeedLimitMode", std::to_string(static_cast<int>(SpeedLimitMode::WARNING)));
+    }
   } else {
-    has_longitudinal_control = false;
-    intelligent_cruise_button_management_available = false;
+    sla_available = false;
   }
 
   speed_limit_mode_settings->setDescription(modeDescription(speed_limit_mode_param));
@@ -144,17 +154,22 @@ void SpeedLimitSettings::refresh() {
     speed_limit_offset->showDescription();
   }
 
-  if (has_longitudinal_control || intelligent_cruise_button_management_available) {
+  if (sla_available) {
     speed_limit_mode_settings->setEnableSelectedButtons(true, convertSpeedLimitModeValues(getSpeedLimitModeValues()));
   } else {
     speed_limit_mode_settings->setEnableSelectedButtons(true, convertSpeedLimitModeValues(
-      {SpeedLimitMode::OFF,SpeedLimitMode::INFORMATION, SpeedLimitMode::WARNING}));
+      {SpeedLimitMode::OFF, SpeedLimitMode::INFORMATION, SpeedLimitMode::WARNING}));
   }
 
+  speed_limit_mode_settings->refresh();
   speed_limit_mode_settings->showDescription();
   speed_limit_offset->showDescription();
 }
 
 void SpeedLimitSettings::showEvent(QShowEvent *event) {
   refresh();
+}
+
+void SpeedLimitSettings::hideEvent(QHideEvent *event) {
+  setCurrentWidget(subPanelFrame);
 }

@@ -407,6 +407,40 @@
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": true,
       "enabled": true
+    },
+    {
+      "name": "BPWebServerAllowCellular",
+      "default": false,
+      "type": "bool",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "BPWebServerCellularTimeoutMinutes",
+      "default": 60,
+      "type": "int",
+      "flags": ["PERSISTENT", "BACKUP"],
+      "create_default": true,
+      "enabled": true,
+      "min": 5,
+      "max": 480
+    },
+    {
+      "name": "BPWebServerCrashCount",
+      "default": 0,
+      "type": "int",
+      "flags": ["PERSISTENT"],
+      "create_default": false,
+      "enabled": true
+    },
+    {
+      "name": "BPWebServerLastCrash",
+      "default": 0,
+      "type": "int",
+      "flags": ["PERSISTENT"],
+      "create_default": false,
+      "enabled": true
     }
   ]
 }

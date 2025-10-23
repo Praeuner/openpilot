@@ -16,7 +16,7 @@ import time
 import signal
 import atexit
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -27,8 +27,50 @@ import threading
 from collections import defaultdict
 
 # Configure logging early for import error handling
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Custom Logging Handler to Capture Errors for Web Display
+# ============================================================================
+class ErrorBufferHandler(logging.Handler):
+    """Custom logging handler that stores errors in ServerState for web retrieval"""
+
+    def __init__(self, server_state):
+        super().__init__(level=logging.WARNING)  # Capture WARNING and above
+        self.server_state = server_state
+
+    def emit(self, record):
+        """Store log record in server state error buffer"""
+        try:
+            # Only log WARNING, ERROR, CRITICAL
+            if record.levelno >= logging.WARNING:
+                level = record.levelname
+                message = record.getMessage()
+
+                # Extract exception info if present
+                exception_info = None
+                if record.exc_info:
+                    import traceback
+                    exception_info = ''.join(traceback.format_exception(*record.exc_info))
+
+                # Extract details from the log record
+                details = {
+                    'module': record.module,
+                    'function': record.funcName,
+                    'line': record.lineno,
+                    'thread': record.thread,
+                }
+
+                self.server_state.log_error(level, message, details, exception_info)
+        except Exception:
+            # Don't let logging errors crash the server
+            pass
 
 # WebSocket availability - checked dynamically to handle runtime installation
 WEBSOCKETS_AVAILABLE = False
@@ -54,6 +96,27 @@ from bluepilot.backend.route_processing import (
 
 # Import WebSocket broadcaster
 from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster, WebSocketEvent
+
+# Import xattr for preserve marker support
+try:
+    from openpilot.system.loggerd.xattr_cache import getxattr, setxattr
+    from openpilot.system.loggerd.deleter import PRESERVE_ATTR_NAME, PRESERVE_ATTR_VALUE
+    import xattr as xattr_module
+    XATTR_AVAILABLE = True
+except ImportError:
+    XATTR_AVAILABLE = False
+    logger.warning("xattr not available - star/preserve functionality will be limited")
+
+# Import disk space utilities
+try:
+    from openpilot.system.loggerd.config import get_available_bytes, get_available_percent
+    from openpilot.system.loggerd.deleter import MIN_BYTES, MIN_PERCENT
+    DISK_SPACE_UTILS_AVAILABLE = True
+except ImportError:
+    DISK_SPACE_UTILS_AVAILABLE = False
+    logger.warning("Disk space utilities not available - will use fallback methods")
+    MIN_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
+    MIN_PERCENT = 10
 
 try:
     from common.params import Params
@@ -110,24 +173,172 @@ METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data"
 
 # Cellular access configuration
 CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes
-cellular_access_enabled_time = None  # Timestamp when cellular was enabled
 
-# WebSocket clients and event management
-websocket_clients = set()
-websocket_events = asyncio.Queue()
-loop = None  # Global event loop for WebSocket operations
-broadcaster = None  # Global broadcaster instance
+# ============================================================================
+# Thread-Safe State Management
+# ============================================================================
+class ServerState:
+    """Thread-safe container for server state to prevent race conditions"""
+    def __init__(self):
+        self._lock = threading.RLock()
+        self._cellular_access_enabled_time = None
+        self._websocket_clients = set()
+        self._websocket_loop = None
+        self._broadcaster = None
+        self._websocket_ready = threading.Event()  # Signal when WebSocket is ready
+        self._ffmpeg_processes = {}  # Track by PID: {pid: {'start_time': ..., 'route': ...}}
+        self._active_ffmpeg_count = 0
+        self._error_log = []  # Circular buffer of recent errors
+        self._max_errors = 50  # Keep last 50 errors
+        self._server_start_time = time.time()
+
+    def get_cellular_enabled_time(self):
+        with self._lock:
+            return self._cellular_access_enabled_time
+
+    def set_cellular_enabled_time(self, value):
+        with self._lock:
+            self._cellular_access_enabled_time = value
+
+    def add_websocket_client(self, client):
+        with self._lock:
+            self._websocket_clients.add(client)
+            return len(self._websocket_clients)
+
+    def remove_websocket_client(self, client):
+        with self._lock:
+            self._websocket_clients.discard(client)
+            return len(self._websocket_clients)
+
+    def get_websocket_clients(self):
+        with self._lock:
+            return list(self._websocket_clients)  # Return copy for safe iteration
+
+    def set_websocket_loop(self, loop):
+        with self._lock:
+            self._websocket_loop = loop
+            if loop:
+                self._websocket_ready.set()
+
+    def get_websocket_loop(self):
+        with self._lock:
+            return self._websocket_loop
+
+    def wait_for_websocket(self, timeout=2.0):
+        """Wait for WebSocket to be ready, return True if ready"""
+        return self._websocket_ready.wait(timeout)
+
+    def set_broadcaster(self, broadcaster):
+        with self._lock:
+            self._broadcaster = broadcaster
+
+    def get_broadcaster(self):
+        with self._lock:
+            return self._broadcaster
+
+    def register_ffmpeg_process(self, pid, route_info):
+        """Register FFmpeg process with tracking info"""
+        with self._lock:
+            self._ffmpeg_processes[pid] = {
+                'start_time': time.time(),
+                'route': route_info
+            }
+            self._active_ffmpeg_count += 1
+            return self._active_ffmpeg_count
+
+    def unregister_ffmpeg_process(self, pid):
+        """Unregister FFmpeg process, return remaining count"""
+        with self._lock:
+            if pid in self._ffmpeg_processes:
+                del self._ffmpeg_processes[pid]
+                self._active_ffmpeg_count = max(0, self._active_ffmpeg_count - 1)
+            return self._active_ffmpeg_count
+
+    def get_ffmpeg_count(self):
+        with self._lock:
+            return self._active_ffmpeg_count
+
+    def get_ffmpeg_processes(self):
+        """Get copy of FFmpeg process info for monitoring"""
+        with self._lock:
+            return dict(self._ffmpeg_processes)
+
+    def log_error(self, level, message, details=None, exception_info=None):
+        """Log an error to the circular buffer for later retrieval"""
+        with self._lock:
+            error_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'unix_time': time.time(),
+                'level': level,  # 'ERROR', 'WARNING', 'CRITICAL'
+                'message': message,
+                'details': details,
+                'exception': exception_info
+            }
+            self._error_log.append(error_entry)
+
+            # Keep only last N errors (circular buffer)
+            if len(self._error_log) > self._max_errors:
+                self._error_log = self._error_log[-self._max_errors:]
+
+    def get_recent_errors(self, limit=None, level=None):
+        """Get recent errors, optionally filtered by level"""
+        with self._lock:
+            errors = list(self._error_log)  # Copy
+
+            # Filter by level if specified
+            if level:
+                errors = [e for e in errors if e['level'] == level]
+
+            # Limit results
+            if limit:
+                errors = errors[-limit:]
+
+            return errors
+
+    def get_error_summary(self):
+        """Get summary of errors by level"""
+        with self._lock:
+            summary = {'ERROR': 0, 'WARNING': 0, 'CRITICAL': 0, 'total': len(self._error_log)}
+            for error in self._error_log:
+                level = error.get('level', 'ERROR')
+                summary[level] = summary.get(level, 0) + 1
+            return summary
+
+    def get_server_uptime(self):
+        """Get server uptime in seconds"""
+        return time.time() - self._server_start_time
+
+    def clear_error_log(self):
+        """Clear the error log"""
+        with self._lock:
+            self._error_log = []
+
+# Global server state instance
+server_state = ServerState()
+
+# Attach error buffer handler to logger after server_state is created
+_error_handler = ErrorBufferHandler(server_state)
+logger.addHandler(_error_handler)
+
+# Legacy global variables (kept for compatibility, but use server_state internally)
+cellular_access_enabled_time = None  # Deprecated: use server_state
+websocket_clients = set()  # Deprecated: use server_state
+loop = None  # Deprecated: use server_state
+broadcaster = None  # Deprecated: use server_state
 
 
 def broadcast_websocket_event(event_type, data=None):
-    """Broadcast event to all connected WebSocket clients (legacy wrapper)"""
+    """Broadcast event to all connected WebSocket clients (thread-safe)"""
+    broadcaster = server_state.get_broadcaster()
     if broadcaster:
-        broadcaster.broadcast(event_type, data)
+        try:
+            broadcaster.broadcast(event_type, data)
+        except Exception as e:
+            logger.error(f"Error broadcasting WebSocket event {event_type}: {e}")
 
 
 async def websocket_handler(websocket):
-    """Handle WebSocket connections"""
-    # Import websockets directly for exception handling
+    """Handle WebSocket connections (thread-safe)"""
     try:
         import websockets
     except ImportError:
@@ -135,40 +346,47 @@ async def websocket_handler(websocket):
         return
 
     try:
-        # Add client to active connections
-        websocket_clients.add(websocket)
-        logger.info(f"WebSocket client connected. Total clients: {len(websocket_clients)}")
+        # Thread-safe: Add client to active connections
+        client_count = server_state.add_websocket_client(websocket)
+        logger.info(f"WebSocket client connected. Total clients: {client_count}")
 
-        # Send initial status (simplified to avoid potential issues)
-        initial_status = {
-            'type': 'connection_established',
-            'timestamp': datetime.now().isoformat(),
-            'data': {
-                'status': 'online',
-                'routes_count': 0  # Simplified for now
-            }
-        }
-        await websocket.send(json.dumps(initial_status))
-
-        # Keep connection alive with simple loop
+        # Send initial status
         try:
-            while True:
-                await asyncio.sleep(10.0)  # Send heartbeat every 10 seconds
+            initial_status = {
+                'type': 'connection_established',
+                'timestamp': datetime.now().isoformat(),
+                'data': {
+                    'status': 'online',
+                    'routes_count': 0
+                }
+            }
+            await websocket.send(json.dumps(initial_status))
+        except Exception as e:
+            logger.warning(f"Failed to send initial status: {e}")
+
+        # Keep connection alive with heartbeat
+        while True:
+            try:
+                await asyncio.sleep(10.0)
                 heartbeat = {
                     'type': 'heartbeat',
                     'timestamp': datetime.now().isoformat(),
                     'data': {}
                 }
                 await websocket.send(json.dumps(heartbeat))
-        except Exception as e:
-            logger.debug(f"Connection closed: {e}")
+            except (websockets.exceptions.ConnectionClosed, ConnectionResetError, BrokenPipeError) as e:
+                logger.debug(f"WebSocket connection closed: {e}")
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error in WebSocket heartbeat: {e}")
+                break
 
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket handler error: {e}", exc_info=True)
     finally:
-        # Remove client from active connections
-        websocket_clients.discard(websocket)
-        logger.info(f"WebSocket client removed. Total clients: {len(websocket_clients)}")
+        # Thread-safe: Remove client from active connections
+        client_count = server_state.remove_websocket_client(websocket)
+        logger.info(f"WebSocket client disconnected. Remaining clients: {client_count}")
 
 
 async def start_websocket_server():
@@ -200,29 +418,312 @@ async def start_websocket_server():
 
 
 def start_websocket_server_thread():
-    """Start WebSocket server in a separate thread"""
+    """Start WebSocket server in a separate thread (thread-safe)"""
     try:
-        # Import websockets to check availability
         import websockets
     except ImportError:
         logger.warning("WebSocket server thread not started - websockets library not available")
         return
 
-    global loop
     try:
         # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(ws_loop)
+
+        # Register loop with server state (thread-safe)
+        server_state.set_websocket_loop(ws_loop)
+        logger.info("WebSocket event loop registered")
 
         # Start the WebSocket server
-        loop.run_until_complete(start_websocket_server())
+        ws_loop.run_until_complete(start_websocket_server())
     except Exception as e:
-        logger.error(f"WebSocket server thread error: {e}")
+        logger.error(f"WebSocket server thread error: {e}", exc_info=True)
     finally:
         try:
-            loop.close()
-        except:
-            pass
+            ws_loop = server_state.get_websocket_loop()
+            if ws_loop:
+                ws_loop.close()
+        except Exception as e:
+            logger.debug(f"Error closing WebSocket loop: {e}")
+
+
+# ============================================================================
+# Atomic File Operations
+# ============================================================================
+def atomic_write(filepath, content, mode='w'):
+    """
+    Write file atomically to prevent corruption from crashes.
+    Writes to temp file first, then renames.
+
+    Args:
+        filepath: Target file path
+        content: Content to write (str or bytes)
+        mode: Write mode ('w' for text, 'wb' for binary)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Create directory if needed
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        # Write to temp file first
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=os.path.dirname(filepath),
+            prefix='.tmp_',
+            suffix=os.path.basename(filepath)
+        )
+
+        try:
+            if 'b' in mode:
+                os.write(temp_fd, content if isinstance(content, bytes) else content.encode())
+            else:
+                os.write(temp_fd, content.encode() if isinstance(content, str) else content)
+            os.close(temp_fd)
+
+            # Atomic rename (overwrites target on POSIX)
+            os.replace(temp_path, filepath)
+            return True
+
+        except Exception as e:
+            os.close(temp_fd)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+
+    except Exception as e:
+        logger.error(f"Atomic write failed for {filepath}: {e}")
+        return False
+
+
+def safe_json_write(filepath, data):
+    """Write JSON file atomically"""
+    try:
+        json_str = json.dumps(data, indent=2)
+        return atomic_write(filepath, json_str, mode='w')
+    except Exception as e:
+        logger.error(f"JSON write failed for {filepath}: {e}")
+        return False
+
+
+# ============================================================================
+# FFmpeg Process Manager
+# ============================================================================
+class FFmpegProcess:
+    """Context manager for FFmpeg processes with guaranteed cleanup"""
+
+    def __init__(self, route_info, max_concurrent=3):
+        self.route_info = route_info
+        self.max_concurrent = max_concurrent
+        self.process = None
+        self.pid = None
+
+    def __enter__(self):
+        # Check if we can start another process
+        current_count = server_state.get_ffmpeg_count()
+        if current_count >= self.max_concurrent:
+            raise RuntimeError(
+                f"Too many FFmpeg processes ({current_count}/{self.max_concurrent}). "
+                "Please wait and try again."
+            )
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Guaranteed cleanup - always runs"""
+        if self.process:
+            try:
+                # Try graceful termination first
+                if self.process.poll() is None:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        # Force kill if graceful termination fails
+                        logger.warning(f"FFmpeg process {self.pid} did not terminate gracefully, force killing")
+                        self.process.kill()
+                        self.process.wait()
+            except Exception as e:
+                logger.error(f"Error cleaning up FFmpeg process {self.pid}: {e}")
+            finally:
+                # Always unregister
+                if self.pid:
+                    remaining = server_state.unregister_ffmpeg_process(self.pid)
+                    logger.info(f"FFmpeg process {self.pid} cleaned up. Remaining: {remaining}")
+        return False  # Don't suppress exceptions
+
+    def start(self, cmd):
+        """Start FFmpeg process and register it"""
+        try:
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=8192
+            )
+            self.pid = self.process.pid
+
+            # Register with server state
+            count = server_state.register_ffmpeg_process(self.pid, self.route_info)
+            logger.info(f"Started FFmpeg process {self.pid} for {self.route_info}. Active: {count}")
+
+            return self.process
+
+        except Exception as e:
+            logger.error(f"Failed to start FFmpeg: {e}")
+            raise
+
+
+# ============================================================================
+# Segment Prefetch System
+# ============================================================================
+def remux_segment_to_cache(hevc_path, route_base, segment_num, camera):
+    """
+    Remux a single segment to cache without streaming to client.
+    Used for background prefetching.
+
+    Returns True if successful, False otherwise.
+    """
+    if not os.path.exists(hevc_path):
+        return False
+
+    cache_filename = f"{route_base}_{segment_num}_{camera}.mp4"
+    cache_path = os.path.join(REMUX_CACHE, cache_filename)
+
+    # Check if already cached
+    if os.path.exists(cache_path):
+        cache_mtime = os.path.getmtime(cache_path)
+        source_mtime = os.path.getmtime(hevc_path)
+        if cache_mtime >= source_mtime:
+            logger.debug(f"Prefetch: {cache_filename} already cached")
+            return True
+
+    # Check disk space
+    source_size = os.path.getsize(hevc_path)
+    estimated_output_size = source_size * 2
+    cache_dir = "/data" if os.path.exists("/data") else os.path.expanduser("~")
+
+    if not has_sufficient_disk_space(estimated_output_size, cache_dir, min_free_gb=0.5):
+        logger.debug(f"Prefetch: Insufficient disk space for {cache_filename}")
+        return False
+
+    # Remux to cache using FFmpeg
+    logger.info(f"Prefetch: Remuxing {cache_filename} to cache")
+
+    route_info = f"prefetch:{route_base}:{segment_num}:{camera}"
+    try:
+        with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
+            cmd = [
+                'ffmpeg',
+                '-f', 'hevc',
+                '-r', '20',
+                '-i', hevc_path,
+                '-c', 'copy',
+                '-movflags', 'frag_keyframe+empty_moov+faststart+default_base_moof',
+                '-fflags', '+genpts',
+                '-avoid_negative_ts', 'make_zero',
+                '-bsf:v', 'hevc_mp4toannexb',
+                '-f', 'mp4',
+                cache_path
+            ]
+
+            process = ffmpeg_mgr.start(cmd)
+
+            # Wait for completion (background process)
+            try:
+                process.wait(timeout=60)  # 60 second timeout for prefetch
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Prefetch timeout for {cache_filename}")
+                return False
+
+            if process.returncode == 0:
+                logger.info(f"Prefetch: Successfully cached {cache_filename}")
+                return True
+            else:
+                stderr = process.stderr.read().decode('utf-8', errors='ignore')
+                logger.warning(f"Prefetch: FFmpeg failed for {cache_filename}: {stderr[:200]}")
+                # Clean up incomplete file
+                if os.path.exists(cache_path):
+                    try:
+                        os.remove(cache_path)
+                    except OSError:
+                        pass
+                return False
+
+    except RuntimeError as e:
+        # Too many concurrent processes - this is expected, just skip prefetch
+        logger.debug(f"Prefetch: Skipping {cache_filename} - {e}")
+        return False
+    except Exception as e:
+        logger.warning(f"Prefetch: Error remuxing {cache_filename}: {e}")
+        return False
+
+
+def _prefetch_worker(route_base, current_segment, camera, segments_to_prefetch=2):
+    """
+    Background worker to prefetch upcoming segments.
+    Called in a daemon thread.
+    """
+    logger.debug(f"Prefetch worker starting for {route_base} segment {current_segment} camera {camera}")
+
+    try:
+        # Get all segments for this route
+        segments = get_route_segments(route_base)
+        if not segments:
+            return
+
+        # Find segments after current
+        future_segments = [s for s in segments if s['segment'] > current_segment]
+        future_segments.sort(key=lambda x: x['segment'])
+
+        # Prefetch next N segments
+        prefetched = 0
+        for seg in future_segments[:segments_to_prefetch]:
+            segment_num = seg['segment']
+            segment_path = seg['path']
+
+            # Map camera to filename
+            camera_files = {
+                'front': 'fcamera.hevc',
+                'wide': 'ecamera.hevc',
+                'driver': 'dcamera.hevc'
+            }
+
+            if camera not in camera_files:
+                continue
+
+            hevc_path = os.path.join(segment_path, camera_files[camera])
+
+            if remux_segment_to_cache(hevc_path, route_base, segment_num, camera):
+                prefetched += 1
+            else:
+                # If one fails (e.g., too many processes), stop trying
+                break
+
+        logger.info(f"Prefetch: Completed {prefetched}/{segments_to_prefetch} segments for {route_base}:{camera}")
+
+    except Exception as e:
+        logger.warning(f"Prefetch worker error: {e}", exc_info=True)
+
+
+def prefetch_next_segments(route_base, current_segment, camera, count=2):
+    """
+    Trigger background prefetch of upcoming segments.
+    Non-blocking - spawns a daemon thread.
+
+    Args:
+        route_base: Route base name
+        current_segment: Current segment number being played
+        camera: Camera type ('front', 'wide', 'driver')
+        count: Number of segments to prefetch (default: 2)
+    """
+    thread = threading.Thread(
+        target=_prefetch_worker,
+        args=(route_base, current_segment, camera, count),
+        daemon=True,
+        name=f"prefetch-{route_base}-{current_segment}-{camera}"
+    )
+    thread.start()
+    logger.debug(f"Triggered prefetch for {route_base} segment {current_segment}+{count} camera {camera}")
 
 
 # Cache management settings
@@ -362,10 +863,10 @@ def get_system_metrics():
     except Exception as e:
         logger.debug(f"Error reading temperature: {e}")
 
-    # FFmpeg process info
-    global active_ffmpeg_processes
-    metrics['ffmpeg']['active_processes'] = active_ffmpeg_processes
+    # FFmpeg process info (thread-safe)
+    metrics['ffmpeg']['active_processes'] = server_state.get_ffmpeg_count()
     metrics['ffmpeg']['max_processes'] = MAX_CONCURRENT_FFMPEG
+    metrics['ffmpeg']['process_details'] = server_state.get_ffmpeg_processes()
 
     # Cache sizes
     try:
@@ -455,7 +956,7 @@ def cleanup_old_cache():
                     else:
                         cache_files.append((entry.path, stat.st_atime, stat.st_size, is_starred))
     except OSError as e:
-        logger.error(f"Error scanning cache: {e}")
+        logger.error(f"Error scanning cache: {e}", exc_info=True)
         return
 
     # Remove expired files first (excluding starred routes)
@@ -467,7 +968,7 @@ def cleanup_old_cache():
                 current_size -= size
                 logger.info(f"Removed expired: {os.path.basename(filepath)}")
             except OSError as e:
-                logger.error(f"Error removing expired file {filepath}: {e}")
+                logger.error(f"Error removing expired file {filepath}: {e}", exc_info=True)
 
     # Check if we still need size-based cleanup
     if current_size < max_bytes * CACHE_CLEANUP_THRESHOLD:
@@ -510,9 +1011,7 @@ def cleanup_old_cache():
 last_activity_time = None
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes of no remuxing = idle
 
-# FFmpeg process tracking (prevent resource exhaustion)
-active_ffmpeg_processes = 0
-ffmpeg_lock = threading.Lock()
+# FFmpeg configuration
 MAX_CONCURRENT_FFMPEG = 3  # Maximum concurrent FFmpeg processes
 
 # Rate limiting (prevent abuse)
@@ -626,7 +1125,7 @@ def check_and_restore_power_save():
 
 
 def cleanup_on_shutdown():
-    """Critical cleanup on server shutdown"""
+    """Critical cleanup on server shutdown - thread-safe"""
     logger.info("Server shutting down - performing cleanup...")
 
     # IMPORTANT: Do NOT disable CPU cores on shutdown!
@@ -634,21 +1133,36 @@ def cleanup_on_shutdown():
     # 1. Going onroad (cores MUST stay enabled for openpilot processes)
     # 2. User disabled the server (cores should stay as-is)
     # 3. Device shutdown (doesn't matter, system is shutting down anyway)
-    #
-    # Power save restoration is handled by check_and_restore_power_save()
-    # during normal operation when the server detects idle periods.
-    # That function already checks if we're offroad before disabling cores.
 
     logger.info("Leaving CPU cores in current state (not disabling on shutdown)")
 
-    # Kill any remaining FFmpeg processes
-    global active_ffmpeg_processes
-    if active_ffmpeg_processes > 0:
-        logger.warning(f"Killing {active_ffmpeg_processes} remaining FFmpeg processes")
+    # Kill any remaining FFmpeg processes tracked by server state
+    ffmpeg_count = server_state.get_ffmpeg_count()
+    if ffmpeg_count > 0:
+        logger.warning(f"Killing {ffmpeg_count} remaining FFmpeg processes")
+        ffmpeg_processes = server_state.get_ffmpeg_processes()
+
+        # Try to kill specific tracked processes first
+        for pid, info in ffmpeg_processes.items():
+            try:
+                import psutil
+                proc = psutil.Process(pid)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                logger.info(f"Killed FFmpeg process {pid} ({info['route']})")
+            except (psutil.NoSuchProcess, ImportError):
+                pass
+            except Exception as e:
+                logger.debug(f"Error killing process {pid}: {e}")
+
+        # Fallback: pkill any remaining ffmpeg processes
         try:
-            subprocess.run(['pkill', '-9', 'ffmpeg'], timeout=2)
-        except Exception:
-            logger.exception("Error killing FFmpeg processes")
+            subprocess.run(['pkill', '-9', 'ffmpeg'], timeout=2, capture_output=True)
+        except Exception as e:
+            logger.debug(f"Error running pkill: {e}")
 
     logger.info("Cleanup completed")
 
@@ -722,30 +1236,33 @@ def get_connection_type():
         return 'unknown'
 
 def is_cellular_access_allowed():
-    """Check if cellular access is currently allowed (within timeout window)"""
-    global cellular_access_enabled_time
-
+    """Check if cellular access is currently allowed (within timeout window) - thread-safe"""
     try:
         # Check if cellular access is enabled
         cellular_enabled = params.get_bool("BPWebServerAllowCellular")
 
         if not cellular_enabled:
-            cellular_access_enabled_time = None
+            server_state.set_cellular_enabled_time(None)
             return False
 
         # Get timeout duration from params (in minutes)
-        timeout_str = params.get("BPWebServerCellularTimeout")
+        timeout_str = params.get("BPWebServerCellularTimeoutMinutes")
         if timeout_str:
             try:
                 timeout_minutes = int(timeout_str)
-            except:
+                if timeout_minutes <= 0:
+                    timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+            except (ValueError, TypeError):
                 timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
         else:
             timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
 
+        # Thread-safe: Get current enabled time
+        cellular_access_enabled_time = server_state.get_cellular_enabled_time()
+
         # If this is first time enabled, record timestamp
         if cellular_access_enabled_time is None:
-            cellular_access_enabled_time = time.time()
+            server_state.set_cellular_enabled_time(time.time())
             logger.info(f"Cellular access enabled with {timeout_minutes} minute timeout")
             return True
 
@@ -755,7 +1272,7 @@ def is_cellular_access_allowed():
             # Timeout expired, auto-disable
             logger.warning(f"Cellular access timeout expired after {timeout_minutes} minutes - disabling")
             params.put_bool("BPWebServerAllowCellular", False)
-            cellular_access_enabled_time = None
+            server_state.set_cellular_enabled_time(None)
 
             # Broadcast status change
             broadcast_websocket_event(WebSocketEvent.STATUS_CHANGED, {
@@ -771,14 +1288,13 @@ def is_cellular_access_allowed():
         return True
 
     except Exception as e:
-        logger.error(f"Error checking cellular access: {e}")
+        logger.error(f"Error checking cellular access: {e}", exc_info=True)
         return False
 
 def get_cellular_access_status():
-    """Get detailed cellular access status for API responses"""
-    global cellular_access_enabled_time
-
+    """Get detailed cellular access status for API responses - thread-safe"""
     enabled = params.get_bool("BPWebServerAllowCellular")
+    cellular_access_enabled_time = server_state.get_cellular_enabled_time()
 
     if not enabled or cellular_access_enabled_time is None:
         return {
@@ -789,11 +1305,13 @@ def get_cellular_access_status():
         }
 
     # Get timeout
-    timeout_str = params.get("BPWebServerCellularTimeout")
+    timeout_str = params.get("BPWebServerCellularTimeoutMinutes")
     if timeout_str:
         try:
             timeout_minutes = int(timeout_str)
-        except:
+            if timeout_minutes <= 0:
+                timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
+        except (ValueError, TypeError):
             timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
     else:
         timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
@@ -976,6 +1494,189 @@ def format_size(bytes_size):
     return f"{bytes_size:.1f} PB"
 
 
+def get_disk_space_info():
+    """Get current disk space status with safety thresholds
+
+    Returns dict with:
+    - available_bytes: Free space in bytes
+    - available_percent: Free space as percentage
+    - total_bytes: Total disk space
+    - is_low: True if below safety thresholds
+    - can_record: True if enough space to record next route
+    - warning_level: 'critical', 'low', 'medium', or 'ok'
+    """
+    try:
+        if DISK_SPACE_UTILS_AVAILABLE:
+            available_bytes = get_available_bytes(default=MIN_BYTES + 1)
+            available_percent = get_available_percent(default=MIN_PERCENT + 1)
+        else:
+            # Fallback using standard library
+            stat = os.statvfs(ROUTES_DIR)
+            available_bytes = stat.f_bavail * stat.f_frsize
+            total_bytes = stat.f_blocks * stat.f_frsize
+            available_percent = (available_bytes / total_bytes * 100) if total_bytes > 0 else 0
+
+        # Calculate total bytes for display
+        stat = os.statvfs(ROUTES_DIR)
+        total_bytes = stat.f_blocks * stat.f_frsize
+
+        # Check if below safety thresholds
+        is_low = available_bytes < MIN_BYTES or available_percent < MIN_PERCENT
+
+        # Estimate space needed for next route
+        # Typical route: ~60 segments * ~100MB/segment = ~6GB for 1 hour
+        # Let's require 2x the minimum (10GB) to safely record next route
+        SAFE_RECORDING_BYTES = MIN_BYTES * 2  # 10 GB
+        can_record = available_bytes >= SAFE_RECORDING_BYTES
+
+        # Determine warning level
+        if available_bytes < MIN_BYTES or available_percent < MIN_PERCENT:
+            warning_level = 'critical'  # At cleanup threshold
+        elif available_bytes < SAFE_RECORDING_BYTES:
+            warning_level = 'low'  # Below safe recording threshold
+        elif available_bytes < (MIN_BYTES * 3):  # 15 GB
+            warning_level = 'medium'  # Getting low
+        else:
+            warning_level = 'ok'
+
+        return {
+            'available_bytes': available_bytes,
+            'available_percent': round(available_percent, 1),
+            'total_bytes': total_bytes,
+            'used_bytes': total_bytes - available_bytes,
+            'is_low': is_low,
+            'can_record': can_record,
+            'warning_level': warning_level,
+            'formatted': {
+                'available': format_size(available_bytes),
+                'total': format_size(total_bytes),
+                'used': format_size(total_bytes - available_bytes)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting disk space info: {e}")
+        # Return safe defaults on error
+        return {
+            'available_bytes': MIN_BYTES + 1,
+            'available_percent': MIN_PERCENT + 1,
+            'total_bytes': 0,
+            'used_bytes': 0,
+            'is_low': False,
+            'can_record': True,
+            'warning_level': 'unknown',
+            'formatted': {
+                'available': 'Unknown',
+                'total': 'Unknown',
+                'used': 'Unknown'
+            }
+        }
+
+
+def check_route_preserve_status(route_base):
+    """Check if a route has the preserve xattr set
+
+    Returns True if ANY segment of the route has user.preserve xattr
+    """
+    if not XATTR_AVAILABLE:
+        # Fallback to old .star file method
+        star_file = os.path.join(ROUTES_DIR, route_base, '.star')
+        return os.path.exists(star_file)
+
+    try:
+        segments = get_route_segments(route_base)
+        for seg in segments:
+            try:
+                attr_value = getxattr(seg['path'], PRESERVE_ATTR_NAME)
+                if attr_value == PRESERVE_ATTR_VALUE:
+                    return True
+            except Exception:
+                continue
+        return False
+    except Exception as e:
+        logger.debug(f"Error checking preserve status for {route_base}: {e}")
+        return False
+
+
+def set_route_preserve(route_base, preserve=True):
+    """Set or remove preserve xattr on all segments of a route
+
+    Args:
+        route_base: Route base name (e.g., "2025-10-22--14-30-15")
+        preserve: True to preserve (star), False to unpreserve (unstar)
+
+    Returns:
+        dict with success status and message
+    """
+    if not XATTR_AVAILABLE:
+        return {
+            'success': False,
+            'error': 'xattr support not available',
+            'fallback': 'star_file'
+        }
+
+    try:
+        segments = get_route_segments(route_base)
+        if not segments:
+            return {
+                'success': False,
+                'error': 'Route not found'
+            }
+
+        # Before preserving, check disk space
+        if preserve:
+            disk_info = get_disk_space_info()
+
+            # Don't allow starring if we can't safely record the next route
+            if not disk_info['can_record']:
+                return {
+                    'success': False,
+                    'error': 'Insufficient disk space to preserve route',
+                    'details': f"Need {format_size(MIN_BYTES * 2)} free to safely record next drive. Currently: {disk_info['formatted']['available']}",
+                    'disk_space': disk_info,
+                    'hint': 'Delete some routes first to free up space'
+                }
+
+            # Warn if disk space is getting low
+            if disk_info['warning_level'] in ('low', 'medium'):
+                logger.warning(f"Preserving route {route_base} with {disk_info['warning_level']} disk space: {disk_info['formatted']['available']} free")
+
+        # Set or remove preserve xattr on all segments
+        affected_segments = 0
+        for seg in segments:
+            try:
+                if preserve:
+                    setxattr(seg['path'], PRESERVE_ATTR_NAME, PRESERVE_ATTR_VALUE)
+                    affected_segments += 1
+                else:
+                    # Remove xattr
+                    try:
+                        xattr_module.removexattr(seg['path'], PRESERVE_ATTR_NAME)
+                        affected_segments += 1
+                    except OSError:
+                        # Attribute doesn't exist - that's fine
+                        pass
+            except Exception as e:
+                logger.warning(f"Error setting preserve on {seg['name']}: {e}")
+
+        # Clear cache so next scan picks up the change
+        get_route_segments.cache_clear()
+
+        action = 'preserved' if preserve else 'unpreserved'
+        return {
+            'success': True,
+            'message': f'Route {action} successfully',
+            'affected_segments': affected_segments,
+            'total_segments': len(segments)
+        }
+
+    except Exception as e:
+        logger.error(f"Error setting preserve on route {route_base}: {e}", exc_info=True)
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
 def get_video_files(segment_path):
     """Get available video files in segment"""
     videos = {}
@@ -996,6 +1697,381 @@ def get_video_files(segment_path):
             }
 
     return videos
+
+
+def get_log_files(segment_path):
+    """Get available log files in segment"""
+    logs = {}
+    log_types = {
+        'qlog.zst': 'qlog',
+        'rlog.zst': 'rlog'
+    }
+
+    for filename, log_type in log_types.items():
+        filepath = os.path.join(segment_path, filename)
+        if os.path.exists(filepath):
+            logs[log_type] = {
+                'filename': filename,
+                'path': filepath,
+                'size': os.path.getsize(filepath)
+            }
+
+    return logs
+
+
+def extract_log_messages(log_path, search_query=None, level_filter=None, max_messages=500):
+    """Extract cloudlog messages from qlog/rlog file
+
+    Args:
+        log_path: Path to qlog.zst or rlog.zst file
+        search_query: Optional search string to filter messages (case-insensitive)
+        level_filter: Optional level filter ('info', 'warning', 'error', 'all')
+        max_messages: Maximum number of messages to return
+
+    Returns:
+        dict with:
+            - messages: List of log messages with timestamps
+            - total_count: Total number of log messages found
+            - start_time: First message timestamp (seconds)
+            - end_time: Last message timestamp (seconds)
+    """
+    try:
+        import zstandard as zstd
+
+        # Add cereal to path if needed
+        sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+        from cereal import log as capnp_log
+
+        # Read and decompress log file
+        with open(log_path, 'rb') as f:
+            compressed_data = f.read()
+
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(compressed_data) as reader:
+            decompressed_data = reader.read()
+
+        # Parse capnp events
+        events_reader = capnp_log.Event.read_multiple_bytes(decompressed_data)
+
+        log_messages = []
+        first_time = None
+        last_time = None
+        total_log_count = 0
+
+        for event in events_reader:
+            try:
+                event_type = event.which()
+
+                # Only process log messages
+                if event_type not in ('logMessage', 'errorLogMessage'):
+                    continue
+
+                total_log_count += 1
+                event_time = event.logMonoTime
+
+                # Track first and last timestamps
+                if first_time is None:
+                    first_time = event_time
+                last_time = event_time
+
+                # Determine log level and message
+                if event_type == 'errorLogMessage':
+                    level = 'error'
+                    message = event.errorLogMessage
+                else:
+                    message = event.logMessage
+
+                    # Try to parse as JSON to get structured log data
+                    level = 'info'  # Default to info
+                    try:
+                        import json
+                        log_data = json.loads(message)
+
+                        # Extract level from JSON structure
+                        if isinstance(log_data, dict) and 'level' in log_data:
+                            json_level = log_data['level'].upper()
+                            if json_level in ('ERROR', 'CRITICAL', 'FATAL'):
+                                level = 'error'
+                            elif json_level in ('WARNING', 'WARN'):
+                                level = 'warning'
+                            elif json_level in ('INFO', 'DEBUG'):
+                                level = 'info'
+                            else:
+                                # Unknown level, default to info
+                                level = 'info'
+                        else:
+                            # JSON but no level field, default to info
+                            level = 'info'
+
+                    except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
+                        # Not JSON or JSON parsing failed
+                        # Only use keyword detection for non-JSON messages
+                        # Don't search in JSON strings to avoid false positives
+                        if not message.strip().startswith('{'):
+                            message_upper = message.upper()
+                            if any(keyword in message_upper for keyword in ['ERROR', 'FATAL', 'CRITICAL', 'EXCEPTION', 'FAILED']):
+                                level = 'error'
+                            elif any(keyword in message_upper for keyword in ['WARN', 'WARNING', 'CAUTION']):
+                                level = 'warning'
+                        # Otherwise leave as default 'info'
+
+                # Apply level filter
+                if level_filter and level_filter != 'all':
+                    if level != level_filter:
+                        continue
+
+                # Apply search filter
+                if search_query:
+                    if search_query.lower() not in message.lower():
+                        continue
+
+                # Stop if we've reached max messages
+                if len(log_messages) >= max_messages:
+                    break
+
+                log_messages.append({
+                    'timestamp': event_time / 1e9,  # Convert to seconds
+                    'level': level,
+                    'message': message
+                })
+
+            except Exception as e:
+                logger.debug(f"Error parsing log event: {e}")
+                continue
+
+        return {
+            'success': True,
+            'messages': log_messages,
+            'total_count': total_log_count,
+            'returned_count': len(log_messages),
+            'start_time': first_time / 1e9 if first_time else None,
+            'end_time': last_time / 1e9 if last_time else None,
+            'truncated': len(log_messages) >= max_messages
+        }
+
+    except ImportError as e:
+        logger.exception("Missing required module for log parsing")
+        return {
+            'success': False,
+            'error': f'Missing required module: {str(e)}. Try: pip install zstandard pycapnp',
+            'messages': [],
+            'total_count': 0,
+            'returned_count': 0
+        }
+    except Exception as e:
+        logger.exception(f"Error parsing log file {log_path}")
+        import traceback
+        return {
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'messages': [],
+            'total_count': 0,
+            'returned_count': 0
+        }
+
+
+def extract_cereal_messages(log_path, message_type, max_messages=1000):
+    """Extract specific cereal message type from qlog/rlog file
+
+    Args:
+        log_path: Path to qlog.zst or rlog.zst file
+        message_type: Cereal message type to extract (e.g., 'carState', 'controlsState')
+        max_messages: Maximum number of messages to return
+
+    Returns:
+        dict with:
+            - messages: List of cereal messages with timestamps and data
+            - message_type: The requested message type
+            - total_count: Total number of messages found
+            - start_time: First message timestamp (seconds)
+            - end_time: Last message timestamp (seconds)
+    """
+    try:
+        import zstandard as zstd
+
+        # Add cereal to path if needed
+        sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+        from cereal import log as capnp_log
+
+        # Read and decompress log file
+        with open(log_path, 'rb') as f:
+            compressed_data = f.read()
+
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(compressed_data) as reader:
+            decompressed_data = reader.read()
+
+        # Parse capnp events
+        events_reader = capnp_log.Event.read_multiple_bytes(decompressed_data)
+
+        cereal_messages = []
+        first_time = None
+        last_time = None
+        total_count = 0
+
+        for event in events_reader:
+            try:
+                event_type = event.which()
+
+                # Only process the requested message type
+                if event_type != message_type:
+                    continue
+
+                total_count += 1
+                event_time = event.logMonoTime
+
+                # Track first and last timestamps
+                if first_time is None:
+                    first_time = event_time
+                last_time = event_time
+
+                # Stop if we've reached max messages
+                if len(cereal_messages) >= max_messages:
+                    break
+
+                # Extract message data
+                try:
+                    event_obj = getattr(event, event_type)
+                    message_data = serialize_cereal_object(event_obj)
+
+                    cereal_messages.append({
+                        'timestamp': event_time / 1e9,  # Convert to seconds
+                        'data': message_data
+                    })
+
+                except Exception as e:
+                    logger.debug(f"Could not serialize message {event_type}: {e}")
+                    continue
+
+            except Exception as e:
+                logger.debug(f"Error parsing cereal event: {e}")
+                continue
+
+        return {
+            'success': True,
+            'messages': cereal_messages,
+            'message_type': message_type,
+            'total_count': total_count,
+            'returned_count': len(cereal_messages),
+            'start_time': first_time / 1e9 if first_time else None,
+            'end_time': last_time / 1e9 if last_time else None,
+            'truncated': len(cereal_messages) >= max_messages
+        }
+
+    except ImportError as e:
+        logger.exception("Missing required module for cereal parsing")
+        return {
+            'success': False,
+            'error': f'Missing required module: {str(e)}. Try: pip install zstandard pycapnp',
+            'messages': [],
+            'message_type': message_type,
+            'total_count': 0,
+            'returned_count': 0
+        }
+    except Exception as e:
+        logger.exception(f"Error parsing cereal file {log_path}")
+        import traceback
+        return {
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'messages': [],
+            'message_type': message_type,
+            'total_count': 0,
+            'returned_count': 0
+        }
+
+
+def serialize_cereal_object(obj, depth=0):
+    """Recursively serialize a cereal object to a dict"""
+    # Prevent infinite recursion
+    if depth > 10:
+        return str(obj)
+
+    if obj is None:
+        return None
+
+    # Handle primitives
+    if isinstance(obj, (bool, int, float, str, bytes)):
+        return obj
+
+    # Handle lists/tuples
+    if isinstance(obj, (list, tuple)):
+        return [serialize_cereal_object(item, depth + 1) for item in obj]
+
+    # Try to serialize capnp struct by extracting fields from to_dict() if available
+    try:
+        # Many capnp structs have a to_dict() method
+        if hasattr(obj, 'to_dict') and callable(obj.to_dict):
+            return obj.to_dict()
+    except Exception:
+        pass
+
+    # Handle capnp structs manually
+    result = {}
+    try:
+        # Check if it has a schema (capnp struct)
+        if hasattr(obj, 'schema'):
+            schema = obj.schema
+
+            # Get all non-union fields
+            try:
+                for field in schema.non_union_fields:
+                    try:
+                        value = getattr(obj, field.name)
+                        result[field.name] = serialize_cereal_object(value, depth + 1)
+                    except Exception as e:
+                        logger.debug(f"Could not serialize field {field.name}: {e}")
+                        result[field.name] = None
+            except Exception as e:
+                logger.debug(f"Error iterating non_union_fields: {e}")
+
+            # Handle union fields
+            try:
+                which_field = obj.which()
+                if which_field:
+                    value = getattr(obj, which_field)
+                    result[which_field] = serialize_cereal_object(value, depth + 1)
+            except Exception:
+                pass
+
+            # If we got fields, return them
+            if result:
+                return result
+
+        # Try alternative approach: use dir() to find all attributes
+        # This is a fallback for capnp objects that don't have schema.non_union_fields
+        if hasattr(obj, '__dir__'):
+            for attr_name in dir(obj):
+                # Skip private/magic methods and common capnp internals
+                if attr_name.startswith('_') or attr_name in ('schema', 'which', 'to_bytes', 'from_bytes', 'as_builder', 'total_size'):
+                    continue
+
+                try:
+                    attr_value = getattr(obj, attr_name)
+                    # Skip methods
+                    if callable(attr_value):
+                        continue
+                    result[attr_name] = serialize_cereal_object(attr_value, depth + 1)
+                except Exception:
+                    continue
+
+            if result:
+                return result
+
+    except Exception as e:
+        logger.debug(f"Error serializing capnp object: {e}")
+
+    # Last resort fallback
+    try:
+        if hasattr(obj, '__dict__'):
+            return {k: serialize_cereal_object(v, depth + 1) for k, v in obj.__dict__.items()}
+    except Exception:
+        pass
+
+    # Absolute last resort: return string representation
+    return str(obj)
 
 
 def scan_routes():
@@ -1066,9 +2142,8 @@ def scan_routes():
             for camera in videos.keys():
                 has_video[camera] = True
 
-        # Check for star file
-        star_file = os.path.join(ROUTES_DIR, base_name, '.star')
-        is_starred = os.path.exists(star_file)
+        # Check if route is preserved (starred) via xattr
+        is_starred = check_route_preserve_status(base_name)
 
         # Calculate duration (1 minute per segment)
         duration_seconds = len(segments) * 60
@@ -1078,6 +2153,17 @@ def scan_routes():
             duration_str = f"{hours}h {minutes}m"
         else:
             duration_str = f"{minutes}m"
+
+        # Calculate end time from last segment's timestamp
+        # Parse the last segment name to get its timestamp
+        last_segment = segments[-1]
+        last_segment_dt = parse_route_datetime(last_segment['name'].rsplit('--', 1)[0])
+        if last_segment_dt:
+            # Add 1 minute to account for the segment's duration
+            end_dt = last_segment_dt + timedelta(minutes=1)
+        else:
+            # Fallback: use start time + duration if parsing fails
+            end_dt = route_dt + timedelta(seconds=duration_seconds)
 
         # Check if GPS metrics are already cached (don't process logs during scan)
         cache_file = os.path.join(METRICS_CACHE, f"{base_name}.json")
@@ -1131,6 +2217,7 @@ def scan_routes():
             'baseName': base_name,
             'displayDate': format_display_date(route_dt),
             'displayTime': format_time_12hr(route_dt),
+            'displayEndTime': format_time_12hr(end_dt),
             'timestamp': route_dt.isoformat(),
             'elapsedTime': format_elapsed_time(route_dt),
             'segments': len(segments),
@@ -1180,11 +2267,24 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def send_json_response(self, data, status=200):
-        """Send JSON response"""
+        """Send JSON response with consistent error format"""
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_cors_headers()
         self.end_headers()
+
+        # Add timestamp to all responses for debugging
+        if 'timestamp' not in data:
+            data['timestamp'] = datetime.now().isoformat()
+
+        # Ensure error responses have consistent format
+        if status >= 400 and 'error' in data:
+            if 'success' not in data:
+                data['success'] = False
+        elif status < 400:
+            if 'success' not in data and 'error' not in data:
+                data['success'] = True
+
         self.wfile.write(json.dumps(data).encode())
 
     def send_file_response(self, filepath, mime_type=None):
@@ -1297,23 +2397,16 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 # Update access time for LRU cache management
                 os.utime(cache_path, None)
                 self.send_file_response(cache_path)
+
+                # Trigger prefetch of next segments (non-blocking)
+                prefetch_next_segments(route_base, segment_num, camera, count=2)
                 return
 
         # Check cache size and cleanup if needed
-        cleanup_old_cache()
-
-        # Check if too many FFmpeg processes are running (prevent resource exhaustion)
-        global active_ffmpeg_processes
-        with ffmpeg_lock:
-            if active_ffmpeg_processes >= MAX_CONCURRENT_FFMPEG:
-                logger.warning(f"Too many concurrent FFmpeg processes ({active_ffmpeg_processes}), rejecting request")
-                self.send_json_response({
-                    'error': 'Server busy processing other videos',
-                    'hint': f'Maximum {MAX_CONCURRENT_FFMPEG} concurrent video streams allowed. Please try again in a moment.'
-                }, 503)  # Service Unavailable
-                return
-            active_ffmpeg_processes += 1
-            logger.info(f"FFmpeg processes active: {active_ffmpeg_processes}/{MAX_CONCURRENT_FFMPEG}")
+        try:
+            cleanup_old_cache()
+        except Exception as e:
+            logger.warning(f"Cache cleanup failed: {e}")
 
         # Check disk space before remuxing (estimate 2x source file size)
         source_size = os.path.getsize(hevc_path)
@@ -1321,55 +2414,59 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
         cache_dir = "/data" if os.path.exists("/data") else os.path.expanduser("~")
 
         if not has_sufficient_disk_space(estimated_output_size, cache_dir, min_free_gb=0.5):
-            logger.error(f"Insufficient disk space to remux {cache_filename}")
-            with ffmpeg_lock:
-                active_ffmpeg_processes -= 1
+            free_space = get_free_disk_space(cache_dir)
+            free_gb = free_space / (1024**3) if free_space else 0
+            logger.error(f"Insufficient disk space to remux {cache_filename}: {free_gb:.1f}GB free")
             self.send_json_response({
                 'error': 'Insufficient disk space for video processing',
-                'hint': 'Clear cache or free up disk space'
+                'details': f'Only {free_gb:.1f}GB free, need ~{estimated_output_size/(1024**3):.1f}GB',
+                'hint': 'Clear cache via settings or delete old routes',
+                'free_space_gb': round(free_gb, 1),
+                'required_gb': round(estimated_output_size/(1024**3), 1)
             }, 507)  # HTTP 507 Insufficient Storage
             return
 
         # Enable performance mode for fast remuxing
         enable_performance_mode()
 
-        # Remux using FFmpeg with progressive streaming
+        # Remux using FFmpeg with progressive streaming - use context manager for guaranteed cleanup
         logger.info(f"Remuxing HEVC to MP4 (streaming): {cache_filename}")
 
+        # Use FFmpegProcess context manager for guaranteed cleanup
+        route_info = f"{route_base}:{segment_num}:{camera}"
         try:
-            # Use FFmpeg to remux raw HEVC to MP4 container
-            # Stream to stdout while also writing to cache file
-            cmd = [
-                'ffmpeg',
-                '-f', 'hevc',
-                '-r', '20',  # Comma camera framerate (20 fps)
-                '-i', hevc_path,
-                '-c', 'copy',
-                '-movflags', 'frag_keyframe+empty_moov+faststart+default_base_moof',  # Better HLS compatibility
-                '-fflags', '+genpts',  # Generate missing PTS if needed
-                '-avoid_negative_ts', 'make_zero',  # Handle negative timestamps
-                '-bsf:v', 'hevc_mp4toannexb',  # Convert HEVC bitstream for better compatibility
-                '-f', 'mp4',
-                '-'  # Output to stdout
-            ]
+            with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
+                # Use FFmpeg to remux raw HEVC to MP4 container
+                # Stream to stdout while also writing to cache file
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'hevc',
+                    '-r', '20',  # Comma camera framerate (20 fps)
+                    '-i', hevc_path,
+                    '-c', 'copy',
+                    '-movflags', 'frag_keyframe+empty_moov+faststart+default_base_moof',
+                    '-fflags', '+genpts',  # Generate missing PTS if needed
+                    '-avoid_negative_ts', 'make_zero',  # Handle negative timestamps
+                    '-bsf:v', 'hevc_mp4toannexb',  # Convert HEVC bitstream for better compatibility
+                    '-f', 'mp4',
+                    '-'  # Output to stdout
+                ]
 
-            # Start FFmpeg process
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=8192
-            )
+                # Start FFmpeg process using context manager
+                process = ffmpeg_mgr.start(cmd)
 
-            # Send HTTP headers
-            self.send_response(200)
-            self.send_header('Content-Type', 'video/mp4')
-            self.send_header('Accept-Ranges', 'bytes')  # Enable range requests for video streaming
-            self.send_cors_headers()
-            self.end_headers()
+                # Send HTTP headers
+                self.send_response(200)
+                self.send_header('Content-Type', 'video/mp4')
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_cors_headers()
+                self.end_headers()
 
-            # Stream output while also saving to cache
-            try:
+                # Trigger prefetch of next segments (non-blocking, before streaming)
+                # This ensures prefetch starts while current segment is being sent
+                prefetch_next_segments(route_base, segment_num, camera, count=2)
+
+                # Stream output while also saving to cache
                 with open(cache_path, 'wb') as cache_file:
                     while True:
                         chunk = process.stdout.read(8192)
@@ -1379,78 +2476,71 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         # Send to client
                         try:
                             self.wfile.write(chunk)
-                        except (BrokenPipeError, ConnectionResetError):
-                            logger.warning("Client disconnected during streaming")
+                        except (BrokenPipeError, ConnectionResetError) as e:
+                            logger.warning(f"Client disconnected during streaming: {e}")
                             process.kill()
-                            process.wait(timeout=2)  # Wait for process to die
+                            try:
+                                process.wait(timeout=2)
+                            except subprocess.TimeoutExpired:
+                                pass  # Context manager will handle cleanup
                             break
 
                         # Save to cache
                         cache_file.write(chunk)
 
                 # Wait for process to complete
-                process.wait(timeout=5)
-            finally:
-                # CRITICAL: Ensure FFmpeg process is always terminated
-                if process.poll() is None:  # Process still running
-                    logger.warning("FFmpeg process still running, forcing termination")
-                    process.kill()
-                    try:
-                        process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        logger.exception("FFmpeg process would not die, sending SIGKILL")
-                        process.kill()  # Force kill
-                        process.wait()  # Wait indefinitely for it to die
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning("FFmpeg process timeout, context manager will handle cleanup")
 
-                # Decrement process counter
-                with ffmpeg_lock:
-                    active_ffmpeg_processes -= 1
-                    logger.info(f"FFmpeg process completed. Active: {active_ffmpeg_processes}/{MAX_CONCURRENT_FFMPEG}")
+                # Check result
+                if process.returncode != 0:
+                    stderr = process.stderr.read().decode('utf-8', errors='ignore')
+                    logger.error(f"FFmpeg remux failed (exit {process.returncode}): {stderr[:500]}")
+                    # Clean up incomplete cache file
+                    if os.path.exists(cache_path):
+                        try:
+                            os.remove(cache_path)
+                        except OSError as e:
+                            logger.debug(f"Error removing incomplete cache file: {e}")
+                else:
+                    logger.info(f"Remux successful: {cache_filename}")
 
-            if process.returncode != 0:
-                stderr = process.stderr.read().decode()
-                logger.error(f"FFmpeg remux failed: {stderr[:500]}")
-                # Clean up incomplete cache file
-                if os.path.exists(cache_path):
-                    os.remove(cache_path)
-            else:
-                logger.info(f"Remux successful: {cache_filename}")
+        except RuntimeError as e:
+            # Too many concurrent processes
+            current_count = server_state.get_ffmpeg_count()
+            logger.warning(f"Cannot start FFmpeg: {e}")
+            self.send_json_response({
+                'error': 'Server busy processing other videos',
+                'details': f'{current_count} of {MAX_CONCURRENT_FFMPEG} video streams in use',
+                'hint': 'Please wait a moment and try again',
+                'active_processes': current_count,
+                'max_processes': MAX_CONCURRENT_FFMPEG,
+                'retry_after': 5  # Suggest 5 second retry
+            }, 503)
+            return
 
-        except subprocess.TimeoutExpired:
-            logger.error(f"FFmpeg timeout remuxing {hevc_path}")
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
-            with ffmpeg_lock:
-                active_ffmpeg_processes -= 1
         except FileNotFoundError:
             logger.error("FFmpeg not found - install with: apt-get install ffmpeg")
-            # Check if we can use ffmpeg.wasm as fallback
-            try:
-                # Try to use ffmpeg.wasm for client-side remuxing if available
-                logger.info("Native FFmpeg not found, checking for ffmpeg.wasm support")
-                # For now, we'll still return an error since ffmpeg.wasm integration would require frontend changes
-                # TODO: Implement ffmpeg.wasm client-side remuxing as ultimate fallback
-            except:
-                pass
-            with ffmpeg_lock:
-                active_ffmpeg_processes -= 1
             self.send_json_response({
-                'error': 'FFmpeg not installed',
-                'hint': 'Install with: apt-get install ffmpeg',
-                'note': 'ffmpeg.wasm client-side support could be added as fallback'
+                'error': 'FFmpeg not installed on server',
+                'details': 'Video conversion tool is not available',
+                'hint': 'Contact system administrator or install FFmpeg',
+                'technical_hint': 'apt-get install ffmpeg'
             }, 500)
+            return
+
         except Exception as e:
-            logger.error(f"Unexpected error remuxing {hevc_path}: {e}")
+            logger.error(f"Unexpected error remuxing {hevc_path}: {e}", exc_info=True)
             # Clean up incomplete cache file
             if os.path.exists(cache_path):
-                os.remove(cache_path)
+                try:
+                    os.remove(cache_path)
+                except OSError as cleanup_err:
+                    logger.debug(f"Error cleaning up cache file: {cleanup_err}")
 
-            # Decrement counter on error
-            with ffmpeg_lock:
-                active_ffmpeg_processes -= 1
-
-            # If remuxing fails, try to serve the raw HEVC file with different MIME type
-            # This might work in some browsers with native HEVC support
+            # Try to serve raw HEVC as fallback
             logger.warning(f"Remuxing failed, attempting to serve raw HEVC as fallback")
             try:
                 self.send_file_response(hevc_path, 'video/mp4; codecs="hev1"')
@@ -1459,7 +2549,10 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 logger.error(f"Fallback to raw HEVC also failed: {fallback_error}")
                 self.send_json_response({
                     'error': 'Video conversion failed',
-                    'details': f'FFmpeg error: {e}. Fallback also failed: {fallback_error}'
+                    'details': str(e),
+                    'hint': 'Try refreshing the page or selecting a different segment',
+                    'fallback_attempted': True,
+                    'fallback_error': str(fallback_error)
                 }, 500)
 
     def do_OPTIONS(self):
@@ -1478,43 +2571,94 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             client_ip = self.client_address[0]
             is_allowed, retry_after = check_rate_limit(client_ip)
             if not is_allowed:
+                onroad = is_onroad()
+                limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+
                 self.send_response(429)  # Too Many Requests
                 self.send_header('Retry-After', str(retry_after))
                 self.send_cors_headers()
                 self.end_headers()
+
                 error_msg = json.dumps({
+                    'success': False,
                     'error': 'Rate limit exceeded',
-                    'retry_after': retry_after,
-                    'limit': f'{MAX_REQUESTS_PER_MINUTE} requests per minute'
+                    'details': f'Too many requests from {client_ip}',
+                    'retry_after_seconds': retry_after,
+                    'limit': f'{limit} requests per minute',
+                    'hint': f'Please wait {retry_after} seconds before trying again',
+                    'reason': 'onroad_protection' if onroad else 'rate_limit',
+                    'timestamp': datetime.now().isoformat()
                 }).encode()
                 self.wfile.write(error_msg)
                 return
 
             # Check if server is enabled (always run when enabled, just rate-limited onroad)
             if not should_server_run():
-                self.send_json_response({'error': 'Server disabled by user'}, 503)
+                self.send_json_response({
+                    'error': 'Server disabled',
+                    'details': 'Web routes server is currently disabled',
+                    'hint': 'Enable server in settings to access routes'
+                }, 503)
                 return
 
-            # Onroad: Disable write operations (star/delete/remux)
-            # Read-only operations (status, routes list, video playback) are still allowed but rate-limited
+            # Onroad: Block ALL interactions except status endpoints
+            # The frontend shows a full-page overlay to prevent any interactions
             onroad = is_onroad()
             if onroad and path.startswith('/api/'):
-                # Allow read-only endpoints
-                readonly_endpoints = ['/api/status', '/api/routes', '/api/system/metrics']
-                is_readonly = any(path.startswith(ep) for ep in readonly_endpoints) or '/video/' in path
+                # Allow only status endpoints to check onroad state and show overlay
+                status_only_endpoints = ['/api/status', '/api/health']
+                is_status_check = any(path.startswith(ep) for ep in status_only_endpoints)
 
-                if not is_readonly:
-                    # Block write operations when onroad
+                if not is_status_check:
+                    # Block ALL operations when onroad (including routes list and video playback)
                     self.send_json_response({
-                        'error': 'Write operations disabled while driving for safety',
+                        'error': 'All operations disabled while driving for safety',
                         'onroad': True,
-                        'readonly_mode': True
+                        'readonly_mode': False,
+                        'hint': 'Park the vehicle to access routes and videos'
                     }, 403)
                     return
 
             # Route handlers
             if path == '/' or path == '/index.html':
                 self.send_file_response(str(WEBAPP_DIR / 'index.html'), 'text/html')
+
+            elif path == '/api/health':
+                # Health check endpoint for monitoring
+                try:
+                    onroad = is_onroad()
+                    ffmpeg_count = server_state.get_ffmpeg_count()
+                    ws_clients = len(server_state.get_websocket_clients())
+                    error_summary = server_state.get_error_summary()
+                    uptime = server_state.get_server_uptime()
+
+                    # Server is unhealthy if there are recent CRITICAL errors
+                    recent_critical = [e for e in server_state.get_recent_errors(limit=10)
+                                      if e['level'] == 'CRITICAL']
+                    is_healthy = len(recent_critical) == 0
+
+                    self.send_json_response({
+                        'healthy': is_healthy,
+                        'status': 'onroad' if onroad else 'online',
+                        'onroad': onroad,
+                        'server_enabled': should_server_run(),
+                        'uptime_seconds': int(uptime),
+                        'ffmpeg_available_slots': MAX_CONCURRENT_FFMPEG - ffmpeg_count,
+                        'websocket_clients': ws_clients,
+                        'errors': {
+                            'total': error_summary['total'],
+                            'critical': error_summary.get('CRITICAL', 0),
+                            'errors': error_summary.get('ERROR', 0),
+                            'warnings': error_summary.get('WARNING', 0),
+                            'has_recent_critical': len(recent_critical) > 0
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Health check failed: {e}", exc_info=True)
+                    self.send_json_response({
+                        'healthy': False,
+                        'error': str(e)
+                    }, 500)
 
             elif path == '/api/status':
                 # Basic status endpoint (lightweight, always available)
@@ -1529,27 +2673,31 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             elif path == '/api/status/detailed':
                 # Detailed status endpoint with connection info
-                onroad = is_onroad()
-                connection_type = get_connection_type()
-                wifi_ip = get_wifi_ip()
-                cellular_status = get_cellular_access_status()
-
-                # Server uptime
-                import psutil
-                import os as os_module
                 try:
-                    process = psutil.Process(os_module.getpid())
-                    uptime_seconds = time.time() - process.create_time()
-                except:
-                    uptime_seconds = 0
+                    onroad = is_onroad()
+                    connection_type = get_connection_type()
+                    wifi_ip = get_wifi_ip()
+                    cellular_status = get_cellular_access_status()
 
-                # WebSocket client count
-                ws_clients = len(websocket_clients) if websocket_clients else 0
+                    # Server uptime
+                    try:
+                        import psutil
+                        process = psutil.Process(os.getpid())
+                        uptime_seconds = time.time() - process.create_time()
+                    except Exception as e:
+                        logger.debug(f"Could not get uptime: {e}")
+                        uptime_seconds = int(server_state.get_server_uptime())
 
-                # Rate limit info
-                current_limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+                    # WebSocket client count (thread-safe)
+                    ws_clients = len(server_state.get_websocket_clients())
 
-                self.send_json_response({
+                    # FFmpeg info (thread-safe)
+                    ffmpeg_count = server_state.get_ffmpeg_count()
+
+                    # Rate limit info
+                    current_limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+
+                    self.send_json_response({
                     'status': 'onroad' if onroad else 'online',
                     'onroad': onroad,
                     'server': {
@@ -1573,13 +2721,52 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'window_seconds': RATE_LIMIT_WINDOW,
                         'mode': 'global' if onroad else 'per_ip'
                     },
+                    'ffmpeg': {
+                        'active_processes': ffmpeg_count,
+                        'max_processes': MAX_CONCURRENT_FFMPEG,
+                        'available_slots': MAX_CONCURRENT_FFMPEG - ffmpeg_count,
+                        'utilization_percent': int((ffmpeg_count / MAX_CONCURRENT_FFMPEG) * 100) if MAX_CONCURRENT_FFMPEG > 0 else 0
+                    },
                     'features': {
                         'read_only': onroad,  # Onroad = read-only mode
                         'write_operations_enabled': not onroad,
-                        'ffmpeg_active': active_ffmpeg_processes,
-                        'ffmpeg_max': MAX_CONCURRENT_FFMPEG
+                        'websocket_enabled': WEBSOCKETS_AVAILABLE
                     }
-                })
+                    })
+                except Exception as e:
+                    logger.error(f"Error in /api/status/detailed: {e}", exc_info=True)
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Failed to get detailed status',
+                        'details': str(e)
+                    }, 500)
+
+            elif path == '/api/logs':
+                # Error logs endpoint for debugging
+                try:
+                    # Parse query parameters for filtering
+                    query = urlparse(self.path).query
+                    params_dict = dict(param.split('=') for param in query.split('&') if '=' in param) if query else {}
+
+                    limit = int(params_dict.get('limit', 20))
+                    level = params_dict.get('level', None)  # 'ERROR', 'WARNING', 'CRITICAL'
+
+                    errors = server_state.get_recent_errors(limit=limit, level=level)
+                    error_summary = server_state.get_error_summary()
+
+                    self.send_json_response({
+                        'success': True,
+                        'logs': errors,
+                        'summary': error_summary,
+                        'server_uptime': int(server_state.get_server_uptime())
+                    })
+                except Exception as e:
+                    logger.error(f"Error retrieving logs: {e}", exc_info=True)
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Failed to retrieve logs',
+                        'details': str(e)
+                    }, 500)
 
             elif path.startswith('/api/system/metrics'):
                 # System health metrics
@@ -1629,6 +2816,17 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 else:
                     duration_str = f"{minutes}m"
 
+                # Calculate end time from last segment's timestamp
+                # Parse the last segment name to get its timestamp
+                last_segment = segments[-1]
+                last_segment_dt = parse_route_datetime(last_segment['name'].rsplit('--', 1)[0])
+                if last_segment_dt:
+                    # Add 1 minute to account for the segment's duration
+                    end_dt = last_segment_dt + timedelta(minutes=1)
+                else:
+                    # Fallback: use start time + duration if parsing fails
+                    end_dt = route_dt + timedelta(seconds=duration_seconds)
+
                 # Check for star file
                 star_file = os.path.join(ROUTES_DIR, route_base, '.star')
                 is_starred = os.path.exists(star_file)
@@ -1677,6 +2875,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'baseName': route_base,
                     'displayDate': format_display_date(route_dt),
                     'displayTime': format_time_12hr(route_dt),
+                    'displayEndTime': format_time_12hr(end_dt),
                     'timestamp': route_dt.isoformat(),
                     'duration': duration_str,
                     'size': format_size(total_size),
@@ -1693,10 +2892,20 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             elif path == '/api/routes':
                 # Fast route list (cached data only, no processing)
                 routes = scan_routes()
+                disk_info = get_disk_space_info()
                 self.send_json_response({
                     'success': True,
                     'routes': routes,
-                    'total': len(routes)
+                    'total': len(routes),
+                    'disk_space': disk_info
+                })
+
+            elif path == '/api/disk-space':
+                # Get current disk space status
+                disk_info = get_disk_space_info()
+                self.send_json_response({
+                    'success': True,
+                    'disk_space': disk_info
                 })
 
             elif path.startswith('/api/geocode/'):
@@ -1942,6 +3151,112 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'error': 'No GPS data available for this route'
                     }, 404)
 
+            elif path.startswith('/api/logs/'):
+                # Log messages endpoint: /api/logs/{route_base}/{segment}/{log_type}
+                # Query params: search, level (info/warning/error/all), max
+                parts = path.split('/')[3:]  # Skip '', 'api', 'logs'
+                if len(parts) < 3:
+                    self.send_json_response({'error': 'Invalid log path. Format: /api/logs/{route}/{segment}/{qlog|rlog}'}, 400)
+                    return
+
+                route_base = parts[0]
+                try:
+                    segment_num = int(parts[1])
+                except ValueError:
+                    self.send_json_response({'error': 'Invalid segment number'}, 400)
+                    return
+
+                log_type = parts[2].lower()
+                if log_type not in ('qlog', 'rlog'):
+                    self.send_json_response({'error': 'Invalid log type. Use qlog or rlog'}, 400)
+                    return
+
+                # Get segment data
+                segments = get_route_segments(route_base)
+                segment_data = next((s for s in segments if s['segment'] == segment_num), None)
+
+                if not segment_data:
+                    self.send_json_response({'error': 'Segment not found'}, 404)
+                    return
+
+                # Map log type to filename
+                log_files = {
+                    'qlog': 'qlog.zst',
+                    'rlog': 'rlog.zst'
+                }
+
+                log_path = os.path.join(segment_data['path'], log_files[log_type])
+
+                if not os.path.exists(log_path):
+                    self.send_json_response({
+                        'success': False,
+                        'error': f'{log_type} file not found for this segment'
+                    }, 404)
+                    return
+
+                # Parse query parameters
+                from urllib.parse import parse_qs
+                query_params = parse_qs(parsed.query)
+                search_query = query_params.get('search', [None])[0]
+                level_filter = query_params.get('level', ['all'])[0]
+                try:
+                    max_messages = int(query_params.get('max', [500])[0])
+                    max_messages = min(max_messages, 5000)  # Cap at 5000 for safety
+                except ValueError:
+                    max_messages = 500
+
+                # Extract log messages
+                result = extract_log_messages(log_path, search_query, level_filter, max_messages)
+                self.send_json_response(result)
+
+            elif path.startswith('/api/cereal/'):
+                # Cereal data endpoint: /api/cereal/{route_base}/{segment}/{log_type}/{message_type}
+                parts = path.split('/')[3:]  # Skip '', 'api', 'cereal'
+                if len(parts) < 4:
+                    self.send_json_response({'error': 'Invalid cereal path. Format: /api/cereal/{route}/{segment}/{qlog|rlog}/{message_type}'}, 400)
+                    return
+
+                route_base = parts[0]
+                try:
+                    segment_num = int(parts[1])
+                except ValueError:
+                    self.send_json_response({'error': 'Invalid segment number'}, 400)
+                    return
+
+                log_type = parts[2].lower()
+                if log_type not in ('qlog', 'rlog'):
+                    self.send_json_response({'error': 'Invalid log type. Use qlog or rlog'}, 400)
+                    return
+
+                message_type = parts[3]
+
+                # Get segment data
+                segments = get_route_segments(route_base)
+                segment_data = next((s for s in segments if s['segment'] == segment_num), None)
+
+                if not segment_data:
+                    self.send_json_response({'error': 'Segment not found'}, 404)
+                    return
+
+                # Map log type to filename
+                log_files = {
+                    'qlog': 'qlog.zst',
+                    'rlog': 'rlog.zst'
+                }
+
+                log_path = os.path.join(segment_data['path'], log_files[log_type])
+
+                if not os.path.exists(log_path):
+                    self.send_json_response({
+                        'success': False,
+                        'error': f'{log_type} file not found for this segment'
+                    }, 404)
+                    return
+
+                # Extract cereal messages
+                result = extract_cereal_messages(log_path, message_type)
+                self.send_json_response(result)
+
             elif path.startswith('/api/thumbnail/'):
                 route_base = path.split('/api/thumbnail/')[1].strip('/')
 
@@ -1968,12 +3283,15 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_json_response({'error': 'Not found'}, 404)
 
+        except (BrokenPipeError, ConnectionResetError) as e:
+            # Client disconnected - don't log as error
+            logger.debug(f"Client disconnected during GET {self.path}: {e}")
         except Exception as e:
-            logger.error(f"Error handling GET request to {self.path}: {e}")
+            logger.error(f"Error handling GET request to {self.path}: {e}", exc_info=True)
             try:
-                self.send_json_response({'error': 'Internal server error'}, 500)
-            except:
-                # If we can't send error response, just pass
+                self.send_json_response({'error': 'Internal server error', 'details': str(e)}, 500)
+            except Exception:
+                # Connection broken, can't send response
                 pass
 
     def download_full_route(self, route_base, camera, segments):
@@ -2165,51 +3483,74 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         event_data = json.loads(body.decode('utf-8'))
 
                         # Broadcast to all connected WebSocket clients
-                        if broadcaster:
-                            broadcaster.broadcast(event_data.get('type'), event_data.get('data'))
+                        broadcaster_instance = server_state.get_broadcaster()
+                        if broadcaster_instance:
+                            broadcaster_instance.broadcast(event_data.get('type'), event_data.get('data'))
 
                     self.send_json_response({'success': True})
                 except Exception as e:
                     logger.exception("Error handling internal broadcast")
-                    self.send_json_response({'error': str(e)}, 500)
+                    self.send_json_response({
+                        'error': 'Broadcast failed',
+                        'details': str(e)
+                    }, 500)
                 return
 
             # Check if server should be running
             if not should_server_run():
-                if is_onroad():
-                    self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
-                else:
-                    self.send_json_response({'error': 'Server disabled by user'}, 503)
+                self.send_json_response({
+                    'error': 'Server disabled',
+                    'details': 'Web routes server is currently disabled',
+                    'hint': 'Enable server in settings'
+                }, 503)
                 return
 
             if is_onroad():
-                self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
+                self.send_json_response({
+                    'error': 'Operation not allowed while driving',
+                    'details': 'Write operations are disabled for safety while vehicle is in motion',
+                    'hint': 'Park the vehicle to modify routes',
+                    'reason': 'safety'
+                }, 503)
                 return
 
             if path.startswith('/api/star/'):
+                # Star/unstar a route using preserve xattr with disk space checking
                 route_base = path.split('/api/star/')[1].strip('/')
-                star_file = os.path.join(ROUTES_DIR, route_base, '.star')
 
-                if os.path.exists(star_file):
-                    os.remove(star_file)
-                    is_starred = False
+                # Check current preserve status
+                currently_starred = check_route_preserve_status(route_base)
+
+                # Toggle star status
+                preserve = not currently_starred
+
+                # Set or remove preserve xattr (includes disk space checks)
+                result = set_route_preserve(route_base, preserve)
+
+                if result['success']:
+                    is_starred = preserve
+
+                    # Include disk space info in response
+                    disk_info = get_disk_space_info()
+
+                    self.send_json_response({
+                        'success': True,
+                        'isStarred': is_starred,
+                        'affected_segments': result.get('affected_segments', 0),
+                        'message': result.get('message'),
+                        'disk_space': disk_info
+                    })
+
+                    # Broadcast WebSocket event
+                    event_type = WebSocketEvent.ROUTE_STARRED if is_starred else WebSocketEvent.ROUTE_UNSTARRED
+                    broadcast_websocket_event(event_type, {
+                        'route_base': route_base,
+                        'is_starred': is_starred,
+                        'disk_space': disk_info
+                    })
                 else:
-                    os.makedirs(os.path.dirname(star_file), exist_ok=True)
-                    with open(star_file, 'w') as f:
-                        f.write('')
-                    is_starred = True
-
-                self.send_json_response({
-                    'success': True,
-                    'isStarred': is_starred
-                })
-
-                # Broadcast WebSocket event
-                event_type = WebSocketEvent.ROUTE_STARRED if is_starred else WebSocketEvent.ROUTE_UNSTARRED
-                broadcast_websocket_event(event_type, {
-                    'route_base': route_base,
-                    'is_starred': is_starred
-                })
+                    # Return error from set_route_preserve
+                    self.send_json_response(result, 400 if 'disk space' in result.get('error', '').lower() else 500)
             elif path == '/api/clear-cache':
                 # Clear all cached data (remuxed videos, thumbnails, GPS metrics)
                 import shutil
@@ -2272,12 +3613,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json_response({'error': 'Not found'}, 404)
 
+        except (BrokenPipeError, ConnectionResetError) as e:
+            logger.debug(f"Client disconnected during POST {self.path}: {e}")
         except Exception as e:
-            logger.error(f"Error handling POST request to {self.path}: {e}")
+            logger.error(f"Error handling POST request to {self.path}: {e}", exc_info=True)
             try:
-                self.send_json_response({'error': 'Internal server error'}, 500)
-            except:
-                # If we can't send error response, just pass
+                self.send_json_response({'error': 'Internal server error', 'details': str(e)}, 500)
+            except Exception:
                 pass
 
     def do_DELETE(self):
@@ -2303,14 +3645,20 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             # Check if server should be running
             if not should_server_run():
-                if is_onroad():
-                    self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
-                else:
-                    self.send_json_response({'error': 'Server disabled by user'}, 503)
+                self.send_json_response({
+                    'error': 'Server disabled',
+                    'details': 'Web routes server is currently disabled',
+                    'hint': 'Enable server in settings'
+                }, 503)
                 return
 
             if is_onroad():
-                self.send_json_response({'error': 'Server disabled while driving for safety'}, 503)
+                self.send_json_response({
+                    'error': 'Operation not allowed while driving',
+                    'details': 'Delete operations are disabled for safety while vehicle is in motion',
+                    'hint': 'Park the vehicle to delete routes',
+                    'reason': 'safety'
+                }, 503)
                 return
 
             if path.startswith('/api/delete/'):
@@ -2348,12 +3696,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json_response({'error': 'Not found'}, 404)
 
+        except (BrokenPipeError, ConnectionResetError) as e:
+            logger.debug(f"Client disconnected during DELETE {self.path}: {e}")
         except Exception as e:
-            logger.error(f"Error handling DELETE request to {self.path}: {e}")
+            logger.error(f"Error handling DELETE request to {self.path}: {e}", exc_info=True)
             try:
-                self.send_json_response({'error': 'Internal server error'}, 500)
-            except:
-                # If we can't send error response, just pass
+                self.send_json_response({'error': 'Internal server error', 'details': str(e)}, 500)
+            except Exception:
                 pass
 
 
@@ -2484,10 +3833,11 @@ def ensure_dependencies():
                     logger.info("websockets installed successfully via uv")
 
                     # Check if it's now available
-                    if check_websockets_available():
+                    try:
+                        import websockets
                         WEBSOCKETS_AVAILABLE = True
                         logger.info("WebSocket support enabled after uv installation")
-                    else:
+                    except ImportError:
                         logger.warning("Installation completed but websockets still not available")
                         logger.info("You may need to restart the web server to use WebSocket features")
                 else:
@@ -2496,10 +3846,11 @@ def ensure_dependencies():
                     logger.info("websockets installed successfully via pip")
 
                     # Check if it's now available
-                    if check_websockets_available():
+                    try:
+                        import websockets
                         WEBSOCKETS_AVAILABLE = True
                         logger.info("WebSocket support enabled after pip installation")
-                    else:
+                    except ImportError:
                         logger.warning("Installation completed but websockets still not available")
                         logger.info("You may need to restart the web server to use WebSocket features")
 
@@ -2545,9 +3896,6 @@ def main():
     #     logger.error("Server startup aborted due to excessive crashes")
     #     return
 
-    # Initialize WebSocket broadcaster (will be set once loop is ready)
-    global broadcaster
-
     # Start WebSocket server in separate thread if websockets is available
     try:
         import websockets
@@ -2559,22 +3907,34 @@ def main():
         websocket_thread.start()
         logger.info(f"WebSocket server thread started on port {WEBSOCKET_PORT}")
 
-        # Give the thread a moment to start and set the loop
-        time.sleep(0.5)
+        # Wait for WebSocket to be ready (max 2 seconds)
+        if server_state.wait_for_websocket(timeout=2.0):
+            logger.info("WebSocket event loop ready")
+            # Get WebSocket clients and loop from server state
+            ws_clients = server_state.get_websocket_clients()
+            ws_loop = server_state.get_websocket_loop()
 
-        # Initialize broadcaster with in-process WebSocket clients
-        broadcaster = WebSocketBroadcaster(websocket_clients=websocket_clients, loop=loop)
-        logger.info("WebSocket broadcaster initialized (in-process mode)")
+            # Initialize broadcaster with in-process WebSocket support
+            broadcaster_instance = WebSocketBroadcaster(websocket_clients=set(ws_clients), loop=ws_loop)
+            server_state.set_broadcaster(broadcaster_instance)
+            logger.info("WebSocket broadcaster initialized (in-process mode)")
+        else:
+            logger.warning("WebSocket not ready after 2 seconds, using HTTP fallback")
+            broadcaster_instance = WebSocketBroadcaster(http_fallback_port=port)
+            server_state.set_broadcaster(broadcaster_instance)
+            logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
+
     except ImportError:
         logger.info("WebSocket server not available - HTTP polling will be used")
-        # Initialize broadcaster with HTTP fallback for cross-process communication
-        broadcaster = WebSocketBroadcaster(http_fallback_port=port)
+        broadcaster_instance = WebSocketBroadcaster(http_fallback_port=port)
+        server_state.set_broadcaster(broadcaster_instance)
         logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
+
     except Exception as e:
-        logger.error(f"Failed to start WebSocket server: {e}")
+        logger.error(f"Failed to start WebSocket server: {e}", exc_info=True)
         logger.warning("Continuing without WebSocket support (HTTP polling will still work)")
-        # Initialize broadcaster with HTTP fallback
-        broadcaster = WebSocketBroadcaster(http_fallback_port=port)
+        broadcaster_instance = WebSocketBroadcaster(http_fallback_port=port)
+        server_state.set_broadcaster(broadcaster_instance)
         logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
 
     # Determine bind address based on WiFi availability and cellular access settings

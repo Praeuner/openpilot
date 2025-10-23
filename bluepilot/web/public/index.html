@@ -237,6 +237,15 @@
               <div id="video-loading" class="video-loading">
                 <div class="spinner"></div>
               </div>
+              <div id="video-replay" class="video-replay hidden">
+                <button id="replay-btn" class="replay-btn">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  <span>Replay Route</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -370,6 +379,160 @@
                   </svg>
                   Delete
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Panels -->
+        <div class="bottom-panels">
+          <!-- Log Viewer Panel -->
+          <div class="bottom-panel" id="log-panel">
+            <div class="panel-header" id="log-panel-header">
+              <div class="panel-title">
+                <svg class="panel-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <span>Logs</span>
+              </div>
+              <button type="button" id="load-logs-btn" class="btn btn-sm btn-primary panel-action-btn">Load Logs</button>
+            </div>
+            <div class="panel-content hidden" id="log-panel-content">
+              <!-- Log Controls -->
+              <div class="log-controls">
+                <div class="log-control-row">
+                  <div class="log-type-selector">
+                    <button type="button" class="log-type-btn active" data-log-type="qlog">qlog</button>
+                    <button type="button" class="log-type-btn" data-log-type="rlog">rlog</button>
+                  </div>
+                  <select id="log-level-filter" class="log-filter-select">
+                    <option value="all">All Levels</option>
+                    <option value="error">Errors Only</option>
+                    <option value="warning">Warnings</option>
+                    <option value="info">Info</option>
+                  </select>
+                  <input
+                    type="text"
+                    id="log-search-input"
+                    class="log-search-input"
+                    placeholder="Search logs..."
+                  />
+                  <label class="log-sync-label">
+                    <input type="checkbox" id="log-sync-checkbox" />
+                    Sync with video
+                  </label>
+                  <button type="button" id="reload-logs-btn" class="btn btn-sm">Reload</button>
+                </div>
+              </div>
+
+              <!-- Log Display -->
+              <div id="log-viewer-container" class="log-viewer-container">
+                <div class="log-viewer-empty">
+                  <p>Click "Load Logs" to view cloudlog messages</p>
+                </div>
+                <div id="log-messages" class="log-messages hidden"></div>
+                <div id="log-loading" class="log-loading hidden">
+                  <div class="spinner-small"></div>
+                  <span>Loading logs...</span>
+                </div>
+              </div>
+
+              <!-- Log Status -->
+              <div id="log-status" class="log-status hidden">
+                <span id="log-count">0 messages</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cereal Data Viewer Panel -->
+          <div class="bottom-panel" id="cereal-panel">
+            <div class="panel-header" id="cereal-panel-header">
+              <div class="panel-title">
+                <svg class="panel-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                <span>Cereal Data Viewer</span>
+              </div>
+              <button type="button" id="load-cereal-btn" class="btn btn-sm btn-primary panel-action-btn">Load Data</button>
+            </div>
+            <div class="panel-content hidden" id="cereal-panel-content">
+              <!-- Cereal Controls -->
+              <div class="cereal-controls">
+                <div class="cereal-control-row">
+                  <label for="cereal-message-select">Message Type:</label>
+                  <select id="cereal-message-select" class="cereal-message-select">
+                    <optgroup label="Vehicle Data">
+                      <option value="carState">carState - Speed, steering, pedals</option>
+                      <option value="carControl">carControl - Actuator commands</option>
+                      <option value="carOutput">carOutput - Actual outputs</option>
+                      <option value="carParams">carParams - Vehicle config</option>
+                    </optgroup>
+                    <optgroup label="Planning & Control">
+                      <option value="controlsState">controlsState - OP status</option>
+                      <option value="longitudinalPlan">longitudinalPlan - Speed planning</option>
+                      <option value="driverAssistance">driverAssistance - Assist features</option>
+                    </optgroup>
+                    <optgroup label="Perception">
+                      <option value="modelV2">modelV2 - ML model outputs</option>
+                      <option value="radarState">radarState - Radar detections</option>
+                      <option value="liveTracks">liveTracks - Tracked objects</option>
+                    </optgroup>
+                    <optgroup label="Localization">
+                      <option value="liveCalibration">liveCalibration - Camera calibration</option>
+                      <option value="livePose">livePose - Vehicle pose</option>
+                      <option value="gpsLocation">gpsLocation - GPS data</option>
+                    </optgroup>
+                    <optgroup label="Driver Monitoring">
+                      <option value="driverMonitoringState">driverMonitoringState - Face/eye tracking</option>
+                      <option value="driverStateV2">driverStateV2 - Driver state</option>
+                    </optgroup>
+                    <optgroup label="Device/System">
+                      <option value="deviceState">deviceState - Temp, battery, storage</option>
+                      <option value="pandaStates">pandaStates - Panda device status</option>
+                      <option value="peripheralState">peripheralState - Fan, USB</option>
+                      <option value="managerState">managerState - Process states</option>
+                    </optgroup>
+                    <optgroup label="SunnyPilot/BluePilot">
+                      <option value="selfdriveStateSP">selfdriveStateSP</option>
+                      <option value="carStateSP">carStateSP</option>
+                      <option value="carControlSP">carControlSP</option>
+                      <option value="carStateBP">carStateBP</option>
+                    </optgroup>
+                  </select>
+                  <label class="cereal-sync-label">
+                    <input type="checkbox" id="cereal-sync-checkbox" />
+                    Sync with video
+                  </label>
+                  <button type="button" id="reload-cereal-btn" class="btn btn-sm">Reload</button>
+                </div>
+                <div class="cereal-status-row">
+                  <span id="cereal-last-update">Last updated: --</span>
+                  <span id="cereal-message-count">0 messages</span>
+                </div>
+              </div>
+
+              <!-- Cereal Data Table -->
+              <div id="cereal-viewer-container" class="cereal-viewer-container">
+                <div class="cereal-viewer-empty">
+                  <p>Click "Load Data" to view cereal messages</p>
+                </div>
+                <table id="cereal-data-table" class="cereal-data-table hidden">
+                  <thead>
+                    <tr>
+                      <th>Field</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cereal-data-body">
+                  </tbody>
+                </table>
+                <div id="cereal-loading" class="cereal-loading hidden">
+                  <div class="spinner-small"></div>
+                  <span>Loading cereal data...</span>
+                </div>
               </div>
             </div>
           </div>

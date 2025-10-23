@@ -15,6 +15,7 @@
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/stop_sign_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/gforce_overlay.h"
 #include "selfdrive/ui/bluepilot/qt/onroad/overlays/hybrid_gauges_overlay.h"
+#include "selfdrive/ui/bluepilot/qt/onroad/overlays/standstill_timer_overlay.h"
 
 // Forward declaration to avoid circular dependency
 class ModelRenderer;
@@ -43,11 +44,6 @@ public:
 private:
   // Optimized state management
   struct FrameState {
-    // Blinker state
-    bool left_blinker = false, right_blinker = false;
-    bool left_blindspot = false, right_blindspot = false;
-    int blinker_frame = 0;
-
     float vehicle_speed = 0.0f;
 
     // Hybrid state
@@ -82,6 +78,9 @@ private:
 
     // G-force state
     GForceOverlay::GForceState gforce_state;
+
+    // Standstill timer state
+    StandstillTimerOverlay::StandstillState standstill_state;
   };
   static FrameState frame_state;
 
@@ -92,19 +91,13 @@ private:
   // Performance-optimized rendering methods
   template<typename ModelType>
   static void updateFrameState(const UIState &s, const ModelType &model);
-  static void renderBlinkers(QPainter &painter, const QRect &rect);
   static void renderModelEnhancements(QPainter &painter, const QRect &rect, const UIState &s);
-
-  // Rendering helpers for blinkers (still used by BluepilotRenderer)
-  static void drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
-  static void drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot);
 
 public:
   // Cleanup
   static void cleanup();
 
   // Constants
-  static constexpr int BLINKER_SIZE = 120;
   static constexpr int UI_FREQ = 20;
   static constexpr float STANDSTILL_THRESHOLD = 0.1f;
   static constexpr float STANDSTILL_DEBOUNCE_TIME = 0.5f;

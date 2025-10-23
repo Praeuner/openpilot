@@ -53,7 +53,7 @@
           "type": "toggle",
           "param": "ShowBrakeStatus",
           "title": "Show Brake Status",
-          "desc": "[BluePilot] Changes the speed color to red when the brake is pressed."
+          "desc": "[BluePilot] Changes the speed color to red when the brake is pressed.<br/>(This setting is only tested on F150s at this time.)"
         },
         {
           "type": "toggle",
@@ -98,7 +98,13 @@
           "type": "toggle",
           "param": "HideVEgoUI",
           "title": "Speedometer: Hide from Onroad Screen",
-          "desc": "Hide the speedometer display from the onroad screen."
+          "desc": "When enabled, the speedometer on the onroad screen is not displayed."
+        },
+        {
+          "type": "toggle",
+          "param": "ShowTurnSignals",
+          "title": "Display Turn Signals",
+          "desc": "When enabled, visual turn indicators are drawn on the HUD."
         }
       ]
     },

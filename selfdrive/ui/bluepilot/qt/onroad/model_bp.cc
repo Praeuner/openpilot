@@ -101,7 +101,7 @@ void ModelRendererBP::draw(QPainter &painter, const QRect &surface_rect) {
   if (enhanced_ui) {
     drawEnhancedPath(painter, model, surface_rect);
   } else {
-    ModelRenderer::drawPath(painter, model, surface_rect);
+    ModelRenderer::drawPath(painter, model, surface_rect.height());
   }
 
   // Draw lead status if not suppressed by radar overlay
@@ -1065,74 +1065,6 @@ void ModelRendererBP::updateStopDetection(const UIState &s) {
 }
 
 // ================ Drawing Utilities (from bluepilot_renderer) ================
-void ModelRendererBP::drawLeftTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color = blindspot ?
-    (state ? QColor(204, 0, 1) : QColor(164, 0, 1)) :
-    (state ? QColor(30, 215, 96) : QColor(22, 156, 69));
-  QColor arrow_color = blindspot ?
-    (state ? QColor(255, 255, 255) : QColor(72, 1, 1)) :
-    (state ? QColor(255, 255, 255) : QColor(9, 56, 27));
-
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(x, y, size, size);
-
-  int arrowSize = 50;
-  int arrowX = x + (size - arrowSize) / 4;
-  int arrowY = y + (size - arrowSize) / 2;
-  painter.setBrush(arrow_color);
-
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + 10, arrowY + arrowSize / 2)
-               << QPoint(arrowX + arrowSize - 3, arrowY)
-               << QPoint(arrowX + arrowSize, arrowY)
-               << QPoint(arrowX + arrowSize, arrowY + arrowSize)
-               << QPoint(arrowX + arrowSize - 3, arrowY + arrowSize)
-               << QPoint(arrowX + 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX + arrowSize - 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
-void ModelRendererBP::drawRightTurnSignal(QPainter &painter, int x, int y, int size, int state, bool blindspot) {
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
-  QColor circle_color = blindspot ?
-    (state ? QColor(204, 0, 1) : QColor(164, 0, 1)) :
-    (state ? QColor(30, 215, 96) : QColor(22, 156, 69));
-  QColor arrow_color = blindspot ?
-    (state ? QColor(255, 255, 255) : QColor(72, 1, 1)) :
-    (state ? QColor(255, 255, 255) : QColor(9, 56, 27));
-
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(circle_color);
-  painter.drawEllipse(x, y, size, size);
-
-  int arrowSize = 50;
-  int arrowX = x + (size - arrowSize) / 2 + (arrowSize / 2.5) - 3;
-  int arrowY = y + (size - arrowSize) / 2;
-  painter.setBrush(arrow_color);
-
-  QPolygon arrowPolygon;
-  arrowPolygon << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2)
-               << QPoint(arrowX + 3, arrowY)
-               << QPoint(arrowX, arrowY)
-               << QPoint(arrowX, arrowY + arrowSize)
-               << QPoint(arrowX + 3, arrowY + arrowSize)
-               << QPoint(arrowX + arrowSize - 10, arrowY + arrowSize / 2);
-  painter.drawPolygon(arrowPolygon);
-
-  int tailWidth = arrowSize / 2.25;
-  int tailHeight = arrowSize / 2;
-  QRect tailRect(arrowX - tailWidth + 3, arrowY + arrowSize / 4, tailWidth, tailHeight);
-  painter.fillRect(tailRect, arrow_color);
-}
-
 void ModelRendererBP::drawColoredText(QPainter &painter, int x, int y, const QString &text, QColor color) {
   QRect real_rect = painter.fontMetrics().boundingRect(text);
   real_rect.moveCenter({x, y - real_rect.height() / 2});

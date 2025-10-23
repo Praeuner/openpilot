@@ -124,6 +124,8 @@ class BluePilotRoutes {
     this.$videoRouteId = document.getElementById("video-route-id");
     this.$videoCanvas = document.getElementById("video-canvas");
     this.$videoLoading = document.getElementById("video-loading");
+    this.$videoReplay = document.getElementById("video-replay");
+    this.$replayBtn = document.getElementById("replay-btn");
     this.$closeVideo = document.getElementById("close-video");
     this.$segmentInfo = document.getElementById("segment-info");
     this.$cameraButtons = document.querySelectorAll(".camera-btn");
@@ -164,6 +166,37 @@ class BluePilotRoutes {
       const allElements = document.querySelectorAll("[id]");
       allElements.forEach((el) => console.error("  -", el.id));
     }
+
+    // Log panel elements
+    this.$logPanel = document.getElementById("log-panel");
+    this.$logPanelHeader = document.getElementById("log-panel-header");
+    this.$logPanelContent = document.getElementById("log-panel-content");
+    this.$logTypeButtons = document.querySelectorAll(".log-type-btn");
+    this.$logLevelFilter = document.getElementById("log-level-filter");
+    this.$logSyncCheckbox = document.getElementById("log-sync-checkbox");
+    this.$logSearchInput = document.getElementById("log-search-input");
+    this.$loadLogsBtn = document.getElementById("load-logs-btn");
+    this.$reloadLogsBtn = document.getElementById("reload-logs-btn");
+    this.$logViewerContainer = document.getElementById("log-viewer-container");
+    this.$logMessages = document.getElementById("log-messages");
+    this.$logLoading = document.getElementById("log-loading");
+    this.$logStatus = document.getElementById("log-status");
+    this.$logCount = document.getElementById("log-count");
+
+    // Cereal panel elements
+    this.$cerealPanel = document.getElementById("cereal-panel");
+    this.$cerealPanelHeader = document.getElementById("cereal-panel-header");
+    this.$cerealPanelContent = document.getElementById("cereal-panel-content");
+    this.$loadCerealBtn = document.getElementById("load-cereal-btn");
+    this.$reloadCerealBtn = document.getElementById("reload-cereal-btn");
+    this.$cerealMessageSelect = document.getElementById("cereal-message-select");
+    this.$cerealSyncCheckbox = document.getElementById("cereal-sync-checkbox");
+    this.$cerealViewerContainer = document.getElementById("cereal-viewer-container");
+    this.$cerealDataTable = document.getElementById("cereal-data-table");
+    this.$cerealDataBody = document.getElementById("cereal-data-body");
+    this.$cerealLoading = document.getElementById("cereal-loading");
+    this.$cerealLastUpdate = document.getElementById("cereal-last-update");
+    this.$cerealMessageCount = document.getElementById("cereal-message-count");
   }
 
   attachEventListeners() {
@@ -189,6 +222,7 @@ class BluePilotRoutes {
     this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
     this.$retryBtn.addEventListener("click", () => this.loadRoutes());
     this.$closeVideo.addEventListener("click", () => this.closeVideo());
+    this.$replayBtn.addEventListener("click", () => this.replayRoute());
 
     // Monitor connection status periodically
     this.startConnectionMonitoring();
@@ -234,8 +268,71 @@ class BluePilotRoutes {
       }
     });
 
+    // Panel toggle handlers
+    this.$logPanelHeader.addEventListener("click", (e) => {
+      // Don't toggle if clicking the Load button
+      if (!e.target.closest(".panel-action-btn")) {
+        this.togglePanel(this.$logPanelContent);
+      }
+    });
+
+    this.$cerealPanelHeader.addEventListener("click", (e) => {
+      // Don't toggle if clicking the Load button
+      if (!e.target.closest(".panel-action-btn")) {
+        this.togglePanel(this.$cerealPanelContent);
+      }
+    });
+
+    // Log viewer controls
+    this.$logTypeButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.$logTypeButtons.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+    });
+
+    this.$loadLogsBtn.addEventListener("click", () => {
+      this.togglePanel(this.$logPanelContent, true); // Force open
+      this.loadLogs();
+    });
+
+    this.$reloadLogsBtn.addEventListener("click", () => {
+      this.loadLogs();
+    });
+
+    // Allow Enter key in search to trigger load
+    this.$logSearchInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        this.loadLogs();
+      }
+    });
+
+    // Cereal viewer controls
+    this.$loadCerealBtn.addEventListener("click", () => {
+      this.togglePanel(this.$cerealPanelContent, true); // Force open
+      this.loadCerealData();
+    });
+
+    this.$reloadCerealBtn.addEventListener("click", () => {
+      this.loadCerealData();
+    });
+
+    this.$cerealMessageSelect.addEventListener("change", () => {
+      if (this.currentCerealData) {
+        this.loadCerealData();
+      }
+    });
+
     // Keyboard shortcuts
     document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+  }
+
+  togglePanel(panelContent, forceOpen = false) {
+    if (forceOpen) {
+      panelContent.classList.remove("hidden");
+    } else {
+      panelContent.classList.toggle("hidden");
+    }
   }
 
   showLoading() {
@@ -479,7 +576,7 @@ class BluePilotRoutes {
     if (type === "onroad") {
       this.$statusOverlayTitle.textContent = "Driving Mode";
       this.$statusOverlayMessage.textContent =
-        "The device is currently onroad. The web interface is in read-only mode with limited functionality for safety.";
+        "The device is currently driving. All web interface interactions are disabled for safety. Park the vehicle to access routes and videos.";
 
       // Show details
       this.$statusOverlayDetails.classList.remove("hidden");
@@ -731,8 +828,10 @@ class BluePilotRoutes {
     card.className = "route-card";
     card.dataset.baseName = route.baseName; // For finding card later during geocoding
 
-    // Use server-provided displayTime directly (no conversion)
+    // Use server-provided displayTime and displayEndTime directly (no conversion)
     const displayTime = route.displayTime;
+    const displayEndTime = route.displayEndTime;
+    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
 
     // Thumbnail - try to load from cache
     const thumbnailHTML = `
@@ -759,8 +858,8 @@ class BluePilotRoutes {
 
     const starIcon = route.isStarred ? '<span class="star-icon">★</span>' : "";
 
-    // Show display time as the title
-    const displayTitle = displayTime || route.baseName;
+    // Show time range as the title
+    const displayTitle = timeRange || route.baseName;
 
     // Format location subtitle (start -> end)
     let locationSubtitle = "";
@@ -920,12 +1019,15 @@ class BluePilotRoutes {
 
   openVideo() {
     this.$videoPlayer.classList.remove("hidden");
+    this.hideReplayOverlay();
 
-    // Set title: Display date and time on first line
+    // Set title: Display date and time range on first line
     const displayDate = this.currentRoute.displayDate || "";
     const displayTime = this.currentRoute.displayTime || "";
+    const displayEndTime = this.currentRoute.displayEndTime || "";
+    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
     this.$videoTitle.textContent =
-      displayDate + (displayDate && displayTime ? " - " : "") + displayTime;
+      displayDate + (displayDate && timeRange ? " - " : "") + timeRange;
 
     // Set route ID on second line
     this.$videoRouteId.textContent = this.currentRoute.baseName;
@@ -977,6 +1079,7 @@ class BluePilotRoutes {
     this.isClosingVideo = true;
 
     this.$videoPlayer.classList.add("hidden");
+    this.hideReplayOverlay();
 
     // Clear segment timer
     if (this.segmentTimer) {
@@ -1039,6 +1142,37 @@ class BluePilotRoutes {
 
     document.body.style.overflow = "";
     this.currentRoute = null;
+
+    // Clean up log viewer
+    if (this.logSyncInterval) {
+      clearInterval(this.logSyncInterval);
+      this.logSyncInterval = null;
+    }
+    this.currentLogMessages = null;
+    this.currentLogStartTime = null;
+    this.currentLogEndTime = null;
+    this.$logMessages.innerHTML = "";
+    this.$logMessages.classList.add("hidden");
+    this.$logStatus.classList.add("hidden");
+    this.$logPanelContent.classList.add("hidden");
+    this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+    this.$logCount.textContent = "0 messages";
+
+    // Clean up cereal data viewer
+    if (this.cerealSyncInterval) {
+      clearInterval(this.cerealSyncInterval);
+      this.cerealSyncInterval = null;
+    }
+    this.currentCerealData = null;
+    this.currentCerealStartTime = null;
+    this.currentCerealEndTime = null;
+    this.currentCerealType = null;
+    this.$cerealDataBody.innerHTML = "";
+    this.$cerealDataTable.classList.add("hidden");
+    this.$cerealPanelContent.classList.add("hidden");
+    this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+    this.$cerealLastUpdate.textContent = "Last updated: --";
+    this.$cerealMessageCount.textContent = "0 messages";
 
     // Clear closing flag after cleanup completes
     setTimeout(() => {
@@ -1246,6 +1380,36 @@ class BluePilotRoutes {
 
   hideVideoLoading() {
     this.$videoLoading.style.display = "none";
+  }
+
+  showReplayOverlay() {
+    console.log("Showing replay overlay");
+    this.$videoReplay.classList.remove("hidden");
+    // Pause the video if it's playing
+    if (this.$videoElement && !this.$videoElement.paused) {
+      this.$videoElement.pause();
+    }
+  }
+
+  hideReplayOverlay() {
+    console.log("Hiding replay overlay");
+    this.$videoReplay.classList.add("hidden");
+  }
+
+  replayRoute() {
+    console.log("Replaying route from beginning");
+    this.hideReplayOverlay();
+
+    // For HLS.js playback (full route)
+    if (this.hls && this.$videoElement) {
+      this.$videoElement.currentTime = 0;
+      this.$videoElement.play();
+    }
+    // For standard video element playback (single segment fallback)
+    else if (this.$videoElement) {
+      this.$videoElement.currentTime = 0;
+      this.$videoElement.play();
+    }
   }
 
   async checkNativeHEVCSupport() {
@@ -1649,7 +1813,7 @@ class BluePilotRoutes {
         });
         this.$videoElement.addEventListener("ended", () => {
           console.log("Full route playback completed");
-          this.closeVideo();
+          this.showReplayOverlay();
         });
         this.$videoElement.addEventListener("error", (e) =>
           this.handleVideoError(e)
@@ -2015,7 +2179,8 @@ class BluePilotRoutes {
       this.updateStats();
 
       // Show notification
-      this.showNotification(`New route recorded: ${data.displayDate} ${data.displayTime || ''}`);
+      const timeRange = data.displayEndTime ? `${data.displayTime} - ${data.displayEndTime}` : data.displayTime || '';
+      this.showNotification(`New route recorded: ${data.displayDate} ${timeRange}`);
     } else {
       // No full data, do a full reload
       console.log("Incomplete route data, reloading routes list");
@@ -2507,9 +2672,10 @@ class BluePilotRoutes {
   }
 
   async deleteRoute(route) {
+    const timeRange = route.displayEndTime ? `${route.displayTime} - ${route.displayEndTime}` : route.displayTime;
     const confirmed = confirm(
       `Delete route ${
-        route.displayTime || route.baseName
+        timeRange || route.baseName
       }?\n\nThis will delete ${route.segments} segments (${
         route.size
       }) permanently.`
@@ -2844,6 +3010,373 @@ class BluePilotRoutes {
       document.getElementById("metrics-timestamp").textContent =
         date.toLocaleTimeString();
     }
+  }
+
+  // Log Viewer Methods
+  async loadLogs() {
+    if (!this.currentRoute) {
+      console.warn("No route selected");
+      return;
+    }
+
+    // Get selected log type
+    const activeLogTypeBtn = document.querySelector(".log-type-btn.active");
+    const logType = activeLogTypeBtn ? activeLogTypeBtn.dataset.logType : "qlog";
+
+    // Get filters
+    const levelFilter = this.$logLevelFilter.value;
+    const searchQuery = this.$logSearchInput.value.trim();
+
+    // Show loading
+    this.$logLoading.classList.remove("hidden");
+    this.$logMessages.classList.add("hidden");
+    this.$logViewerContainer.querySelector(".log-viewer-empty").classList.add("hidden");
+
+    try {
+      // Build API URL
+      const params = new URLSearchParams();
+      if (levelFilter !== "all") {
+        params.append("level", levelFilter);
+      }
+      if (searchQuery) {
+        params.append("search", searchQuery);
+      }
+      params.append("max", "500");
+
+      const url = `${this.API_BASE}/api/logs/${this.currentRoute.baseName}/${this.currentSegment}/${logType}?${params}`;
+
+      console.log("Loading logs from:", url);
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      this.$logLoading.classList.add("hidden");
+
+      if (data.success) {
+        this.displayLogs(data);
+      } else {
+        alert(`Error loading logs: ${data.error}`);
+        this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+      }
+    } catch (error) {
+      console.error("Error loading logs:", error);
+      this.$logLoading.classList.add("hidden");
+      alert(`Failed to load logs: ${error.message}`);
+      this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+    }
+  }
+
+  displayLogs(logData) {
+    const { messages, total_count, returned_count, truncated, start_time, end_time } = logData;
+
+    // Clear previous logs
+    this.$logMessages.innerHTML = "";
+
+    if (messages.length === 0) {
+      this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+      this.$logMessages.classList.add("hidden");
+      this.$logStatus.classList.add("hidden");
+      return;
+    }
+
+    // Store log data for syncing
+    this.currentLogMessages = messages;
+    this.currentLogStartTime = start_time;
+    this.currentLogEndTime = end_time;
+
+    // Display messages
+    messages.forEach((msg) => {
+      const messageEl = document.createElement("div");
+      messageEl.className = `log-message log-${msg.level}`;
+      messageEl.dataset.timestamp = msg.timestamp;
+
+      // Format timestamp (relative to start of segment)
+      const relativeTime = msg.timestamp - start_time;
+      const minutes = Math.floor(relativeTime / 60);
+      const seconds = (relativeTime % 60).toFixed(3);
+      const timestampStr = `${minutes}:${seconds.padStart(6, "0")}`;
+
+      messageEl.innerHTML = `
+        <span class="log-timestamp">${timestampStr}</span>
+        <span class="log-level ${msg.level}">${msg.level}</span>
+        <span class="log-text">${this.escapeHtml(msg.message)}</span>
+      `;
+
+      this.$logMessages.appendChild(messageEl);
+    });
+
+    // Show logs
+    this.$logMessages.classList.remove("hidden");
+    this.$logStatus.classList.remove("hidden");
+
+    // Update status
+    let statusText = `${returned_count} message${returned_count !== 1 ? "s" : ""}`;
+    if (truncated) {
+      statusText += ` (showing first ${returned_count} of ${total_count})`;
+    }
+    this.$logCount.textContent = statusText;
+
+    // If sync is enabled, start syncing
+    if (this.$logSyncCheckbox.checked) {
+      this.startLogSync();
+    }
+  }
+
+  startLogSync() {
+    // Clear any existing sync interval
+    if (this.logSyncInterval) {
+      clearInterval(this.logSyncInterval);
+    }
+
+    // Check video playback time and highlight matching logs
+    this.logSyncInterval = setInterval(() => {
+      if (!this.currentLogMessages || !this.$logSyncCheckbox.checked) {
+        clearInterval(this.logSyncInterval);
+        return;
+      }
+
+      // Get current video playback time
+      let currentTime = 0;
+      if (this.$videoElement) {
+        currentTime = this.$videoElement.currentTime;
+      } else if (this.player && typeof this.player.getCurrentTime === "function") {
+        currentTime = this.player.getCurrentTime() || 0;
+      }
+
+      // Calculate absolute timestamp (segment start time + video time)
+      const absoluteTime = this.currentLogStartTime + currentTime;
+
+      // Find and highlight logs within 2 seconds of current playback
+      const logElements = this.$logMessages.querySelectorAll(".log-message");
+      logElements.forEach((el) => {
+        const logTime = parseFloat(el.dataset.timestamp);
+        const timeDiff = Math.abs(logTime - absoluteTime);
+
+        if (timeDiff < 2) {
+          el.classList.add("highlighted");
+          // Scroll into view if not visible
+          if (timeDiff < 0.5) {
+            el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        } else {
+          el.classList.remove("highlighted");
+        }
+      });
+    }, 500); // Update twice per second
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Cereal Data Viewer Methods
+  async loadCerealData() {
+    if (!this.currentRoute) {
+      console.warn("No route selected");
+      return;
+    }
+
+    const messageType = this.$cerealMessageSelect.value;
+    if (!messageType) {
+      alert("Please select a message type");
+      return;
+    }
+
+    // Show loading
+    this.$cerealLoading.classList.remove("hidden");
+    this.$cerealDataTable.classList.add("hidden");
+    this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.add("hidden");
+
+    try {
+      // Build API URL - use qlog by default
+      const url = `${this.API_BASE}/api/cereal/${this.currentRoute.baseName}/${this.currentSegment}/qlog/${messageType}`;
+
+      console.log("Loading cereal data from:", url);
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      this.$cerealLoading.classList.add("hidden");
+
+      if (data.success) {
+        this.displayCerealData(data);
+      } else {
+        alert(`Error loading cereal data: ${data.error}`);
+        this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+      }
+    } catch (error) {
+      console.error("Error loading cereal data:", error);
+      this.$cerealLoading.classList.add("hidden");
+      alert(`Failed to load cereal data: ${error.message}`);
+      this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+    }
+  }
+
+  displayCerealData(cerealData) {
+    const { messages, message_type, total_count, start_time, end_time } = cerealData;
+
+    if (!messages || messages.length === 0) {
+      this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+      this.$cerealDataTable.classList.add("hidden");
+      return;
+    }
+
+    // Store cereal data for syncing
+    this.currentCerealData = messages;
+    this.currentCerealStartTime = start_time;
+    this.currentCerealEndTime = end_time;
+    this.currentCerealType = message_type;
+
+    // Show the first message by default
+    this.displayCerealMessage(messages[0]);
+
+    // Show table
+    this.$cerealDataTable.classList.remove("hidden");
+
+    // Update status
+    this.$cerealMessageCount.textContent = `${total_count} message${total_count !== 1 ? "s" : ""}`;
+    this.$cerealLastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+
+    // If sync is enabled, start syncing
+    if (this.$cerealSyncCheckbox.checked) {
+      this.startCerealSync();
+    }
+  }
+
+  displayCerealMessage(message) {
+    // Clear table
+    this.$cerealDataBody.innerHTML = "";
+
+    // Flatten the message object and display in table
+    const flatData = this.flattenObject(message.data);
+
+    Object.entries(flatData).forEach(([key, value]) => {
+      const row = document.createElement("tr");
+
+      const fieldCell = document.createElement("td");
+      fieldCell.className = "cereal-field-name";
+      fieldCell.textContent = key;
+
+      const valueCell = document.createElement("td");
+      valueCell.className = "cereal-field-value";
+      valueCell.textContent = this.formatCerealValue(value);
+
+      row.appendChild(fieldCell);
+      row.appendChild(valueCell);
+      this.$cerealDataBody.appendChild(row);
+    });
+  }
+
+  flattenObject(obj, prefix = "") {
+    const flattened = {};
+
+    // Handle non-object types (including strings, which are iterable)
+    if (obj === null || obj === undefined) {
+      return { [prefix || "value"]: obj };
+    }
+
+    if (typeof obj !== "object" || obj instanceof Date) {
+      return { [prefix || "value"]: obj };
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return { [prefix || "value"]: obj };
+    }
+
+    // Handle plain objects
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        const newKey = prefix ? `${prefix}.${key}` : key;
+
+        if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+          // Recursively flatten nested objects
+          Object.assign(flattened, this.flattenObject(value, newKey));
+        } else {
+          flattened[newKey] = value;
+        }
+      }
+    }
+
+    return flattened;
+  }
+
+  formatCerealValue(value) {
+    if (value === null || value === undefined) {
+      return "--";
+    }
+    if (typeof value === "boolean") {
+      return value ? "true" : "false";
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "[]";
+      if (value.length > 10) {
+        return `[${value.slice(0, 5).join(", ")}, ... (${value.length} items)]`;
+      }
+      return `[${value.join(", ")}]`;
+    }
+    if (typeof value === "number") {
+      // Format floats nicely
+      if (Number.isInteger(value)) {
+        return value.toString();
+      }
+      return value.toFixed(4);
+    }
+    return String(value);
+  }
+
+  startCerealSync() {
+    // Clear any existing sync interval
+    if (this.cerealSyncInterval) {
+      clearInterval(this.cerealSyncInterval);
+    }
+
+    // Check video playback time and update cereal display
+    this.cerealSyncInterval = setInterval(() => {
+      if (!this.currentCerealData || !this.$cerealSyncCheckbox.checked) {
+        clearInterval(this.cerealSyncInterval);
+        return;
+      }
+
+      // Get current video playback time
+      let currentTime = 0;
+      if (this.$videoElement) {
+        currentTime = this.$videoElement.currentTime;
+      } else if (this.player && typeof this.player.getCurrentTime === "function") {
+        currentTime = this.player.getCurrentTime() || 0;
+      }
+
+      // Calculate absolute timestamp (segment start time + video time)
+      const absoluteTime = this.currentCerealStartTime + currentTime;
+
+      // Find the closest message to current time
+      let closestMessage = this.currentCerealData[0];
+      let minDiff = Math.abs(closestMessage.timestamp - absoluteTime);
+
+      for (const msg of this.currentCerealData) {
+        const diff = Math.abs(msg.timestamp - absoluteTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestMessage = msg;
+        }
+        // Stop searching if we've gone past the current time
+        if (msg.timestamp > absoluteTime) {
+          break;
+        }
+      }
+
+      // Update display with closest message
+      this.displayCerealMessage(closestMessage);
+
+      // Update timestamp in status
+      const relativeTime = closestMessage.timestamp - this.currentCerealStartTime;
+      const minutes = Math.floor(relativeTime / 60);
+      const seconds = (relativeTime % 60).toFixed(3);
+      this.$cerealLastUpdate.textContent = `Showing: ${minutes}:${seconds.padStart(6, "0")}`;
+    }, 100); // Update 10 times per second for smooth syncing
   }
 }
 
