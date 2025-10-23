@@ -77,21 +77,6 @@ private:
   void checkForUpdates();
   void searchBranches(const QString &query);
 
-  // Dialog setup for QCOM2 rotation - must be called AFTER dialog->show()
-  static void setupFullscreenDialog(QDialog *dialog) {
-#ifdef QCOM2
-    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-    if (native && dialog->windowHandle()) {
-      wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
-      if (s) {
-        wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-        wl_surface_commit(s);
-      }
-    }
-    dialog->setWindowState(Qt::WindowFullScreen);
-#endif
-  }
-
   // Advanced operations (async, non-blocking)
   void manualUpdate();
   void repairRepository();

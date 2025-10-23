@@ -948,9 +948,15 @@ void BPSoftwarePanel::updateRepoStatus() {
 
 
 void BPSoftwarePanel::onRecentChangesClicked() {
+  QString bpVersion = getCurrentBPVersion();
   BPRecentChangesDialog *dialog = new BPRecentChangesDialog(this);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->exec();
+
+  if (dialog->loadAndDisplayChanges(bpVersion)) {
+    dialog->setupFullscreen();  // BPDialogBase method handles rotation properly
+  } else {
+    dialog->deleteLater();
+  }
 }
 
 void BPSoftwarePanel::onSunnypilotChangesClicked() {
@@ -1067,7 +1073,19 @@ void BPSoftwarePanel::onSunnypilotChangesClicked() {
   }
 
   dialog->show();
-  setupFullscreenDialog(dialog);
+
+  // Apply Wayland transform for QCOM2
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && dialog->windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+  }
+  dialog->setWindowState(Qt::WindowFullScreen);
+#endif
 
   dialog->exec();
 }
@@ -1225,7 +1243,19 @@ void BPSoftwarePanel::manualUpdate() {
   }
 
   dialog->show();
-  setupFullscreenDialog(dialog);
+
+  // Apply Wayland transform for QCOM2
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && dialog->windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+  }
+  dialog->setWindowState(Qt::WindowFullScreen);
+#endif
 
   // Create process
   QProcess *process = new QProcess(dialog);
@@ -1281,6 +1311,19 @@ void BPSoftwarePanel::manualUpdate() {
     process->deleteLater();
     commandInProgress = false;
   });
+
+  // Apply Wayland transform for QCOM2
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && dialog->windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+  }
+  dialog->setWindowState(Qt::WindowFullScreen);
+#endif
 
   dialog->exec();
 }
@@ -1550,7 +1593,19 @@ void BPSoftwarePanel::showCommitHistory(const QString &title, const QString &wor
   }
 
   dialog->show();
-  setupFullscreenDialog(dialog);
+
+  // Apply Wayland transform for QCOM2
+#ifdef QCOM2
+  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+  if (native && dialog->windowHandle()) {
+    wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+    }
+  }
+  dialog->setWindowState(Qt::WindowFullScreen);
+#endif
 
   dialog->exec();
 }
