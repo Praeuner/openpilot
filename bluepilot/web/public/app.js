@@ -3073,7 +3073,7 @@ class BluePilotRoutes {
 
     // Get selected log type
     const activeLogTypeBtn = document.querySelector(".log-type-btn.active");
-    const logType = activeLogTypeBtn ? activeLogTypeBtn.dataset.logType : "qlog";
+    const logType = activeLogTypeBtn ? activeLogTypeBtn.dataset.logType : "rlog";
 
     // Get filters
     const levelFilter = this.$logLevelFilter.value;

@@ -10,6 +10,7 @@
 #include <QGridLayout>
 #include <QSpacerItem>
 #include <QFile>
+#include <QDateTime>
 
 #include <QrCode.hpp>
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.h"
@@ -21,7 +22,8 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
       serverEnabled(false),
       routeCount(0),
       totalSize("0 GB"),
-      recentErrorCount(0) {
+      recentErrorCount(0),
+      lastToggleOnTimestamp(0) {
 
   networkManager = new QNetworkAccessManager(this);
 
@@ -273,9 +275,9 @@ void BPRoutesPanel::setupUI() {
 
   mainLayout->addWidget(statsFrame);
 
-  // ========== CELLULAR ACCESS GROUP (ADVANCED) ==========
-  cellularGroup = new QGroupBox("Cellular Access (Advanced)");
-  cellularGroup->setStyleSheet(R"(
+  // ========== WIFI HOTSPOT SHORTCUT ==========
+  hotspotGroup = new QGroupBox("WiFi Hotspot");
+  hotspotGroup->setStyleSheet(R"(
     QGroupBox {
       background-color: #242424;
       border: none;
@@ -295,7 +297,7 @@ void BPRoutesPanel::setupUI() {
       margin-left: 35px;
       margin-top: 0px;
       background-color: #242424;
-      color: #FF9800;
+      color: #2196F3;
     }
     QGroupBox > QWidget {
       background-color: transparent;
@@ -304,121 +306,41 @@ void BPRoutesPanel::setupUI() {
       width: 0px;
     }
   )");
-  cellularGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  hotspotGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-  QVBoxLayout *cellularLayout = new QVBoxLayout(cellularGroup);
-  cellularLayout->setContentsMargins(40, 40, 40, 40);
-  cellularLayout->setSpacing(25);
+  QVBoxLayout *hotspotLayout = new QVBoxLayout(hotspotGroup);
+  hotspotLayout->setContentsMargins(40, 40, 40, 40);
+  hotspotLayout->setSpacing(25);
 
-  // Security warning
-  cellularWarningLabel = new QLabel(
-    "⚠️  <b>Security Warning</b><br/><br/>"
-    "Enabling cellular access allows the web server to be accessible over cellular networks. "
-    "This may:<br/>"
-    "• Use significant cellular data<br/>"
-    "• Expose server to wider network access<br/>"
-    "• Increase security risks<br/><br/>"
-    "Cellular access will <b>automatically disable</b> after the timeout period."
+  // Info label
+  QLabel *hotspotInfoLabel = new QLabel(
+    "Quick toggle to enable WiFi hotspot (tethering) on this device. "
+    "Other devices can connect to the hotspot and access the web server. "
+    "<br/><br/>"
+    "<b>Note:</b> You can also enable this in Settings → Network."
   );
-  cellularWarningLabel->setStyleSheet(QString(R"(
-    QLabel {
-      font-size: %1px;
-      color: #FF9800;
-      padding: 20px;
-      background-color: rgba(255, 152, 0, 0.1);
-      border: 2px solid rgba(255, 152, 0, 0.3);
-      border-radius: 10px;
-      line-height: 1.6;
-    }
-  )").arg(sizes.descSize));
-  cellularWarningLabel->setWordWrap(true);
-  cellularLayout->addWidget(cellularWarningLabel);
-
-  // Cellular access toggle
-  cellularToggle = new BPToggleControl(
-    "BPWebServerAllowCellular",
-    "Enable Cellular Access",
-    "Allow web server access over cellular networks with automatic timeout"
-  );
-  cellularLayout->addWidget(cellularToggle);
-
-  // Connect to toggleFlipped signal
-  QObject::connect(cellularToggle, &BPToggleControl::toggleFlipped, this, &BPRoutesPanel::toggleCellularAccess);
-
-  // Timeout selection
-  cellularTimeoutSelection = new BPSelectionControl(
-    "BPWebServerCellularTimeoutMinutes",
-    "Auto-Disable Timeout",
-    "Select how long cellular access stays enabled before auto-disabling"
-  );
-
-  // Add timeout options - BPSelectionDialog::Option is {displayName, value}
-  // The dialog shows displayName, returns value, and stores value in param
-  QVector<BPSelectionDialog::Option> dialogOptions;
-  dialogOptions.append(BPSelectionDialog::Option{"15 minutes", "15"});
-  dialogOptions.append(BPSelectionDialog::Option{"30 minutes", "30"});
-  dialogOptions.append(BPSelectionDialog::Option{"1 hour", "60"});
-  dialogOptions.append(BPSelectionDialog::Option{"2 hours", "120"});
-  dialogOptions.append(BPSelectionDialog::Option{"4 hours", "240"});
-  dialogOptions.append(BPSelectionDialog::Option{"8 hours", "480"});
-
-  // For the selection control, we need value->displayName mapping (QPair<display, value>)
-  QVector<QPair<QString, QString>> optionPairs;
-  optionPairs.append(qMakePair(QString("15 minutes"), QString("15")));  // display -> value
-  optionPairs.append(qMakePair(QString("30 minutes"), QString("30")));
-  optionPairs.append(qMakePair(QString("1 hour"), QString("60")));
-  optionPairs.append(qMakePair(QString("2 hours"), QString("120")));
-  optionPairs.append(qMakePair(QString("4 hours"), QString("240")));
-  optionPairs.append(qMakePair(QString("8 hours"), QString("480")));
-
-  cellularTimeoutSelection->setOptions(optionPairs);
-
-  // Set default to 1 hour if not already set
-  std::string currentTimeout = params.get("BPWebServerCellularTimeoutMinutes");
-  if (currentTimeout.empty()) {
-    // Params stores ints as strings, so use "60" as the string representation
-    params.put("BPWebServerCellularTimeoutMinutes", "60");
-    cellularTimeoutSelection->setSelectedValue("60");
-  } else {
-    // Value is already a string from params.get(), use it directly
-    cellularTimeoutSelection->setSelectedValue(QString::fromStdString(currentTimeout));
-  }
-
-  connect(cellularTimeoutSelection, &BPSelectionControl::clicked, [this, dialogOptions]() {
-    QString currentValue = QString::fromStdString(params.get("BPWebServerCellularTimeoutMinutes"));
-    QString newValue = BPSelectionDialog::getValue("Auto-Disable Timeout", dialogOptions, currentValue, this);
-
-    if (!newValue.isEmpty() && newValue != currentValue) {
-      // Params stores all values as strings, so just convert QString to std::string
-      params.put("BPWebServerCellularTimeoutMinutes", newValue.toStdString());
-      cellularTimeoutSelection->setSelectedValue(newValue);
-
-      // Update cellular status to reflect new timeout
-      QTimer::singleShot(500, this, &BPRoutesPanel::updateCellularStatus);
-    }
-  });
-
-  cellularLayout->addWidget(cellularTimeoutSelection);
-
-  // Hide timeout selection by default (shown when cellular enabled)
-  cellularTimeoutSelection->setVisible(params.getBool("BPWebServerAllowCellular"));
-
-  // Status display
-  cellularStatusLabel = new QLabel("Status: Disabled");
-  cellularStatusLabel->setStyleSheet(QString(R"(
+  hotspotInfoLabel->setStyleSheet(QString(R"(
     QLabel {
       font-size: %1px;
       color: #AAAAAA;
       padding: 20px;
       background-color: #1C1C1C;
       border-radius: 10px;
-      font-weight: 500;
+      line-height: 1.6;
     }
-  )").arg(sizes.descSize + 2));
-  cellularStatusLabel->setWordWrap(true);  // Prevent horizontal scrolling from long error messages
-  cellularLayout->addWidget(cellularStatusLabel);
+  )").arg(sizes.descSize));
+  hotspotInfoLabel->setWordWrap(true);
+  hotspotLayout->addWidget(hotspotInfoLabel);
 
-  mainLayout->addWidget(cellularGroup);
+  // Hotspot toggle - same param as network panel for consistency
+  hotspotToggle = new BPToggleControl(
+    "EnableTethering",
+    "Enable WiFi Hotspot",
+    "Share internet connection and allow hotspot access to web server"
+  );
+  hotspotLayout->addWidget(hotspotToggle);
+
+  mainLayout->addWidget(hotspotGroup);
 
   mainLayout->addStretch();
 }
@@ -428,7 +350,6 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
   statusTimer->start();
   errorTimer->start();
   updateServerStatus();
-  updateCellularStatus();
   fetchServerErrors();
   if (serverEnabled) {
     refreshStats();
@@ -447,6 +368,12 @@ void BPRoutesPanel::updateServerStatus() {
 
   // Check onroad status
   bool onroad = params.getBool("IsOnRoad");
+
+  // Check if we're in startup grace period (30 seconds after toggle on)
+  // During this time, allow for pip install and server restart
+  qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+  qint64 timeSinceToggleOn = currentTime - lastToggleOnTimestamp;
+  bool inStartupGracePeriod = (lastToggleOnTimestamp > 0) && (timeSinceToggleOn < 30000);  // 30 seconds
 
   // Disable toggle when onroad (can't change server state while driving)
   serverToggle->setEnabled(!onroad);
@@ -471,9 +398,6 @@ void BPRoutesPanel::updateServerStatus() {
       urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#FF9800", "#2196F3").replace("#808080", "#2196F3"));
 
       generateQRCode(url);
-
-      // Update cellular status when server is running
-      updateCellularStatus();
     }
 
     // Update toggle to match running state
@@ -483,22 +407,30 @@ void BPRoutesPanel::updateServerStatus() {
 
   } else {
     // Server is not running
-    if (onroad) {
-      // Not running AND onroad = disabled for safety
-      serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped (Driving)");
+    if (inStartupGracePeriod) {
+      // Within startup grace period - keep showing "Starting..." and don't change toggle
+      serverStatusLabel->setText("Status: <span style='color: #2196F3;'>●</span> Starting (installing dependencies)...");
+      urlLabel->setText("Initializing...");
+      // Don't change toggle state during grace period - keep it as user set it
     } else {
-      // Not running AND offroad = user disabled or stopped
-      serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped");
+      // Outside grace period - server is genuinely stopped
+      if (onroad) {
+        // Not running AND onroad = disabled for safety
+        serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped (Driving)");
+      } else {
+        // Not running AND offroad = user disabled or stopped
+        serverStatusLabel->setText("Status: <span style='color: #808080;'>●</span> Stopped");
+      }
+
+      // Update toggle to match stopped state
+      serverToggle->blockSignals(true);
+      serverToggle->setChecked(false);
+      serverToggle->blockSignals(false);
+
+      urlLabel->setText("URL: Not running");
+      urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#2196F3", "#808080").replace("#FF9800", "#808080"));
+      qrCodeLabel->setVisible(false);
     }
-
-    // Update toggle to match stopped state
-    serverToggle->blockSignals(true);
-    serverToggle->setChecked(false);
-    serverToggle->blockSignals(false);
-
-    urlLabel->setText("URL: Not running");
-    urlLabel->setStyleSheet(urlLabel->styleSheet().replace("#2196F3", "#808080").replace("#FF9800", "#808080"));
-    qrCodeLabel->setVisible(false);
   }
 }
 
@@ -506,6 +438,9 @@ void BPRoutesPanel::toggleServer(bool enabled) {
   params.putBool("BPWebServerEnabled", enabled);
 
   if (enabled) {
+    // Record timestamp for startup grace period (allows time for pip install + restart)
+    lastToggleOnTimestamp = QDateTime::currentMSecsSinceEpoch();
+
     // Show immediate "Starting..." status
     serverStatusLabel->setText("Status: <span style='color: #2196F3;'>●</span> Starting server...");
     urlLabel->setText("Initializing...");
@@ -694,111 +629,6 @@ void BPRoutesPanel::generateQRCode(const QString &url) {
     qWarning() << "Failed to generate QR code:" << e.what();
     qrCodeLabel->setVisible(false);
   }
-}
-
-void BPRoutesPanel::toggleCellularAccess(bool enabled) {
-  // Toggle is already handled by BPToggleControl
-  // Show/hide timeout selection based on cellular toggle state
-  cellularTimeoutSelection->setVisible(enabled);
-
-  // Just trigger status update
-  QTimer::singleShot(500, this, &BPRoutesPanel::updateCellularStatus);
-}
-
-void BPRoutesPanel::updateCellularStatus() {
-  // Fetch detailed status from server
-  fetchDetailedStatus();
-}
-
-void BPRoutesPanel::fetchDetailedStatus() {
-  if (!isServerRunning()) {
-    cellularStatusLabel->setText("Status: Server not running");
-    cellularStatusLabel->setStyleSheet(cellularStatusLabel->styleSheet().replace("#AAAAAA", "#808080"));
-    return;
-  }
-
-  QNetworkRequest request(QUrl(getServerUrl() + "/api/status/detailed"));
-  QNetworkReply *reply = networkManager->get(request);
-
-  QTimer *timeoutTimer = new QTimer(reply);
-  timeoutTimer->setSingleShot(true);
-
-  connect(timeoutTimer, &QTimer::timeout, reply, [reply]() {
-    reply->abort();
-  });
-
-  connect(reply, &QNetworkReply::finished, this, [this, reply, timeoutTimer]() {
-    timeoutTimer->stop();
-
-    if (reply->error() == QNetworkReply::NoError) {
-      QByteArray response = reply->readAll();
-      QJsonDocument doc = QJsonDocument::fromJson(response);
-
-      if (!doc.isNull() && doc.isObject()) {
-        QJsonObject obj = doc.object();
-        QJsonObject cellularAccess = obj["cellular_access"].toObject();
-        QJsonObject network = obj["network"].toObject();
-
-        bool enabled = cellularAccess["enabled"].toBool();
-        bool active = cellularAccess["active"].toBool();
-        int timeRemaining = cellularAccess["time_remaining_minutes"].toInt();
-        QString connectionType = network["connection_type"].toString();
-
-        // Update status label
-        QString statusText;
-        QString colorStyle = "#AAAAAA";  // Default gray
-
-        if (active) {
-          // Cellular access is enabled and active
-          statusText = "Status: <span style='color: #FF9800;'>●</span> Active";
-
-          // Add time remaining
-          if (timeRemaining > 60) {
-            int hours = timeRemaining / 60;
-            int mins = timeRemaining % 60;
-            statusText += QString("<br/>Time Remaining: %1h %2m").arg(hours).arg(mins);
-          } else {
-            statusText += QString("<br/>Time Remaining: %1 minutes").arg(timeRemaining);
-          }
-
-          // Add connection type
-          if (connectionType == "cellular") {
-            statusText += "<br/>Connection: <span style='color: #FF9800;'>Cellular</span>";
-          } else if (connectionType == "wifi") {
-            statusText += "<br/>Connection: WiFi";
-          } else {
-            statusText += QString("<br/>Connection: %1").arg(connectionType);
-          }
-
-          colorStyle = "#FF9800";  // Orange when active
-        } else if (enabled && !active) {
-          // Enabled but timeout expired
-          statusText = "Status: <span style='color: #808080;'>●</span> Disabled (Timeout Expired)";
-          colorStyle = "#808080";
-        } else {
-          // Disabled
-          statusText = "Status: <span style='color: #808080;'>●</span> Disabled (WiFi-Only)";
-          colorStyle = "#808080";
-        }
-
-        cellularStatusLabel->setText(statusText);
-      } else {
-        // JSON parsing failed
-        cellularStatusLabel->setText("Status: Invalid server response");
-        qWarning() << "Failed to parse cellular status JSON:" << response;
-      }
-    } else {
-      // Network error
-      QString errorMsg = QString("Status: Failed to fetch (%1)").arg(reply->errorString());
-      cellularStatusLabel->setText(errorMsg);
-      qWarning() << "Cellular status fetch error:" << reply->error() << reply->errorString();
-      qWarning() << "URL:" << reply->url().toString();
-    }
-
-    reply->deleteLater();
-  });
-
-  timeoutTimer->start(5000);  // Increased timeout to 5 seconds
 }
 
 void BPRoutesPanel::fetchServerErrors() {

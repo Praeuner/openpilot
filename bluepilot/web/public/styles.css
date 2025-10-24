@@ -672,6 +672,7 @@ body {
   background: var(--bp-bg-primary);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;  /* Allow scrolling when content overflows */
 }
 
 .video-header {
@@ -681,6 +682,7 @@ body {
   align-items: center;
   gap: 1rem;
   border-bottom: 2px solid var(--bp-border);
+  flex: 0 0 auto;  /* Don't grow or shrink, size based on content */
 }
 
 .video-title-container {
@@ -705,10 +707,10 @@ body {
 
 /* Player Container - Desktop: video left, sidebar right */
 .player-container {
-  flex: 0 1 auto;
+  flex: 1 0 auto;  /* Grow to fill space, don't shrink, auto basis */
   display: flex;
   overflow: hidden;
-  min-height: 0;
+  min-height: 600px;  /* Minimum height to prevent shrinking below this */
 }
 
 .video-section {
@@ -966,6 +968,8 @@ body {
   /* Mobile player layout: stack vertically */
   .player-container {
     flex-direction: column;
+    min-height: auto;  /* Remove min-height constraint on mobile */
+    flex: 0 0 auto;  /* Don't grow on mobile, size based on content */
   }
 
   .video-section {
@@ -1214,6 +1218,7 @@ body {
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+  flex: 0 0 auto;  /* Don't grow or shrink, size based on content */
 }
 
 .bottom-panel {

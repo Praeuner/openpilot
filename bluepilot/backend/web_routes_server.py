@@ -1308,7 +1308,7 @@ def should_server_run():
         return True  # Default to running if we can't check
 
 def get_wifi_ip():
-    """Get WiFi interface IP address (wlan0 on Comma devices)"""
+    """Get WiFi interface IP address (first wlan interface found)"""
     try:
         import netifaces
         for iface in netifaces.interfaces():
@@ -1333,6 +1333,27 @@ def get_wifi_ip():
             pass
     return None
 
+def get_all_wifi_ips():
+    """Get all WiFi interface IP addresses (for hotspot support)"""
+    ips = []
+    try:
+        import netifaces
+        for iface in netifaces.interfaces():
+            # Include wlan interfaces only (not cellular)
+            if iface.startswith('wlan'):
+                addrs = netifaces.ifaddresses(iface)
+                if netifaces.AF_INET in addrs:
+                    for addr in addrs[netifaces.AF_INET]:
+                        ip = addr.get('addr')
+                        if ip and not ip.startswith('127.'):
+                            ips.append((iface, ip))
+    except ImportError:
+        # Fallback: just get wlan0
+        wifi_ip = get_wifi_ip()
+        if wifi_ip:
+            ips.append(('wlan0', wifi_ip))
+    return ips
+
 def get_connection_type():
     """Determine current network connection type"""
     try:
@@ -1353,98 +1374,15 @@ def get_connection_type():
     except:
         return 'unknown'
 
-def is_cellular_access_allowed():
-    """Check if cellular access is currently allowed (within timeout window) - thread-safe"""
-    try:
-        # Check if cellular access is enabled
-        cellular_enabled = params.get_bool("BPWebServerAllowCellular")
-
-        if not cellular_enabled:
-            server_state.set_cellular_enabled_time(None)
-            return False
-
-        # Get timeout duration from params (in minutes)
-        timeout_str = params.get("BPWebServerCellularTimeoutMinutes")
-        if timeout_str:
-            try:
-                timeout_minutes = int(timeout_str)
-                if timeout_minutes <= 0:
-                    timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-            except (ValueError, TypeError):
-                timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-        else:
-            timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-
-        # Thread-safe: Get current enabled time
-        cellular_access_enabled_time = server_state.get_cellular_enabled_time()
-
-        # If this is first time enabled, record timestamp
-        if cellular_access_enabled_time is None:
-            server_state.set_cellular_enabled_time(time.time())
-            logger.info(f"Cellular access enabled with {timeout_minutes} minute timeout")
-            return True
-
-        # Check if timeout has expired
-        elapsed_minutes = (time.time() - cellular_access_enabled_time) / 60
-        if elapsed_minutes >= timeout_minutes:
-            # Timeout expired, auto-disable
-            logger.warning(f"Cellular access timeout expired after {timeout_minutes} minutes - disabling")
-            params.put_bool("BPWebServerAllowCellular", False)
-            server_state.set_cellular_enabled_time(None)
-
-            # Broadcast status change
-            broadcast_websocket_event(WebSocketEvent.STATUS_CHANGED, {
-                'cellular_access': False,
-                'reason': 'timeout_expired',
-                'message': f'Cellular access auto-disabled after {timeout_minutes} minutes'
-            })
-            return False
-
-        # Still within timeout window
-        remaining_minutes = int(timeout_minutes - elapsed_minutes)
-        logger.debug(f"Cellular access active, {remaining_minutes} minutes remaining")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error checking cellular access: {e}", exc_info=True)
-        return False
-
-def get_cellular_access_status():
-    """Get detailed cellular access status for API responses - thread-safe"""
-    enabled = params.get_bool("BPWebServerAllowCellular")
-    cellular_access_enabled_time = server_state.get_cellular_enabled_time()
-
-    if not enabled or cellular_access_enabled_time is None:
-        return {
-            'enabled': False,
-            'active': False,
-            'time_remaining_minutes': 0,
-            'timeout_minutes': CELLULAR_ACCESS_TIMEOUT_DEFAULT
-        }
-
-    # Get timeout
-    timeout_str = params.get("BPWebServerCellularTimeoutMinutes")
-    if timeout_str:
-        try:
-            timeout_minutes = int(timeout_str)
-            if timeout_minutes <= 0:
-                timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-        except (ValueError, TypeError):
-            timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-    else:
-        timeout_minutes = CELLULAR_ACCESS_TIMEOUT_DEFAULT
-
-    # Calculate remaining time
-    elapsed_minutes = (time.time() - cellular_access_enabled_time) / 60
-    remaining_minutes = max(0, int(timeout_minutes - elapsed_minutes))
-
-    return {
-        'enabled': enabled,
-        'active': is_cellular_access_allowed(),
-        'time_remaining_minutes': remaining_minutes,
-        'timeout_minutes': timeout_minutes,
-        'enabled_at': cellular_access_enabled_time
-    }
+# =============================================================================
+# DEPRECATED: Cellular access functions - replaced with simpler hotspot mode
+# =============================================================================
+# These functions are no longer used. The old cellular access logic with
+# auto-timeout has been replaced with BPWebServerHotspotMode parameter.
+#
+# Old: BPWebServerAllowCellular (auto-timeout) → binds to 0.0.0.0
+# New: BPWebServerHotspotMode (no timeout) → binds to 0.0.0.0 for WiFi/hotspot
+# =============================================================================
 
 
 def get_route_base_name(route_name):
@@ -2827,7 +2765,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     onroad = is_onroad()
                     connection_type = get_connection_type()
                     wifi_ip = get_wifi_ip()
-                    cellular_status = get_cellular_access_status()
+                    all_wifi_ips = get_all_wifi_ips()
+                    tethering_enabled = params.get_bool("EnableTethering")
 
                     # Server uptime
                     try:
@@ -2853,15 +2792,17 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'server': {
                         'uptime_seconds': int(uptime_seconds),
                         'version': '1.0.0',
-                        'python_version': sys.version.split()[0]
+                        'python_version': sys.version.split()[0],
+                        'bind_address': '0.0.0.0'  # Always binds to all interfaces
                     },
                     'network': {
                         'connection_type': connection_type,
                         'wifi_ip': wifi_ip,
                         'wifi_available': wifi_ip is not None,
+                        'all_wifi_ips': [{'interface': iface, 'ip': ip} for iface, ip in all_wifi_ips],
+                        'tethering_enabled': tethering_enabled,
                         'port': int(params.get("BPWebServerPort") or "8088")
                     },
-                    'cellular_access': cellular_status,
                     'clients': {
                         'websocket_connected': ws_clients,
                         'websocket_available': WEBSOCKETS_AVAILABLE
@@ -4085,32 +4026,32 @@ def main():
         server_state.set_broadcaster(broadcaster_instance)
         logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
 
-    # Determine bind address based on WiFi availability and cellular access settings
+    # Determine bind address - always bind to 0.0.0.0 to support WiFi + hotspot
+    # Only wlan IPs are advertised to users (cellular IPs are filtered out)
     wifi_ip = get_wifi_ip()
-    cellular_allowed = is_cellular_access_allowed()
+    all_wifi_ips = get_all_wifi_ips()
+    tethering_enabled = params.get_bool("EnableTethering")
 
-    if cellular_allowed:
-        # Cellular access explicitly enabled - bind to all interfaces
-        bind_address = '0.0.0.0'
-        cellular_status = get_cellular_access_status()
-        logger.warning("=" * 60)
-        logger.warning("CELLULAR ACCESS ENABLED")
-        logger.warning(f"Server will be accessible over cellular networks!")
-        logger.warning(f"Time remaining: {cellular_status['time_remaining_minutes']} minutes")
-        logger.warning(f"Timeout: {cellular_status['timeout_minutes']} minutes")
-        logger.warning("This may use significant cellular data!")
-        logger.warning("=" * 60)
-        if wifi_ip:
-            logger.info(f"WiFi also available at: {wifi_ip}")
-    elif wifi_ip:
-        # WiFi available, bind only to WiFi interface (secure default)
-        bind_address = wifi_ip
-        logger.info(f"Binding to WiFi interface: {wifi_ip} (cellular access disabled)")
+    # Always bind to all interfaces to support both WiFi and hotspot seamlessly
+    bind_address = '0.0.0.0'
+
+    logger.info("=" * 60)
+    logger.info("WEB SERVER NETWORK CONFIGURATION")
+    logger.info(f"Binding to: {bind_address} (supports WiFi + hotspot)")
+
+    if all_wifi_ips:
+        logger.info(f"WiFi/hotspot interfaces detected: {', '.join([f'{iface}={ip}' for iface, ip in all_wifi_ips])}")
+        logger.info(f"Primary WiFi IP: {wifi_ip or 'N/A'}")
     else:
-        # No WiFi and cellular not allowed - bind to all with warning
-        bind_address = '0.0.0.0'
-        logger.warning("WiFi interface not found - binding to all interfaces (0.0.0.0)")
-        logger.warning("To enable cellular access, set BPWebServerAllowCellular param")
+        logger.warning("No WiFi interfaces detected!")
+
+    if tethering_enabled:
+        logger.info("Tethering/hotspot: ENABLED")
+    else:
+        logger.info("Tethering/hotspot: Disabled")
+
+    logger.info("Note: Only WiFi/hotspot IPs are shown to users (cellular filtered)")
+    logger.info("=" * 60)
 
     # Create HTTP server with socket reuse to prevent "Address already in use" errors
     # Kill any existing process using the port first
@@ -4163,9 +4104,6 @@ def main():
         try:
             # Check if we should restore power save mode
             check_and_restore_power_save()
-
-            # Check cellular access timeout
-            is_cellular_access_allowed()  # This checks and auto-disables if expired
 
             # Check for onroad status changes and broadcast via WebSocket
             current_onroad = is_onroad()

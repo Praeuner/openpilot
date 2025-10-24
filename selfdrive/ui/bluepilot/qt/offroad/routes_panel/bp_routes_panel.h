@@ -29,8 +29,6 @@ private slots:
   void updateServerStatus();
   void toggleServer(bool enabled);
   void refreshStats();
-  void toggleCellularAccess(bool enabled);
-  void updateCellularStatus();
   void fetchServerErrors();
   void updateWebSocketStatus();
 
@@ -41,7 +39,6 @@ private:
   QString getWiFiIP();
   void fetchRouteStats();
   void generateQRCode(const QString &url);
-  void fetchDetailedStatus();
 
   // UI Elements
   QVBoxLayout *mainLayout;
@@ -60,12 +57,9 @@ private:
   QLabel *newestRouteLabel;
   BPButton *refreshStatsButton;
 
-  // Cellular access section
-  QGroupBox *cellularGroup;
-  BPToggleControl *cellularToggle;
-  BPSelectionControl *cellularTimeoutSelection;
-  QLabel *cellularStatusLabel;
-  QLabel *cellularWarningLabel;
+  // WiFi hotspot shortcut section
+  QGroupBox *hotspotGroup;
+  BPToggleControl *hotspotToggle;
 
   // Server errors section (NEW)
   QGroupBox *errorsFrame;
@@ -85,4 +79,5 @@ private:
   int routeCount;
   QString totalSize;
   int recentErrorCount;
+  qint64 lastToggleOnTimestamp;  // Timestamp when server was last enabled (for startup grace period)
 };
