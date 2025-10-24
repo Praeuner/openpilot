@@ -1,3 +1,133 @@
+BluePilot - 5.0.0 (2024-10-24)
+========================
+* Based on sunnypilot 0.10.1.0
+* AGNOS 13.1 support
+************************
+### User Interface & Design
+* NEW❗: Completely redesigned settings menu structure
+  * Reorganized into focused panels: Device, Display, Network, Vehicle, Toggles, Cruise, Steering, Developer, and Visuals
+  * Improved navigation and discoverability of features
+  * Cleaner, more intuitive layout for all settings
+* NEW❗: BluePilot Sidebar enhancements
+  * WiFi status display with SSID and signal strength
+  * Improved network information card with shortcut to network settings
+  * Removed constant fan animation (now shows memory usage only)
+  * Better thread safety and exception handling for smoother rendering
+* NEW❗: Enhanced Onroad UI rendering
+  * Improved lane lines, road edges, and path rendering with glow effects
+  * Smoother curve tracking with enhanced path smoothing to reduce swaying
+  * Better color consistency using refined rendering logic
+  * Refactored overlay system for improved modularity and performance
+* NEW❗: Brightness control system improvements
+  * Perceptual brightness correction for better viewing experience
+  * More responsive brightness adjustments
+  * Better user interaction feedback
+
+### Software & Updater
+* NEW❗: Software Panel - Complete redesign
+  * Integrated updater with better status reporting
+  * Branch management and switching capabilities
+  * Model selection interface for easy driving model changes
+  * Git manager integration for better version control
+  * Shows current software version and update availability
+  * Improved power management during updates (cross-platform support)
+* IMPROVED: BP Updater stability
+  * Fixed crashes on built branches without submodules
+  * Better error handling and recovery
+  * Enhanced logging for debugging update issues
+
+### Routes & Video Playback
+* NEW❗: Routes Panel (Beta)
+  * View your dashcam footage directly on the device
+  * Video playback support with hardware decoding
+  * Route card system for easy navigation of drives
+  * Thumbnail loader for quick preview
+  * Frame reader and video controller for smooth playback
+  * Web-based routes viewer for logs and cereal data
+  * Stop/start functionality for route analysis
+  * Note: This feature is in beta and may have performance issues on some devices
+
+### Developer Tools
+* NEW❗: Onroad Debug UI enhancements
+  * Customizable debug panel with adjustable settings
+  * Better metrics display and organization
+  * Conditional building - panel only builds when needed
+  * Improved width utilization for better screen usage
+* NEW❗: UI Crash detection system
+  * Better error reporting and stacktrace collection
+  * Watchdog detector for identifying UI crashes
+  * Improved debugging capabilities for development
+* NEW❗: UI logging system
+  * Created new logging class for consistent debug output
+  * Updated all BluePilot files to use new logging system
+  * Better categorization of log messages
+
+### Network & Connectivity
+* NEW❗: Network Panel improvements
+  * WiFi management with connection status display
+  * Signal strength indicators
+  * Improved WiFi list and metered connection controls
+
+### Vehicle Features
+* IMPROVED: Brake status indicator
+  * Now attempts to use brake light CAN signal when available
+  * More accurate braking status display
+  * Better integration with vehicle systems
+* IMPROVED: Radar overlay
+  * Speed display now matches system speed units (mph/kph)
+  * More consistent and accurate information
+* IMPROVED: Stop sign overlay
+  * Better positioning and rendering
+  * Enhanced visual effects
+  * Improved detection and display logic
+* IMPROVED: Hybrid Drive Battery Gauge
+  * More accurate battery percentage calculations
+  * Fixed scaling issues when sidebar is visible
+  * Better integration with vehicle data
+
+### Lateral Controls
+* NEW❗: Option to bypass BluePilot lateral controls
+  * Added for testing and diagnostic purposes
+  * Allows switching between BP and stock lateral behavior
+  * Includes proper curvature limits when BP lateral is disabled
+
+### Menu System & Configuration
+* IMPROVED: Menu system architecture
+  * Better JSON parsing for control definitions
+  * Improved control visibility conditions
+  * Enhanced panel action system
+  * More flexible control types and configurations
+* NEW❗: Menu files reorganization
+  * Split into focused panel JSON files
+  * bp_device_panel.json, bp_display_panel.json, bp_network_panel.json
+  * bp_vehicle_panel.json, bp_toggles_panel.json, bp_cruise_panel.json
+  * bp_steering_panel.json, bp_developer_panel.json, bp_visuals_panel.json
+  * Removed old monolithic menu files
+
+### Performance & Stability
+* IMPROVED: Renderer optimizations
+  * Refactored BluePilot renderer for better performance
+  * Integrated lead tracking and stop detection into ModelRendererBP
+  * Removed deprecated functions and cleaned up rendering logic
+  * Enhanced frame state updates
+  * Better lane line mapping using model's transform directly
+* IMPROVED: Alert system
+  * Updated alert overlay styling to match UI design
+  * Better alert handling and display
+  * Improved visual consistency
+* FIXED: Multiple stability improvements
+  * Thread safety improvements in sidebar
+  * Better exception handling throughout UI
+  * Improved offroad transition handling
+  * General bug fixes and stability improvements
+
+### Removed Features
+* REMOVED: GForce Meter from HUD (replaced by new overlay system)
+
+### Known Issues
+* Routes Panel video playback is in beta and may have performance issues on some devices
+* Some features are still being refined and may see further improvements in future releases
+
 sunnypilot - 0.9.8.0 (2024-xx-xx)
 ========================
 * Always on driver monitoring toggle

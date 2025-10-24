@@ -4,29 +4,50 @@
       "agnos_version": "13.1",
       "changes": [
         "All of the latest upstream SunnyPilot changes",
-        "Enhanced Onroad UI: Enhanced lane lines, road edges, and path rendering with glow effects and curve smoothing.",
-        "Brake status indicator: It now attempts to use brake light CAN signal when available.",
-        "New BluePilot sidebar with animated fan indicator and WiFi status display",
+        "New BluePilot sidebar with WiFi status display and improved network information",
+        "Enhanced Onroad UI: Improved lane lines, road edges, and path rendering with glow effects and smoother curve tracking",
+        "Completely redesigned settings menu with reorganized panels for better navigation",
+        "New Software Panel with integrated updater, branch management, and model selection",
+        "Added Routes Panel with video playback support (beta) for viewing dashcam footage",
         "Model info widget and enhanced drive stats widget for onroad display",
+        "Developer UI: New customizable debug panel with adjustable settings",
+        "Brightness control system with perceptual brightness correction for better viewing",
+        "Enhanced overlay system: Refactored HUD rendering for better performance and modularity",
+        "Brake status indicator: Now uses brake light CAN signal when available for more accurate display",
+        "Network Panel: WiFi management with connection status, signal strength, and SSID detection",
+        "Crash detection hooks: Better error reporting and stacktrace collection for debugging",
+        "Added option to bypass BluePilot lateral controls for testing purposes",
+        "Web-based routes viewer for logs and cereal data with stop functionality",
         "Onroad display behavior controls: dimming percentage and timeout settings",
-        "Brightness control system improvements with better user interaction",
-        "Radar overlay speed display fixes to match system speed units",
-        "Enhanced onroad debug panel with conditional building",
-        "Updated the styling of the alert overlay to match the rest of the UI"
+        "OSM Panel: OpenStreetMap integration improvements",
+        "Models Panel: Easy switching between different driving models"
       ],
       "fixes": [
-        "Fixed BPSelection control description text display",
+        "Fixed BPSelection control description text display in settings",
         "Fixed radar overlay speed unit matching with system settings",
         "Fixed BP Updater crashes on built branches without submodules",
-        "Fixed HybridDriveBatteryGauge values so they are now more accurate",
+        "Fixed HybridDriveBatteryGauge calculations for more accurate battery percentage display",
+        "Fixed hybrid gauge scaling when sidebar is visible",
         "Fixed sunnylink card display issues in sidebar",
-        "Fixed onroad debug panel width utilization",
-        "Fixed brightness control system interactions",
-        "Fixed menu system JSON parsing and control visibility",
-        "General stability and bug fixes"
+        "Fixed onroad debug panel width utilization for better screen usage",
+        "Fixed brightness control system interactions and perceptual brightness",
+        "Fixed menu system JSON parsing and control visibility conditions",
+        "Fixed WiFi SSID detection and display in sidebar",
+        "Fixed stop sign overlay positioning and rendering",
+        "Fixed lane line mapping using model transform for better accuracy",
+        "Improved thread safety and exception handling in sidebar rendering",
+        "Fixed alert overlay styling to match the rest of the UI",
+        "General stability improvements and bug fixes throughout the UI"
       ],
-      "removals": ["Removed the GForce Meter from the HUD"],
-      "known_issues": []
+      "removals": [
+        "Removed the GForce Meter from the HUD (overlay system replaced it)",
+        "Removed quiet mode feature from menus",
+        "Removed constant fan animation from sidebar (now shows memory only)",
+        "Removed OnlyOnroadWhenInGear feature"
+      ],
+      "known_issues": [
+        "Routes Panel video playback is in beta and may have performance issues on some devices"
+      ]
     },
     "4.0.0": {
       "agnos_version": "12.0",
