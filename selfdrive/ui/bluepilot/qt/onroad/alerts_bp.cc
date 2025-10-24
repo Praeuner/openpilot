@@ -2,6 +2,7 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QFontMetrics>
 #include <map>
 
 #include "selfdrive/ui/qt/util.h"
@@ -18,6 +19,10 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
       update();
     }
   });
+
+  // Ensure this widget can draw over other elements
+  setAttribute(Qt::WA_TranslucentBackground, true);
+  raise();  // Start on top
 }
 
 OnroadAlertsBP::~OnroadAlertsBP() {
@@ -32,6 +37,18 @@ OnroadAlertsBP::~OnroadAlertsBP() {
     opacity_animation->stop();
     delete opacity_animation;
     opacity_animation = nullptr;
+  }
+}
+
+void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
+  QWidget::resizeEvent(event);
+
+  // Force this widget to cover the entire parent window
+  // This allows alerts to draw over the border
+  if (parentWidget()) {
+    setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
+    // Raise widget to ensure it's on top of other UI elements like borders
+    raise();
   }
 }
 
@@ -58,6 +75,15 @@ void OnroadAlertsBP::updateState(const UIState &s) {
       opacity_animation->setStartValue(alert_opacity);
       opacity_animation->setEndValue(alert.size == cereal::SelfdriveState::AlertSize::NONE ? 0.0 : 1.0);
       opacity_animation->start();
+    }
+
+    // Ensure widget is on top when showing an alert
+    if (alert.size != cereal::SelfdriveState::AlertSize::NONE) {
+      raise();
+      // Force geometry update to cover entire screen
+      if (parentWidget()) {
+        setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
+      }
     }
 
     update();
@@ -121,31 +147,118 @@ OnroadAlertsBP::Alert OnroadAlertsBP::getAlert(const SubMaster &sm, uint64_t sta
 }
 
 
+void OnroadAlertsBP::drawBrowserTabCard(QPainter &p, const QRect &rect) {
+  // Draw full-screen alert overlay with transparent center portal for road view
+  // Alert color frames the edges and appears in bottom card, center stays transparent
+
+  p.setPen(Qt::NoPen);
+
+  // Create full screen rectangle for base color and gradient
+  QRect fullScreen(0, 0, width(), height());
+
+  // Draw main background color across entire screen
+  p.setBrush(alert_colors[alert.status]);
+  p.drawRect(fullScreen);
+
+  // Add gradient overlay across full screen - perfect alignment with border
+  QLinearGradient gradient(QPointF(0, 0), QPointF(0, height()));
+  if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
+    gradient.setColorAt(0, QColor(255, 255, 255, 20));
+    gradient.setColorAt(0.3, QColor(255, 255, 255, 10));
+    gradient.setColorAt(1, QColor(0, 0, 0, 15));
+  } else {
+    gradient.setColorAt(0, QColor(255, 255, 255, 35));
+    gradient.setColorAt(0.3, QColor(255, 255, 255, 15));
+    gradient.setColorAt(1, QColor(0, 0, 0, 30));
+  }
+  p.setBrush(gradient);
+  p.drawRect(fullScreen);
+
+  // Create a mask to define what's visible
+  // We want: opaque alert card at bottom + transparent center portal for road view
+  QImage mask(width(), height(), QImage::Format_ARGB32);
+  mask.fill(QColor(255, 255, 255, 255)); // Start with everything opaque
+
+  QPainter maskPainter(&mask);
+  maskPainter.setRenderHint(QPainter::Antialiasing, true);
+  maskPainter.setCompositionMode(QPainter::CompositionMode_Source);
+
+  // Cut out transparent portal in the center (where road view shows through)
+  const int borderWidth = 30;  // UI_BORDER_SIZE
+  const int cornerRadius = 30;  // Rounded corners for portal
+  const int portalGap = 20;  // Minimal gap between transparent portal and alert card
+  QRect centerPortal = QRect(borderWidth, borderWidth,
+                              width() - 2*borderWidth,
+                              rect.top() - borderWidth - portalGap);
+
+  maskPainter.setPen(Qt::NoPen);
+  maskPainter.setBrush(QColor(0, 0, 0, 0)); // Fully transparent for center
+  QPainterPath centerPath;
+  centerPath.addRoundedRect(centerPortal, cornerRadius, cornerRadius);
+  maskPainter.drawPath(centerPath);
+
+  maskPainter.end();
+
+  // Apply the mask to create the transparent center cutout
+  p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+  p.drawImage(0, 0, mask);
+  p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
+  // Text will appear directly over the alert-colored background at the bottom
+  // No additional card or shadow needed
+}
+
 void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen) {
   if (isFullscreen) {
-    // For fullscreen, no fancy effects, just fill
+    // For fullscreen, solid opaque fill - no transparency
     p.setPen(Qt::NoPen);
-    p.setBrush(alert_colors[alert.status]);
-    p.fillRect(rect, alert_colors[alert.status]);
+
+    // Get fully opaque color for fullscreen
+    QColor fullscreenColor = alert_colors[alert.status];
+    fullscreenColor.setAlpha(255);  // Fully opaque, no transparency
+
+    p.setBrush(fullscreenColor);
+    p.fillRect(rect, fullscreenColor);
     return;
   }
 
-  // Simplified modern card with standard rounded corners
-  const int radius = 30;
+  // Use browser tab design for non-fullscreen alerts
+  drawBrowserTabCard(p, rect);
+}
 
-  // Draw shadow first (simplified)
+void OnroadAlertsBP::drawScreenBorder(QPainter &p, const QColor &borderColor) {
+  // Draw a solid, opaque screen border with sharp outer corners and rounded inner corners
+  const int borderWidth = 36;
+  const int innerCornerRadius = 30;  // Rounded inner edge for smooth transition
+
   p.setPen(Qt::NoPen);
-  p.setBrush(QColor(0, 0, 0, 80));
-  QRect shadowRect = rect.adjusted(-2, -4, 2, 0);
-  p.drawRoundedRect(shadowRect, radius, radius);
 
-  // Draw main background
-  p.setPen(Qt::NoPen);
-  p.setBrush(alert_colors[alert.status]);
-  p.drawRoundedRect(rect, radius, radius);
+  // Draw solid opaque border - no transparency for seamless blend
+  QColor solidBorderColor = borderColor;
+  solidBorderColor.setAlpha(255);  // Fully opaque
 
-  // Add subtle gradient overlay
-  QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
+  // Create border path
+  QPainterPath borderPath;
+
+  // Outer rectangle with sharp corners (screen edges)
+  QPainterPath outer;
+  outer.addRect(rect());
+
+  // Inner rectangle with rounded corners (content area)
+  QPainterPath inner;
+  inner.addRoundedRect(rect().adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth),
+                       innerCornerRadius, innerCornerRadius);
+
+  // Subtract inner from outer to create border frame with rounded inner edge
+  borderPath = outer.subtracted(inner);
+
+  // Draw base color first
+  p.setBrush(solidBorderColor);
+  p.drawPath(borderPath);
+
+  // Add same gradient overlay as alert card for seamless blending
+  // Use consistent full screen height gradient for perfect vertical alignment
+  QLinearGradient gradient(QPointF(0, 0), QPointF(0, height()));
   if (alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
     gradient.setColorAt(0, QColor(255, 255, 255, 20));
     gradient.setColorAt(0.3, QColor(255, 255, 255, 10));
@@ -156,46 +269,13 @@ void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFulls
     gradient.setColorAt(1, QColor(0, 0, 0, 30));
   }
 
-  p.setPen(Qt::NoPen);
   p.setBrush(gradient);
-  p.drawRoundedRect(rect, radius, radius);
+  p.drawPath(borderPath);
 }
 
 void OnroadAlertsBP::drawBlurryBorder(QPainter &p, const QColor &borderColor) {
-  // Draw multiple layers of semi-transparent borders to create blur effect
-  const int borderWidth = 12;
-  const int layers = 6;
-
-  p.setPen(Qt::NoPen);
-
-  for (int i = 0; i < layers; i++) {
-    int alpha = 80 - (i * 12); // Fade out as we go outward
-    int offset = i * 2;
-
-    QColor layerColor = borderColor;
-    layerColor.setAlpha(alpha);
-
-    // Draw border inset from edges
-    QPainterPath borderPath;
-    QRect borderRect = rect().adjusted(offset, offset, -offset, -offset);
-    const int cornerRadius = 8 + i;
-
-    // Outer edge
-    QPainterPath outer;
-    outer.addRoundedRect(borderRect, cornerRadius, cornerRadius);
-
-    // Inner edge (smaller)
-    QPainterPath inner;
-    QRect innerRect = borderRect.adjusted(borderWidth - offset, borderWidth - offset,
-                                          -(borderWidth - offset), -(borderWidth - offset));
-    inner.addRoundedRect(innerRect, cornerRadius - 2, cornerRadius - 2);
-
-    // Subtract inner from outer to get border
-    borderPath = outer.subtracted(inner);
-
-    p.setBrush(layerColor);
-    p.drawPath(borderPath);
-  }
+  // Legacy method - now redirects to screen border for consistency
+  drawScreenBorder(p, borderColor);
 }
 
 void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
@@ -203,46 +283,64 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
     return;
   }
 
-  static std::map<cereal::SelfdriveState::AlertSize, const int> alert_heights = {
-    {cereal::SelfdriveState::AlertSize::SMALL, 271},
-    {cereal::SelfdriveState::AlertSize::MID, 420},
-    {cereal::SelfdriveState::AlertSize::FULL, height()},
-  };
-
-  int h = alert_heights[alert.size];
   bool isFullscreen = (alert.size == cereal::SelfdriveState::AlertSize::FULL);
-
-  int margin = 40;
-  if (alert.size == cereal::SelfdriveState::AlertSize::FULL) {
-    margin = 0;
-  }
-
-  // Adjust for developer UI bottom panel (60px height)
-  int bottom_offset = 0;
-  if (dev_ui_info == 2) {  // Bottom panel is visible
-    bottom_offset = 70;  // Move up by 70px to avoid bottom panel collision
-  }
-
-  // Position alert with standard margins
-  QRect r;
-  if (isFullscreen) {
-    r = QRect(0, 0, width(), height());
-  } else {
-    // Standard positioning with margins on all sides
-    r = QRect(margin, height() - h - margin - bottom_offset, width() - margin*2, h);
-  }
 
   QPainter p(this);
 
-  // Draw blurry border around entire display (only for non-fullscreen)
-  if (!isFullscreen) {
-    p.setOpacity(alert_opacity);
-    drawBlurryBorder(p, alert_colors[alert.status]);
+  // For non-fullscreen alerts, we now draw full-screen background with portal window
+  // No need to draw separate border - it's integrated into the alert drawing
+
+  // Developer UI adjustments (ported from sunnypilot)
+  const int v_adjustment = dev_ui_info > 1 && !isFullscreen ? 40 : 0;
+  const int h_adjustment = dev_ui_info > 0 && !isFullscreen ? 230 : 0;
+
+  int margin = 40;
+  int h = 0;
+  QRect r;
+
+  if (isFullscreen) {
+    r = QRect(0, 0, width(), height());
+    margin = 0;
+  } else {
+    // Calculate dynamic height based on text content (ported from sunnypilot)
+    QFont topFont;
+    QFont bottomFont;
+    QRect topTextBoundingRect;
+    QRect bottomTextBoundingRect;
+
+    if (alert.size == cereal::SelfdriveState::AlertSize::SMALL) {
+      topFont = InterFont(74, QFont::DemiBold);
+      QFontMetrics fmTop(topFont);
+      topTextBoundingRect = fmTop.boundingRect(
+        QRect(0 + margin, height() - 400 + margin - v_adjustment, width() - margin * 2 - h_adjustment, 0),
+        Qt::TextWordWrap, alert.text1);
+      h = topTextBoundingRect.height() + margin * 2;  // Reduced from 3 to 2 for shorter card
+
+    } else if (alert.size == cereal::SelfdriveState::AlertSize::MID) {
+      topFont = InterFont(88, QFont::Bold);
+      bottomFont = InterFont(66);
+      QFontMetrics fmTop(topFont);
+      QFontMetrics fmBottom(bottomFont);
+      topTextBoundingRect = fmTop.boundingRect(
+        QRect(0 + margin, 0, width() - margin * 2 - h_adjustment, 0),
+        Qt::TextWordWrap, alert.text1);
+      bottomTextBoundingRect = fmBottom.boundingRect(
+        QRect(0 + margin, 0, width() - margin * 2 - h_adjustment, 0),
+        Qt::TextWordWrap, alert.text2);
+      h = topTextBoundingRect.height() + bottomTextBoundingRect.height() + margin * 2.5;  // Reduced from 4 to 2.5 for shorter card
+    }
+
+    // Portal window with margins from screen edges
+    // This creates a nice rounded window floating at the bottom
+    const int sideMargin = 40;  // Margin from left/right edges
+    const int bottomMargin = 40; // Margin from bottom edge
+    r = QRect(sideMargin, height() - h - bottomMargin - v_adjustment,
+              width() - (sideMargin * 2), h);
   }
 
   p.setOpacity(alert_opacity);
 
-  // Draw modern card with material design
+  // Draw modern card (browser tab for non-fullscreen)
   drawModernCard(p, r, isFullscreen);
 
   // Reset opacity for text
@@ -258,43 +356,40 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
 
     // Multi-layer 3D text shadow effect
     p.setPen(QColor(0, 0, 0, 120));
-    p.drawText(r.adjusted(3, 3, 3, 3), Qt::AlignCenter, alert.text1);
+    p.drawText(r.adjusted(3, 3, 3, 3), Qt::AlignCenter | Qt::TextWordWrap, alert.text1);
 
     p.setPen(QColor(0, 0, 0, 80));
-    p.drawText(r.adjusted(2, 2, 2, 2), Qt::AlignCenter, alert.text1);
+    p.drawText(r.adjusted(2, 2, 2, 2), Qt::AlignCenter | Qt::TextWordWrap, alert.text1);
 
     p.setPen(QColor(0, 0, 0, 40));
-    p.drawText(r.adjusted(1, 1, 1, 1), Qt::AlignCenter, alert.text1);
+    p.drawText(r.adjusted(1, 1, 1, 1), Qt::AlignCenter | Qt::TextWordWrap, alert.text1);
 
     // Main text with slight highlight
     p.setPen(Qt::white);
-    p.drawText(r, Qt::AlignCenter, alert.text1);
+    p.drawText(r, Qt::AlignCenter | Qt::TextWordWrap, alert.text1);
 
   } else if (alert.size == cereal::SelfdriveState::AlertSize::MID) {
-    const QPoint c = r.center();
-
-
-    // Draw main text with 3D shadow layers - match original positioning
+    // Draw main text with 3D shadow layers
     p.setFont(InterFont(88, QFont::Bold));
 
-    QRect text1Rect = QRect(0, c.y() - 125, width(), 150);
+    // Center text vertically in the alert card for better visual balance
+    QRect text1Rect = QRect(r.x(), r.top(), r.width(), r.height() * 0.6);
 
     p.setPen(QColor(0, 0, 0, 120));
-    p.drawText(text1Rect.adjusted(3, 3, 3, 3), Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+    p.drawText(text1Rect.adjusted(3, 3, 3, 3), Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap, alert.text1);
 
     p.setPen(QColor(0, 0, 0, 80));
-    p.drawText(text1Rect.adjusted(2, 2, 2, 2), Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+    p.drawText(text1Rect.adjusted(2, 2, 2, 2), Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap, alert.text1);
 
     p.setPen(Qt::white);
-    p.drawText(text1Rect, Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+    p.drawText(text1Rect, Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap, alert.text1);
 
-    // Draw secondary text - match original positioning
+    // Draw secondary text in the bottom portion
     p.setFont(InterFont(66));
     p.setPen(QColor(220, 220, 220));
 
-    QRect text2Rect = QRect(0, c.y() + 21, width(), 90);
-    p.drawText(text2Rect, Qt::AlignHCenter, alert.text2);
-
+    QRect text2Rect = QRect(r.x(), r.top() + r.height() * 0.6, r.width(), r.height() * 0.4);
+    p.drawText(text2Rect, Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap, alert.text2);
 
   } else if (alert.size == cereal::SelfdriveState::AlertSize::FULL) {
     bool longText = alert.text1.length() > 15;

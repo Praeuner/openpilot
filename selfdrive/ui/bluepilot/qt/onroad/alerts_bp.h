@@ -22,6 +22,8 @@ signals:
   void valueChanged();
 
 protected:
+  void resizeEvent(QResizeEvent *event) override;
+
   struct Alert {
     QString text1;
     QString text2;
@@ -54,7 +56,9 @@ protected:
 
   // Helper methods
   void drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen);
-  void drawBlurryBorder(QPainter &p, const QColor &borderColor);
+  void drawBrowserTabCard(QPainter &p, const QRect &rect);
+  void drawScreenBorder(QPainter &p, const QColor &borderColor);
+  void drawBlurryBorder(QPainter &p, const QColor &borderColor);  // Legacy - redirects to drawScreenBorder
 
   QColor bg;
   Alert alert = {};
