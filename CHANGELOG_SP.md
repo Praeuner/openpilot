@@ -1,68 +1,159 @@
-sunnypilot - 0.9.8.0 (2024-xx-xx)
+sunnypilot Version 2025.001.000 (2025-10-25)
 ========================
-* Always on driver monitoring toggle
+* 🛠️ Major rewrite
+  * Most features are intended to be identical to previous versions with slight improvements
+  * Fully adopts upstream commaai’s openpilot, opendbc (car interface and safety), and panda test suites to ensure consistent safety compliance and reliability across all systems
+  * Added regression testing to verify expected behavior and maintain stability across core modules
+  * Aligns with comma.ai’s safety policy: preserving driver monitoring, actuation checks, and safety test suite coverage
+  * Some features have not yet been reimplemented in this rewrite and are temporarily disabled in this release. They may return in future releases once fully ported and validated. See the end of the changelog to get a list of what's not going to be present.
+* 🌟 Major Features & Systems
+  * Modular Assistive Driving System (MADS)
+    * Complete driving assistance framework
+  * Driving Model Manager
+    * Custom driving model selection with support for about 86 models (as of writing), from Night Strike (October 2023) up to The Cool People’s Models (October 2025)
+  * Neural Network Lateral Control (NNLC) (Formerly NNFF)
+    * Advanced torque-based lateral control
+  * Dynamic Experimental Control (DEC)
+    * Intelligent longitudinal control adaptation
+  * Speed Limit Assist (SLA)
+    * Comprehensive speed limit integration featuring @pfeiferj's `mapd` for offline map limits downloads, a Speed Limit Resolver for sourcing data (from car, map, combined, etc), on-screen UI for Speed Limit Information/Warning, and Speed Limit Assist (SLA) to adjust cruise speed automatically.
+    * Currently disabled for Tesla with sunnypilot Longitudinal Control in release and Rivian with sunnypilot Longitudinal Control in all branches
+      * May return in future releases
+  * Intelligent Cruise Button Management (ICBM)
+    * System designed to manage the vehicle’s speed by sending cruise control button commands to the car’s ECU.
+  * Smart Cruise Control Map & Vision (SCC-M / SCC-V)
+    * When using any form of long control (openpilot longitudinal or ICBM) it will control the speed at which you enter and perform a turn by leveraging map data (SCC-M) and/or by leveraging what the model sees about the curve ahead (SCC-V)
+  * Vehicle Selector
+    * If your vehicle isn’t fingerprinted automatically, you can still use the vehicle selector to get it working
+  * sunnylink Integration
+    * Cloud connectivity and settings backup/restore
+    * PENDING: The infrastructure is ready for remote setting management, including remote driving model switching. An announcement will be made when this is ready to use in current and future releases.
+  * External Storage Support
+    * Expanded storage options
+  * mapd Integration (thanks to @pfeiferj)
+    * Allow downloading OpenStreetMap databases for your area, which could be useful for Speed Limit Assist (SLA)
+* User Interface Enhancements
+  * Complete UI Redesign from Default openpilot Experience
+    * A total overhaul of the sunnypilot offroad user interface for a modern and intuitive experience.
+  * New Settings Panels
+    * Reorganized settings into dedicated panels: Steering, Longitudinal, Vehicle, Models, Visuals, Display, and Trips.
+  * Advanced Controls Toggle
+    * Out of the box experience has a slightly reduced set of settings for a lower barrier of entry, once you are ready, you can get a few extra settings by toggling on the Advanced Controls.
+  * Models Panel
+    * A dedicated panel for model management, featuring a download manager, model folders, a favorites system, fuzzy search, and a cache refresh button.
+  * Visuals & Display
+    * Extensive customization options including brightness controls, custom interactivity timeouts, green light indicator, lead vehicle indicator, on-screen turn signals, blind spot indicators, lead chevron info, standstill timer, road name display, and a Tesla-like 🌈 rainbow road path.
+  * Screen Off while driving
+    * Options to turn the screen off while driving and customize wake-up behavior for alerts.
+  * Branch & Platform Selectors
+    * Improved software management with a searchable branch selector and a platform selector that displays the current fingerprint.
+  * Developer UI
+    * An enhanced developer UI with better alert positioning and an integrated error log viewer.
+  * Convenience Features
+    * Added an “Exit Offroad” button, “Always Offroad” mode, Quiet Mode, and customizable max time offroad settings.
+  * OpenStreetMap Database Downloader
+    * The OpenStreetMap database downloader now includes a search feature for easily finding areas.
+* Model and AI Improvements
+  * Modular Model Backend
+    * Major refactor of `modeld` to support modular runners (SNPE, thneed, tinygrad) and dynamic model inputs.
+  * Enhanced Model Outputs
+    * Models now provide additional outputs like “turn desires” for improved control.
+  * Live Parameter Adjustments
+    * Support for live delay adjustments and software delay controls directly from the UI.
+  * Model Management
+    * Added model caching, automatic refresh capabilities, and shape inference from inputs for better compatibility.
+* Control Systems
+  * Pause Lateral on Blinker
+    * Option to temporarily pause lateral control when the turn signal is active.
+  * Custom ACC Setpoint Increments
+    * Configure custom increments for adjusting the ACC set speed for applicable vehicle platforms.
+  * Steering on Brake Press
+    * Customizable steering behavior when the brake pedal is pressed.
+  * Enforce Torque Lateral Control
+    * New customized settings for fine-tuning torque-based steering.
+  * Automatic Lane Change
+    * Support for automatic lane changes, including a mode to disable it.
+* Technical Infrastructure
+  * Custom Cereal Implementation
+    * Migrated sunnypilot-specific events, car parameters, and car controls to a dedicated cereal for better compatibility and performance.
+  * Car Interface Abstractions
+    * Refactored car interfaces to support brand-specific settings and easier integration.
+  * Param Store Caching
+    * Implemented a cache for the parameter store to reduce startup times, with support for live parameter updates.
+  * Enhanced Error Handling
+    * Improved exception management and Sentry logging for better stability and debugging.
+  * Docker & CI/CD
+    * Full Docker image support, a dedicated GitHub runner service, and comprehensive improvements to the entire CI/CD pipeline for automated testing, building, and releasing.
+* Bug Fixes and Stability
+  * Registration Requirement Removed
+    * No longer necessary to register the device to go onroad.
+  * Panda Firmware Checks
+    * Improved firmware checks to gracefully handle deprecated Panda devices.
+  * Numerous Fixes
+    * Addressed a wide range of bugs across the system for a more stable and reliable experience.
+* Developer Experience
+  * CLion IDE integration and external tools
+  * Comprehensive testing and build automation
+  * Model building and publishing automation
+  * UI preview generation and testing
+  * Release drafting and version management
+  * Code quality and maintenance workflows
+* Translations and Localization
+  * Korean translation updates
+  * Automated translation management system
+* ❌ Removed
+  * Navigate on openpilot (NoO)
+    * Navigate on openpilot (NoO) has been removed as upstream is prioritizing improving the driving model’s capabilities and simplifying the training stack.
+    * The feature may return in a future upstream release by comma.ai once model improvements from upstream make it more reliable.
+  * Visuals: Rocket Fuel
+  * Visuals: Displaying Braking Status
+  * Vehicle: Toyota - Enforce Stock Longitudinal Control
+  * Subaru: Increase Steering Torque
+  * Longitudinal: Acceleration Personality
+  * UI: Display CPU Temperature on Sidebar
+  * Lateral: Block Lane Change with Road Edge Detection
+  * UI: Display DM Camera in Reverse Gear
+  * UI: Auto-hide Selected UI Elements
+  * Visuals: Display End-to-End Longitudinal Status
+  * Toyota: Stop and Go Hack (alpha)
+  * Visuals: Onroad Settings
+  * Honda: Serial Steering Support
+  * Volkswagen: Non-ACC Platforms Support
+  * Longitudinal: Dynamic Personality
+  * Honda Nidec: Allow Stock Longitudinal Control
+  * Lateral Planner: Dynamic Lane Profile
+  * Lateral Planner: Laneful Mode
+  * Lateral: Custom Camera and Path Offsets
+  * Toyota: Door Controls
+* New Contributors (sunnypilot/sunnypilot)
+  * @royjr made their first contribution in "NNLC: bump max similarity for higher accuracy (#704)"
+  * @nayan8teen made their first contribution in "UI: Update AbstractControlSP_SELECTOR and OptionControlSP (#800)"
+  * @wtogami made their first contribution in "TOYOTA_RAV4_PRIME NNLC tuning gen 1 (#850)"
+  * @dparring made their first contribution in "FCA: Ram 1500 improvements (#797)"
+  * @Kirito3481 made their first contribution in "Update ko-kr translation (#1167)"
+  * @michael-was-taken made their first contribution in "Reorder README tables: show -new branches first (#1191)"
+  * @dzid26 made their first contribution in "params: Fix loading delay on startup (#1297)"
+  * @HazZelnutz made their first contribution in "Visuals: Turn signals on screen when blinker is used (#1291)"
+* New Contributors (sunnypilot/opendbc)
+  * @chrispypatt made their first contribution in "Toyota: SecOC Longitudinal Control (sunnypilot/opendbc#93)"
+  * @Discountchubbs made their first contribution in "Hyundai: EPS FW For 2022 KIA_NIRO_EV SCC (sunnypilot/opendbc#118)"
+  * @lukasloetkolben made their first contribution in "Tesla: enableBsm is always true (sunnypilot/opendbc#163)"
+  * @roenthomas made their first contribution in "Honda: int flag for modified EPS configs (sunnypilot/opendbc#254)"
+  * @AmyJeanes made their first contribution in "Tesla: Fix stock LKAS being blocked when MADS is enabled (sunnypilot/opendbc#286)"
+  * @mvl-boston made their first contribution in "Honda: Update Clarity brake to renamed DBC message name (sunnypilot/opendbc#282)"
+  * @dzid26 made their first contribution in "Tesla: Parse speed limit from CAN (sunnypilot/opendbc#308)"
+  * @firestar5683 made their first contribution in "GM: Non-ACC platforms with steering only support (sunnypilot/opendbc#229)"
 ************************
-* UPDATED: Synced with commaai's openpilot
-  * master commit 4ef757c (July 06, 2024)
-* NEW❗: Default Driving Model: Notre Dame (July 01, 2024)
-* NEW❗: Longitudinal: Acceleration Personality thanks to kegman, rav4kumar, and arne1282! (CTV 2.0: GlideTech)
-  * Select from three distinct acceleration personalities: Eco, Normal, and Sport
-  * Acceleration personalities are integrated directly into the model's acceleration matrix and can be activated in real-time!
-* NEW❗: Toyota - Drive Mode Selector
-  *  When enabled you can control acceleration personality just with press of button!
-* UPDATED: Dynamic Experimental Control
-  * Switched to weighted moving averages to enhance responsiveness to recent data.
-  * Goal is to improve real-time detection accuracy in dynamic conditions.
-  * Capable of handling the increased complexity that comes with this approach.
-  * Particularly beneficial in environments where recent changes are critical to performance.
-* NEW❗: Longitudinal: Dynamic Personality thanks to rav4kumar!
-  * Dynamically adjusts following distance and reaction based on your "Driving Personality" setting
-  * Personalities adapt in real-time to your speed and the distance to the lead car
-  * Provides a more responsive and tailored driving experience compared to predefined settings
-* UPDATED: Driving Personality: Updated mode names
-  * Aggressive, Moderate, Standard, Relaxed
-* NEW❗: Hyundai CAN: Enable Cruise Main by Default
-  * Set CRUISE MAIN to ON by default when the car starts, without engaging MADS
-  * This feature only applies when "openpilot Longitudinal Control (Alpha)" is enabled under the "Toggles" menu
-* NEW❗: Toyota - Enhanced Blind Spot Monitor (BSM) thanks to arne182, rav4kumar, and eFiniLan!
-  * Enables Blind Spot Monitor (BSM) signals parsing in sunnypilot using the factory Blind Spot Monitor (BSM)
-  * sunnypilot will use debugging CAN messages to receive unfiltered BSM signals, allowing detection of more objects
-  * Supported platforms
-    * RAV4 TSS1, equipped with factory Blind Spot Monitoring (BSM)
-    * Lexus LSS1, equipped with factory Blind Spot Monitoring (BSM)
-    * Toyota TSS1/1.5, equipped with factory Blind Spot Monitoring (BSM)
-    * Prius TSS2, equipped with factory Blind Spot Monitoring (BSM)
-  * NOTE: Only enable this feature if your Toyota/Lexus vehicle has factory Blind Spot Monitor equipped, and mentioned in the supported platforms list
-* UPDATED: Toyota: TSS2 longitudinal: Custom Tuning (CTV 2.0: GlideTech)
-  * Re-tuned and tested by the community (September 29, 2024)
-* UPDATED: Driving Model Selector v5
-  * NEW❗: Driving Model additions
-    * Notre Dame (July 01, 2024) - NDv3
-* UPDATED: Neural Network Lateral Control (NNLC)
-  * NEW❗: Remove Lateral Jerk Response (Alpha)
-  * FIXED: Hotfix for "lazy" steering performance in tighter curves thanks to twilsonco!
-* UPDATED: Toyota: Continued support for Smart DSU (SDSU) and Radar CAN Filter
-  * In response to the official deprecation of support for Smart DSU (SDSU) and Radar CAN Filter in the upstream ([commaai/openpilot#32777](https://github.com/commaai/openpilot/pull/32777)), sunnypilot will continue maintaining software support for Smart DSU (SDSU) and Radar CAN Filter
-* UPDATED: Continued support for Mapbox navigation
-  * In response to the official temporary deprecation of support for Mapbox navigation in the upstream ([commaai/openpilot#32773](https://github.com/commaai/openpilot/pull/32773)), sunnypilot will continue maintaining software support for Mapbox navigation
-* NEW❗: Toyota - Automatic Door Locking and Unlocking thanks to AlexandreSato, cydia2020, and dragonpilot-community!
-  * Auto Lock by Speed: All doors are automatically locked when vehicle speed is approximately 6 mph (10 km/h) or higher
-  * Auto Unlock by Shift to P: All doors are automatically unlocked when shifting the shift lever to P
-* FIXED: Driving Personality:
-  * Maniac mode now correctly enforced when selected
-* FIXED: Experimental Model Distance Button Hold
-  * Experimental Model toggle with distance button hold no longer changes Personality
-  * Personality setting remains consistent when switching between Chill and Experimental Mode
-* UI Updates
-  * Display Metrics Below Chevron
-    * NEW❗: Time to Lead Car
-      * Displays the time to reach the position previously occupied by the lead car
-    * NEW❗: Display Distance, Speed, and Time to Lead Car simultaneously
-* Ford F-150 2022-23 support
-* Ford F-150 Lightning 2021-23 support
-* Ford Mustang Mach-E 2021-23 support
-* Hyundai Kona Electric Non-SCC 2019 support thanks to NikitaNekrasov!
-* Kia Ceed Plug-in Hybrid Non-SCC 2022 support thanks to TerminatorNL!
+* Synced with commaai's openpilot (v0.10.1)
+  * master commit c9dbf97649a27117be6d5955a49e2d4253337288 (September 12, 2025)
+* New driving model
+  * World Model: removed global localization inputs
+  * World Model: 2x the number of parameters
+  * World Model: trained on 4x the number of segments
+  * Driving Vision Model: trained on 4x the number of segments
+* Honda City 2023 support thanks to vanillagorillaa and drFritz!
+* Honda N-Box 2018 support thanks to miettal!
+* Honda Odyssey 2021-25 support thanks to csouers and MVL!
 
 sunnypilot - 0.9.7.1 (2024-06-13)
 ========================
@@ -99,8 +190,6 @@ sunnypilot - 0.9.7.1 (2024-06-13)
   * Force sunnypilot in the offroad state even when the car is on
   * When Forced Offroad mode is on, allows changing offroad-only settings even when the car is turned on
   * To engage/disengage Force Offroad, go to Settings -> Device panel
-* NEW❗: Ford CAN-FD longitudinal
-  * NEW❗: Parse speed limit sign recognition from camera for certain supported platforms
 * UPDATED: Auto Lane Change Timer -> Auto Lane Change by Blinker
   * NEW❗: New "Off" option to disable lane change by blinker
 * UPDATED: Pause Lateral Below Speed with Blinker
@@ -108,8 +197,6 @@ sunnypilot - 0.9.7.1 (2024-06-13)
     * Pause lateral actuation with blinker when traveling below the desired speed selected. Default is 20 MPH or 32 km/h.
 * UPDATED: Hyundai CAN Longitudinal
   * Auto-enable radar tracks on platforms with applicable Mando radar
-* UPDATED: Hyundai CAN-FD Radar-based SCC
-  * Longitudinal support for CAN-FD Radar-based SCC cars
 * UPDATED: Hyundai CAN-FD Camera-based SCC
   * NEW❗: Parse lead info for camera-based SCC platforms with longitudinal support
     * Improve lead tracking when using openpilot longitudinal

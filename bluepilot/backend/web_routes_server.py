@@ -1193,11 +1193,17 @@ def kill_port_process(port):
         import psutil
 
         killed = False
-        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+        for proc in psutil.process_iter(['pid', 'name']):
             try:
-                connections = proc.connections()
+                # Get inet connections (TCP/UDP), handle systems where this might fail
+                try:
+                    connections = proc.connections(kind='inet')
+                except (AttributeError, NotImplementedError):
+                    # Fallback to all connections on systems that don't support kind filter
+                    connections = proc.connections()
+
                 for conn in connections:
-                    if conn.laddr.port == port:
+                    if hasattr(conn, 'laddr') and hasattr(conn.laddr, 'port') and conn.laddr.port == port:
                         logger.warning(f"Found process {proc.pid} ({proc.name()}) using port {port}")
                         logger.info(f"Killing process {proc.pid} to free port {port}")
                         proc.terminate()
