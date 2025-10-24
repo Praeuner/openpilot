@@ -32,6 +32,7 @@ private slots:
   void toggleCellularAccess(bool enabled);
   void updateCellularStatus();
   void fetchServerErrors();
+  void updateWebSocketStatus();
 
 private:
   void setupUI();
@@ -50,6 +51,7 @@ private:
   QLabel *serverStatusLabel;
   QLabel *urlLabel;
   QLabel *qrCodeLabel;
+  QLabel *websocketStatusBadge;
 
   // Stats section
   QGroupBox *statsFrame;

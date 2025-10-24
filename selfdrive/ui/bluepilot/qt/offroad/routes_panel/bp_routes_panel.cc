@@ -29,6 +29,7 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
   statusTimer = new QTimer(this);
   statusTimer->setInterval(3000);
   connect(statusTimer, &QTimer::timeout, this, &BPRoutesPanel::updateServerStatus);
+  connect(statusTimer, &QTimer::timeout, this, &BPRoutesPanel::updateWebSocketStatus);
 
   // Error check timer - check every 10 seconds
   errorTimer = new QTimer(this);
@@ -37,6 +38,7 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
 
   setupUI();
   updateServerStatus();
+  updateWebSocketStatus();
 }
 
 BPRoutesPanel::~BPRoutesPanel() {
@@ -107,11 +109,31 @@ void BPRoutesPanel::setupUI() {
   toggleLayout->addWidget(serverToggle);
   serverLayout->addLayout(toggleLayout);
 
-  // Status
+  // Status line with websocket badge
+  QHBoxLayout *statusLineLayout = new QHBoxLayout();
+
   serverStatusLabel = new QLabel("Status: Checking...");
   serverStatusLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize + 6));
   serverStatusLabel->setWordWrap(true);  // Prevent horizontal scrolling
-  serverLayout->addWidget(serverStatusLabel);
+  statusLineLayout->addWidget(serverStatusLabel);
+
+  // WebSocket status badge
+  websocketStatusBadge = new QLabel("");
+  websocketStatusBadge->setStyleSheet(QString(R"(
+    QLabel {
+      font-size: %1px;
+      color: #AAAAAA;
+      background-color: #2C2C2C;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-weight: 500;
+    }
+  )").arg(sizes.descSize));
+  websocketStatusBadge->setVisible(false);
+  statusLineLayout->addWidget(websocketStatusBadge);
+  statusLineLayout->addStretch();
+
+  serverLayout->addLayout(statusLineLayout);
 
   // QR Code
   qrCodeLabel = new QLabel();
@@ -483,12 +505,21 @@ void BPRoutesPanel::updateServerStatus() {
 void BPRoutesPanel::toggleServer(bool enabled) {
   params.putBool("BPWebServerEnabled", enabled);
 
+  if (enabled) {
+    // Show immediate "Starting..." status
+    serverStatusLabel->setText("Status: <span style='color: #2196F3;'>●</span> Starting server...");
+    urlLabel->setText("Initializing...");
+    qrCodeLabel->setVisible(false);
+  }
+
   // Update status after a brief delay to allow process manager to react
   QTimer::singleShot(1000, this, &BPRoutesPanel::updateServerStatus);
 
   if (enabled) {
+    // Check again after 2 seconds in case dependencies are being installed
+    QTimer::singleShot(2000, this, &BPRoutesPanel::updateServerStatus);
     // Fetch stats once server is running
-    QTimer::singleShot(2000, this, &BPRoutesPanel::refreshStats);
+    QTimer::singleShot(3000, this, &BPRoutesPanel::refreshStats);
   }
 }
 
@@ -806,4 +837,56 @@ void BPRoutesPanel::fetchServerErrors() {
     }
   });
   */
+}
+
+void BPRoutesPanel::updateWebSocketStatus() {
+  if (!isServerRunning()) {
+    websocketStatusBadge->setVisible(false);
+    return;
+  }
+
+  // Fetch websocket status from the server
+  QString url = getServerUrl() + "/api/websocket_status";
+  QNetworkRequest request(url);
+  QNetworkReply *reply = networkManager->get(request);
+
+  // Set timeout for the request
+  QTimer *timeoutTimer = new QTimer(reply);
+  timeoutTimer->setSingleShot(true);
+  timeoutTimer->setInterval(2000);
+
+  connect(timeoutTimer, &QTimer::timeout, reply, [reply]() {
+    reply->abort();
+  });
+
+  connect(reply, &QNetworkReply::finished, this, [this, reply, timeoutTimer]() {
+    timeoutTimer->stop();
+    timeoutTimer->deleteLater();
+    reply->deleteLater();
+
+    if (reply->error() == QNetworkReply::NoError) {
+      QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+      if (doc.isObject()) {
+        QJsonObject obj = doc.object();
+        bool wsAvailable = obj["websockets_available"].toBool(false);
+        int wsClients = obj["websocket_clients"].toInt(0);
+
+        if (wsAvailable) {
+          QString badgeText = QString("WS: %1 client%2").arg(wsClients).arg(wsClients == 1 ? "" : "s");
+          websocketStatusBadge->setText(badgeText);
+          websocketStatusBadge->setStyleSheet(websocketStatusBadge->styleSheet().replace("#AAAAAA", "#4CAF50"));
+          websocketStatusBadge->setVisible(true);
+        } else {
+          websocketStatusBadge->setText("WS: Disabled");
+          websocketStatusBadge->setStyleSheet(websocketStatusBadge->styleSheet().replace("#4CAF50", "#FF9800"));
+          websocketStatusBadge->setVisible(true);
+        }
+      }
+    } else {
+      // Hide badge if we can't get status
+      websocketStatusBadge->setVisible(false);
+    }
+  });
+
+  timeoutTimer->start();
 }

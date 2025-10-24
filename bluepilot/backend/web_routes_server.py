@@ -2812,6 +2812,15 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'isMetric': params.get_bool("IsMetric")
                 })
 
+            elif path == '/api/websocket_status':
+                # WebSocket availability status endpoint
+                ws_clients = len(server_state.get_websocket_clients())
+                self.send_json_response({
+                    'websockets_available': WEBSOCKETS_AVAILABLE,
+                    'websocket_clients': ws_clients,
+                    'websocket_port': WEBSOCKET_PORT if WEBSOCKETS_AVAILABLE else None
+                })
+
             elif path == '/api/status/detailed':
                 # Detailed status endpoint with connection info
                 try:
@@ -3943,7 +3952,7 @@ def check_and_handle_crashes():
         return True  # Default to allowing server start
 
 def ensure_dependencies():
-    """Ensure all required dependencies are available"""
+    """Check if all required dependencies are available, install if missing, and restart server"""
     global WEBSOCKETS_AVAILABLE
 
     try:
@@ -3952,72 +3961,52 @@ def ensure_dependencies():
             import websockets
             WEBSOCKETS_AVAILABLE = True
             logger.info("websockets library is available")
-            return
+            return False  # No restart needed
         except ImportError:
             WEBSOCKETS_AVAILABLE = False
 
-        logger.info("websockets library not available")
+        logger.warning("websockets library not available - attempting installation")
+        logger.info("HTTP API will still work during installation")
 
-        # Check if we're in a read-only environment (common in embedded systems)
-        import os
+        # Try to install websockets package
         try:
-            # Try to create a test file to check if filesystem is writable
-            test_file = "/tmp/websockets_test"
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-            can_write = True
-        except (OSError, IOError):
-            can_write = False
+            import subprocess
+            import shutil
 
-        if can_write:
-            logger.info("Filesystem is writable, attempting automatic installation...")
+            # Use uv pip install to avoid modifying pyproject.toml
+            if shutil.which("uv"):
+                logger.info("Installing websockets using uv pip...")
+                result = subprocess.run(
+                    ["uv", "pip", "install", "websockets", "websocket-client"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
 
-            # Try to install websockets if missing
-            try:
-                import subprocess
-                import shutil
-
-                # First try uv sync (preferred method for this project)
-                if shutil.which("uv"):
-                    logger.info("Attempting to install websockets using uv...")
-                    subprocess.check_call(["uv", "add", "websockets"])
-                    logger.info("websockets installed successfully via uv")
-
-                    # Check if it's now available
-                    try:
-                        import websockets
-                        WEBSOCKETS_AVAILABLE = True
-                        logger.info("WebSocket support enabled after uv installation")
-                    except ImportError:
-                        logger.warning("Installation completed but websockets still not available")
-                        logger.info("You may need to restart the web server to use WebSocket features")
+                if result.returncode == 0:
+                    logger.info("websockets installed successfully")
+                    logger.info("Server will restart in 3 seconds to enable WebSocket features")
+                    return True  # Restart needed
                 else:
-                    logger.info("uv not available, trying pip...")
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets"])
-                    logger.info("websockets installed successfully via pip")
+                    logger.error(f"Failed to install websockets: {result.stderr}")
+                    logger.info("WebSocket features will remain disabled")
+                    return False
+            else:
+                logger.warning("uv not available - cannot install websockets automatically")
+                logger.info("To enable WebSocket support, run: uv pip install websockets websocket-client")
+                return False
 
-                    # Check if it's now available
-                    try:
-                        import websockets
-                        WEBSOCKETS_AVAILABLE = True
-                        logger.info("WebSocket support enabled after pip installation")
-                    except ImportError:
-                        logger.warning("Installation completed but websockets still not available")
-                        logger.info("You may need to restart the web server to use WebSocket features")
+        except subprocess.TimeoutExpired:
+            logger.error("Package installation timed out (60s)")
+            logger.info("Network may not be available yet. WebSocket features will remain disabled")
+            return False
+        except Exception as e:
+            logger.error(f"Error during package installation: {e}")
+            return False
 
-            except (subprocess.CalledProcessError, ImportError) as e:
-                logger.warning(f"Could not install websockets: {e}")
-                logger.info("WebSocket features will be disabled, but HTTP API will still work")
-                logger.info("To enable WebSocket support, run: uv sync --extra dev")
-        else:
-            logger.info("Read-only filesystem detected - cannot install automatically")
-            logger.info("WebSocket features will be disabled, but HTTP API will still work")
-            logger.info("To enable WebSocket support:")
-            logger.info("  1. Run 'uv sync --extra dev' on a writable system")
-            logger.info("  2. Or install manually: pip install websockets")
     except Exception as e:
         logger.warning(f"Error during dependency check: {e}")
+        return False
 
 
 def main():
@@ -4034,8 +4023,15 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     logger.info("Registered graceful shutdown handlers")
 
-    # Ensure dependencies are available before starting
-    ensure_dependencies()
+    # Ensure dependencies are available, install if missing
+    needs_restart = ensure_dependencies()
+
+    if needs_restart:
+        # Dependencies were just installed, restart the server process
+        logger.info("Waiting 3 seconds before restart to ensure packages are fully installed...")
+        time.sleep(3)
+        logger.info("Restarting server to load newly installed packages...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     # Kill any existing server instances first
     kill_existing_process('web_routes_server.py')
