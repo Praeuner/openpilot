@@ -1690,6 +1690,9 @@ class BluePilotRoutes {
 
       console.log("Player initialized successfully");
 
+      // Hide BluePilot spinner immediately - h265-web-player has its own loading indicator
+      this.hideVideoLoading();
+
       // Monitor for h265-web-player errors and fallback if needed
       setTimeout(() => {
         // Check if the canvas has any content (indicating successful decoding)
