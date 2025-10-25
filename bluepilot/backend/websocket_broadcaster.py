@@ -28,6 +28,7 @@ class WebSocketEvent:
     PROCESSING_STARTED = 'processing_started'
     PROCESSING_COMPLETED = 'processing_completed'
     CACHE_CLEARED = 'cache_cleared'
+    FFMPEG_LOG = 'ffmpeg_log'  # Real-time FFmpeg debug logs
 
 
 class WebSocketBroadcaster:
@@ -167,3 +168,22 @@ class WebSocketBroadcaster:
     def broadcast_routes_updated(self):
         """Broadcast that the route list should be refreshed"""
         self.broadcast(WebSocketEvent.ROUTES_UPDATED, {})
+
+    def broadcast_ffmpeg_log(self, route_info, log_type, message, pid=None):
+        """
+        Broadcast FFmpeg debug log in real-time
+
+        Args:
+            route_info: Route identifier (route_base:segment:camera)
+            log_type: Type of log ('stdout', 'stderr', 'start', 'end', 'error')
+            message: Log message content
+            pid: Process ID (optional)
+        """
+        data = {
+            'route_info': route_info,
+            'log_type': log_type,
+            'message': message,
+        }
+        if pid:
+            data['pid'] = pid
+        self.broadcast(WebSocketEvent.FFMPEG_LOG, data)

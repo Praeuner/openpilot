@@ -233,6 +233,12 @@
       "controls": [
         {
           "type": "toggle",
+          "param": "BPUseBluepilotAlerts",
+          "title": "Enable BluePilot Alert UI",
+          "desc": "[BluePilot] Enable BluePilot visual alert design with modern styling, smooth animations, and enhanced readability."
+        },
+        {
+          "type": "toggle",
           "param": "GreenLightAlert",
           "title": "Green Traffic Light Alert (Beta)",
           "desc": "A chime and on-screen alert will play when the traffic light you are waiting for turns green and you have no vehicle in front of you.<br><h4>Note: This chime is only designed as a notification. It is the driver's responsibility to observe their environment and make decisions accordingly.</h4><br>"

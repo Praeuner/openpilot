@@ -29,6 +29,9 @@ class BluePilotRoutes {
     this.routesPollingInterval = null;
     this.statusPollingInterval = null;
 
+    // FFmpeg Debug Mode
+    this.debugMode = false;
+
     this.init();
   }
 
@@ -201,6 +204,14 @@ class BluePilotRoutes {
     this.$cerealLoading = document.getElementById("cereal-loading");
     this.$cerealLastUpdate = document.getElementById("cereal-last-update");
     this.$cerealMessageCount = document.getElementById("cereal-message-count");
+
+    // FFmpeg Debug Panel elements
+    this.$toggleDebugBtn = document.getElementById("toggle-debug-btn");
+    this.$ffmpegDebugPanel = document.getElementById("ffmpeg-debug-panel");
+    this.$ffmpegDebugContent = document.getElementById("ffmpeg-debug-content");
+    this.$ffmpegDebugMessages = document.getElementById("ffmpeg-debug-messages");
+    this.$clearDebugBtn = document.getElementById("clear-debug-btn");
+    this.$debugAutoScroll = document.getElementById("debug-auto-scroll");
   }
 
   attachEventListeners() {
@@ -227,6 +238,10 @@ class BluePilotRoutes {
     this.$retryBtn.addEventListener("click", () => this.loadRoutes());
     this.$closeVideo.addEventListener("click", () => this.closeVideo());
     this.$replayBtn.addEventListener("click", () => this.replayRoute());
+
+    // FFmpeg Debug Panel
+    this.$toggleDebugBtn.addEventListener("click", () => this.toggleDebugPanel());
+    this.$clearDebugBtn.addEventListener("click", () => this.clearDebugLogs());
 
     // Monitor connection status periodically
     this.startConnectionMonitoring();
@@ -1234,6 +1249,10 @@ class BluePilotRoutes {
 
     // Get video URL - use selected camera (HEVC or LQ)
     let videoUrl = `${this.API_BASE}/api/video/${this.currentRoute.baseName}/${segmentNumber}/${this.currentCamera}`;
+    // Add debug parameter if debug mode is enabled
+    if (this.debugMode) {
+      videoUrl += '?debug=true';
+    }
     const videoCamera = this.currentCamera;
     const videoInfo = segment.videos[this.currentCamera];
 
@@ -2185,6 +2204,10 @@ class BluePilotRoutes {
 
       case "cache_cleared":
         this.handleWebSocketCacheCleared(message.data);
+        break;
+
+      case "ffmpeg_log":
+        this.handleFFmpegLog(message.data);
         break;
 
       case "heartbeat":
@@ -3513,6 +3536,102 @@ class BluePilotRoutes {
       const seconds = (relativeTime % 60).toFixed(3);
       this.$cerealLastUpdate.textContent = `Showing: ${minutes}:${seconds.padStart(6, "0")}`;
     }, 100); // Update 10 times per second for smooth syncing
+  }
+
+  // ========================================================================
+  // FFmpeg Debug Panel Methods
+  // ========================================================================
+
+  toggleDebugPanel() {
+    this.debugMode = !this.debugMode;
+
+    // Toggle panel visibility
+    if (this.debugMode) {
+      this.$ffmpegDebugPanel.style.display = 'block';
+      this.$toggleDebugBtn.classList.add('active');
+      this.addDebugLog('info', 'Debug mode enabled. FFmpeg logs will appear here in real-time.');
+    } else {
+      this.$ffmpegDebugPanel.style.display = 'none';
+      this.$toggleDebugBtn.classList.remove('active');
+    }
+
+    // Reload current segment with debug mode
+    if (this.currentRoute && this.debugMode) {
+      this.addDebugLog('info', `Reloading segment ${this.currentSegment} with debug logging enabled...`);
+      this.loadSegment(this.currentSegment);
+    }
+  }
+
+  clearDebugLogs() {
+    this.$ffmpegDebugMessages.innerHTML = '';
+    this.addDebugLog('info', 'Debug logs cleared.');
+  }
+
+  handleFFmpegLog(data) {
+    // Only show if debug panel is visible
+    if (!this.debugMode) {
+      return;
+    }
+
+    const { route_info, log_type, message, pid } = data;
+
+    // Check if this log is for the current video being played
+    if (this.currentRoute) {
+      const currentRouteInfo = `${this.currentRoute.route_base}:${this.currentSegment}:${this.currentCamera}`;
+
+      // Only show logs for current route or show all logs (you can make this configurable)
+      // For now, let's show all logs but highlight current route
+      const isCurrent = route_info === currentRouteInfo;
+      this.addDebugLog(log_type, message, pid, isCurrent);
+    } else {
+      this.addDebugLog(log_type, message, pid, false);
+    }
+  }
+
+  addDebugLog(type, message, pid = null, isCurrent = true) {
+    const logEntry = document.createElement('div');
+    logEntry.className = `debug-log-entry debug-log-${type}`;
+    if (!isCurrent) {
+      logEntry.classList.add('debug-log-other');
+    }
+
+    const timestamp = new Date().toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3
+    });
+
+    const pidText = pid ? `[PID ${pid}] ` : '';
+    const typeLabel = type.toUpperCase().padEnd(6, ' ');
+
+    logEntry.innerHTML = `
+      <span class="debug-log-time">${timestamp}</span>
+      <span class="debug-log-type">[${typeLabel}]</span>
+      <span class="debug-log-pid">${pidText}</span>
+      <span class="debug-log-message">${this.escapeHtml(message)}</span>
+    `;
+
+    this.$ffmpegDebugMessages.appendChild(logEntry);
+
+    // Auto-scroll if enabled
+    if (this.$debugAutoScroll && this.$debugAutoScroll.checked) {
+      this.$ffmpegDebugContent.scrollTop = this.$ffmpegDebugContent.scrollHeight;
+    }
+
+    // Limit number of log entries to prevent memory issues (keep last 500)
+    const maxEntries = 500;
+    const entries = this.$ffmpegDebugMessages.children;
+    if (entries.length > maxEntries) {
+      this.$ffmpegDebugMessages.removeChild(entries[0]);
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 

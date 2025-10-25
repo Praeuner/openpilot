@@ -6,6 +6,7 @@
 #include <map>
 
 #include "selfdrive/ui/qt/util.h"
+#include "common/params.h"
 
 OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
   // Setup opacity animation for smooth transitions
@@ -22,7 +23,7 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
 
   // Ensure this widget can draw over other elements
   setAttribute(Qt::WA_TranslucentBackground, true);
-  raise();  // Start on top
+  // Widget is already on top via stacked layout order - no need for raise()
 }
 
 OnroadAlertsBP::~OnroadAlertsBP() {
@@ -47,8 +48,7 @@ void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
   // This allows alerts to draw over the border
   if (parentWidget()) {
     setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
-    // Raise widget to ensure it's on top of other UI elements like borders
-    raise();
+    // Widget is already on top via stacked layout order - no need for raise()
   }
 }
 
@@ -79,11 +79,11 @@ void OnroadAlertsBP::updateState(const UIState &s) {
 
     // Ensure widget is on top when showing an alert
     if (alert.size != cereal::SelfdriveState::AlertSize::NONE) {
-      raise();
       // Force geometry update to cover entire screen
       if (parentWidget()) {
         setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
       }
+      // Widget is already on top via stacked layout order - no need for raise()
     }
 
     update();
@@ -279,6 +279,11 @@ void OnroadAlertsBP::drawBlurryBorder(QPainter &p, const QColor &borderColor) {
 }
 
 void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
+  // Check if custom alerts are enabled
+  if (!Params().getBool("BPUseBluepilotAlerts")) {
+    return;
+  }
+
   if (alert.size == cereal::SelfdriveState::AlertSize::NONE || alert_opacity < 0.01) {
     return;
   }
