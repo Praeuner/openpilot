@@ -668,11 +668,12 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1000;
+  z-index: 2000;
   background: var(--bp-bg-primary);
   display: flex;
   flex-direction: column;
   overflow-y: auto;  /* Allow scrolling when content overflows */
+  will-change: opacity;
 }
 
 .video-header {
@@ -2255,11 +2256,9 @@ body {
 @keyframes pulse-critical {
   0%, 100% {
     background: rgba(239, 68, 68, 0.25);
-    transform: scale(1);
   }
   50% {
     background: rgba(239, 68, 68, 0.35);
-    transform: scale(1.02);
   }
 }
 

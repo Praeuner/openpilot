@@ -2963,6 +2963,10 @@ class BluePilotRoutes {
         this.handleWebSocketCacheCleared(message.data);
         break;
 
+      case "disk_updated":
+        this.handleWebSocketDiskUpdated(message.data);
+        break;
+
       case "ffmpeg_log":
         this.handleFFmpegLog(message.data);
         break;
@@ -2974,6 +2978,12 @@ class BluePilotRoutes {
       default:
         console.log("Unknown WebSocket message type:", message.type);
     }
+  }
+
+  handleWebSocketDiskUpdated(data) {
+    // Disk space changed - update visualization
+    console.log("Disk space updated via WebSocket");
+    this.updateDiskVisualization();
   }
 
   handleWebSocketConnectionEstablished(data) {

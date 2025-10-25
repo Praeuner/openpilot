@@ -4120,6 +4120,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'is_preserved': is_preserved,
                         'disk_space': disk_info
                     })
+
+                    # Broadcast disk space update (preserved segments changed)
+                    broadcast_websocket_event(WebSocketEvent.DISK_UPDATED, {})
                 else:
                     # Return error from set_route_preserve
                     self.send_json_response(result, 400 if 'disk space' in result.get('error', '').lower() else 500)
@@ -4267,6 +4270,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'route_base': route_base,
                     'deleted_segments': len(segments)
                 })
+
+                # Broadcast disk space update
+                broadcast_websocket_event(WebSocketEvent.DISK_UPDATED, {})
             else:
                 self.send_json_response({'error': 'Not found'}, 404)
 
@@ -4388,9 +4394,9 @@ def ensure_dependencies():
 
             # Use uv pip install to avoid modifying pyproject.toml
             if shutil.which("uv"):
-                logger.info("Installing websockets using uv pip...")
+                logger.info("Installing websockets using uv pip (user site-packages)...")
                 result = subprocess.run(
-                    ["uv", "pip", "install", "websockets", "websocket-client"],
+                    ["uv", "pip", "install", "--user", "websockets", "websocket-client"],
                     capture_output=True,
                     text=True,
                     timeout=60
@@ -4406,7 +4412,7 @@ def ensure_dependencies():
                     return False
             else:
                 logger.warning("uv not available - cannot install websockets automatically")
-                logger.info("To enable WebSocket support, run: uv pip install websockets websocket-client")
+                logger.info("To enable WebSocket support, run: uv pip install --user websockets websocket-client")
                 return False
 
         except subprocess.TimeoutExpired:

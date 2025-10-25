@@ -28,6 +28,7 @@ class WebSocketEvent:
     PROCESSING_STARTED = 'processing_started'
     PROCESSING_COMPLETED = 'processing_completed'
     CACHE_CLEARED = 'cache_cleared'
+    DISK_UPDATED = 'disk_updated'  # Disk space changed
     FFMPEG_LOG = 'ffmpeg_log'  # Real-time FFmpeg debug logs
 
 
