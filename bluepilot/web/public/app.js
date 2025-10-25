@@ -85,48 +85,58 @@ class BluePilotRoutes {
 
   /**
    * Convert UTC timestamp to browser's local timezone and format as time
-   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00+00:00")
+   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00" or "2024-09-18T14:30:00+00:00")
    * @returns {string} - Formatted time in 12-hour format (e.g., "2:30 PM")
    */
   formatLocalTime(utcTimestamp) {
-    if (!utcTimestamp) return '';
+    if (!utcTimestamp) return "";
     try {
-      const date = new Date(utcTimestamp);
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
+      // If timestamp doesn't have timezone info, treat it as UTC by appending 'Z'
+      let timestamp = utcTimestamp;
+      if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+        timestamp = timestamp + "Z";
+      }
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
       });
     } catch (e) {
-      console.error('Error formatting time:', e);
-      return '';
+      console.error("Error formatting time:", e);
+      return "";
     }
   }
 
   /**
    * Convert UTC timestamp to browser's local timezone and format as date
-   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00+00:00")
+   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00" or "2024-09-18T14:30:00+00:00")
    * @returns {string} - Formatted date (e.g., "Thursday - September 18th, 2024")
    */
   formatLocalDate(utcTimestamp) {
-    if (!utcTimestamp) return '';
+    if (!utcTimestamp) return "";
     try {
-      const date = new Date(utcTimestamp);
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      // If timestamp doesn't have timezone info, treat it as UTC by appending 'Z'
+      let timestamp = utcTimestamp;
+      if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+        timestamp = timestamp + "Z";
+      }
+      const date = new Date(timestamp);
+      const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
+      const monthName = date.toLocaleDateString("en-US", { month: "long" });
       const day = date.getDate();
       const year = date.getFullYear();
-      
+
       // Add ordinal suffix
-      let suffix = 'th';
-      if (day % 10 === 1 && day !== 11) suffix = 'st';
-      else if (day % 10 === 2 && day !== 12) suffix = 'nd';
-      else if (day % 10 === 3 && day !== 13) suffix = 'rd';
-      
+      let suffix = "th";
+      if (day % 10 === 1 && day !== 11) suffix = "st";
+      else if (day % 10 === 2 && day !== 12) suffix = "nd";
+      else if (day % 10 === 3 && day !== 13) suffix = "rd";
+
       return `${dayName} - ${monthName} ${day}${suffix}, ${year}`;
     } catch (e) {
-      console.error('Error formatting date:', e);
-      return '';
+      console.error("Error formatting date:", e);
+      return "";
     }
   }
 
@@ -136,28 +146,34 @@ class BluePilotRoutes {
    * @returns {string} - Elapsed time string (e.g., "2 hours ago")
    */
   formatElapsedTime(utcTimestamp) {
-    if (!utcTimestamp) return '';
+    if (!utcTimestamp) return "";
     try {
-      const date = new Date(utcTimestamp);
+      // If timestamp doesn't have timezone info, treat it as UTC by appending 'Z'
+      let timestamp = utcTimestamp;
+      if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+        timestamp = timestamp + "Z";
+      }
+      const date = new Date(timestamp);
       const now = new Date();
       const seconds = Math.floor((now - date) / 1000);
-      
-      if (seconds < 60) return 'just now';
-      
+
+      if (seconds < 60) return "just now";
+
       const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-      
+      if (minutes < 60)
+        return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
+
       const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-      
+      if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+
       const days = Math.floor(hours / 24);
-      if (days < 7) return `${days} day${days !== 1 ? 's' : ''} ago`;
-      
+      if (days < 7) return `${days} day${days !== 1 ? "s" : ""} ago`;
+
       const weeks = Math.floor(days / 7);
-      return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+      return `${weeks} week${weeks !== 1 ? "s" : ""} ago`;
     } catch (e) {
-      console.error('Error formatting elapsed time:', e);
-      return '';
+      console.error("Error formatting elapsed time:", e);
+      return "";
     }
   }
 
@@ -171,18 +187,28 @@ class BluePilotRoutes {
     // Status overlay
     this.$statusOverlay = document.getElementById("status-overlay");
     this.$statusOverlayTitle = document.getElementById("status-overlay-title");
-    this.$statusOverlayMessage = document.getElementById("status-overlay-message");
-    this.$statusOverlayDetails = document.getElementById("status-overlay-details");
+    this.$statusOverlayMessage = document.getElementById(
+      "status-overlay-message"
+    );
+    this.$statusOverlayDetails = document.getElementById(
+      "status-overlay-details"
+    );
     this.$statusOverlayRetry = document.getElementById("status-overlay-retry");
-    this.$statusOverlaySpinner = document.getElementById("status-overlay-spinner");
+    this.$statusOverlaySpinner = document.getElementById(
+      "status-overlay-spinner"
+    );
     this.$detailConnection = document.getElementById("detail-connection");
     this.$detailRateLimit = document.getElementById("detail-rate-limit");
     this.$detailLastUpdate = document.getElementById("detail-last-update");
 
     // Cellular warning
     this.$cellularWarning = document.getElementById("cellular-warning");
-    this.$cellularWarningDetails = document.getElementById("cellular-warning-details");
-    this.$cellularWarningClose = document.getElementById("cellular-warning-close");
+    this.$cellularWarningDetails = document.getElementById(
+      "cellular-warning-details"
+    );
+    this.$cellularWarningClose = document.getElementById(
+      "cellular-warning-close"
+    );
 
     // Header
     this.$routeCount = document.getElementById("route-count");
@@ -274,9 +300,13 @@ class BluePilotRoutes {
     this.$loadCerealBtn = document.getElementById("load-cereal-btn");
     this.$stopCerealBtn = document.getElementById("stop-cereal-btn");
     this.$reloadCerealBtn = document.getElementById("reload-cereal-btn");
-    this.$cerealMessageSelect = document.getElementById("cereal-message-select");
+    this.$cerealMessageSelect = document.getElementById(
+      "cereal-message-select"
+    );
     this.$cerealSyncCheckbox = document.getElementById("cereal-sync-checkbox");
-    this.$cerealViewerContainer = document.getElementById("cereal-viewer-container");
+    this.$cerealViewerContainer = document.getElementById(
+      "cereal-viewer-container"
+    );
     this.$cerealDataTable = document.getElementById("cereal-data-table");
     this.$cerealDataBody = document.getElementById("cereal-data-body");
     this.$cerealLoading = document.getElementById("cereal-loading");
@@ -287,7 +317,9 @@ class BluePilotRoutes {
     this.$toggleDebugBtn = document.getElementById("toggle-debug-btn");
     this.$ffmpegDebugPanel = document.getElementById("ffmpeg-debug-panel");
     this.$ffmpegDebugContent = document.getElementById("ffmpeg-debug-content");
-    this.$ffmpegDebugMessages = document.getElementById("ffmpeg-debug-messages");
+    this.$ffmpegDebugMessages = document.getElementById(
+      "ffmpeg-debug-messages"
+    );
     this.$clearDebugBtn = document.getElementById("clear-debug-btn");
     this.$debugAutoScroll = document.getElementById("debug-auto-scroll");
   }
@@ -318,7 +350,9 @@ class BluePilotRoutes {
     this.$replayBtn.addEventListener("click", () => this.replayRoute());
 
     // FFmpeg Debug Panel
-    this.$toggleDebugBtn.addEventListener("click", () => this.toggleDebugPanel());
+    this.$toggleDebugBtn.addEventListener("click", () =>
+      this.toggleDebugPanel()
+    );
     this.$clearDebugBtn.addEventListener("click", () => this.clearDebugLogs());
 
     // Monitor connection status periodically
@@ -660,7 +694,12 @@ class BluePilotRoutes {
 
   async showStatusOverlay(type) {
     // Show overlay with appropriate message
-    this.$statusOverlay.classList.remove("hidden", "status-onroad", "status-offline", "status-reconnecting");
+    this.$statusOverlay.classList.remove(
+      "hidden",
+      "status-onroad",
+      "status-offline",
+      "status-reconnecting"
+    );
     this.$statusOverlay.classList.add(`status-${type}`);
 
     // Fetch detailed status
@@ -689,10 +728,13 @@ class BluePilotRoutes {
       this.$statusOverlaySpinner.classList.add("hidden");
 
       if (detailedStatus) {
-        this.$detailConnection.textContent = detailedStatus.network?.connection_type?.toUpperCase() || "Unknown";
+        this.$detailConnection.textContent =
+          detailedStatus.network?.connection_type?.toUpperCase() || "Unknown";
         this.$detailConnection.className = "detail-value warning";
 
-        this.$detailRateLimit.textContent = `${detailedStatus.rate_limit?.requests_per_minute || 6} req/min (Restricted)`;
+        this.$detailRateLimit.textContent = `${
+          detailedStatus.rate_limit?.requests_per_minute || 6
+        } req/min (Restricted)`;
         this.$detailRateLimit.className = "detail-value warning";
       } else {
         this.$detailConnection.textContent = "Unknown";
@@ -700,7 +742,6 @@ class BluePilotRoutes {
       }
 
       this.$detailLastUpdate.textContent = new Date().toLocaleTimeString();
-
     } else if (type === "offline") {
       this.$statusOverlayTitle.textContent = "Server Offline";
       this.$statusOverlayMessage.textContent =
@@ -725,12 +766,13 @@ class BluePilotRoutes {
     this.$statusOverlay.classList.remove("status-offline");
     this.$statusOverlay.classList.add("status-reconnecting");
     this.$statusOverlayTitle.textContent = "Reconnecting...";
-    this.$statusOverlayMessage.textContent = "Attempting to reconnect to the server.";
+    this.$statusOverlayMessage.textContent =
+      "Attempting to reconnect to the server.";
     this.$statusOverlayRetry.classList.add("hidden");
     this.$statusOverlaySpinner.classList.remove("hidden");
 
     // Try to reconnect
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     try {
       await this.loadRoutes();
@@ -743,7 +785,8 @@ class BluePilotRoutes {
 
   updateCellularWarning(detailedStatus) {
     // Check if user dismissed the warning this session
-    const dismissed = sessionStorage.getItem("cellularWarningDismissed") === "true";
+    const dismissed =
+      sessionStorage.getItem("cellularWarningDismissed") === "true";
 
     if (!detailedStatus || !detailedStatus.cellular_access) {
       this.$cellularWarning.classList.add("hidden");
@@ -758,7 +801,8 @@ class BluePilotRoutes {
 
       // Update details text
       const remaining = cellularStatus.time_remaining_minutes;
-      const connectionType = detailedStatus.network?.connection_type || "unknown";
+      const connectionType =
+        detailedStatus.network?.connection_type || "unknown";
 
       let detailText = `Server accessible over cellular network`;
 
@@ -897,7 +941,9 @@ class BluePilotRoutes {
     const grouped = {};
     for (const route of this.routes) {
       // Convert UTC timestamp to local date for grouping
-      const dateKey = route.timestamp ? this.formatLocalDate(route.timestamp) : "Unknown";
+      const dateKey = route.timestamp
+        ? this.formatLocalDate(route.timestamp)
+        : "Unknown";
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
@@ -935,10 +981,12 @@ class BluePilotRoutes {
     card.dataset.baseName = route.baseName; // For finding card later during geocoding
 
     // Convert UTC timestamps to browser's local timezone
-    const displayTime = route.timestamp ? this.formatLocalTime(route.timestamp) : '';
-    
+    const displayTime = route.timestamp
+      ? this.formatLocalTime(route.timestamp)
+      : "";
+
     // Calculate end time by adding duration (stored in route.duration format like "1h 30m" or "45m")
-    let displayEndTime = '';
+    let displayEndTime = "";
     if (route.timestamp && route.duration) {
       try {
         const startDate = new Date(route.timestamp);
@@ -948,15 +996,19 @@ class BluePilotRoutes {
           const hours = parseInt(durationMatch[1] || 0);
           const minutes = parseInt(durationMatch[2] || 0);
           const totalMinutes = hours * 60 + minutes;
-          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          const endDate = new Date(
+            startDate.getTime() + totalMinutes * 60 * 1000
+          );
           displayEndTime = this.formatLocalTime(endDate.toISOString());
         }
       } catch (e) {
-        console.error('Error calculating end time:', e);
+        console.error("Error calculating end time:", e);
       }
     }
-    
-    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
+
+    const timeRange = displayEndTime
+      ? `${displayTime} - ${displayEndTime}`
+      : displayTime;
 
     // Thumbnail - try to load from cache
     const thumbnailHTML = `
@@ -1147,28 +1199,38 @@ class BluePilotRoutes {
     this.hideReplayOverlay();
 
     // Set title: Display date and time range on first line (convert UTC to local time)
-    const displayDate = this.currentRoute.timestamp ? this.formatLocalDate(this.currentRoute.timestamp) : "";
-    const displayTime = this.currentRoute.timestamp ? this.formatLocalTime(this.currentRoute.timestamp) : "";
-    
+    const displayDate = this.currentRoute.timestamp
+      ? this.formatLocalDate(this.currentRoute.timestamp)
+      : "";
+    const displayTime = this.currentRoute.timestamp
+      ? this.formatLocalTime(this.currentRoute.timestamp)
+      : "";
+
     // Calculate end time from start time + duration
-    let displayEndTime = '';
+    let displayEndTime = "";
     if (this.currentRoute.timestamp && this.currentRoute.duration) {
       try {
         const startDate = new Date(this.currentRoute.timestamp);
-        const durationMatch = this.currentRoute.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+        const durationMatch = this.currentRoute.duration.match(
+          /(?:(\d+)h\s*)?(?:(\d+)m)?/
+        );
         if (durationMatch) {
           const hours = parseInt(durationMatch[1] || 0);
           const minutes = parseInt(durationMatch[2] || 0);
           const totalMinutes = hours * 60 + minutes;
-          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          const endDate = new Date(
+            startDate.getTime() + totalMinutes * 60 * 1000
+          );
           displayEndTime = this.formatLocalTime(endDate.toISOString());
         }
       } catch (e) {
-        console.error('Error calculating end time:', e);
+        console.error("Error calculating end time:", e);
       }
     }
-    
-    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
+
+    const timeRange = displayEndTime
+      ? `${displayTime} - ${displayEndTime}`
+      : displayTime;
     this.$videoTitle.textContent =
       displayDate + (displayDate && timeRange ? " - " : "") + timeRange;
 
@@ -1203,7 +1265,8 @@ class BluePilotRoutes {
     this.$statDistance.textContent = this.currentRoute.mileage || "--";
 
     // Location start and end
-    this.$statLocationStart.textContent = this.currentRoute.startLocation || "--";
+    this.$statLocationStart.textContent =
+      this.currentRoute.startLocation || "--";
     this.$statLocationEnd.textContent = this.currentRoute.endLocation || "--";
   }
 
@@ -1302,7 +1365,9 @@ class BluePilotRoutes {
     this.$logMessages.classList.add("hidden");
     this.$logStatus.classList.add("hidden");
     this.$logPanelContent.classList.add("hidden");
-    this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+    this.$logViewerContainer
+      .querySelector(".log-viewer-empty")
+      .classList.remove("hidden");
     this.$logCount.textContent = "0 messages";
 
     // Clean up cereal data viewer
@@ -1317,7 +1382,9 @@ class BluePilotRoutes {
     this.$cerealDataBody.innerHTML = "";
     this.$cerealDataTable.classList.add("hidden");
     this.$cerealPanelContent.classList.add("hidden");
-    this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+    this.$cerealViewerContainer
+      .querySelector(".cereal-viewer-empty")
+      .classList.remove("hidden");
     this.$cerealLastUpdate.textContent = "Last updated: --";
     this.$cerealMessageCount.textContent = "0 messages";
 
@@ -1367,7 +1434,7 @@ class BluePilotRoutes {
     let videoUrl = `${this.API_BASE}/api/video/${this.currentRoute.baseName}/${segmentNumber}/${this.currentCamera}`;
     // Add debug parameter if debug mode is enabled
     if (this.debugMode) {
-      videoUrl += '?debug=true';
+      videoUrl += "?debug=true";
     }
     const videoCamera = this.currentCamera;
     const videoInfo = segment.videos[this.currentCamera];
@@ -1985,14 +2052,24 @@ class BluePilotRoutes {
             const calculatedSegment = Math.floor(currentTime / 60); // Each segment is 60 seconds
 
             // If we've moved to a different segment, update and reload data
-            if (calculatedSegment !== this.currentSegment && calculatedSegment < this.currentRoute.totalSegments) {
+            if (
+              calculatedSegment !== this.currentSegment &&
+              calculatedSegment < this.currentRoute.totalSegments
+            ) {
               this.currentSegment = calculatedSegment;
 
               // Update segment info display
-              this.$segmentInfo.textContent = `Segment ${calculatedSegment + 1} of ${this.currentRoute.totalSegments} - ${this.currentCamera.toUpperCase()}`;
+              this.$segmentInfo.textContent = `Segment ${
+                calculatedSegment + 1
+              } of ${
+                this.currentRoute.totalSegments
+              } - ${this.currentCamera.toUpperCase()}`;
 
               // Auto-reload logs and cereal data if they were previously loaded
-              if (this.currentLogMessages && this.currentLogMessages.length > 0) {
+              if (
+                this.currentLogMessages &&
+                this.currentLogMessages.length > 0
+              ) {
                 this.loadLogs();
               }
               if (this.currentCerealData && this.currentCerealData.length > 0) {
@@ -2353,7 +2430,9 @@ class BluePilotRoutes {
     console.log("Route added via WebSocket:", data.route_base, data);
 
     // Check if route already exists (avoid duplicates)
-    const existingRoute = this.routes.find((r) => r.baseName === data.route_base);
+    const existingRoute = this.routes.find(
+      (r) => r.baseName === data.route_base
+    );
     if (existingRoute) {
       console.log("Route already exists, ignoring duplicate add event");
       return;
@@ -2371,26 +2450,32 @@ class BluePilotRoutes {
       // Show notification with local timezone
       const displayDate = this.formatLocalDate(data.timestamp);
       const displayTime = this.formatLocalTime(data.timestamp);
-      
+
       // Calculate end time
-      let displayEndTime = '';
+      let displayEndTime = "";
       if (data.duration) {
         try {
           const startDate = new Date(data.timestamp);
-          const durationMatch = data.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+          const durationMatch = data.duration.match(
+            /(?:(\d+)h\s*)?(?:(\d+)m)?/
+          );
           if (durationMatch) {
             const hours = parseInt(durationMatch[1] || 0);
             const minutes = parseInt(durationMatch[2] || 0);
             const totalMinutes = hours * 60 + minutes;
-            const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+            const endDate = new Date(
+              startDate.getTime() + totalMinutes * 60 * 1000
+            );
             displayEndTime = this.formatLocalTime(endDate.toISOString());
           }
         } catch (e) {
-          console.error('Error calculating end time:', e);
+          console.error("Error calculating end time:", e);
         }
       }
-      
-      const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
+
+      const timeRange = displayEndTime
+        ? `${displayTime} - ${displayEndTime}`
+        : displayTime;
       this.showNotification(`New route recorded: ${displayDate} ${timeRange}`);
     } else {
       // No full data, do a full reload
@@ -2469,7 +2554,7 @@ class BluePilotRoutes {
       route.processingProgress = progress;
 
       // If processing completed, refresh that specific route's data
-      if (status === 'completed') {
+      if (status === "completed") {
         // Mark route as processed - it now has GPS data
         console.log(`Route ${route_base} processing completed`);
 
@@ -2617,19 +2702,21 @@ class BluePilotRoutes {
     // Update UI to show connection type (websocket, http, offline)
     const statusIndicator = document.getElementById("connection-status");
     if (statusIndicator) {
-      const statusText = {
-        websocket: "WebSocket",
-        http: "Polling",
-        offline: "Offline",
-      }[type] || "Unknown";
+      const statusText =
+        {
+          websocket: "WebSocket",
+          http: "Polling",
+          offline: "Offline",
+        }[type] || "Unknown";
 
       statusIndicator.textContent = statusText;
       statusIndicator.className = `connection-status connection-${type}`;
-      statusIndicator.title = type === "websocket"
-        ? "Real-time updates via WebSocket"
-        : type === "http"
-        ? "HTTP polling (fallback mode)"
-        : "No connection";
+      statusIndicator.title =
+        type === "websocket"
+          ? "Real-time updates via WebSocket"
+          : type === "http"
+          ? "HTTP polling (fallback mode)"
+          : "No connection";
     }
   }
 
@@ -2884,8 +2971,10 @@ class BluePilotRoutes {
 
   async deleteRoute(route) {
     // Format time range in local timezone
-    const displayTime = route.timestamp ? this.formatLocalTime(route.timestamp) : '';
-    let displayEndTime = '';
+    const displayTime = route.timestamp
+      ? this.formatLocalTime(route.timestamp)
+      : "";
+    let displayEndTime = "";
     if (route.timestamp && route.duration) {
       try {
         const startDate = new Date(route.timestamp);
@@ -2894,21 +2983,23 @@ class BluePilotRoutes {
           const hours = parseInt(durationMatch[1] || 0);
           const minutes = parseInt(durationMatch[2] || 0);
           const totalMinutes = hours * 60 + minutes;
-          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          const endDate = new Date(
+            startDate.getTime() + totalMinutes * 60 * 1000
+          );
           displayEndTime = this.formatLocalTime(endDate.toISOString());
         }
       } catch (e) {
-        console.error('Error calculating end time:', e);
+        console.error("Error calculating end time:", e);
       }
     }
-    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
-    
+    const timeRange = displayEndTime
+      ? `${displayTime} - ${displayEndTime}`
+      : displayTime;
+
     const confirmed = confirm(
-      `Delete route ${
-        timeRange || route.baseName
-      }?\n\nThis will delete ${route.segments} segments (${
-        route.size
-      }) permanently.`
+      `Delete route ${timeRange || route.baseName}?\n\nThis will delete ${
+        route.segments
+      } segments (${route.size}) permanently.`
     );
 
     if (!confirmed) return;
@@ -3140,10 +3231,15 @@ class BluePilotRoutes {
     // CPU Metrics
     if (metrics.cpu) {
       const cpuLoad = metrics.cpu.load_1min || 0;
-      document.getElementById("metric-cpu-load").textContent = cpuLoad.toFixed(2);
-      document.getElementById("metric-cpu-1min").textContent = cpuLoad.toFixed(2);
-      document.getElementById("metric-cpu-5min").textContent = (metrics.cpu.load_5min || 0).toFixed(2);
-      document.getElementById("metric-cpu-cores").textContent = metrics.cpu.core_count || "--";
+      document.getElementById("metric-cpu-load").textContent =
+        cpuLoad.toFixed(2);
+      document.getElementById("metric-cpu-1min").textContent =
+        cpuLoad.toFixed(2);
+      document.getElementById("metric-cpu-5min").textContent = (
+        metrics.cpu.load_5min || 0
+      ).toFixed(2);
+      document.getElementById("metric-cpu-cores").textContent =
+        metrics.cpu.core_count || "--";
 
       // Color based on load (4 cores, so load > 3 is high)
       const cpuElement = document.getElementById("metric-cpu-load");
@@ -3155,11 +3251,14 @@ class BluePilotRoutes {
     // Memory Metrics
     if (metrics.memory) {
       const memPercent = metrics.memory.percent_used || 0;
-      document.getElementById("metric-memory-percent").textContent = Math.round(memPercent);
-      document.getElementById("metric-memory-used").textContent =
-        `${(metrics.memory.total_gb - metrics.memory.available_gb).toFixed(1)} GB`;
-      document.getElementById("metric-memory-available").textContent =
-        `${metrics.memory.available_gb.toFixed(1)} GB`;
+      document.getElementById("metric-memory-percent").textContent =
+        Math.round(memPercent);
+      document.getElementById("metric-memory-used").textContent = `${(
+        metrics.memory.total_gb - metrics.memory.available_gb
+      ).toFixed(1)} GB`;
+      document.getElementById(
+        "metric-memory-available"
+      ).textContent = `${metrics.memory.available_gb.toFixed(1)} GB`;
 
       // Update progress bar
       const memBar = document.getElementById("metric-memory-bar");
@@ -3179,9 +3278,14 @@ class BluePilotRoutes {
     if (metrics.disk && metrics.disk["/data"]) {
       const disk = metrics.disk["/data"];
       const diskPercent = disk.percent_used || 0;
-      document.getElementById("metric-disk-percent").textContent = Math.round(diskPercent);
-      document.getElementById("metric-disk-used").textContent = `${(disk.total_gb - disk.free_gb).toFixed(1)} GB`;
-      document.getElementById("metric-disk-free").textContent = `${disk.free_gb.toFixed(1)} GB`;
+      document.getElementById("metric-disk-percent").textContent =
+        Math.round(diskPercent);
+      document.getElementById("metric-disk-used").textContent = `${(
+        disk.total_gb - disk.free_gb
+      ).toFixed(1)} GB`;
+      document.getElementById(
+        "metric-disk-free"
+      ).textContent = `${disk.free_gb.toFixed(1)} GB`;
 
       // Update progress bar
       const diskBar = document.getElementById("metric-disk-bar");
@@ -3200,9 +3304,11 @@ class BluePilotRoutes {
     // Temperature Metrics
     if (metrics.temperature && metrics.temperature.celsius) {
       const tempC = metrics.temperature.celsius;
-      document.getElementById("metric-temp-value").textContent = tempC.toFixed(1);
-      document.getElementById("metric-temp-fahrenheit").textContent =
-        `${metrics.temperature.fahrenheit.toFixed(1)}°F`;
+      document.getElementById("metric-temp-value").textContent =
+        tempC.toFixed(1);
+      document.getElementById(
+        "metric-temp-fahrenheit"
+      ).textContent = `${metrics.temperature.fahrenheit.toFixed(1)}°F`;
 
       // Color based on temperature
       const tempElement = document.getElementById("metric-temp-value");
@@ -3255,7 +3361,9 @@ class BluePilotRoutes {
 
     // Get selected log type
     const activeLogTypeBtn = document.querySelector(".log-type-btn.active");
-    const logType = activeLogTypeBtn ? activeLogTypeBtn.dataset.logType : "rlog";
+    const logType = activeLogTypeBtn
+      ? activeLogTypeBtn.dataset.logType
+      : "rlog";
 
     // Get filters
     const levelFilter = this.$logLevelFilter.value;
@@ -3264,7 +3372,9 @@ class BluePilotRoutes {
     // Show loading
     this.$logLoading.classList.remove("hidden");
     this.$logMessages.classList.add("hidden");
-    this.$logViewerContainer.querySelector(".log-viewer-empty").classList.add("hidden");
+    this.$logViewerContainer
+      .querySelector(".log-viewer-empty")
+      .classList.add("hidden");
 
     try {
       // Build API URL
@@ -3290,24 +3400,37 @@ class BluePilotRoutes {
         this.displayLogs(data);
       } else {
         alert(`Error loading logs: ${data.error}`);
-        this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+        this.$logViewerContainer
+          .querySelector(".log-viewer-empty")
+          .classList.remove("hidden");
       }
     } catch (error) {
       console.error("Error loading logs:", error);
       this.$logLoading.classList.add("hidden");
       alert(`Failed to load logs: ${error.message}`);
-      this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+      this.$logViewerContainer
+        .querySelector(".log-viewer-empty")
+        .classList.remove("hidden");
     }
   }
 
   displayLogs(logData) {
-    const { messages, total_count, returned_count, truncated, start_time, end_time } = logData;
+    const {
+      messages,
+      total_count,
+      returned_count,
+      truncated,
+      start_time,
+      end_time,
+    } = logData;
 
     // Clear previous logs
     this.$logMessages.innerHTML = "";
 
     if (messages.length === 0) {
-      this.$logViewerContainer.querySelector(".log-viewer-empty").classList.remove("hidden");
+      this.$logViewerContainer
+        .querySelector(".log-viewer-empty")
+        .classList.remove("hidden");
       this.$logMessages.classList.add("hidden");
       this.$logStatus.classList.add("hidden");
       return;
@@ -3344,7 +3467,9 @@ class BluePilotRoutes {
     this.$logStatus.classList.remove("hidden");
 
     // Update status
-    let statusText = `${returned_count} message${returned_count !== 1 ? "s" : ""}`;
+    let statusText = `${returned_count} message${
+      returned_count !== 1 ? "s" : ""
+    }`;
     if (truncated) {
       statusText += ` (showing first ${returned_count} of ${total_count})`;
     }
@@ -3404,7 +3529,10 @@ class BluePilotRoutes {
       let currentTime = 0;
       if (this.$videoElement) {
         currentTime = this.$videoElement.currentTime;
-      } else if (this.player && typeof this.player.getCurrentTime === "function") {
+      } else if (
+        this.player &&
+        typeof this.player.getCurrentTime === "function"
+      ) {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
@@ -3463,7 +3591,9 @@ class BluePilotRoutes {
     // Show loading
     this.$cerealLoading.classList.remove("hidden");
     this.$cerealDataTable.classList.add("hidden");
-    this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.add("hidden");
+    this.$cerealViewerContainer
+      .querySelector(".cereal-viewer-empty")
+      .classList.add("hidden");
 
     try {
       // Build API URL - use qlog by default
@@ -3480,21 +3610,28 @@ class BluePilotRoutes {
         this.displayCerealData(data);
       } else {
         alert(`Error loading cereal data: ${data.error}`);
-        this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+        this.$cerealViewerContainer
+          .querySelector(".cereal-viewer-empty")
+          .classList.remove("hidden");
       }
     } catch (error) {
       console.error("Error loading cereal data:", error);
       this.$cerealLoading.classList.add("hidden");
       alert(`Failed to load cereal data: ${error.message}`);
-      this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+      this.$cerealViewerContainer
+        .querySelector(".cereal-viewer-empty")
+        .classList.remove("hidden");
     }
   }
 
   displayCerealData(cerealData) {
-    const { messages, message_type, total_count, start_time, end_time } = cerealData;
+    const { messages, message_type, total_count, start_time, end_time } =
+      cerealData;
 
     if (!messages || messages.length === 0) {
-      this.$cerealViewerContainer.querySelector(".cereal-viewer-empty").classList.remove("hidden");
+      this.$cerealViewerContainer
+        .querySelector(".cereal-viewer-empty")
+        .classList.remove("hidden");
       this.$cerealDataTable.classList.add("hidden");
       return;
     }
@@ -3512,7 +3649,9 @@ class BluePilotRoutes {
     this.$cerealDataTable.classList.remove("hidden");
 
     // Update status
-    this.$cerealMessageCount.textContent = `${total_count} message${total_count !== 1 ? "s" : ""}`;
+    this.$cerealMessageCount.textContent = `${total_count} message${
+      total_count !== 1 ? "s" : ""
+    }`;
     this.$cerealLastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
 
     // If sync is enabled, start syncing
@@ -3568,7 +3707,12 @@ class BluePilotRoutes {
         const value = obj[key];
         const newKey = prefix ? `${prefix}.${key}` : key;
 
-        if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+        if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          !(value instanceof Date)
+        ) {
           // Recursively flatten nested objects
           Object.assign(flattened, this.flattenObject(value, newKey));
         } else {
@@ -3653,7 +3797,10 @@ class BluePilotRoutes {
       let currentTime = 0;
       if (this.$videoElement) {
         currentTime = this.$videoElement.currentTime;
-      } else if (this.player && typeof this.player.getCurrentTime === "function") {
+      } else if (
+        this.player &&
+        typeof this.player.getCurrentTime === "function"
+      ) {
         currentTime = this.player.getCurrentTime() || 0;
       }
 
@@ -3687,10 +3834,14 @@ class BluePilotRoutes {
       this.displayCerealMessage(closestMessage);
 
       // Update timestamp in status
-      const relativeTime = closestMessage.timestamp - this.currentCerealStartTime;
+      const relativeTime =
+        closestMessage.timestamp - this.currentCerealStartTime;
       const minutes = Math.floor(relativeTime / 60);
       const seconds = (relativeTime % 60).toFixed(3);
-      this.$cerealLastUpdate.textContent = `Showing: ${minutes}:${seconds.padStart(6, "0")}`;
+      this.$cerealLastUpdate.textContent = `Showing: ${minutes}:${seconds.padStart(
+        6,
+        "0"
+      )}`;
     }, 100); // Update 10 times per second for smooth syncing
   }
 
@@ -3703,24 +3854,30 @@ class BluePilotRoutes {
 
     // Toggle panel visibility
     if (this.debugMode) {
-      this.$ffmpegDebugPanel.style.display = 'block';
-      this.$toggleDebugBtn.classList.add('active');
-      this.addDebugLog('info', 'Debug mode enabled. FFmpeg logs will appear here in real-time.');
+      this.$ffmpegDebugPanel.style.display = "block";
+      this.$toggleDebugBtn.classList.add("active");
+      this.addDebugLog(
+        "info",
+        "Debug mode enabled. FFmpeg logs will appear here in real-time."
+      );
     } else {
-      this.$ffmpegDebugPanel.style.display = 'none';
-      this.$toggleDebugBtn.classList.remove('active');
+      this.$ffmpegDebugPanel.style.display = "none";
+      this.$toggleDebugBtn.classList.remove("active");
     }
 
     // Reload current segment with debug mode
     if (this.currentRoute && this.debugMode) {
-      this.addDebugLog('info', `Reloading segment ${this.currentSegment} with debug logging enabled...`);
+      this.addDebugLog(
+        "info",
+        `Reloading segment ${this.currentSegment} with debug logging enabled...`
+      );
       this.loadSegment(this.currentSegment);
     }
   }
 
   clearDebugLogs() {
-    this.$ffmpegDebugMessages.innerHTML = '';
-    this.addDebugLog('info', 'Debug logs cleared.');
+    this.$ffmpegDebugMessages.innerHTML = "";
+    this.addDebugLog("info", "Debug logs cleared.");
   }
 
   handleFFmpegLog(data) {
@@ -3745,22 +3902,22 @@ class BluePilotRoutes {
   }
 
   addDebugLog(type, message, pid = null, isCurrent = true) {
-    const logEntry = document.createElement('div');
+    const logEntry = document.createElement("div");
     logEntry.className = `debug-log-entry debug-log-${type}`;
     if (!isCurrent) {
-      logEntry.classList.add('debug-log-other');
+      logEntry.classList.add("debug-log-other");
     }
 
-    const timestamp = new Date().toLocaleTimeString('en-US', {
+    const timestamp = new Date().toLocaleTimeString("en-US", {
       hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
     });
 
-    const pidText = pid ? `[PID ${pid}] ` : '';
-    const typeLabel = type.toUpperCase().padEnd(6, ' ');
+    const pidText = pid ? `[PID ${pid}] ` : "";
+    const typeLabel = type.toUpperCase().padEnd(6, " ");
 
     logEntry.innerHTML = `
       <span class="debug-log-time">${timestamp}</span>
@@ -3773,7 +3930,8 @@ class BluePilotRoutes {
 
     // Auto-scroll if enabled
     if (this.$debugAutoScroll && this.$debugAutoScroll.checked) {
-      this.$ffmpegDebugContent.scrollTop = this.$ffmpegDebugContent.scrollHeight;
+      this.$ffmpegDebugContent.scrollTop =
+        this.$ffmpegDebugContent.scrollHeight;
     }
 
     // Limit number of log entries to prevent memory issues (keep last 500)
@@ -3785,7 +3943,7 @@ class BluePilotRoutes {
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
