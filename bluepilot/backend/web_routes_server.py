@@ -3229,6 +3229,17 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 # Add independent segments tag for better seeking on Safari
                 playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n"
 
+                # For fMP4 HLS, Safari requires EXT-X-MAP to define the initialization segment.
+                # We can use the first available segment of the route for this purpose.
+                # The browser will fetch this segment, read its init data, and use it for all subsequent segments.
+                first_segment = next((s for s in segments if os.path.exists(os.path.join(s['path'], camera_files[camera]))), None)
+                if first_segment:
+                    first_segment_num = first_segment['segment']
+                    map_url = f"{base_url}/api/video/{route_base}/{first_segment_num}/{camera}"
+                    # NOTE: The CODECS attribute could be added here for more robustness,
+                    # but requires ffprobe and adds complexity. Missing MAP is the primary issue.
+                    playlist += f'#EXT-X-MAP:URI="{map_url}"\n'
+
                 segment_count = 0
                 for seg in segments:
                     seg_path = os.path.join(seg['path'], camera_files[camera])
