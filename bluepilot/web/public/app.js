@@ -84,6 +84,182 @@ class BluePilotRoutes {
   }
 
   /**
+   * Robust native HLS detection (Safari iOS/macOS, and any future native HLS)
+   * @returns {boolean} True if browser supports native HLS playback
+   */
+  canUseNativeHLS() {
+    const v = document.createElement('video');
+    return !!(v.canPlayType('application/vnd.apple.mpegurl') || v.canPlayType('application/x-mpegURL'));
+  }
+
+  /**
+   * Ensure a <video> element replaces the canvas path when doing native playback
+   * @returns {HTMLVideoElement} The video element
+   */
+  ensureVideoElement() {
+    if (this.$videoElement && this.$videoElement.tagName === 'VIDEO') {
+      return this.$videoElement;
+    }
+
+    // Remove canvas if present
+    if (this.$videoCanvas && this.$videoCanvas.parentNode) {
+      const videoWrapper = this.$videoCanvas.parentNode;
+
+      // Create video element
+      const video = document.createElement('video');
+      video.id = 'route-video';
+      video.setAttribute('playsinline', ''); // iOS inline playback
+      video.setAttribute('muted', '');       // allow programmatic play
+      video.setAttribute('preload', 'auto');
+      video.controls = true;
+      video.className = 'video-element';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.backgroundColor = '#000';
+
+      // Replace canvas with video
+      videoWrapper.replaceChild(video, this.$videoCanvas);
+      this.$videoElement = video;
+
+      // Attach event listeners
+      this.attachVideoListeners();
+    }
+
+    return this.$videoElement;
+  }
+
+  /**
+   * iOS-safe, reliable seek helper
+   * Pause-then-seek can prevent stalls across discontinuities on iOS
+   * @param {number} sec - Target time in seconds
+   */
+  async seekToSeconds(sec) {
+    if (!this.$videoElement) return;
+
+    const v = this.$videoElement;
+
+    // Pause first to prevent stalls on iOS
+    try {
+      v.pause();
+    } catch (e) {
+      console.warn('Pause before seek failed:', e);
+    }
+
+    // Wait for 'seeked' or 'canplay' event
+    const once = (el, ev) => new Promise(res => {
+      const handler = () => {
+        res();
+        el.removeEventListener(ev, handler);
+      };
+      el.addEventListener(ev, handler, { once: true });
+    });
+
+    v.currentTime = Math.max(0, sec);
+
+    // Some iOS builds signal 'canplay' but not 'seeked' reliably after big jumps
+    try {
+      await Promise.race([
+        once(v, 'seeked'),
+        once(v, 'canplay'),
+        new Promise(res => setTimeout(res, 1000)) // Timeout after 1s
+      ]);
+    } catch (e) {
+      console.warn('Seek event wait failed:', e);
+    }
+
+    // Resume playback
+    try {
+      await v.play();
+    } catch (e) {
+      // Ignore if user gesture required
+      console.warn('Play after seek failed (may require user gesture):', e);
+    }
+  }
+
+  /**
+   * Attach all necessary event listeners to the video element
+   * Keeps video event handling consistent across different playback paths
+   */
+  attachVideoListeners() {
+    if (!this.$videoElement) return;
+
+    // Prevent duplicate listeners
+    const v = this.$videoElement;
+
+    v.addEventListener("loadstart", () => {
+      console.log("Video loadstart event");
+      this.showVideoLoading();
+    });
+
+    v.addEventListener("loadedmetadata", () => {
+      console.log("Video metadata loaded:", {
+        duration: v.duration,
+        videoWidth: v.videoWidth,
+        videoHeight: v.videoHeight,
+      });
+    });
+
+    v.addEventListener("canplay", () => {
+      console.log("Video can play");
+
+      // Sync to stored playback time when switching cameras
+      if (this.lastPlaybackTime > 0) {
+        console.log(`Seeking to synced time: ${this.lastPlaybackTime}s`);
+        v.currentTime = this.lastPlaybackTime;
+        this.lastPlaybackTime = 0; // Reset after use
+      }
+
+      this.hideVideoLoading();
+    });
+
+    v.addEventListener("playing", () => {
+      console.log("Video is playing");
+      this.hideVideoLoading();
+    });
+
+    v.addEventListener("ended", () => {
+      console.log("Full route playback completed");
+      this.showReplayOverlay();
+    });
+
+    v.addEventListener("timeupdate", () => {
+      // Track which segment we're in during HLS playback for auto-reloading logs/cereal
+      if (this.hls && v) {
+        const currentTime = v.currentTime;
+        const calculatedSegment = Math.floor(currentTime / 60); // Each segment is 60 seconds
+
+        // If we've moved to a different segment, update and reload data
+        if (
+          calculatedSegment !== this.currentSegment &&
+          calculatedSegment < this.currentRoute.totalSegments
+        ) {
+          this.currentSegment = calculatedSegment;
+
+          // Update segment info display
+          this.$segmentInfo.textContent = `Segment ${
+            calculatedSegment + 1
+          } of ${
+            this.currentRoute.totalSegments
+          } - ${this.currentCamera.toUpperCase()}`;
+
+          // Auto-reload logs and cereal data if they were previously loaded
+          if (
+            this.currentLogMessages &&
+            this.currentLogMessages.length > 0
+          ) {
+            this.loadLogs();
+          }
+          if (this.currentCerealData && this.currentCerealData.length > 0) {
+            this.loadCerealData();
+          }
+        }
+      }
+    });
+
+    v.addEventListener("error", (e) => this.handleVideoError(e));
+  }
+
+  /**
    * Convert UTC timestamp to browser's local timezone and format as time
    * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00" or "2024-09-18T14:30:00+00:00")
    * @returns {string} - Formatted time in 12-hour format (e.g., "2:30 PM")
@@ -1501,16 +1677,22 @@ class BluePilotRoutes {
     console.log("Video camera:", videoCamera);
     console.log("Is HEVC:", isHEVC);
     console.log("Native HEVC support:", this.hevcSupported);
+    console.log("Native HLS support:", this.canUseNativeHLS());
     console.log("WebGL support:", this.webglSupported);
 
-    // Strategy:
-    // 1. Browser with native HEVC support -> Use HTML5 video (Chrome 107+, Safari, Edge)
-    // 2. Browser without native HEVC -> Try h265-web-player (WebGL decoder)
-    // 3. Any browser + LQ -> Use HTML5 video (MPEG-TS works everywhere)
+    // Strategy (updated for Safari HLS):
+    // 1. Safari with native HLS -> Use native HLS for route-level playlist (best for multi-segment)
+    // 2. Browser with native HEVC support -> Use HLS.js or HTML5 video (Chrome 107+, Edge)
+    // 3. Browser without native HEVC -> Try h265-web-player (WebGL decoder)
+    // 4. Any browser + LQ -> Use HTML5 video (MPEG-TS works everywhere)
 
-    if (isHEVC) {
+    // Check for native HLS first (Safari iOS/macOS)
+    if (this.canUseNativeHLS() && isHEVC) {
+      console.log("Detected native HLS support - using route-level playlist for seamless playback");
+      this.startNativeHLSRoutePlayback(this.currentRoute);
+    } else if (isHEVC) {
       if (this.hevcSupported) {
-        console.log("Using native browser HEVC playback");
+        console.log("Using native browser HEVC playback (HLS.js or direct)");
         this.fallbackToStandardVideo(videoUrl);
       } else {
         // Try h265-web-player for browsers without native HEVC
@@ -1539,9 +1721,14 @@ class BluePilotRoutes {
         }
       }
     } else {
-      // LQ camera - use HTML5 video
-      console.log("Using standard HTML5 video for LQ camera");
-      this.fallbackToStandardVideo(videoUrl);
+      // LQ camera - check for native HLS first, then fall back to standard
+      if (this.canUseNativeHLS()) {
+        console.log("Using native HLS for LQ camera route playback");
+        this.startNativeHLSRoutePlayback(this.currentRoute);
+      } else {
+        console.log("Using standard HTML5 video for LQ camera");
+        this.fallbackToStandardVideo(videoUrl);
+      }
     }
   }
 
@@ -1647,15 +1834,13 @@ class BluePilotRoutes {
     console.log("Replaying route from beginning");
     this.hideReplayOverlay();
 
-    // For HLS.js playback (full route)
+    // For HLS.js playback (full route) or native HLS
     if (this.hls && this.$videoElement) {
-      this.$videoElement.currentTime = 0;
-      this.$videoElement.play();
+      this.seekToSeconds(0);
     }
     // For standard video element playback (single segment fallback)
     else if (this.$videoElement) {
-      this.$videoElement.currentTime = 0;
-      this.$videoElement.play();
+      this.seekToSeconds(0);
     }
   }
 
@@ -2007,6 +2192,109 @@ class BluePilotRoutes {
     this.fallbackToStandardVideo(directUrl);
   }
 
+  /**
+   * Start native HLS playback for Safari browsers
+   * Uses the route-level playlist.m3u8 for seamless multi-segment playback
+   * @param {object} route - The route object containing baseName and other metadata
+   */
+  startNativeHLSRoutePlayback(route) {
+    try {
+      console.log("Starting native HLS route playback for Safari");
+
+      // Ensure we have a proper video element
+      const video = this.ensureVideoElement();
+
+      const camera = this.currentCamera || 'front';
+      const hlsUrl = `${this.API_BASE}/api/hls/${route.baseName}/${camera}/playlist.m3u8`;
+
+      console.log('Using native HLS for Safari:', hlsUrl);
+      console.log('Camera:', camera);
+
+      // Detach any MSE / WebGL players if previously created
+      if (this.hls) {
+        try {
+          this.hls.destroy();
+          console.log("HLS.js instance destroyed");
+        } catch (e) {
+          console.error("Error destroying HLS:", e);
+        }
+        this.hls = null;
+      }
+
+      // Clean up h265-web-player if active
+      if (this.player) {
+        try {
+          if (typeof this.player.destroy === 'function') {
+            this.player.destroy();
+          }
+        } catch (e) {
+          console.warn("Error destroying h265-web-player:", e);
+        }
+        this.player = null;
+      }
+
+      // Wire up loadedmetadata for route-level duration
+      video.onloadedmetadata = () => {
+        console.log('Native HLS loaded, total duration:', video.duration);
+        this.hideVideoLoading();
+      };
+
+      // Wire up timeupdate to keep segment/time UI synchronized
+      video.ontimeupdate = () => {
+        const t = video.currentTime;
+        // Calculate segment based on time (with small epsilon to handle rounding)
+        const newSegment = Math.min(
+          Math.floor(t / 60 + 0.0001),
+          (this.currentRoute?.totalSegments || 1) - 1
+        );
+
+        if (newSegment !== this.currentSegment) {
+          this.currentSegment = newSegment;
+
+          // Update segment info display
+          this.$segmentInfo.textContent = `Segment ${
+            this.currentSegment + 1
+          } of ${
+            this.currentRoute.totalSegments
+          } - ${this.currentCamera.toUpperCase()}`;
+
+          // Auto-reload logs and cereal data if they were previously loaded
+          if (this.currentLogMessages && this.currentLogMessages.length > 0) {
+            this.loadLogs();
+          }
+          if (this.currentCerealData && this.currentCerealData.length > 0) {
+            this.loadCerealData();
+          }
+        }
+      };
+
+      // Set the HLS playlist URL
+      video.src = hlsUrl;
+      video.load();
+
+      // Show loading state
+      this.showVideoLoading();
+
+      // Attempt programmatic play
+      // iOS often needs muted+playsinline set (done in ensureVideoElement)
+      setTimeout(() => {
+        video.play()
+          .then(() => {
+            console.log('Native HLS playback started successfully');
+            this.hideVideoLoading();
+          })
+          .catch((e) => {
+            console.warn('Autoplay failed (may require user gesture):', e);
+            this.hideVideoLoading();
+          });
+      }, 100);
+
+    } catch (error) {
+      console.error("Error starting native HLS playback:", error);
+      this.handleVideoError({ error });
+    }
+  }
+
   fallbackToStandardVideo(videoUrl) {
     try {
       console.log("Attempting HLS playback for full route:", videoUrl);
@@ -2117,25 +2405,61 @@ class BluePilotRoutes {
       // Use HLS.js for the full route playlist (allows scrubbing and shows total duration)
       const hlsUrl = `${this.API_BASE}/api/hls/${this.currentRoute.baseName}/${this.currentCamera}/playlist.m3u8`;
 
-      if (Hls.isSupported()) {
+      // Detect Safari early to prefer native HLS
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const hasNativeHLS = this.$videoElement.canPlayType("application/vnd.apple.mpegurl");
+
+      console.log(`Platform detection: iOS=${isIOS}, Safari=${isSafari}, NativeHLS=${hasNativeHLS}`);
+
+      // Safari has QuotaExceededError issues with large segments in HLS.js
+      // Use native Safari HLS player instead, which handles large segments better
+      if ((isIOS || isSafari) && hasNativeHLS) {
+        console.log("Using native Safari HLS playback (better for large segments)");
+        console.log("HLS playlist URL:", hlsUrl);
+        this.$videoElement.src = hlsUrl;
+        this.$videoElement.load();
+
+        setTimeout(() => {
+          this.$videoElement.play().catch((e) => {
+            console.warn("Autoplay failed:", e);
+          });
+        }, 100);
+
+      } else if (Hls.isSupported()) {
         console.log("Using HLS.js for full route streaming");
         console.log("HLS playlist URL:", hlsUrl);
+
+        // For non-Safari browsers using HLS.js
+        // Use conservative buffer settings to handle large segments
+        const bufferConfig = {
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+        };
 
         this.hls = new Hls({
           debug: true,
           enableWorker: true,
           lowLatencyMode: false,
-          // Improve buffer management for fragmented MP4
-          maxBufferLength: 30,
-          maxMaxBufferLength: 600,
-          maxBufferSize: 60 * 1000 * 1000, // 60MB
-          maxBufferHole: 0.5,
+          // Platform-specific buffer management
+          ...bufferConfig,
           // Better error recovery
           enableSoftwareAES: true,
           fragLoadingTimeOut: 20000,
           manifestLoadingTimeOut: 10000,
           levelLoadingTimeOut: 10000,
+          // Backoff for retries
+          fragLoadingMaxRetry: 3,
+          levelLoadingMaxRetry: 2,
+          manifestLoadingMaxRetry: 2,
         });
+
+        // Track consecutive buffer errors for iOS/Safari recovery
+        let bufferErrorCount = 0;
+        const MAX_BUFFER_ERRORS = 5;
 
         this.hls.loadSource(hlsUrl);
         this.hls.attachMedia(this.$videoElement);
@@ -2200,8 +2524,32 @@ class BluePilotRoutes {
                 break;
             }
           } else {
-            // Non-fatal errors - log but don't take action
+            // Non-fatal errors - log and handle specific cases
             console.warn("Non-fatal HLS error:", data.details);
+
+            // Handle bufferFullError specifically for iOS/Safari
+            if (data.details === 'bufferFullError') {
+              bufferErrorCount++;
+              console.warn(`Buffer full error (${bufferErrorCount}/${MAX_BUFFER_ERRORS})`);
+
+              if (bufferErrorCount >= MAX_BUFFER_ERRORS) {
+                console.error('Too many consecutive buffer errors - falling back to direct video');
+                console.error('This usually means the segments are too large for iOS Safari to handle');
+                this.hls.destroy();
+                this.fallbackToDirectVideo();
+              }
+            } else {
+              // Reset counter on other error types
+              bufferErrorCount = 0;
+            }
+          }
+        });
+
+        // Reset buffer error counter on successful fragment loads
+        this.hls.on(Hls.Events.FRAG_LOADED, () => {
+          if (bufferErrorCount > 0) {
+            console.log('Fragment loaded successfully - resetting buffer error count');
+            bufferErrorCount = 0;
           }
         });
 
@@ -3214,7 +3562,8 @@ class BluePilotRoutes {
       case "ArrowRight":
         e.preventDefault();
         if (this.$videoElement) {
-          this.$videoElement.currentTime += 10;
+          const targetTime = this.$videoElement.currentTime + 10;
+          this.seekToSeconds(targetTime);
         } else if (this.player && typeof this.player.seek === "function") {
           const currentTime = this.player.getCurrentTime() || 0;
           this.player.seek(currentTime + 10);
@@ -3223,7 +3572,8 @@ class BluePilotRoutes {
       case "ArrowLeft":
         e.preventDefault();
         if (this.$videoElement) {
-          this.$videoElement.currentTime -= 10;
+          const targetTime = Math.max(0, this.$videoElement.currentTime - 10);
+          this.seekToSeconds(targetTime);
         } else if (this.player && typeof this.player.seek === "function") {
           const currentTime = this.player.getCurrentTime() || 0;
           this.player.seek(Math.max(0, currentTime - 10));

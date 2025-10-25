@@ -18,7 +18,7 @@ import atexit
 from pathlib import Path
 from datetime import datetime, timedelta
 from functools import lru_cache
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 import logging
 import re
@@ -2408,9 +2408,18 @@ def scan_routes():
 # Thumbnail generation function imported from route_processing module
 
 
-class ReuseAddressHTTPServer(HTTPServer):
-    """HTTPServer with SO_REUSEADDR to prevent 'Address already in use' errors"""
+class ReuseAddressHTTPServer(ThreadingHTTPServer):
+    """Multi-threaded HTTPServer with SO_REUSEADDR to prevent 'Address already in use' errors
+
+    Uses ThreadingHTTPServer to handle multiple concurrent requests (especially video streaming).
+    Each request gets its own thread, preventing long-running video streams from blocking the UI.
+    """
     allow_reuse_address = True
+    daemon_threads = True  # Don't wait for threads on shutdown
+
+    # Limit concurrent threads to prevent resource exhaustion
+    # Video streaming can use a lot of memory, so cap at reasonable limit
+    request_queue_size = 10
 
 
 class WebRoutesHandler(BaseHTTPRequestHandler):
@@ -2512,6 +2521,14 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
         self.send_header('Content-Type', mime_type)
         self.send_header('Accept-Ranges', 'bytes')
+
+        # Add cache-control headers to prevent stale JS/HTML from being cached
+        # This ensures clients always get the latest version after updates
+        if filepath.endswith(('.js', '.html', '.htm')):
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+
         self.send_cors_headers()
         self.end_headers()
 
@@ -3195,21 +3212,37 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Invalid camera type'}, 400)
                     return
 
-                # Generate HLS playlist
+                # Generate HLS playlist with absolute URLs for Safari compatibility
+                # Get host from request headers to build absolute URLs
+                host = self.headers.get('Host', 'localhost:8088')
+                scheme = 'https' if self.headers.get('X-Forwarded-Proto') == 'https' else 'http'
+                base_url = f"{scheme}://{host}"
+
+                # Use version 7 for better MP4/HEVC support on Safari
+                # Version 6 is minimum for MP4 segments, 7 adds better support
                 playlist = "#EXTM3U\n"
-                playlist += "#EXT-X-VERSION:6\n"  # Use HLS version 6 for better compatibility
+                playlist += "#EXT-X-VERSION:7\n"
                 playlist += "#EXT-X-TARGETDURATION:60\n"
                 playlist += "#EXT-X-MEDIA-SEQUENCE:0\n"
                 playlist += "#EXT-X-PLAYLIST-TYPE:VOD\n"
 
+                # Add independent segments tag for better seeking on Safari
+                playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n"
+
+                segment_count = 0
                 for seg in segments:
                     seg_path = os.path.join(seg['path'], camera_files[camera])
                     if os.path.exists(seg_path):
+                        segment_count += 1
                         # Each segment is ~60 seconds with more precise timing
                         playlist += f"#EXTINF:60.0,\n"
-                        playlist += f"/api/video/{route_base}/{seg['segment']}/{camera}\n"
+                        # Use absolute URLs for Safari native HLS player compatibility
+                        playlist += f"{base_url}/api/video/{route_base}/{seg['segment']}/{camera}\n"
 
                 playlist += "#EXT-X-ENDLIST\n"
+
+                # Log playlist generation for debugging
+                print(f"Generated HLS playlist for {route_base}/{camera}: {segment_count} segments")
 
                 # Send playlist
                 self.send_response(200)
