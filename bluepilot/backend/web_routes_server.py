@@ -4396,7 +4396,7 @@ def ensure_dependencies():
             if shutil.which("uv"):
                 logger.info("Installing websockets using uv pip (user site-packages)...")
                 result = subprocess.run(
-                    ["uv", "pip", "install", "--user", "websockets", "websocket-client"],
+                    ["uv", "pip", "install", "websockets", "websocket-client"],
                     capture_output=True,
                     text=True,
                     timeout=60
