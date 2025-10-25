@@ -1,9 +1,8 @@
 #pragma once
 
+#include "selfdrive/ui/qt/onroad/alerts.h"
 #ifdef BLUEPILOT
 #include "selfdrive/ui/bluepilot/qt/onroad/alerts_bp.h"
-#else
-#include "selfdrive/ui/qt/onroad/alerts.h"
 #endif
 
 #ifdef SUNNYPILOT
@@ -23,7 +22,9 @@ public:
 protected:
   void paintEvent(QPaintEvent *event);
 #ifdef BLUEPILOT
-  OnroadAlertsBP *alerts;
+  OnroadAlerts *stock_alerts;
+  OnroadAlertsBP *bp_alerts;
+  bool use_bp_alerts = true;  // Track which alert widget is active
 #else
   OnroadAlerts *alerts;
 #endif

@@ -4,6 +4,7 @@
 #include <QStackedLayout>
 
 #include "selfdrive/ui/qt/util.h"
+#include "common/params.h"
 
 OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   QVBoxLayout *main_layout  = new QVBoxLayout(this);
@@ -28,15 +29,29 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   stacked_layout->addWidget(split_wrapper);
 
 #ifdef BLUEPILOT
-  alerts = new OnroadAlertsBP(this);
+  // Stock alerts are part of the stacked layout
+  stock_alerts = new OnroadAlerts(this);
+  stock_alerts->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+  stacked_layout->addWidget(stock_alerts);
+
+  // BluePilot alerts are a floating top-level overlay - not in stacked layout
+  bp_alerts = new OnroadAlertsBP(this);
+  // bp_alerts manages its own geometry and stays on top via window flags
+
+  // Set initial visibility based on parameter
+  use_bp_alerts = Params().getBool("BPUseBluepilotAlerts");
+  if (use_bp_alerts) {
+    stock_alerts->hide();
+    bp_alerts->show();
+  } else {
+    bp_alerts->hide();
+    stock_alerts->show();
+  }
 #else
   alerts = new OnroadAlerts(this);
-#endif
   alerts->setAttribute(Qt::WA_TransparentForMouseEvents, true);
   stacked_layout->addWidget(alerts);
-
-  // setup stacking order
-  alerts->raise();
+#endif
 
   setAttribute(Qt::WA_OpaquePaintEvent);
 
@@ -52,7 +67,30 @@ void OnroadWindow::updateState(const UIState &s) {
     return;
   }
 
+#ifdef BLUEPILOT
+  // Check if we need to switch alert widgets
+  bool should_use_bp = Params().getBool("BPUseBluepilotAlerts");
+  if (should_use_bp != use_bp_alerts) {
+    // Switch widgets (no need to raise - stacking order keeps split_wrapper on top)
+    use_bp_alerts = should_use_bp;
+    if (use_bp_alerts) {
+      stock_alerts->hide();
+      bp_alerts->show();
+    } else {
+      bp_alerts->hide();
+      stock_alerts->show();
+    }
+  }
+
+  // Update the active alert widget
+  if (use_bp_alerts) {
+    bp_alerts->updateState(s);
+  } else {
+    stock_alerts->updateState(s);
+  }
+#else
   alerts->updateState(s);
+#endif
   nvg->updateState(s);
 
   QColor bgColor = bg_colors[s.status];
@@ -64,7 +102,13 @@ void OnroadWindow::updateState(const UIState &s) {
 }
 
 void OnroadWindow::offroadTransition(bool offroad) {
+#ifdef BLUEPILOT
+  // Clear both alert widgets
+  stock_alerts->clear();
+  bp_alerts->clear();
+#else
   alerts->clear();
+#endif
 }
 
 void OnroadWindow::paintEvent(QPaintEvent *event) {

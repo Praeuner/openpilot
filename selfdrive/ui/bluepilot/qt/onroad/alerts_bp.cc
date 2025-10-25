@@ -9,6 +9,12 @@
 #include "common/params.h"
 
 OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
+  // Make this a top-level overlay widget that floats above everything
+  setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  setAttribute(Qt::WA_TranslucentBackground, true);
+  setAttribute(Qt::WA_TransparentForMouseEvents, true);
+  setAttribute(Qt::WA_ShowWithoutActivating, true);  // Don't steal focus
+
   // Setup opacity animation for smooth transitions
   opacity_animation = new QPropertyAnimation(this, "alertOpacity");
   opacity_animation->setDuration(300);
@@ -20,10 +26,6 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
       update();
     }
   });
-
-  // Ensure this widget can draw over other elements
-  setAttribute(Qt::WA_TranslucentBackground, true);
-  // Widget is already on top via stacked layout order - no need for raise()
 }
 
 OnroadAlertsBP::~OnroadAlertsBP() {
@@ -44,11 +46,11 @@ OnroadAlertsBP::~OnroadAlertsBP() {
 void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
-  // Force this widget to cover the entire parent window
-  // This allows alerts to draw over the border
+  // Match the parent window geometry (fullscreen)
+  // As a top-level widget, we cover the entire screen independently
   if (parentWidget()) {
-    setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
-    // Widget is already on top via stacked layout order - no need for raise()
+    QWidget *window = parentWidget()->window();
+    setGeometry(window->geometry());
   }
 }
 
