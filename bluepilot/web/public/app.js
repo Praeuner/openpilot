@@ -989,7 +989,13 @@ class BluePilotRoutes {
     let displayEndTime = "";
     if (route.timestamp && route.duration) {
       try {
-        const startDate = new Date(route.timestamp);
+        // Append 'Z' to treat timestamp as UTC (same as formatLocalTime does)
+        let timestamp = route.timestamp;
+        if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+          timestamp = timestamp + "Z";
+        }
+        const startDate = new Date(timestamp);
+
         // Parse duration string (e.g., "1h 30m" or "45m")
         const durationMatch = route.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
         if (durationMatch) {
@@ -1214,7 +1220,13 @@ class BluePilotRoutes {
     let displayEndTime = "";
     if (this.currentRoute.timestamp && this.currentRoute.duration) {
       try {
-        const startDate = new Date(this.currentRoute.timestamp);
+        // Append 'Z' to treat timestamp as UTC (same as formatLocalTime does)
+        let timestamp = this.currentRoute.timestamp;
+        if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+          timestamp = timestamp + "Z";
+        }
+        const startDate = new Date(timestamp);
+
         const durationMatch = this.currentRoute.duration.match(
           /(?:(\d+)h\s*)?(?:(\d+)m)?/
         );
@@ -2463,7 +2475,13 @@ class BluePilotRoutes {
       let displayEndTime = "";
       if (data.duration) {
         try {
-          const startDate = new Date(data.timestamp);
+          // Append 'Z' to treat timestamp as UTC (same as formatLocalTime does)
+          let timestamp = data.timestamp;
+          if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+            timestamp = timestamp + "Z";
+          }
+          const startDate = new Date(timestamp);
+
           const durationMatch = data.duration.match(
             /(?:(\d+)h\s*)?(?:(\d+)m)?/
           );
@@ -2474,7 +2492,11 @@ class BluePilotRoutes {
             const endDate = new Date(
               startDate.getTime() + totalMinutes * 60 * 1000
             );
-            displayEndTime = this.formatLocalTime(endDate.toISOString());
+            displayEndTime = endDate.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            });
           }
         } catch (e) {
           console.error("Error calculating end time:", e);
@@ -2985,7 +3007,13 @@ class BluePilotRoutes {
     let displayEndTime = "";
     if (route.timestamp && route.duration) {
       try {
-        const startDate = new Date(route.timestamp);
+        // Append 'Z' to treat timestamp as UTC (same as formatLocalTime does)
+        let timestamp = route.timestamp;
+        if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+          timestamp = timestamp + "Z";
+        }
+        const startDate = new Date(timestamp);
+
         const durationMatch = route.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
         if (durationMatch) {
           const hours = parseInt(durationMatch[1] || 0);
