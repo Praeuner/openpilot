@@ -999,7 +999,11 @@ class BluePilotRoutes {
           const endDate = new Date(
             startDate.getTime() + totalMinutes * 60 * 1000
           );
-          displayEndTime = this.formatLocalTime(endDate.toISOString());
+          displayEndTime = endDate.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
         }
       } catch (e) {
         console.error("Error calculating end time:", e);
@@ -1221,7 +1225,11 @@ class BluePilotRoutes {
           const endDate = new Date(
             startDate.getTime() + totalMinutes * 60 * 1000
           );
-          displayEndTime = this.formatLocalTime(endDate.toISOString());
+          displayEndTime = endDate.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
         }
       } catch (e) {
         console.error("Error calculating end time:", e);
@@ -2986,7 +2994,11 @@ class BluePilotRoutes {
           const endDate = new Date(
             startDate.getTime() + totalMinutes * 60 * 1000
           );
-          displayEndTime = this.formatLocalTime(endDate.toISOString());
+          displayEndTime = endDate.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
         }
       } catch (e) {
         console.error("Error calculating end time:", e);
