@@ -100,23 +100,40 @@ from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster, WebSoc
 # Import xattr for preserve marker support
 try:
     from openpilot.system.loggerd.xattr_cache import getxattr, setxattr
-    from openpilot.system.loggerd.deleter import PRESERVE_ATTR_NAME, PRESERVE_ATTR_VALUE
+    from openpilot.system.loggerd.deleter import PRESERVE_ATTR_NAME, PRESERVE_ATTR_VALUE, PRESERVE_COUNT, DELETE_LAST
     import xattr as xattr_module
     XATTR_AVAILABLE = True
 except ImportError:
     XATTR_AVAILABLE = False
+    PRESERVE_COUNT = 5  # Fallback
+    DELETE_LAST = ['boot', 'crash']  # Fallback
     logger.warning("xattr not available - preserve functionality will be limited")
 
 # Import disk space utilities
 try:
     from openpilot.system.loggerd.config import get_available_bytes, get_available_percent
     from openpilot.system.loggerd.deleter import MIN_BYTES, MIN_PERCENT
+    from openpilot.system.loggerd.uploader import listdir_by_creation, get_directory_sort
     DISK_SPACE_UTILS_AVAILABLE = True
 except ImportError:
     DISK_SPACE_UTILS_AVAILABLE = False
     logger.warning("Disk space utilities not available - will use fallback methods")
     MIN_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
     MIN_PERCENT = 10
+
+    # Fallback implementations
+    def listdir_by_creation(d: str):
+        if not os.path.isdir(d):
+            return []
+        try:
+            paths = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
+            return sorted(paths)
+        except OSError:
+            return []
+
+    def get_directory_sort(d: str):
+        o = ["0", ] if d.startswith("2024-") else ["1", ]
+        return o + [s.rjust(10, '0') for s in d.rsplit('--', 1)]
 
 try:
     from common.params import Params
@@ -1733,6 +1750,226 @@ def get_disk_space_info():
         }
 
 
+# ============================================================================
+# Deletion Prediction & Risk Calculation
+# ============================================================================
+
+def has_preserve_xattr_segment(segment_path: str) -> bool:
+    """Check if a segment has the preserve xattr"""
+    if not XATTR_AVAILABLE:
+        return False
+    try:
+        return getxattr(segment_path, PRESERVE_ATTR_NAME) == PRESERVE_ATTR_VALUE
+    except:
+        return False
+
+
+def get_preserved_segments_set(all_segment_paths: list[str]) -> set[str]:
+    """Calculate which segments are protected from deletion
+
+    Mimics the logic from system/loggerd/deleter.py:get_preserved_segments()
+    Only the 5 most recent segments with xattr (+2 prior each) are protected
+
+    Returns:
+        set of segment names (e.g., {"route--24", "route--25", ...})
+    """
+    if not XATTR_AVAILABLE:
+        return set()
+
+    preserved = set()
+
+    # Filter to segments with xattr, reversed (newest first)
+    segments_with_xattr = [
+        s for s in reversed(all_segment_paths)
+        if has_preserve_xattr_segment(os.path.join(ROUTES_DIR, s))
+    ]
+
+    # Take only first PRESERVE_COUNT (5) most recent
+    for n, seg_path in enumerate(segments_with_xattr):
+        if n >= PRESERVE_COUNT:
+            break
+
+        # Parse segment number
+        date_str, _, seg_str = seg_path.rpartition("--")
+        if not date_str:
+            continue
+
+        try:
+            seg_num = int(seg_str)
+        except ValueError:
+            continue
+
+        # Preserve segment and 2 prior
+        for _seg_num in range(max(0, seg_num - 2), seg_num + 1):
+            preserved.add(f"{date_str}--{_seg_num}")
+
+    return preserved
+
+
+def has_lock_file(segment_path: str) -> bool:
+    """Check if segment has .lock file (currently being recorded)"""
+    try:
+        full_path = os.path.join(ROUTES_DIR, segment_path)
+        return any(name.endswith(".lock") for name in os.listdir(full_path))
+    except:
+        return False
+
+
+def calculate_deletion_queue():
+    """Calculate the global deletion queue
+
+    Returns dict with:
+    - all_segments: list of all segment paths in deletion order
+    - preserved_set: set of protected segment names
+    - deletion_queue: list of deletable segments in order (excludes preserved, locked, boot/crash)
+    - protected_count: number of protected segments
+    - at_risk_count: number of segments that can be deleted
+    """
+    try:
+        # Get all segments sorted by deletion order
+        all_segments = listdir_by_creation(ROUTES_DIR)
+
+        # Calculate preserved set
+        preserved_set = get_preserved_segments_set(all_segments)
+
+        # Build deletion queue (segments that can actually be deleted)
+        deletion_queue = []
+        for seg in all_segments:
+            # Skip if in DELETE_LAST (boot/crash)
+            if seg in DELETE_LAST:
+                continue
+
+            # Skip if preserved
+            if seg in preserved_set:
+                continue
+
+            # Skip if has lock file (currently recording)
+            if has_lock_file(seg):
+                continue
+
+            deletion_queue.append(seg)
+
+        return {
+            'all_segments': all_segments,
+            'preserved_set': preserved_set,
+            'deletion_queue': deletion_queue,
+            'protected_count': len(preserved_set),
+            'at_risk_count': len(deletion_queue),
+            'total_count': len(all_segments)
+        }
+
+    except Exception as e:
+        logger.error(f"Error calculating deletion queue: {e}", exc_info=True)
+        return {
+            'all_segments': [],
+            'preserved_set': set(),
+            'deletion_queue': [],
+            'protected_count': 0,
+            'at_risk_count': 0,
+            'total_count': 0
+        }
+
+
+def calculate_route_deletion_risk(route_base: str, segments: list[dict], deletion_data: dict, disk_info: dict):
+    """Calculate deletion risk for a specific route
+
+    Args:
+        route_base: Route base name
+        segments: List of segment dicts with 'name' and 'path'
+        deletion_data: Output from calculate_deletion_queue()
+        disk_info: Output from get_disk_space_info()
+
+    Returns dict with:
+        - level: 'safe', 'low', 'medium', 'high', 'critical'
+        - rank: Position in deletion queue (1 = next to delete, None if all protected)
+        - totalInQueue: Total deletable segments
+        - segmentsAtRisk: Number of segments that can be deleted
+        - segmentsProtected: Number of protected segments
+        - totalSegments: Total segments in route
+        - firstAtRiskRank: Rank of first deletable segment
+        - protectedSegmentNumbers: List of protected segment numbers
+        - atRiskSegmentNumbers: List of at-risk segment numbers
+    """
+    preserved_set = deletion_data['preserved_set']
+    deletion_queue = deletion_data['deletion_queue']
+
+    # Categorize segments
+    protected_segs = []
+    at_risk_segs = []
+
+    for seg in segments:
+        seg_name = seg['name']
+        seg_num = seg['segment']
+
+        if seg_name in preserved_set:
+            protected_segs.append(seg_num)
+        elif not has_lock_file(seg_name):
+            at_risk_segs.append(seg_num)
+
+    # Find rank of first deletable segment
+    first_at_risk_rank = None
+    if at_risk_segs:
+        # Find first at-risk segment in deletion queue
+        for seg in segments:
+            if seg['segment'] in at_risk_segs:
+                try:
+                    first_at_risk_rank = deletion_queue.index(seg['name']) + 1
+                    break
+                except ValueError:
+                    continue
+
+    # Calculate risk level
+    if not at_risk_segs:
+        risk_level = 'safe'
+    elif first_at_risk_rank is None:
+        risk_level = 'safe'
+    else:
+        # Calculate based on position in queue and available space
+        space_until_deletion = disk_info['available_bytes'] - MIN_BYTES
+        avg_segment_size = 100 * 1024 * 1024  # ~100MB
+        segments_until_deletion = max(0, space_until_deletion / avg_segment_size)
+
+        if first_at_risk_rank > segments_until_deletion * 2:
+            risk_level = 'safe'
+        elif first_at_risk_rank > segments_until_deletion:
+            risk_level = 'low'
+        elif first_at_risk_rank > segments_until_deletion / 2:
+            risk_level = 'medium'
+        elif first_at_risk_rank > 10:
+            risk_level = 'high'
+        else:
+            risk_level = 'critical'
+
+    # Check if route is incomplete (missing early segments)
+    is_incomplete = False
+    if segments:
+        first_seg_num = min(seg['segment'] for seg in segments)
+        if first_seg_num > 0:
+            is_incomplete = True
+
+    return {
+        'level': risk_level,
+        'rank': first_at_risk_rank,
+        'totalInQueue': len(deletion_queue),
+        'segmentsAtRisk': len(at_risk_segs),
+        'segmentsProtected': len(protected_segs),
+        'totalSegments': len(segments),
+        'firstAtRiskRank': first_at_risk_rank,
+        'protectedSegmentNumbers': sorted(protected_segs),
+        'atRiskSegmentNumbers': sorted(at_risk_segs),
+        'isIncomplete': is_incomplete,
+        'firstSegmentNumber': min((seg['segment'] for seg in segments), default=0) if segments else 0,
+        'lastSegmentNumber': max((seg['segment'] for seg in segments), default=0) if segments else 0,
+    }
+
+
+# Cache deletion queue calculation
+@lru_cache(maxsize=1)
+def get_cached_deletion_data():
+    """Cached deletion queue calculation with 30s TTL (managed by cache_clear in scan_routes)"""
+    return calculate_deletion_queue()
+
+
 def check_route_preserve_status(route_base):
     """Check if a route has the preserve xattr set
 
@@ -1820,6 +2057,7 @@ def set_route_preserve(route_base, preserve=True):
 
         # Clear cache so next scan picks up the change
         get_route_segments.cache_clear()
+        get_cached_deletion_data.cache_clear()  # Deletion queue changed
 
         action = 'preserved' if preserve else 'unpreserved'
         return {
@@ -2246,6 +2484,10 @@ def scan_routes():
         logger.warning(f"Routes directory not found: {ROUTES_DIR}")
         return []
 
+    # Calculate deletion queue data (cached)
+    deletion_data = get_cached_deletion_data()
+    disk_info = get_disk_space_info()
+
     routes_dict = {}
     processed_bases = set()
 
@@ -2372,6 +2614,9 @@ def scan_routes():
             start_location = None
             end_location = None
 
+        # Calculate deletion risk for this route
+        deletion_risk = calculate_route_deletion_risk(base_name, segments, deletion_data, disk_info)
+
         # Build route info matching old panel structure
         routes_dict[base_name] = {
             'baseName': base_name,
@@ -2395,6 +2640,8 @@ def scan_routes():
             # Location names (reverse geocoded)
             'startLocation': start_location,
             'endLocation': end_location,
+            # Deletion risk info
+            'deletionRisk': deletion_risk,
         }
 
     # Convert to list and sort by datetime (newest first)
@@ -3125,6 +3372,68 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 self.send_json_response({
                     'success': True,
                     'disk_space': disk_info
+                })
+
+            elif path == '/api/disk-analysis':
+                # Get comprehensive disk analysis with deletion predictions
+                disk_info = get_disk_space_info()
+                deletion_data = get_cached_deletion_data()
+
+                # Calculate protected vs non-preserved space
+                preserved_bytes = 0
+                non_preserved_bytes = 0
+
+                for seg_name in deletion_data['all_segments']:
+                    seg_path = os.path.join(ROUTES_DIR, seg_name)
+                    seg_size = get_file_size(seg_path)
+
+                    if seg_name in deletion_data['preserved_set']:
+                        preserved_bytes += seg_size
+                    else:
+                        non_preserved_bytes += seg_size
+
+                # Get next segments to be deleted
+                next_to_delete = []
+                for i, seg_name in enumerate(deletion_data['deletion_queue'][:10]):
+                    seg_path = os.path.join(ROUTES_DIR, seg_name)
+                    route_base = get_route_base_name(seg_name)
+
+                    next_to_delete.append({
+                        'segment': seg_name,
+                        'route_base': route_base,
+                        'size_bytes': get_file_size(seg_path),
+                        'rank': i + 1
+                    })
+
+                self.send_json_response({
+                    'success': True,
+                    'disk': {
+                        'total_bytes': disk_info['total_bytes'],
+                        'used_bytes': disk_info['used_bytes'],
+                        'free_bytes': disk_info['available_bytes'],
+                        'routes_bytes': preserved_bytes + non_preserved_bytes,
+                        'preserved_bytes': preserved_bytes,
+                        'non_preserved_bytes': non_preserved_bytes,
+                        'deletion_threshold_bytes': MIN_BYTES,
+                        'space_until_threshold': max(0, disk_info['available_bytes'] - MIN_BYTES),
+                        'deletion_active': disk_info['available_bytes'] < MIN_BYTES,
+                        'warning_level': disk_info['warning_level'],
+                        'formatted': {
+                            'total': format_size(disk_info['total_bytes']),
+                            'used': format_size(disk_info['used_bytes']),
+                            'free': format_size(disk_info['available_bytes']),
+                            'routes': format_size(preserved_bytes + non_preserved_bytes),
+                            'preserved': format_size(preserved_bytes),
+                            'non_preserved': format_size(non_preserved_bytes),
+                            'threshold': format_size(MIN_BYTES),
+                        }
+                    },
+                    'deletion_queue': {
+                        'total_segments': deletion_data['total_count'],
+                        'protected_segments': deletion_data['protected_count'],
+                        'at_risk_segments': deletion_data['at_risk_count'],
+                        'next_10_to_delete': next_to_delete
+                    }
                 })
 
             elif path.startswith('/api/geocode/'):
@@ -3861,6 +4170,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 # Clear in-memory route cache
                 get_route_segments.cache_clear()
+                get_cached_deletion_data.cache_clear()
 
                 logger.info(f"Cache cleared: {cleared}")
 
@@ -3945,6 +4255,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 # Clear cache
                 get_route_segments.cache_clear()
+                get_cached_deletion_data.cache_clear()
 
                 self.send_json_response({
                     'success': True,

@@ -361,6 +361,19 @@ class BluePilotRoutes {
     this.$empty = document.getElementById("empty");
     this.$routesContainer = document.getElementById("routes-container");
 
+    // Disk Space Visualization
+    this.$diskVizContainer = document.getElementById("disk-viz-container");
+    this.$diskVizStatsText = document.getElementById("disk-viz-stats-text");
+    this.$diskPreservedBar = document.getElementById("disk-preserved-bar");
+    this.$diskRoutesBar = document.getElementById("disk-routes-bar");
+    this.$diskFreeBar = document.getElementById("disk-free-bar");
+    this.$diskThresholdMarker = document.getElementById("disk-threshold-marker");
+    this.$legendPreservedText = document.getElementById("legend-preserved-text");
+    this.$legendRoutesText = document.getElementById("legend-routes-text");
+    this.$legendFreeText = document.getElementById("legend-free-text");
+    this.$diskWarning = document.getElementById("disk-warning");
+    this.$diskWarningText = document.getElementById("disk-warning-text");
+
     // Status overlay
     this.$statusOverlay = document.getElementById("status-overlay");
     this.$statusOverlayTitle = document.getElementById("status-overlay-title");
@@ -1015,6 +1028,82 @@ class BluePilotRoutes {
     );
     const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(1);
     this.$totalSize.textContent = `${totalGB} GB`;
+
+    // Update disk visualization
+    this.updateDiskVisualization();
+  }
+
+  async updateDiskVisualization() {
+    try {
+      const response = await fetch(`${this.API_BASE}/api/disk-analysis`);
+      const data = await response.json();
+
+      if (!data.success) {
+        console.error("Failed to load disk analysis");
+        return;
+      }
+
+      const { disk, deletion_queue } = data;
+
+      // Show the disk visualization container
+      this.$diskVizContainer.classList.remove("hidden");
+
+      // Update header stats
+      this.$diskVizStatsText.textContent = `${disk.formatted.used} used / ${disk.formatted.total} total (${disk.formatted.free} free)`;
+
+      // Calculate percentages for bar widths
+      const preservedPercent = (disk.preserved_bytes / disk.total_bytes) * 100;
+      const routesPercent = (disk.non_preserved_bytes / disk.total_bytes) * 100;
+      const freePercent = (disk.free_bytes / disk.total_bytes) * 100;
+      const thresholdPercent = (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
+
+      // Animate bar widths
+      this.$diskPreservedBar.style.width = `${preservedPercent}%`;
+      this.$diskRoutesBar.style.width = `${routesPercent}%`;
+      this.$diskFreeBar.style.width = `${freePercent}%`;
+
+      // Position threshold marker
+      const usedPercent = preservedPercent + routesPercent;
+      const thresholdPosition = 100 - thresholdPercent;
+      this.$diskThresholdMarker.style.left = `${thresholdPosition}%`;
+
+      // Update legend
+      this.$legendPreservedText.textContent = `Protected: ${disk.formatted.preserved}`;
+      this.$legendRoutesText.textContent = `Routes: ${disk.formatted.non_preserved}`;
+      this.$legendFreeText.textContent = `Free: ${disk.formatted.free}`;
+
+      // Update free bar color based on warning level
+      this.$diskFreeBar.classList.remove("warning", "critical");
+      if (disk.warning_level === "critical") {
+        this.$diskFreeBar.classList.add("critical");
+      } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
+        this.$diskFreeBar.classList.add("warning");
+      }
+
+      // Show/hide warning message
+      this.$diskWarning.classList.remove("warning", "critical");
+
+      if (disk.warning_level === "critical") {
+        this.$diskWarning.classList.remove("hidden");
+        this.$diskWarning.classList.add("critical");
+        this.$diskWarningText.textContent = `Critical: Only ${disk.formatted.free} free! Deletion active - oldest routes being removed.`;
+      } else if (disk.warning_level === "low") {
+        this.$diskWarning.classList.remove("hidden");
+        this.$diskWarning.classList.add("warning");
+        this.$diskWarningText.textContent = `Warning: Low disk space (${disk.formatted.free} free). Approaching 5GB deletion threshold.`;
+      } else if (disk.warning_level === "medium") {
+        this.$diskWarning.classList.remove("hidden");
+        this.$diskWarning.classList.add("warning");
+        this.$diskWarningText.textContent = `${disk.formatted.free} free. Consider deleting old routes to free space.`;
+      } else {
+        this.$diskWarning.classList.add("hidden");
+      }
+
+    } catch (error) {
+      console.error("Error updating disk visualization:", error);
+      // Hide disk viz on error
+      this.$diskVizContainer.classList.add("hidden");
+    }
   }
 
   async startBackgroundGeocoding() {
@@ -1316,6 +1405,7 @@ class BluePilotRoutes {
                     <div class="route-cameras">
                         ${cameras.join("")}
                     </div>
+                    ${this.createRiskBadge(route)}
                 </div>
             </div>
         `;
@@ -1326,6 +1416,50 @@ class BluePilotRoutes {
     });
 
     return card;
+  }
+
+  createRiskBadge(route) {
+    if (!route.deletionRisk) return "";
+
+    const risk = route.deletionRisk;
+    const level = risk.level;
+
+    // Risk level emoji and text
+    const riskConfig = {
+      safe: { icon: "🟢", text: "Safe" },
+      low: { icon: "🟡", text: "Low Risk" },
+      medium: { icon: "🟠", text: "Medium Risk" },
+      high: { icon: "🔴", text: "High Risk" },
+      critical: { icon: "🚨", text: "Critical Risk" }
+    };
+
+    const config = riskConfig[level] || riskConfig.safe;
+
+    // Build risk details
+    let details = "";
+    if (risk.rank) {
+      details = `Rank ${risk.rank}/${risk.totalInQueue}`;
+      if (risk.segmentsAtRisk > 0) {
+        details += ` • ${risk.segmentsAtRisk}/${risk.totalSegments} segments at risk`;
+      }
+    } else if (risk.segmentsProtected === risk.totalSegments) {
+      details = "All segments protected";
+    }
+
+    // Incomplete route warning
+    let incompleteWarning = "";
+    if (risk.isIncomplete) {
+      const missing = risk.firstSegmentNumber;
+      incompleteWarning = `<span class="route-incomplete-badge">⚠️ Incomplete: missing segments 0-${missing - 1}</span>`;
+    }
+
+    return `
+      <div class="route-risk-badge ${level}">
+        <span class="risk-icon"></span>
+        <span>${config.text}</span>
+      </div>
+      ${details ? `<div class="route-risk-details">${details} ${incompleteWarning}</div>` : ""}
+    `;
   }
 
   async playRoute(route) {
