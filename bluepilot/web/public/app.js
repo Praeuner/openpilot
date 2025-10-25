@@ -83,6 +83,84 @@ class BluePilotRoutes {
     // return this.hevcSupported || (this.webglSupported && playerAvailable);
   }
 
+  /**
+   * Convert UTC timestamp to browser's local timezone and format as time
+   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00+00:00")
+   * @returns {string} - Formatted time in 12-hour format (e.g., "2:30 PM")
+   */
+  formatLocalTime(utcTimestamp) {
+    if (!utcTimestamp) return '';
+    try {
+      const date = new Date(utcTimestamp);
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      console.error('Error formatting time:', e);
+      return '';
+    }
+  }
+
+  /**
+   * Convert UTC timestamp to browser's local timezone and format as date
+   * @param {string} utcTimestamp - ISO format UTC timestamp (e.g., "2024-09-18T14:30:00+00:00")
+   * @returns {string} - Formatted date (e.g., "Thursday - September 18th, 2024")
+   */
+  formatLocalDate(utcTimestamp) {
+    if (!utcTimestamp) return '';
+    try {
+      const date = new Date(utcTimestamp);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      const day = date.getDate();
+      const year = date.getFullYear();
+      
+      // Add ordinal suffix
+      let suffix = 'th';
+      if (day % 10 === 1 && day !== 11) suffix = 'st';
+      else if (day % 10 === 2 && day !== 12) suffix = 'nd';
+      else if (day % 10 === 3 && day !== 13) suffix = 'rd';
+      
+      return `${dayName} - ${monthName} ${day}${suffix}, ${year}`;
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return '';
+    }
+  }
+
+  /**
+   * Calculate elapsed time from UTC timestamp to now
+   * @param {string} utcTimestamp - ISO format UTC timestamp
+   * @returns {string} - Elapsed time string (e.g., "2 hours ago")
+   */
+  formatElapsedTime(utcTimestamp) {
+    if (!utcTimestamp) return '';
+    try {
+      const date = new Date(utcTimestamp);
+      const now = new Date();
+      const seconds = Math.floor((now - date) / 1000);
+      
+      if (seconds < 60) return 'just now';
+      
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+      
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+      
+      const days = Math.floor(hours / 24);
+      if (days < 7) return `${days} day${days !== 1 ? 's' : ''} ago`;
+      
+      const weeks = Math.floor(days / 7);
+      return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+    } catch (e) {
+      console.error('Error formatting elapsed time:', e);
+      return '';
+    }
+  }
+
   cacheElements() {
     // Containers
     this.$loading = document.getElementById("loading");
@@ -815,10 +893,11 @@ class BluePilotRoutes {
   renderRoutes() {
     this.$routesContainer.innerHTML = "";
 
-    // Group routes by date (use server-provided displayDate)
+    // Group routes by date (convert UTC timestamp to local date)
     const grouped = {};
     for (const route of this.routes) {
-      const dateKey = route.displayDate || "Unknown";
+      // Convert UTC timestamp to local date for grouping
+      const dateKey = route.timestamp ? this.formatLocalDate(route.timestamp) : "Unknown";
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
@@ -855,9 +934,28 @@ class BluePilotRoutes {
     card.className = "route-card";
     card.dataset.baseName = route.baseName; // For finding card later during geocoding
 
-    // Use server-provided displayTime and displayEndTime directly (no conversion)
-    const displayTime = route.displayTime;
-    const displayEndTime = route.displayEndTime;
+    // Convert UTC timestamps to browser's local timezone
+    const displayTime = route.timestamp ? this.formatLocalTime(route.timestamp) : '';
+    
+    // Calculate end time by adding duration (stored in route.duration format like "1h 30m" or "45m")
+    let displayEndTime = '';
+    if (route.timestamp && route.duration) {
+      try {
+        const startDate = new Date(route.timestamp);
+        // Parse duration string (e.g., "1h 30m" or "45m")
+        const durationMatch = route.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+        if (durationMatch) {
+          const hours = parseInt(durationMatch[1] || 0);
+          const minutes = parseInt(durationMatch[2] || 0);
+          const totalMinutes = hours * 60 + minutes;
+          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          displayEndTime = this.formatLocalTime(endDate.toISOString());
+        }
+      } catch (e) {
+        console.error('Error calculating end time:', e);
+      }
+    }
+    
     const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
 
     // Thumbnail - try to load from cache
@@ -1048,10 +1146,28 @@ class BluePilotRoutes {
     this.$videoPlayer.classList.remove("hidden");
     this.hideReplayOverlay();
 
-    // Set title: Display date and time range on first line
-    const displayDate = this.currentRoute.displayDate || "";
-    const displayTime = this.currentRoute.displayTime || "";
-    const displayEndTime = this.currentRoute.displayEndTime || "";
+    // Set title: Display date and time range on first line (convert UTC to local time)
+    const displayDate = this.currentRoute.timestamp ? this.formatLocalDate(this.currentRoute.timestamp) : "";
+    const displayTime = this.currentRoute.timestamp ? this.formatLocalTime(this.currentRoute.timestamp) : "";
+    
+    // Calculate end time from start time + duration
+    let displayEndTime = '';
+    if (this.currentRoute.timestamp && this.currentRoute.duration) {
+      try {
+        const startDate = new Date(this.currentRoute.timestamp);
+        const durationMatch = this.currentRoute.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+        if (durationMatch) {
+          const hours = parseInt(durationMatch[1] || 0);
+          const minutes = parseInt(durationMatch[2] || 0);
+          const totalMinutes = hours * 60 + minutes;
+          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          displayEndTime = this.formatLocalTime(endDate.toISOString());
+        }
+      } catch (e) {
+        console.error('Error calculating end time:', e);
+      }
+    }
+    
     const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
     this.$videoTitle.textContent =
       displayDate + (displayDate && timeRange ? " - " : "") + timeRange;
@@ -2244,7 +2360,7 @@ class BluePilotRoutes {
     }
 
     // If we have full route data, add it directly
-    if (data.baseName && data.displayDate) {
+    if (data.baseName && data.timestamp) {
       // Add new route to the beginning of the list (most recent first)
       this.routes.unshift(data);
 
@@ -2252,9 +2368,30 @@ class BluePilotRoutes {
       this.renderRoutes();
       this.updateStats();
 
-      // Show notification
-      const timeRange = data.displayEndTime ? `${data.displayTime} - ${data.displayEndTime}` : data.displayTime || '';
-      this.showNotification(`New route recorded: ${data.displayDate} ${timeRange}`);
+      // Show notification with local timezone
+      const displayDate = this.formatLocalDate(data.timestamp);
+      const displayTime = this.formatLocalTime(data.timestamp);
+      
+      // Calculate end time
+      let displayEndTime = '';
+      if (data.duration) {
+        try {
+          const startDate = new Date(data.timestamp);
+          const durationMatch = data.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+          if (durationMatch) {
+            const hours = parseInt(durationMatch[1] || 0);
+            const minutes = parseInt(durationMatch[2] || 0);
+            const totalMinutes = hours * 60 + minutes;
+            const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+            displayEndTime = this.formatLocalTime(endDate.toISOString());
+          }
+        } catch (e) {
+          console.error('Error calculating end time:', e);
+        }
+      }
+      
+      const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
+      this.showNotification(`New route recorded: ${displayDate} ${timeRange}`);
     } else {
       // No full data, do a full reload
       console.log("Incomplete route data, reloading routes list");
@@ -2746,7 +2883,26 @@ class BluePilotRoutes {
   }
 
   async deleteRoute(route) {
-    const timeRange = route.displayEndTime ? `${route.displayTime} - ${route.displayEndTime}` : route.displayTime;
+    // Format time range in local timezone
+    const displayTime = route.timestamp ? this.formatLocalTime(route.timestamp) : '';
+    let displayEndTime = '';
+    if (route.timestamp && route.duration) {
+      try {
+        const startDate = new Date(route.timestamp);
+        const durationMatch = route.duration.match(/(?:(\d+)h\s*)?(?:(\d+)m)?/);
+        if (durationMatch) {
+          const hours = parseInt(durationMatch[1] || 0);
+          const minutes = parseInt(durationMatch[2] || 0);
+          const totalMinutes = hours * 60 + minutes;
+          const endDate = new Date(startDate.getTime() + totalMinutes * 60 * 1000);
+          displayEndTime = this.formatLocalTime(endDate.toISOString());
+        }
+      } catch (e) {
+        console.error('Error calculating end time:', e);
+      }
+    }
+    const timeRange = displayEndTime ? `${displayTime} - ${displayEndTime}` : displayTime;
+    
     const confirmed = confirm(
       `Delete route ${
         timeRange || route.baseName
