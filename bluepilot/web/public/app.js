@@ -361,16 +361,12 @@ class BluePilotRoutes {
     this.$empty = document.getElementById("empty");
     this.$routesContainer = document.getElementById("routes-container");
 
-    // Disk Space Visualization
+    // Disk Space Info (Compact with Gauge)
     this.$diskVizContainer = document.getElementById("disk-viz-container");
     this.$diskVizStatsText = document.getElementById("disk-viz-stats-text");
     this.$diskPreservedBar = document.getElementById("disk-preserved-bar");
     this.$diskRoutesBar = document.getElementById("disk-routes-bar");
-    this.$diskFreeBar = document.getElementById("disk-free-bar");
     this.$diskThresholdMarker = document.getElementById("disk-threshold-marker");
-    this.$legendPreservedText = document.getElementById("legend-preserved-text");
-    this.$legendRoutesText = document.getElementById("legend-routes-text");
-    this.$legendFreeText = document.getElementById("legend-free-text");
     this.$diskWarning = document.getElementById("disk-warning");
     this.$diskWarningText = document.getElementById("disk-warning-text");
 
@@ -1043,65 +1039,44 @@ class BluePilotRoutes {
         return;
       }
 
-      const { disk, deletion_queue } = data;
+      const { disk } = data;
 
-      // Show the disk visualization container
+      // Show the disk info container
       this.$diskVizContainer.classList.remove("hidden");
 
-      // Update header stats
-      this.$diskVizStatsText.textContent = `${disk.formatted.used} used / ${disk.formatted.total} total (${disk.formatted.free} free)`;
+      // Update compact disk info text
+      this.$diskVizStatsText.textContent = `${disk.formatted.used} / ${disk.formatted.total} (${disk.formatted.free} free)`;
 
-      // Calculate percentages for bar widths
+      // Calculate percentages for gauge bar segments (only show USED space)
       const preservedPercent = (disk.preserved_bytes / disk.total_bytes) * 100;
       const routesPercent = (disk.non_preserved_bytes / disk.total_bytes) * 100;
-      const freePercent = (disk.free_bytes / disk.total_bytes) * 100;
-      const thresholdPercent = (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
+      // Free space is just the empty part of the gauge - no need to render it
 
-      // Animate bar widths
+      // Update gauge bar widths
       this.$diskPreservedBar.style.width = `${preservedPercent}%`;
       this.$diskRoutesBar.style.width = `${routesPercent}%`;
-      this.$diskFreeBar.style.width = `${freePercent}%`;
 
-      // Position threshold marker
-      const usedPercent = preservedPercent + routesPercent;
+      // Position threshold marker (shows critical point where deletion starts)
+      const thresholdPercent = (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
       const thresholdPosition = 100 - thresholdPercent;
       this.$diskThresholdMarker.style.left = `${thresholdPosition}%`;
 
-      // Update legend
-      this.$legendPreservedText.textContent = `Protected: ${disk.formatted.preserved}`;
-      this.$legendRoutesText.textContent = `Routes: ${disk.formatted.non_preserved}`;
-      this.$legendFreeText.textContent = `Free: ${disk.formatted.free}`;
-
-      // Update free bar color based on warning level
-      this.$diskFreeBar.classList.remove("warning", "critical");
-      if (disk.warning_level === "critical") {
-        this.$diskFreeBar.classList.add("critical");
-      } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
-        this.$diskFreeBar.classList.add("warning");
-      }
-
       // Show/hide warning message
-      this.$diskWarning.classList.remove("warning", "critical");
+      this.$diskWarning.classList.remove("warning", "critical", "hidden");
 
       if (disk.warning_level === "critical") {
-        this.$diskWarning.classList.remove("hidden");
         this.$diskWarning.classList.add("critical");
-        this.$diskWarningText.textContent = `Critical: Only ${disk.formatted.free} free! Deletion active - oldest routes being removed.`;
-      } else if (disk.warning_level === "low") {
-        this.$diskWarning.classList.remove("hidden");
+        this.$diskWarningText.textContent = `Low space: ${disk.formatted.free} free`;
+      } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
         this.$diskWarning.classList.add("warning");
-        this.$diskWarningText.textContent = `Warning: Low disk space (${disk.formatted.free} free). Approaching 5GB deletion threshold.`;
-      } else if (disk.warning_level === "medium") {
-        this.$diskWarning.classList.remove("hidden");
-        this.$diskWarning.classList.add("warning");
-        this.$diskWarningText.textContent = `${disk.formatted.free} free. Consider deleting old routes to free space.`;
+        this.$diskWarningText.textContent = `${disk.formatted.free} free`;
       } else {
         this.$diskWarning.classList.add("hidden");
       }
 
     } catch (error) {
-      console.error("Error updating disk visualization:", error);
-      // Hide disk viz on error
+      console.error("Error updating disk info:", error);
+      // Hide disk info on error
       this.$diskVizContainer.classList.add("hidden");
     }
   }
@@ -3283,25 +3258,9 @@ class BluePilotRoutes {
   }
 
   updateConnectionStatus(type) {
-    // Update UI to show connection type (websocket, http, offline)
-    const statusIndicator = document.getElementById("connection-status");
-    if (statusIndicator) {
-      const statusText =
-        {
-          websocket: "WebSocket",
-          http: "Polling",
-          offline: "Offline",
-        }[type] || "Unknown";
-
-      statusIndicator.textContent = statusText;
-      statusIndicator.className = `connection-status connection-${type}`;
-      statusIndicator.title =
-        type === "websocket"
-          ? "Real-time updates via WebSocket"
-          : type === "http"
-          ? "HTTP polling (fallback mode)"
-          : "No connection";
-    }
+    // Connection status badge removed for cleaner UI
+    // Connection info can be viewed in the detailed status overlay or browser console
+    console.log(`Connection mode: ${type}`);
   }
 
   showNotification(message) {

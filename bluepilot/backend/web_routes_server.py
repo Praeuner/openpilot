@@ -3521,48 +3521,21 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Invalid camera type'}, 400)
                     return
 
-                # Generate HLS playlist with absolute URLs for Safari compatibility
-                # Get host from request headers to build absolute URLs
-                host = self.headers.get('Host', 'localhost:8088')
-                scheme = 'https' if self.headers.get('X-Forwarded-Proto') == 'https' else 'http'
-                base_url = f"{scheme}://{host}"
-
-                # Use version 7 for better MP4/HEVC support on Safari
-                # Version 6 is minimum for MP4 segments, 7 adds better support
+                # Generate HLS playlist
                 playlist = "#EXTM3U\n"
-                playlist += "#EXT-X-VERSION:7\n"
+                playlist += "#EXT-X-VERSION:6\n"  # Use HLS version 6 for better compatibility
                 playlist += "#EXT-X-TARGETDURATION:60\n"
                 playlist += "#EXT-X-MEDIA-SEQUENCE:0\n"
                 playlist += "#EXT-X-PLAYLIST-TYPE:VOD\n"
 
-                # Add independent segments tag for better seeking on Safari
-                playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n"
-
-                # For fMP4 HLS, Safari requires EXT-X-MAP to define the initialization segment.
-                # We can use the first available segment of the route for this purpose.
-                # The browser will fetch this segment, read its init data, and use it for all subsequent segments.
-                first_segment = next((s for s in segments if os.path.exists(os.path.join(s['path'], camera_files[camera]))), None)
-                if first_segment:
-                    first_segment_num = first_segment['segment']
-                    map_url = f"{base_url}/api/video/{route_base}/{first_segment_num}/{camera}"
-                    # NOTE: The CODECS attribute could be added here for more robustness,
-                    # but requires ffprobe and adds complexity. Missing MAP is the primary issue.
-                    playlist += f'#EXT-X-MAP:URI="{map_url}"\n'
-
-                segment_count = 0
                 for seg in segments:
                     seg_path = os.path.join(seg['path'], camera_files[camera])
                     if os.path.exists(seg_path):
-                        segment_count += 1
                         # Each segment is ~60 seconds with more precise timing
                         playlist += f"#EXTINF:60.0,\n"
-                        # Use absolute URLs for Safari native HLS player compatibility
-                        playlist += f"{base_url}/api/video/{route_base}/{seg['segment']}/{camera}\n"
+                        playlist += f"/api/video/{route_base}/{seg['segment']}/{camera}\n"
 
                 playlist += "#EXT-X-ENDLIST\n"
-
-                # Log playlist generation for debugging
-                print(f"Generated HLS playlist for {route_base}/{camera}: {segment_count} segments")
 
                 # Send playlist
                 self.send_response(200)
