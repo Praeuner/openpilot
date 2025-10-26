@@ -61,6 +61,9 @@
           <span id="device-status" class="device-status" title="Device status">
             <span class="status-indicator"></span>
             <span id="status-text">Checking...</span>
+            <svg id="websocket-icon" class="websocket-icon hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
           </span>
           <span id="route-count">0 routes</span>
           <span id="total-size">0 GB</span>
@@ -783,31 +786,94 @@
       </div>
     </div>
 
-    <!-- HLS.js for adaptive video streaming -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
-    <!-- h265-web-player for HEVC/H.265 playback support (fallback) -->
     <script>
-      // Configure Emscripten Module to find WASM file on CDN
-      var Module = {
-        locateFile: function (path) {
-          if (path.endsWith(".wasm") || path.endsWith(".data")) {
-            return (
-              "https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/" +
-              path
-            );
-          }
-          return path;
-        },
-      };
+      const HLS_LOCAL_SRC = "vendor/hls/hls.min.js";
+      const HLS_CDN_SRC = "https://cdn.jsdelivr.net/npm/hls.js@latest";
+      const H265_LOCAL_BASE = "vendor/h265-web-player/";
+      const H265_CDN_BASE =
+        "https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/";
 
-      // Global canvas variable for h265-web-player compatibility
-      var canvas = null;
+      window.__h265UseCdn = false;
+
+      function loadScriptWithFallback(localSrc, cdnSrc, onLocalFail) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = localSrc;
+          script.onload = () => resolve("local");
+          script.onerror = () => {
+            console.warn(`Failed to load ${localSrc}, falling back to CDN`);
+            if (typeof onLocalFail === "function") {
+              try {
+                onLocalFail();
+              } catch (e) {
+                console.warn("onLocalFail handler threw:", e);
+              }
+            }
+            const fallback = document.createElement("script");
+            fallback.src = cdnSrc;
+            fallback.onload = () => resolve("cdn");
+            fallback.onerror = () =>
+              reject(
+                new Error(
+                  `Failed to load script from both local and CDN: ${localSrc}`
+                )
+              );
+            document.head.appendChild(fallback);
+          };
+          document.head.appendChild(script);
+        });
+      }
+
+      (async function initPlayers() {
+        try {
+          await loadScriptWithFallback(HLS_LOCAL_SRC, HLS_CDN_SRC);
+
+          window.Module = window.Module || {};
+          window.Module.locateFile = function (path) {
+            if (path.endsWith(".wasm") || path.endsWith(".data")) {
+              const base = window.__h265UseCdn
+                ? H265_CDN_BASE
+                : H265_LOCAL_BASE;
+              return base + path;
+            }
+            return path;
+          };
+
+          // Global canvas variable for h265-web-player compatibility
+          window.canvas = null;
+
+          const markCdnUsage = () => {
+            window.__h265UseCdn = true;
+          };
+
+          await loadScriptWithFallback(
+            `${H265_LOCAL_BASE}webgl.js`,
+            `${H265_CDN_BASE}webgl.js`,
+            markCdnUsage
+          );
+          await loadScriptWithFallback(
+            `${H265_LOCAL_BASE}pcm-player.js`,
+            `${H265_CDN_BASE}pcm-player.js`,
+            markCdnUsage
+          );
+          await loadScriptWithFallback(
+            `${H265_LOCAL_BASE}decoder.js`,
+            `${H265_CDN_BASE}decoder.js`,
+            markCdnUsage
+          );
+          await loadScriptWithFallback(
+            `${H265_LOCAL_BASE}player.js`,
+            `${H265_CDN_BASE}player.js`,
+            markCdnUsage
+          );
+        } catch (error) {
+          console.error("Error loading media dependencies:", error);
+        } finally {
+          const appScript = document.createElement("script");
+          appScript.src = "app.js";
+          document.body.appendChild(appScript);
+        }
+      })();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/webgl.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/pcm-player.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/decoder.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/h265-web-player@1.0.2/dist/js/player.js"></script>
-    <script src="app.js"></script>
   </body>
 </html>

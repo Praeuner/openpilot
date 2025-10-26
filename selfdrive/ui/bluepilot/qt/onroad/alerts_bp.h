@@ -17,12 +17,14 @@ public:
 
 private:
   bool is_destroying = false;
+  bool qcom2_transform_applied = false;
 
 signals:
   void valueChanged();
 
 protected:
   void resizeEvent(QResizeEvent *event) override;
+  void showEvent(QShowEvent *event) override;
 
   struct Alert {
     QString text1;

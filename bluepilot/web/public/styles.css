@@ -151,6 +151,7 @@ body {
   padding: 0.25rem 0.75rem;
   background: var(--bp-bg-tertiary);
   border-radius: 12px;
+  transition: all 0.3s ease;
 }
 
 .status-indicator {
@@ -172,6 +173,28 @@ body {
 .device-status.offline .status-indicator {
   background: var(--bp-error);
   animation: none;
+}
+
+/* WebSocket Active Indicator */
+.websocket-icon {
+  flex-shrink: 0;
+  color: var(--bp-success);
+  filter: drop-shadow(0 0 2px rgba(76, 175, 80, 0.5));
+  animation: pulse-ws 1.5s ease-in-out infinite;
+}
+
+.device-status.websocket-active {
+  background: rgba(76, 175, 80, 0.15);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+@keyframes pulse-ws {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* Connection Status - Removed for cleaner UI */

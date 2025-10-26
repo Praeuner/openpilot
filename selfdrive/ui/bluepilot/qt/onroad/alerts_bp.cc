@@ -3,7 +3,13 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <map>
+
+#ifdef QCOM2
+#include <qpa/qplatformnativeinterface.h>
+#include <wayland-client-protocol.h>
+#endif
 
 #include "selfdrive/ui/qt/util.h"
 #include "common/params.h"
@@ -52,6 +58,24 @@ void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
     QWidget *window = parentWidget()->window();
     setGeometry(window->geometry());
   }
+}
+
+void OnroadAlertsBP::showEvent(QShowEvent *event) {
+  QWidget::showEvent(event);
+
+#ifdef QCOM2
+  // Apply QCOM2 buffer transform for proper rotation on Comma2 devices
+  // This must be done after the widget is shown and has a valid window handle
+  if (!qcom2_transform_applied && windowHandle()) {
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+    wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", windowHandle()));
+    if (s) {
+      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
+      wl_surface_commit(s);
+      qcom2_transform_applied = true;
+    }
+  }
+#endif
 }
 
 void OnroadAlertsBP::updateState(const UIState &s) {

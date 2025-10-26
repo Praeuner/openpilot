@@ -12,6 +12,7 @@ class BluePilotRoutes {
     this.hls = null; // HLS.js instance
     this.hevcSupported = false; // Will be set during init
     this.webglSupported = false; // Will be set during init
+    this.isSafari = false; // Safari detection for playback strategy
     this.retryCount = 0; // Track retry attempts for network errors
     this.maxRetries = 3; // Maximum retry attempts
     this.retryDelay = 1000; // Initial retry delay in ms
@@ -52,6 +53,9 @@ class BluePilotRoutes {
   }
 
   async detectBrowserCapabilities() {
+    this.isSafari = this.detectSafari();
+    console.log("Safari browser detected:", this.isSafari);
+
     // Check for native HEVC support
     this.hevcSupported = await this.checkNativeHEVCSupport();
 
@@ -63,10 +67,30 @@ class BluePilotRoutes {
       typeof Player.prototype.init === "function";
 
     console.log("=== Browser Capabilities Detected ===");
+    console.log("HLS.js loaded:", typeof Hls !== 'undefined');
+    if (typeof Hls !== 'undefined') {
+      console.log("HLS.js version:", Hls.version || 'unknown');
+      console.log("HLS.js supported:", Hls.isSupported());
+      if (!Hls.isSupported()) {
+        console.warn("⚠️ HLS.js is loaded but not supported on this browser");
+        console.warn("MediaSource API supported:", 'MediaSource' in window);
+        console.warn("This may happen on older Safari versions or HTTP (non-HTTPS) contexts");
+      }
+    } else {
+      console.error("❌ HLS.js NOT loaded! Check CDN connection or browser console for script loading errors");
+    }
     console.log("Native HEVC support:", this.hevcSupported);
     console.log("WebGL support:", this.webglSupported);
     console.log("h265-web-player available:", playerAvailable);
     console.log("Can play HEVC videos:", this.canPlayHEVC());
+  }
+
+  detectSafari() {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+    const ua = navigator.userAgent;
+    return /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
   }
 
   canPlayHEVC() {
@@ -401,6 +425,7 @@ class BluePilotRoutes {
     this.$totalSize = document.getElementById("total-size");
     this.$deviceStatus = document.getElementById("device-status");
     this.$statusText = document.getElementById("status-text");
+    this.$websocketIcon = document.getElementById("websocket-icon");
     this.$metricsBtn = document.getElementById("metrics-btn");
     this.$clearCacheBtn = document.getElementById("clear-cache-btn");
     this.$refreshBtn = document.getElementById("refresh-btn");
@@ -1788,33 +1813,51 @@ class BluePilotRoutes {
     console.log("Is HEVC:", isHEVC);
     console.log("Native HEVC support:", this.hevcSupported);
     console.log("Native HLS support:", this.canUseNativeHLS());
+    console.log("HLS.js support:", typeof Hls !== 'undefined' && Hls.isSupported());
     console.log("WebGL support:", this.webglSupported);
     this.addDebugLog(
       "info",
-      `[Playback Strategy] Camera: ${videoCamera}, HEVC: ${isHEVC}, Native HLS: ${this.canUseNativeHLS()}`
+      `[Playback Strategy] Camera: ${videoCamera}, HEVC: ${isHEVC}, HLS.js: ${typeof Hls !== 'undefined' && Hls.isSupported()}, Native HLS: ${this.canUseNativeHLS()}`
     );
 
-    // Strategy (updated for Safari HLS):
-    // 1. Safari with native HLS -> Use native HLS for route-level playlist (best for multi-segment)
-    // 2. Browser with native HEVC support -> Use HLS.js or HTML5 video (Chrome 107+, Edge)
-    // 3. Browser without native HEVC -> Try h265-web-player (WebGL decoder)
-    // 4. Any browser + LQ -> Use HTML5 video (MPEG-TS works everywhere)
+    const preferNativeHLS = this.isSafari && this.canUseNativeHLS();
 
-    // Check for native HLS first (Safari iOS/macOS)
-    if (this.canUseNativeHLS() && isHEVC) {
-      console.log(
-        "Detected native HLS support - using route-level playlist for seamless playback"
-      );
-      this.addDebugLog("info", "[Playback Path] Native HLS for HEVC selected.");
+    // Updated Strategy for cross-browser compatibility:
+    // 1. If Safari with native HLS -> always use native playlist (best reliability).
+    // 2. HEVC cameras (front/wide/driver) on other browsers:
+    //    a. If HLS.js supported -> Use HLS.js
+    //    b. Else if native HEVC -> Use direct video
+    //    c. Else -> Try h265-web-player or fallback to LQ
+    // 3. LQ camera (H.264) on other browsers:
+    //    a. If HLS.js supported -> Use HLS.js
+    //    b. Else if native HLS -> Use native HLS
+    //    c. Else -> Use HTML5 video
+
+    if (preferNativeHLS) {
+      console.log("Safari detected - using native HLS route playback");
+      this.addDebugLog("info", "[Playback Path] Native Safari HLS selected.");
       this.startNativeHLSRoutePlayback(this.currentRoute);
-    } else if (isHEVC) {
-      if (this.hevcSupported) {
-        console.log("Using native browser HEVC playback (HLS.js or direct)");
+      return;
+    }
+
+    if (isHEVC) {
+      // Try HLS.js first for HEVC (works on most modern browsers)
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        console.log("Using HLS.js for HEVC route playback (cross-browser)");
+        this.addDebugLog("info", "[Playback Path] HLS.js for HEVC selected.");
+        this.fallbackToStandardVideo();
+      } else if (this.canUseNativeHLS()) {
+        // Fallback to native HLS for Safari if HLS.js not available
+        console.log("Using native Safari HLS for HEVC route playback");
+        this.addDebugLog("info", "[Playback Path] Native Safari HLS for HEVC selected.");
+        this.startNativeHLSRoutePlayback(this.currentRoute);
+      } else if (this.hevcSupported) {
+        console.log("Using native browser HEVC playback (direct video)");
         this.addDebugLog(
           "info",
-          "[Playback Path] HLS.js or direct HEVC selected."
+          "[Playback Path] Direct HEVC playback selected."
         );
-        this.fallbackToStandardVideo(videoUrl);
+        this.fallbackToStandardVideo();
       } else {
         // Try h265-web-player for browsers without native HEVC
         const playerAvailable =
@@ -1846,13 +1889,17 @@ class BluePilotRoutes {
               "error",
               "[Playback Path] LQ fallback failed, attempting direct video."
             );
-            this.fallbackToStandardVideo(videoUrl);
+            this.fallbackToStandardVideo();
           }
         }
       }
     } else {
-      // LQ camera - check for native HLS first, then fall back to standard
-      if (this.canUseNativeHLS()) {
+      // LQ camera (H.264) - prefer HLS.js for consistent behavior
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        console.log("Using HLS.js for LQ camera route playback");
+        this.addDebugLog("info", "[Playback Path] HLS.js for LQ selected.");
+        this.fallbackToStandardVideo();
+      } else if (this.canUseNativeHLS()) {
         console.log("Using native HLS for LQ camera route playback");
         this.addDebugLog("info", "[Playback Path] Native HLS for LQ selected.");
         this.startNativeHLSRoutePlayback(this.currentRoute);
@@ -1862,7 +1909,7 @@ class BluePilotRoutes {
           "info",
           "[Playback Path] Standard video for LQ selected."
         );
-        this.fallbackToStandardVideo(videoUrl);
+        this.fallbackToStandardVideo();
       }
     }
   }
@@ -2213,7 +2260,7 @@ class BluePilotRoutes {
         console.warn(
           "WebGL context not available, falling back to native video"
         );
-        this.fallbackToStandardVideo(videoUrl);
+        this.fallbackToStandardVideo();
         return;
       }
 
@@ -2257,7 +2304,7 @@ class BluePilotRoutes {
                 this.updateCameraButtons();
                 this.loadSegment(this.currentSegment);
               } else {
-                this.fallbackToStandardVideo(videoUrl);
+                this.fallbackToStandardVideo();
               }
             } else {
               console.log("h265-web-player appears to be working");
@@ -2276,7 +2323,7 @@ class BluePilotRoutes {
             this.updateCameraButtons();
             this.loadSegment(this.currentSegment);
           } else {
-            this.fallbackToStandardVideo(videoUrl);
+            this.fallbackToStandardVideo();
           }
         }
       }, 3000); // Give it more time
@@ -2297,13 +2344,19 @@ class BluePilotRoutes {
         this.updateCameraButtons();
         this.loadSegment(this.currentSegment);
       } else {
-        this.fallbackToStandardVideo(videoUrl);
+        this.fallbackToStandardVideo();
       }
     }
   }
 
   fallbackToDirectVideo() {
     if (!this.currentRoute) return;
+
+    if (this.isSafari && this.canUseNativeHLS()) {
+      console.log("Safari detected during direct video fallback - switching to native HLS");
+      this.startNativeHLSRoutePlayback(this.currentRoute);
+      return;
+    }
 
     const routeBase = this.currentRoute.baseName;
     const segmentNumber =
@@ -2324,7 +2377,7 @@ class BluePilotRoutes {
     }
 
     // Try direct video playback
-    this.fallbackToStandardVideo(directUrl);
+    this.fallbackToStandardVideo();
   }
 
   /**
@@ -2450,13 +2503,17 @@ class BluePilotRoutes {
     }
   }
 
-  fallbackToStandardVideo(videoUrl) {
+  fallbackToStandardVideo() {
     try {
-      console.log("Attempting HLS playback for full route:", videoUrl);
+      if (this.isSafari && this.canUseNativeHLS()) {
+        console.log("Safari detected in fallbackToStandardVideo - using native HLS");
+        this.startNativeHLSRoutePlayback(this.currentRoute);
+        return;
+      }
 
       const isHEVC = this.currentCamera !== "lq";
       console.log(
-        "Video format:",
+        "fallbackToStandardVideo called for:",
         isHEVC ? "HEVC (remuxed MP4)" : "LQ (MPEG-TS)"
       );
 
@@ -2490,7 +2547,10 @@ class BluePilotRoutes {
           console.log("Video can play");
 
           // Sync to stored playback time when switching cameras (for direct video fallback)
-          if (this.lastPlaybackTime > 0 && !Hls.isSupported()) {
+          if (
+            this.lastPlaybackTime > 0 &&
+            (typeof Hls === "undefined" || !Hls.isSupported())
+          ) {
             console.log(
               `Seeking to synced time (direct video): ${this.lastPlaybackTime}s`
             );
@@ -2560,37 +2620,19 @@ class BluePilotRoutes {
       // Use HLS.js for the full route playlist (allows scrubbing and shows total duration)
       const hlsUrl = `${this.API_BASE}/api/hls/${this.currentRoute.baseName}/${this.currentCamera}/playlist.m3u8`;
 
-      // Detect Safari early to prefer native HLS
-      const isIOS =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      const isSafari = /^((?!chrome|android).)*safari/i.test(
-        navigator.userAgent
-      );
-      const hasNativeHLS = this.$videoElement.canPlayType(
-        "application/vnd.apple.mpegurl"
-      );
+      // Debug HLS.js availability
+      console.log("=== HLS.js Check in fallbackToStandardVideo ===");
+      console.log("typeof Hls:", typeof Hls);
+      console.log("Hls defined:", typeof Hls !== 'undefined');
+      if (typeof Hls !== 'undefined') {
+        console.log("Hls.isSupported():", Hls.isSupported());
+        console.log("Hls.version:", Hls.version || 'unknown');
+      }
+      console.log("===========================================");
 
-      console.log(
-        `Platform detection: iOS=${isIOS}, Safari=${isSafari}, NativeHLS=${hasNativeHLS}`
-      );
-
-      // Safari has QuotaExceededError issues with large segments in HLS.js
-      // Use native Safari HLS player instead, which handles large segments better
-      if ((isIOS || isSafari) && hasNativeHLS) {
-        console.log(
-          "Using native Safari HLS playback (better for large segments)"
-        );
-        console.log("HLS playlist URL:", hlsUrl);
-        this.$videoElement.src = hlsUrl;
-        this.$videoElement.load();
-
-        setTimeout(() => {
-          this.$videoElement.play().catch((e) => {
-            console.warn("Autoplay failed:", e);
-          });
-        }, 100);
-      } else if (Hls.isSupported()) {
+      // Always prefer HLS.js for consistent cross-browser behavior
+      // Native Safari HLS has issues with on-demand remuxed segments
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         console.log("Using HLS.js for full route streaming");
         console.log("HLS playlist URL:", hlsUrl);
 
@@ -2742,8 +2784,28 @@ class BluePilotRoutes {
       } else if (
         this.$videoElement.canPlayType("application/vnd.apple.mpegurl")
       ) {
-        // Safari native HLS support
-        console.log("Using native HLS playback (Safari)");
+        // Fallback to Safari native HLS (only if HLS.js not available)
+        console.warn("⚠️ HLS.js not supported, using native Safari HLS (may have issues with on-demand remuxing)");
+        console.log("HLS playlist URL:", hlsUrl);
+
+        // Add event listeners for better debugging
+        this.$videoElement.addEventListener('loadedmetadata', () => {
+          console.log("Native HLS: Metadata loaded, duration:", this.$videoElement.duration);
+        });
+
+        this.$videoElement.addEventListener('ended', () => {
+          console.log("Native HLS: Playback ended");
+          this.showReplayOverlay();
+        });
+
+        this.$videoElement.addEventListener('error', (e) => {
+          console.error("Native HLS: Video error", e);
+          const error = this.$videoElement.error;
+          if (error) {
+            console.error("Error code:", error.code, "Message:", error.message);
+          }
+        });
+
         this.$videoElement.src = hlsUrl;
         this.$videoElement.load();
 
@@ -3258,9 +3320,24 @@ class BluePilotRoutes {
   }
 
   updateConnectionStatus(type) {
-    // Connection status badge removed for cleaner UI
-    // Connection info can be viewed in the detailed status overlay or browser console
+    // Update device status badge to show WebSocket indicator
     console.log(`Connection mode: ${type}`);
+
+    if (type === "websocket") {
+      // Show WebSocket icon and enhance badge styling
+      this.$websocketIcon.classList.remove("hidden");
+      this.$deviceStatus.classList.add("websocket-active");
+      this.$deviceStatus.title = "Device online (WebSocket - real-time updates)";
+    } else {
+      // Hide WebSocket icon for HTTP polling or offline
+      this.$websocketIcon.classList.add("hidden");
+      this.$deviceStatus.classList.remove("websocket-active");
+      if (type === "http") {
+        this.$deviceStatus.title = "Device online (HTTP polling - fallback mode)";
+      } else {
+        this.$deviceStatus.title = "Device status";
+      }
+    }
   }
 
   showNotification(message) {

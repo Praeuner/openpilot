@@ -16,7 +16,7 @@ import time
 import signal
 import atexit
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -215,6 +215,26 @@ def find_ffmpeg_binary():
     return None
 
 FFMPEG_BINARY = find_ffmpeg_binary()
+
+# FFprobe binary detection (usually comes with ffmpeg)
+def find_ffprobe_binary():
+    """Find ffprobe binary with fallback paths"""
+    ffprobe_path = shutil.which('ffprobe')
+    if ffprobe_path:
+        logger.info(f"Found ffprobe in PATH: {ffprobe_path}")
+        return ffprobe_path
+
+    # Try common paths
+    common_paths = ['/usr/bin/ffprobe', '/usr/local/bin/ffprobe']
+    for path in common_paths:
+        if os.path.exists(path):
+            logger.info(f"Found ffprobe at: {path}")
+            return path
+
+    logger.warning("ffprobe not found - HLS playlists will use estimated durations")
+    return None
+
+FFPROBE_BINARY = find_ffprobe_binary()
 
 # Cellular access configuration
 CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes
@@ -783,17 +803,22 @@ def remux_segment_to_cache(hevc_path, route_base, segment_num, camera):
             return False
 
         with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
+            # Use same Safari-optimized flags as main remuxing
             cmd = [
                 FFMPEG_BINARY,
-                '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
+                '-loglevel', 'error',
                 '-f', 'hevc',
                 '-r', '20',
                 '-i', hevc_path,
-                '-c', 'copy',
-                '-movflags', 'frag_keyframe+empty_moov+faststart+default_base_moof',
-                '-fflags', '+genpts',
+                '-c:v', 'copy',
+                '-movflags', 'frag_every_frame+empty_moov+default_base_moof+omit_tfhd_offset',
+                '-frag_duration', '2000000',  # 2 seconds per fragment
+                '-fflags', '+genpts+igndts',
                 '-avoid_negative_ts', 'make_zero',
-                '-bsf:v', 'hevc_mp4toannexb',
+                '-start_at_zero',
+                '-vsync', 'cfr',
+                '-video_track_timescale', '90000',
+                '-max_muxing_queue_size', '1024',
                 '-f', 'mp4',
                 cache_path
             ]
@@ -2075,6 +2100,96 @@ def set_route_preserve(route_base, preserve=True):
         }
 
 
+def get_video_duration_from_cache(route_base, segment_num, camera):
+    """
+    Get duration from cached remuxed MP4 file if available.
+    Returns None if cache doesn't exist.
+    """
+    cache_filename = f"{route_base}_{segment_num}_{camera}.mp4"
+    cache_path = os.path.join(REMUX_CACHE, cache_filename)
+
+    if os.path.exists(cache_path) and FFPROBE_BINARY:
+        try:
+            cmd = [
+                FFPROBE_BINARY,
+                '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                cache_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+            if result.returncode == 0 and result.stdout.strip():
+                duration = float(result.stdout.strip())
+                return round(duration, 3)
+        except Exception as e:
+            logger.debug(f"Error getting cached duration for {cache_path}: {e}")
+
+    return None
+
+
+@lru_cache(maxsize=256)
+def get_video_duration(filepath):
+    """
+    Get accurate video duration using ffprobe.
+    For raw HEVC files, analyzes the stream to calculate duration.
+    Falls back to 60.0 seconds if ffprobe is unavailable or fails.
+    Results are cached to avoid repeated ffprobe calls.
+    """
+    if not FFPROBE_BINARY or not os.path.exists(filepath):
+        return 60.0  # Default fallback
+
+    try:
+        # For raw HEVC files (.hevc), we need to analyze the stream differently
+        if filepath.endswith('.hevc'):
+            # Get stream info including frame count and frame rate
+            cmd = [
+                FFPROBE_BINARY,
+                '-v', 'error',
+                '-count_frames',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=nb_read_frames,r_frame_rate',
+                '-of', 'default=noprint_wrappers=1',
+                filepath
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 and result.stdout.strip():
+                lines = result.stdout.strip().split('\n')
+                frame_count = None
+                frame_rate = None
+
+                for line in lines:
+                    if line.startswith('nb_read_frames='):
+                        frame_count = int(line.split('=')[1])
+                    elif line.startswith('r_frame_rate='):
+                        # Parse fraction like "20/1"
+                        rate_str = line.split('=')[1]
+                        if '/' in rate_str:
+                            num, den = rate_str.split('/')
+                            frame_rate = float(num) / float(den)
+
+                if frame_count and frame_rate and frame_rate > 0:
+                    duration = frame_count / frame_rate
+                    logger.debug(f"Calculated duration for {filepath}: {duration:.3f}s ({frame_count} frames @ {frame_rate} fps)")
+                    return round(duration, 3)
+        else:
+            # For container formats (mp4, ts), use standard duration query
+            cmd = [
+                FFPROBE_BINARY,
+                '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                filepath
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                duration = float(result.stdout.strip())
+                return round(duration, 3)
+    except Exception as e:
+        logger.debug(f"Error getting duration for {filepath}: {e}")
+
+    return 60.0  # Fallback to 60 seconds
+
+
 def get_video_files(segment_path):
     """Get available video files in segment"""
     videos = {}
@@ -2880,17 +2995,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG, stream_logs=debug_mode) as ffmpeg_mgr:
                 # Use FFmpeg to remux raw HEVC to MP4 container
                 # Stream to stdout while also writing to cache file
+                # Optimized for Safari HLS compatibility with smaller fragments
                 cmd = [
                     FFMPEG_BINARY,
                     '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock (overridden in debug mode)
                     '-f', 'hevc',
                     '-r', '20',  # Comma camera framerate (20 fps)
                     '-i', hevc_path,
-                    '-c', 'copy',
-                    '-movflags', 'frag_keyframe+empty_moov+faststart+default_base_moof',
-                    '-fflags', '+genpts',  # Generate missing PTS if needed
-                    '-avoid_negative_ts', 'make_zero',  # Handle negative timestamps
-                    '-bsf:v', 'hevc_mp4toannexb',  # Convert HEVC bitstream for better compatibility
+                    '-c:v', 'copy',
+                    # Safari HLS buffer-friendly fragmentation:
+                    # Create smaller fragments (every 2 seconds) to prevent buffer overflow
+                    # Safari's MediaSource buffer can't handle 75MB segments
+                    '-movflags', 'frag_every_frame+empty_moov+default_base_moof+omit_tfhd_offset',
+                    '-frag_duration', '2000000',  # 2 seconds per fragment (in microseconds)
+                    # Timing flags critical for Safari HLS:
+                    '-fflags', '+genpts+igndts',  # Generate PTS and ignore DTS for cleaner timestamps
+                    '-avoid_negative_ts', 'make_zero',  # Ensure timestamps start at 0
+                    '-start_at_zero',  # Force first timestamp to be 0 (Safari requirement)
+                    '-vsync', 'cfr',  # Constant frame rate mode (ensures regular timestamps)
+                    '-video_track_timescale', '90000',  # Standard timescale for better compatibility
+                    '-max_muxing_queue_size', '1024',  # Prevent muxing queue overflow
                     '-f', 'mp4',
                     '-'  # Output to stdout
                 ]
@@ -3521,28 +3645,97 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Invalid camera type'}, 400)
                     return
 
-                # Generate HLS playlist
+                # Get base URL for absolute paths (Safari requires this)
+                host = self.headers.get('Host', 'localhost:5050')
+                # Determine protocol (check X-Forwarded-Proto for proxy scenarios)
+                proto = self.headers.get('X-Forwarded-Proto', 'http')
+                base_url = f"{proto}://{host}"
+
+                # Generate HLS playlist with accurate durations for Safari compatibility
                 playlist = "#EXTM3U\n"
-                playlist += "#EXT-X-VERSION:6\n"  # Use HLS version 6 for better compatibility
-                playlist += "#EXT-X-TARGETDURATION:60\n"
+                playlist += "#EXT-X-VERSION:7\n"  # Version 7 supports fragmented MP4
+                playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n"
+                playlist += "#EXT-X-TARGETDURATION:61\n"  # Max duration (rounded up for safety)
                 playlist += "#EXT-X-MEDIA-SEQUENCE:0\n"
+                playlist += "#EXT-X-DISCONTINUITY-SEQUENCE:0\n"
                 playlist += "#EXT-X-PLAYLIST-TYPE:VOD\n"
 
-                for seg in segments:
+                # For fragmented MP4, we don't need EXT-X-MAP since each segment is independent
+                # The frag_keyframe+empty_moov flags make each segment self-contained
+
+                # Attempt to derive a real start time for EXT-X-PROGRAM-DATE-TIME markers
+                route_start_dt = parse_route_datetime(route_base)
+                if route_start_dt is not None:
+                    # Treat stored timestamps as UTC for consistent program-date markers
+                    route_start_dt = route_start_dt.replace(tzinfo=timezone.utc)
+                else:
+                    try:
+                        first_seg_path = segments[0]['path']
+                        route_start_dt = datetime.fromtimestamp(
+                            os.path.getmtime(first_seg_path),
+                            tz=timezone.utc
+                        )
+                    except Exception:
+                        route_start_dt = None
+
+                program_date_cursor = route_start_dt
+                max_duration = 0
+                segment_count = 0
+                for idx, seg in enumerate(segments):
                     seg_path = os.path.join(seg['path'], camera_files[camera])
                     if os.path.exists(seg_path):
-                        # Each segment is ~60 seconds with more precise timing
-                        playlist += f"#EXTINF:60.0,\n"
-                        playlist += f"/api/video/{route_base}/{seg['segment']}/{camera}\n"
+                        segment_num = seg['segment']
+
+                        # Try to get duration from cached MP4 first (most accurate)
+                        duration = get_video_duration_from_cache(route_base, segment_num, camera)
+
+                        # If not cached, analyze the raw file
+                        if duration is None:
+                            duration = get_video_duration(seg_path)
+
+                        if duration is None or duration <= 0:
+                            duration = 60.0
+
+                        max_duration = max(max_duration, duration)
+
+                        if idx > 0:
+                            playlist += "#EXT-X-DISCONTINUITY\n"
+
+                        if program_date_cursor is not None:
+                            iso_cursor = program_date_cursor.isoformat().replace('+00:00', 'Z')
+                            playlist += f"#EXT-X-PROGRAM-DATE-TIME:{iso_cursor}\n"
+                            program_date_cursor += timedelta(seconds=duration)
+
+                        # Use accurate duration in EXTINF (required for Safari seeking/scrubbing)
+                        playlist += f"#EXTINF:{duration:.3f},\n"
+                        # Use absolute URLs for better Safari compatibility
+                        playlist += f"{base_url}/api/video/{route_base}/{segment_num}/{camera}\n"
+                        segment_count += 1
+
+                if segment_count == 0:
+                    self.send_json_response({'error': 'No video segments available'}, 404)
+                    return
+
+                # Update target duration if needed (must be >= max segment duration)
+                if max_duration > 61:
+                    # Regenerate with correct target duration
+                    target_duration = int(max_duration) + 1
+                    playlist = playlist.replace(
+                        "#EXT-X-TARGETDURATION:61\n",
+                        f"#EXT-X-TARGETDURATION:{target_duration}\n"
+                    )
 
                 playlist += "#EXT-X-ENDLIST\n"
 
                 # Send playlist
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
+                self.send_header('Cache-Control', 'no-cache')  # Prevent stale playlists
                 self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(playlist.encode())
+
+                logger.debug(f"HLS playlist generated for {route_base}/{camera}: {len(segments)} segments, max duration {max_duration:.3f}s")
 
             elif path.startswith('/api/video/'):
                 # Parse: /api/video/{route_base}/{segment}/{camera}
