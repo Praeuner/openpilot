@@ -2,7 +2,7 @@
 // Complete rewrite matching old Qt panel behavior
 
 class BluePilotRoutes {
-  constructor() {
+constructor() {
     this.API_BASE = window.location.origin;
     this.routes = [];
     this.currentRoute = null;
@@ -32,6 +32,11 @@ class BluePilotRoutes {
 
     // FFmpeg Debug Mode
     this.debugMode = false;
+
+    // Route download tracking
+    this.routeDownloadHistory = [];
+    this.routeDownloadTokens = new Set();
+    this.routeDownloadTokenQueue = [];
 
     this.init();
   }
@@ -591,22 +596,14 @@ class BluePilotRoutes {
     });
 
     // Download buttons
-    this.$playerDownloadRouteBtn = document.getElementById(
-      "player-download-route-btn"
-    );
-    this.$playerDownloadSegmentBtn = document.getElementById(
-      "player-download-segment-btn"
-    );
+    this.$playerDownloadRouteBtn = document.getElementById("player-download-route-btn");
+    this.$routeDownloadStatus = document.getElementById("route-download-status");
+    this.$routeDownloadHistory = document.getElementById("route-download-history");
+    this.renderRouteDownloadHistory();
 
     this.$playerDownloadRouteBtn.addEventListener("click", () => {
       if (this.currentRoute) {
         this.downloadCurrentRoute();
-      }
-    });
-
-    this.$playerDownloadSegmentBtn.addEventListener("click", () => {
-      if (this.currentRoute) {
-        this.downloadCurrentSegment();
       }
     });
 
@@ -3004,6 +3001,10 @@ class BluePilotRoutes {
         this.handleWebSocketDiskUpdated(message.data);
         break;
 
+      case "route_export_update":
+        this.handleWebSocketRouteExportUpdate(message.data);
+        break;
+
       case "ffmpeg_log":
         this.handleFFmpegLog(message.data);
         break;
@@ -3021,6 +3022,43 @@ class BluePilotRoutes {
     // Disk space changed - update visualization
     console.log("Disk space updated via WebSocket");
     this.updateDiskVisualization();
+  }
+
+  handleWebSocketRouteExportUpdate(data) {
+    if (
+      !this.currentRoute ||
+      !data ||
+      data.route !== this.currentRoute.baseName ||
+      data.camera !== this.currentCamera
+    ) {
+      return;
+    }
+
+    if (data.status === "ready") {
+      const fallbackFilename = this.buildRouteExportFilename(
+        this.currentRoute,
+        this.currentCamera
+      );
+      this.enqueueRouteDownload(data, fallbackFilename);
+      this.setDownloadButtonState({
+        loading: false,
+        text: "Download Route",
+      });
+      return;
+    }
+
+    this.updateRouteDownloadUIFromStatus(data);
+
+    if (data.status === "error") {
+      this.updateRouteDownloadStatus(
+        data.message || "Video generation failed",
+        "error"
+      );
+      this.setDownloadButtonState({
+        loading: false,
+        text: "Download Route",
+      });
+    }
   }
 
   handleWebSocketConnectionEstablished(data) {
@@ -3663,114 +3701,372 @@ class BluePilotRoutes {
   async downloadCurrentRoute() {
     if (!this.currentRoute) return;
 
+    const routeBase = this.currentRoute.baseName;
+    const camera = this.currentCamera;
+    const defaultFilename = this.buildRouteExportFilename(
+      this.currentRoute,
+      camera
+    );
+    const exportUrl = `${this.API_BASE}/api/route-export/${routeBase}/${camera}`;
+
+    console.log(`Preparing full route download: ${routeBase} camera: ${camera}`);
+
+    this.setDownloadButtonState({ loading: true, text: "Preparing…" });
+    this.updateRouteDownloadStatus("Preparing full-route video…", "active");
+
     try {
-      const routeBase = this.currentRoute.baseName;
-      const camera = this.currentCamera;
+      const response = await fetch(exportUrl, { method: "POST" });
+      const statusData = await response.json();
 
-      console.log(`Downloading full route: ${routeBase} camera: ${camera}`);
+      if (!response.ok) {
+        throw new Error(statusData.error || "Failed to start video export");
+      }
 
-      // Show loading state
-      this.$playerDownloadRouteBtn.disabled = true;
-      this.$playerDownloadRouteBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 2a10 10 0 0 1 10 10"/>
-        </svg>
-        Downloading...
-      `;
+      await this.handleRouteExportStatus(routeBase, camera, statusData, defaultFilename);
 
-      // Create download URL
-      const downloadUrl = `${this.API_BASE}/api/download/route/${routeBase}/${camera}`;
-
-      // Trigger download
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${routeBase}_${camera}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.mp4`;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      console.log("Download initiated for full route");
-    } catch (error) {
+  } catch (error) {
       console.error("Error downloading route:", error);
-      // Only show alert for permanent errors, not network issues
+      const message = error.message || "Failed to generate video";
+      this.updateRouteDownloadStatus(message, "error");
       if (!this.isNetworkError(error)) {
-        alert("Failed to download route: " + error.message);
+        alert("Failed to download route: " + message);
       }
     } finally {
-      // Reset button state
-      this.$playerDownloadRouteBtn.disabled = false;
-      this.$playerDownloadRouteBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Download Route
-      `;
+      this.setDownloadButtonState({ loading: false, text: "Download Route" });
     }
   }
 
-  async downloadCurrentSegment() {
-    if (!this.currentRoute) return;
+  setDownloadButtonState({ loading, text }) {
+    if (!this.$playerDownloadRouteBtn) return;
+    const spinnerIcon = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 2a10 10 0 0 1 10 10"/>
+      </svg>`;
+    const downloadIcon = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>`;
 
-    try {
-      const routeBase = this.currentRoute.baseName;
-      const segmentNumber =
-        this.currentRoute.segments[this.currentSegment]?.number || 0;
-      const camera = this.currentCamera;
+    const icon = loading ? spinnerIcon : downloadIcon;
+    this.$playerDownloadRouteBtn.innerHTML = `${icon}
+      ${text}`;
+    this.$playerDownloadRouteBtn.disabled = !!loading;
+  }
 
-      console.log(
-        `Downloading segment: ${routeBase}/${segmentNumber} camera: ${camera}`
+  updateRouteDownloadStatus(message, mode = "info") {
+    if (!this.$routeDownloadStatus) return;
+
+    this.$routeDownloadStatus.textContent = message || "";
+
+    this.$routeDownloadStatus.classList.toggle(
+      "is-active",
+      mode === "active" && !!message
+    );
+    this.$routeDownloadStatus.classList.toggle(
+      "is-error",
+      mode === "error" && !!message
+    );
+  }
+
+  updateRouteDownloadUIFromStatus(status) {
+    const state = status.status || "processing";
+    const percent = Number.isFinite(status.progressPercent)
+      ? Math.round(status.progressPercent)
+      : Math.round(((status.progress || 0) * 100));
+
+    let buttonText = "Preparing…";
+    if (state === "idle") {
+      buttonText = "Queued…";
+    } else if (state === "ready") {
+      buttonText = "Download starting…";
+    } else if (percent > 0 && percent < 100) {
+      buttonText = `Preparing… ${percent}%`;
+    } else if (percent >= 100) {
+      buttonText = "Finalizing…";
+    }
+
+    const isError = state === "error";
+    this.setDownloadButtonState({
+      loading: !isError,
+      text: isError ? "Download Route" : buttonText,
+    });
+
+    const suggested = status.suggestedFilename;
+    const message =
+      status.message ||
+      (state === "ready"
+        ? suggested
+          ? `Video ready: ${suggested}`
+          : "Video ready."
+        : state === "error"
+        ? "Video generation failed"
+        : "Generating full-route video…");
+    this.updateRouteDownloadStatus(message, isError ? "error" : "active");
+  }
+
+  async handleRouteExportStatus(routeBase, camera, statusData, defaultFilename) {
+    this.updateRouteDownloadUIFromStatus(statusData);
+
+    if (statusData.status === "ready") {
+      this.enqueueRouteDownload(
+        statusData,
+        defaultFilename || this.buildRouteExportFilename(this.currentRoute, camera)
       );
+      return;
+    }
 
-      // Show loading state
-      this.$playerDownloadSegmentBtn.disabled = true;
-      this.$playerDownloadSegmentBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 2a10 10 0 0 1 10 10"/>
-        </svg>
-        Downloading...
-      `;
+    if (statusData.status === "error") {
+      throw new Error(statusData.error || statusData.message || "Video generation failed");
+    }
 
-      // Create download URL
-      const downloadUrl = `${this.API_BASE}/api/download/segment/${routeBase}/${segmentNumber}/${camera}`;
+    await this.pollRouteExport(routeBase, camera, defaultFilename);
+  }
 
-      // Trigger download
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${routeBase}_segment_${segmentNumber
-        .toString()
-        .padStart(3, "0")}_${camera}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.mp4`;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  resolveRouteDownloadUrl(downloadUrl, routeBase, camera) {
+    const fallbackPath = `/api/download/route/${routeBase}/${camera}`;
+    const path = downloadUrl || fallbackPath;
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return path;
+    }
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    return `${this.API_BASE}${normalized}`;
+  }
 
-      console.log("Download initiated for segment");
-    } catch (error) {
-      console.error("Error downloading segment:", error);
-      // Only show alert for permanent errors, not network issues
-      if (!this.isNetworkError(error)) {
-        alert("Failed to download segment: " + error.message);
+  triggerRouteDownload(downloadUrl, filename) {
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    if (filename) {
+      link.download = filename;
+    }
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  enqueueRouteDownload(statusData, defaultFilename) {
+    const routeBase =
+      statusData.route || (this.currentRoute && this.currentRoute.baseName);
+    const camera = statusData.camera || this.currentCamera;
+
+    if (!routeBase || !camera) return;
+
+    const tokenSeed =
+      statusData.updatedAt ||
+      statusData.filenameOnDisk ||
+      statusData.downloadUrl ||
+      statusData.status ||
+      Date.now().toString();
+    const token = `${routeBase}:${camera}:${tokenSeed}`;
+
+    if (this.routeDownloadTokens.has(token)) {
+      return;
+    }
+
+    this.routeDownloadTokens.add(token);
+    this.routeDownloadTokenQueue.push(token);
+    if (this.routeDownloadTokenQueue.length > 25) {
+      const oldest = this.routeDownloadTokenQueue.shift();
+      if (oldest) {
+        this.routeDownloadTokens.delete(oldest);
       }
-    } finally {
-      // Reset button state
-      this.$playerDownloadSegmentBtn.disabled = false;
-      this.$playerDownloadSegmentBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Download Segment
-      `;
+    }
+
+    const filename =
+      statusData.filename ||
+      statusData.suggestedFilename ||
+      defaultFilename ||
+      this.buildRouteExportFilename(this.currentRoute, camera);
+
+    const downloadUrl = this.resolveRouteDownloadUrl(
+      statusData.downloadUrl,
+      routeBase,
+      camera
+    );
+
+    this.setDownloadButtonState({
+      loading: false,
+      text: "Download Route",
+    });
+
+    this.updateRouteDownloadStatus(`Download started: ${filename}`, "active");
+    this.triggerRouteDownload(downloadUrl, filename);
+    this.addRouteDownloadHistory({
+      route: routeBase,
+      camera,
+      filename,
+      url: downloadUrl,
+      timestamp: new Date(),
+    });
+  }
+
+  addRouteDownloadHistory(entry) {
+    if (!entry) return;
+    this.routeDownloadHistory.unshift(entry);
+    if (this.routeDownloadHistory.length > 5) {
+      this.routeDownloadHistory = this.routeDownloadHistory.slice(0, 5);
+    }
+    this.renderRouteDownloadHistory();
+  }
+
+  renderRouteDownloadHistory() {
+    if (!this.$routeDownloadHistory) return;
+
+    if (!this.routeDownloadHistory.length) {
+      this.$routeDownloadHistory.innerHTML =
+        '<span class="route-download-history-empty">No downloads yet</span>';
+      return;
+    }
+
+    const items = this.routeDownloadHistory
+      .map((entry) => {
+        const timeLabel = this.formatDownloadHistoryTimestamp(entry.timestamp);
+        const locationLabel =
+          entry.route && entry.camera
+            ? `${entry.route} · ${entry.camera}`
+            : "";
+        const subtitle = locationLabel
+          ? `<div class="download-history-meta">${locationLabel}</div>`
+          : "";
+
+        return `
+          <div class="download-history-item">
+            <div class="download-history-details">
+              <div class="download-history-filename">${entry.filename}</div>
+              ${subtitle}
+            </div>
+            <div class="download-history-actions">
+              <span class="download-history-time">${timeLabel}</span>
+              <a
+                href="${entry.url}"
+                class="download-history-link"
+                download="${entry.filename}"
+                title="Download again"
+              >
+                Re-download
+              </a>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    this.$routeDownloadHistory.innerHTML = items;
+  }
+
+  formatDownloadHistoryTimestamp(value) {
+    try {
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "";
+      }
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  buildRouteExportFilename(route, camera) {
+    const components = [];
+
+    if (route && route.timestamp) {
+      let timestamp = route.timestamp;
+      if (!timestamp.includes("+") && !timestamp.endsWith("Z")) {
+        timestamp = `${timestamp}Z`;
+      }
+
+      const dt = new Date(timestamp);
+      if (!Number.isNaN(dt.getTime())) {
+        components.push(
+          dt
+            .toISOString()
+            .slice(0, 16)
+            .replace(/[-:]/g, "")
+            .replace("T", "_")
+        );
+      }
+    }
+
+    const location = this.composeRouteLocationComponent(route);
+    if (location) {
+      components.push(location);
+    } else if (route && route.baseName) {
+      components.push(this.sanitizeFilenameComponent(route.baseName));
+    }
+
+    components.push(this.sanitizeFilenameComponent(camera) || "camera");
+
+    const filenameBase =
+      components.filter(Boolean).join("_") ||
+      `${route?.baseName || "route"}_${camera || "video"}`;
+
+    return `${filenameBase}.mp4`;
+  }
+
+  composeRouteLocationComponent(route) {
+    if (!route) return null;
+    const start = route.startLocation || route.start_location;
+    const end = route.endLocation || route.end_location;
+
+    if (!start) return null;
+
+    const startSanitized = this.sanitizeFilenameComponent(start);
+    const endSanitized = this.sanitizeFilenameComponent(end);
+
+    if (endSanitized && endSanitized !== startSanitized) {
+      return `${startSanitized}-to-${endSanitized}`;
+    }
+
+    return startSanitized;
+  }
+
+  sanitizeFilenameComponent(value) {
+    if (!value) return "";
+    return value
+      .toString()
+      .trim()
+      .replace(/[^A-Za-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  async pollRouteExport(routeBase, camera, defaultFilename) {
+    const pollUrl = `${this.API_BASE}/api/route-export/${routeBase}/${camera}`;
+    const start = Date.now();
+    const timeoutMs = 5 * 60 * 1000;
+
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const response = await fetch(pollUrl);
+      const statusData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(statusData.error || "Failed to fetch export status");
+      }
+
+      this.updateRouteDownloadUIFromStatus(statusData);
+
+      if (statusData.status === "ready") {
+        this.enqueueRouteDownload(
+          statusData,
+          defaultFilename || this.buildRouteExportFilename(this.currentRoute, camera)
+        );
+        return;
+      }
+
+      if (statusData.status === "error") {
+        throw new Error(statusData.error || statusData.message || "Video generation failed");
+      }
+
+      if (Date.now() - start > timeoutMs) {
+        throw new Error("Timed out waiting for video generation");
+      }
     }
   }
 

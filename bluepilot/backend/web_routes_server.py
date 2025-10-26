@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 import logging
 import re
 import asyncio
@@ -187,6 +187,21 @@ WEBAPP_DIR = Path(__file__).parent.parent / "web" / "public"
 THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/thumbs_cache")
 REMUX_CACHE = "/data/bluepilot/routes/remux_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/remux_cache")
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
+ROUTE_EXPORT_CACHE = "/data/bluepilot/routes/exports" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/exports")
+
+CAMERA_FILES = {
+    'front': 'fcamera.hevc',
+    'wide': 'ecamera.hevc',
+    'driver': 'dcamera.hevc',
+    'lq': 'qcamera.ts'
+}
+HEVC_CAMERAS = {'front', 'wide', 'driver'}
+CAMERA_LABELS = {
+    'front': 'front',
+    'wide': 'wide',
+    'driver': 'driver',
+    'lq': 'interior'
+}
 
 # FFmpeg binary detection - find the binary or fail gracefully
 def find_ffmpeg_binary():
@@ -256,6 +271,8 @@ class ServerState:
         self._error_log = []  # Circular buffer of recent errors
         self._max_errors = 50  # Keep last 50 errors
         self._server_start_time = time.time()
+        self._route_exports = {}
+        self._export_threads = {}
 
     def get_cellular_enabled_time(self):
         with self._lock:
@@ -377,6 +394,80 @@ class ServerState:
         """Clear the error log"""
         with self._lock:
             self._error_log = []
+
+    def get_route_export_status(self, key):
+        """Get a copy of the export status for a route"""
+        with self._lock:
+            info = self._route_exports.get(key)
+            return dict(info) if info else None
+
+    def start_route_export(self, key, message="Preparing video"):
+        """Mark an export as in-progress unless one is already running"""
+        with self._lock:
+            info = self._route_exports.get(key)
+            if info and info.get('status') == 'processing':
+                return False
+
+            now = time.time()
+            self._route_exports[key] = {
+                'status': 'processing',
+                'message': message,
+                'progress': 0.0,
+                'path': None,
+                'started_at': now,
+                'updated_at': now
+            }
+            return True
+
+    def update_route_export(self, key, **updates):
+        """Update fields on an export status and return a copy"""
+        with self._lock:
+            info = self._route_exports.setdefault(key, {})
+            if 'started_at' not in info:
+                info['started_at'] = updates.get('started_at', time.time())
+            info.update(updates)
+            info['updated_at'] = time.time()
+            self._route_exports[key] = info
+            return dict(info)
+
+    def complete_route_export(self, key, path, message="Video ready"):
+        """Mark an export as ready"""
+        return self.update_route_export(
+            key,
+            status='ready',
+            progress=1.0,
+            path=path,
+            message=message
+        )
+
+    def fail_route_export(self, key, message):
+        """Mark an export as failed"""
+        return self.update_route_export(key, status='error', message=message)
+
+    def clear_route_export(self, key):
+        """Remove export status and thread tracking"""
+        with self._lock:
+            self._route_exports.pop(key, None)
+            self._export_threads.pop(key, None)
+
+    def get_route_export_thread(self, key):
+        """Return active export thread if running"""
+        with self._lock:
+            thread = self._export_threads.get(key)
+            if thread and not thread.is_alive():
+                self._export_threads.pop(key, None)
+                return None
+            return thread
+
+    def set_route_export_thread(self, key, thread):
+        """Register the worker thread for an export"""
+        with self._lock:
+            self._export_threads[key] = thread
+
+    def clear_route_export_thread(self, key):
+        """Remove export thread tracking"""
+        with self._lock:
+            self._export_threads.pop(key, None)
 
 # Global server state instance
 server_state = ServerState()
@@ -913,6 +1004,13 @@ def prefetch_next_segments(route_base, current_segment, camera, count=2):
         camera: Camera type ('front', 'wide', 'driver')
         count: Number of segments to prefetch (default: 2)
     """
+    current_ffmpeg = server_state.get_ffmpeg_count()
+    if current_ffmpeg >= get_ffmpeg_background_capacity():
+        logger.debug(
+            f"Prefetch: Skipping for {route_base}:{camera} (active FFmpeg processes: {current_ffmpeg})"
+        )
+        return
+
     thread = threading.Thread(
         target=_prefetch_worker,
         args=(route_base, current_segment, camera, count),
@@ -932,7 +1030,314 @@ CACHE_EXPIRATION_HOURS = 1  # Remove cached files older than 1 hour (unless star
 os.makedirs(THUMBNAIL_CACHE, exist_ok=True)
 os.makedirs(REMUX_CACHE, exist_ok=True)
 os.makedirs(METRICS_CACHE, exist_ok=True)
+os.makedirs(ROUTE_EXPORT_CACHE, exist_ok=True)
 
+
+def route_export_key(route_base, camera):
+    """Create a stable key for tracking export status"""
+    return f"{route_base}:{camera}"
+
+
+def get_export_output_path(route_base, camera):
+    """Return the filesystem path for a generated route export"""
+    safe_camera = camera.replace('/', '_')
+    return os.path.join(ROUTE_EXPORT_CACHE, f"{route_base}_{safe_camera}.mp4")
+
+
+def _sanitize_filename_component(component):
+    """Sanitize string for safe filename usage"""
+    if not component:
+        return None
+    value = re.sub(r'[^A-Za-z0-9]+', '-', str(component)).strip('-')
+    return value or None
+
+
+def generate_route_export_filename(route_base, camera, segments=None):
+    """
+    Create a descriptive filename for exported route videos.
+
+    Format example: 20241003_1430_Ypsilanti-MI_front.mp4
+    """
+    components = []
+
+    # Use parsed route datetime when available
+    route_dt = parse_route_datetime(route_base)
+    if route_dt:
+        components.append(route_dt.strftime("%Y%m%d_%H%M"))
+    else:
+        components.append(_sanitize_filename_component(route_base) or route_base)
+
+    # Attempt to include location from cached metrics
+    start_location = None
+    end_location = None
+    metrics_file = os.path.join(METRICS_CACHE, f"{route_base}.json")
+    try:
+        if os.path.exists(metrics_file):
+            with open(metrics_file) as f:
+                metrics = json.load(f)
+                start_location = metrics.get('start_location')
+                end_location = metrics.get('end_location')
+    except Exception as e:
+        logger.debug(f"Unable to load metrics for {route_base}: {e}")
+
+    location_component = None
+    if start_location:
+        if end_location and end_location != start_location:
+            location_component = f"{start_location} to {end_location}"
+        else:
+            location_component = start_location
+    if location_component:
+        sanitized = _sanitize_filename_component(location_component)
+        if sanitized:
+            components.append(sanitized)
+
+    # Append camera label
+    components.append(_sanitize_filename_component(CAMERA_LABELS.get(camera, camera)) or camera)
+
+    filename_base = "_".join(filter(None, components)) or f"{route_base}_{camera}"
+    return f"{filename_base}.mp4"
+
+
+def export_is_up_to_date(route_base, camera, segments):
+    """Check if the cached export is newer than all source segments"""
+    export_path = get_export_output_path(route_base, camera)
+    if not os.path.exists(export_path):
+        return False, export_path
+
+    export_mtime = os.path.getmtime(export_path)
+    camera_file = CAMERA_FILES.get(camera)
+
+    if not camera_file:
+        return False, export_path
+
+    for segment in segments:
+        source_path = os.path.join(segment['path'], camera_file)
+        if not os.path.exists(source_path):
+            return False, export_path
+        if os.path.getmtime(source_path) > export_mtime:
+            return False, export_path
+
+    return True, export_path
+
+
+def format_route_export_status(route_base, camera, info, export_path=None):
+    """Format route export status for API and WebSocket payloads"""
+    def to_iso(ts):
+        if not ts:
+            return None
+        try:
+            return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OSError):
+            return None
+
+    status = info.get('status', 'idle')
+    message = info.get('message')
+    progress = info.get('progress', 0.0) or 0.0
+    try:
+        progress = float(progress)
+    except (TypeError, ValueError):
+        progress = 0.0
+    progress = max(0.0, min(1.0, progress))
+
+    export_path = info.get('path') or export_path
+
+    suggested_filename = generate_route_export_filename(route_base, camera)
+
+    payload = {
+        'success': True,
+        'route': route_base,
+        'camera': camera,
+        'status': status,
+        'message': message,
+        'progress': round(progress, 3),
+        'progressPercent': int(progress * 100),
+        'startedAt': to_iso(info.get('started_at')),
+        'updatedAt': to_iso(info.get('updated_at')),
+        'downloadUrl': None,
+        'filename': None,
+        'suggestedFilename': suggested_filename,
+        'filenameOnDisk': None
+    }
+
+    if status == 'ready' and export_path and os.path.exists(export_path):
+        payload['downloadUrl'] = f"/api/download/route/{route_base}/{camera}"
+        payload['filenameOnDisk'] = os.path.basename(export_path)
+        payload['filename'] = suggested_filename
+
+    if status == 'error':
+        payload['error'] = message or 'Video generation failed'
+
+    return payload
+
+
+def broadcast_route_export_update(route_base, camera, info, export_path=None):
+    """Broadcast route export status updates via WebSocket"""
+    payload = format_route_export_status(route_base, camera, info, export_path)
+    broadcast_websocket_event(WebSocketEvent.ROUTE_EXPORT_UPDATE, payload)
+
+
+def generate_route_export(route_base, camera, progress_callback=None):
+    """
+    Generate or refresh a full-route export for the given camera.
+
+    Args:
+        route_base: Route identifier
+        camera: Camera type
+        progress_callback: Optional callable accepting (progress: float, message: str)
+
+    Returns:
+        Path to the generated export file
+
+    Raises:
+        RuntimeError, FileNotFoundError, ValueError on failure
+    """
+    if camera not in CAMERA_FILES:
+        raise ValueError("Invalid camera type")
+
+    if FFMPEG_BINARY is None:
+        raise RuntimeError("FFmpeg is not available on this device")
+
+    segments = get_route_segments(route_base)
+    if not segments:
+        raise FileNotFoundError("Route not found")
+
+    camera_file = CAMERA_FILES[camera]
+
+    video_paths = []
+    missing_segments = []
+    for seg in sorted(segments, key=lambda s: s['segment']):
+        source_path = os.path.join(seg['path'], camera_file)
+        if os.path.exists(source_path):
+            video_paths.append((seg['segment'], source_path))
+        else:
+            missing_segments.append(seg['segment'])
+
+    if missing_segments:
+        missing_str = ', '.join(f"{seg:03d}" for seg in missing_segments[:10])
+        raise FileNotFoundError(f"Missing {camera} video for segments: {missing_str}")
+
+    if not video_paths:
+        raise FileNotFoundError(f"No {camera} video segments available")
+
+    up_to_date, export_path = export_is_up_to_date(route_base, camera, segments)
+    if up_to_date:
+        if progress_callback:
+            progress_callback(1.0, "Video ready")
+        return export_path
+
+    total_source_size = 0
+    for _, path in video_paths:
+        try:
+            total_source_size += os.path.getsize(path)
+        except OSError:
+            pass
+
+    estimated_output_size = max(total_source_size, 100 * 1024 * 1024)  # Assume at least 100MB
+    export_base = "/data" if os.path.exists("/data") else os.path.expanduser("~")
+
+    if not has_sufficient_disk_space(estimated_output_size, export_base, min_free_gb=1):
+        free_space = get_free_disk_space(export_base)
+        free_gb = (free_space / (1024 ** 3)) if free_space else 0
+        required_gb = estimated_output_size / (1024 ** 3)
+        raise RuntimeError(
+            f"Insufficient disk space: {free_gb:.1f}GB free, need ~{required_gb:.1f}GB"
+        )
+
+    if progress_callback:
+        progress_callback(0.05, f"Preparing {len(video_paths)} segments")
+
+    # Avoid starving interactive playback by waiting for free FFmpeg slots
+    waited_for_capacity = False
+    if MAX_CONCURRENT_FFMPEG > FFMPEG_RESERVED_FOR_PLAYBACK:
+        if progress_callback:
+            progress_callback(0.08, "Waiting for encoder availability")
+        if not wait_for_ffmpeg_capacity(timeout=60.0):
+            logger.warning(
+                f"Export {route_base}:{camera} starting despite FFmpeg saturation"
+            )
+        else:
+            waited_for_capacity = True
+
+    if waited_for_capacity and progress_callback:
+        progress_callback(0.1, "Starting video encoding")
+
+    enable_performance_mode()
+
+    route_info = f"export:{route_base}:{camera}"
+    temp_output = get_export_output_path(route_base, camera) + ".tmp"
+    concat_file = None
+
+    # Ensure previous temp file removed
+    if os.path.exists(temp_output):
+        try:
+            os.remove(temp_output)
+        except OSError:
+            pass
+
+    try:
+        if camera in HEVC_CAMERAS:
+            concat_protocol = 'concat:' + '|'.join(path for _, path in video_paths)
+            ffmpeg_cmd = [
+                FFMPEG_BINARY,
+                '-loglevel', 'error',
+                '-f', 'hevc',
+                '-r', '20',
+                '-i', concat_protocol,
+                '-c:v', 'copy',
+                '-movflags', '+faststart',
+                '-f', 'mp4',
+                temp_output
+            ]
+        else:
+            fd, concat_file = tempfile.mkstemp(prefix='route_concat_', suffix='.txt')
+            with os.fdopen(fd, 'w') as concat_handle:
+                for _, path in video_paths:
+                    safe_path = path.replace("'", "\\'")
+                    concat_handle.write(f"file '{safe_path}'\n")
+
+            ffmpeg_cmd = [
+                FFMPEG_BINARY,
+                '-loglevel', 'error',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c', 'copy',
+                '-movflags', '+faststart',
+                temp_output
+            ]
+
+        if progress_callback:
+            progress_callback(0.35, "Merging video segments")
+
+        with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
+            process = ffmpeg_mgr.start(ffmpeg_cmd)
+            _, stderr = process.communicate()
+            if process.returncode != 0:
+                error_output = ''
+                if stderr:
+                    error_output = stderr.decode('utf-8', errors='ignore')
+                raise RuntimeError(f"FFmpeg failed (exit {process.returncode}): {error_output[:400]}")
+
+        os.replace(temp_output, get_export_output_path(route_base, camera))
+
+        if progress_callback:
+            progress_callback(1.0, "Video ready")
+
+        return get_export_output_path(route_base, camera)
+
+    finally:
+        if concat_file and os.path.exists(concat_file):
+            try:
+                os.remove(concat_file)
+            except OSError:
+                pass
+        if os.path.exists(temp_output):
+            # Keep partially generated output only if process succeeded (rename already done)
+            if not os.path.exists(get_export_output_path(route_base, camera)):
+                try:
+                    os.remove(temp_output)
+                except OSError:
+                    pass
 
 def get_cache_size():
     """Get total size of remux cache in bytes"""
@@ -1210,6 +1615,37 @@ IDLE_TIMEOUT_SECONDS = 300  # 5 minutes of no remuxing = idle
 
 # FFmpeg configuration
 MAX_CONCURRENT_FFMPEG = 3  # Maximum concurrent FFmpeg processes
+FFMPEG_RESERVED_FOR_PLAYBACK = 0  # Allow exports to use full encoder capacity
+
+def get_ffmpeg_background_capacity():
+    """Maximum number of background FFmpeg jobs allowed while keeping playback responsive."""
+    return max(1, MAX_CONCURRENT_FFMPEG - FFMPEG_RESERVED_FOR_PLAYBACK)
+
+
+def wait_for_ffmpeg_capacity(timeout=30.0, reserve=FFMPEG_RESERVED_FOR_PLAYBACK):
+    """
+    Wait until enough FFmpeg capacity is available for a background task.
+
+    Args:
+        timeout: Maximum seconds to wait before giving up (None to wait indefinitely)
+        reserve: Slots to keep free for interactive playback
+
+    Returns:
+        bool: True if capacity became available, False if timed out
+    """
+    deadline = None if timeout is None else time.time() + timeout
+    min_capacity = max(1, MAX_CONCURRENT_FFMPEG - reserve)
+
+    while True:
+        current = server_state.get_ffmpeg_count()
+        if current < min_capacity:
+            return True
+
+        if deadline and time.time() >= deadline:
+            return False
+
+        time.sleep(0.5)
+
 
 # Rate limiting (prevent abuse)
 request_counter = defaultdict(list)
@@ -2818,7 +3254,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(json.dumps(data).encode())
 
-    def send_file_response(self, filepath, mime_type=None):
+    def send_file_response(self, filepath, mime_type=None, download_filename=None):
         """Send file response with optional byte-range support"""
         if not os.path.exists(filepath):
             self.send_json_response({'error': 'File not found'}, 404)
@@ -2883,6 +3319,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
         self.send_header('Content-Type', mime_type)
         self.send_header('Accept-Ranges', 'bytes')
+        if download_filename:
+            safe_name = download_filename.replace('"', '')
+            self.send_header('Content-Disposition', f'attachment; filename="{safe_name}"')
 
         # Add cache-control headers to prevent stale JS/HTML from being cached
         # This ensures clients always get the latest version after updates
@@ -3753,7 +4192,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 camera = parts[2]
 
                 # Check for debug mode in query parameters
-                from urllib.parse import parse_qs
                 query_params = parse_qs(parsed.query)
                 debug_mode = query_params.get('debug', ['false'])[0].lower() == 'true'
 
@@ -3785,6 +4223,19 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_file_response(video_path)
 
+            elif path.startswith('/api/route-export/'):
+                # Status endpoint for route exports: /api/route-export/{route_base}/{camera}
+                parts = path.split('/')[3:]
+                if len(parts) < 2:
+                    self.send_json_response({'error': 'Invalid route export path'}, 400)
+                    return
+
+                route_base = parts[0]
+                camera = parts[1]
+
+                payload, status_code = self.build_route_export_status(route_base, camera)
+                self.send_json_response(payload, status_code)
+
             elif path.startswith('/api/download/route/'):
                 # Download full route: /api/download/route/{route_base}/{camera}
                 parts = path.split('/')[4:]  # Skip '', 'api', 'download', 'route'
@@ -3801,56 +4252,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Route not found'}, 404)
                     return
 
-                # Validate camera type
-                camera_files = {
-                    'front': 'fcamera.hevc',
-                    'wide': 'ecamera.hevc',
-                    'driver': 'dcamera.hevc',
-                    'lq': 'qcamera.ts'
-                }
-
-                if camera not in camera_files:
-                    self.send_json_response({'error': 'Invalid camera type'}, 400)
-                    return
-
                 self.download_full_route(route_base, camera, segments)
-
-            elif path.startswith('/api/download/segment/'):
-                # Download individual segment: /api/download/segment/{route_base}/{segment}/{camera}
-                parts = path.split('/')[4:]  # Skip '', 'api', 'download', 'segment'
-                if len(parts) < 3:
-                    self.send_json_response({'error': 'Invalid download path'}, 400)
-                    return
-
-                route_base = parts[0]
-                try:
-                    segment_num = int(parts[1])
-                except ValueError:
-                    self.send_json_response({'error': 'Invalid segment number'}, 400)
-                    return
-                camera = parts[2]
-
-                # Get segment data
-                segments = get_route_segments(route_base)
-                segment_data = next((s for s in segments if s['segment'] == segment_num), None)
-
-                if not segment_data:
-                    self.send_json_response({'error': 'Segment not found'}, 404)
-                    return
-
-                # Validate camera type
-                camera_files = {
-                    'front': 'fcamera.hevc',
-                    'wide': 'ecamera.hevc',
-                    'driver': 'dcamera.hevc',
-                    'lq': 'qcamera.ts'
-                }
-
-                if camera not in camera_files:
-                    self.send_json_response({'error': 'Invalid camera type'}, 400)
-                    return
-
-                self.download_segment(route_base, segment_num, camera, segment_data)
 
             elif path.startswith('/api/route-coordinates/'):
                 # New endpoint: /api/route-coordinates/{route_base}
@@ -3921,7 +4323,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     return
 
                 # Parse query parameters
-                from urllib.parse import parse_qs
                 query_params = parse_qs(parsed.query)
                 search_query = query_params.get('search', [None])[0]
                 level_filter = query_params.get('level', ['all'])[0]
@@ -4020,174 +4421,86 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 # Connection broken, can't send response
                 pass
 
+    def build_route_export_status(self, route_base, camera, segments=None):
+        """Build status payload for route export operations"""
+        if camera not in CAMERA_FILES:
+            return {'error': 'Invalid camera type'}, 400
+
+        if segments is None:
+            segments = get_route_segments(route_base)
+
+        if not segments:
+            return {'error': 'Route not found'}, 404
+
+        ready, export_path = export_is_up_to_date(route_base, camera, segments)
+        key = route_export_key(route_base, camera)
+
+        if ready:
+            info = server_state.complete_route_export(key, export_path)
+            broadcast_route_export_update(route_base, camera, info, export_path)
+        else:
+            info = server_state.get_route_export_status(key)
+            if info and info.get('status') == 'ready':
+                path = info.get('path') or export_path
+                if not path or not os.path.exists(path):
+                    server_state.clear_route_export(key)
+                    info = None
+
+        if info is None:
+            thread_active = server_state.get_route_export_thread(key) is not None
+            now = time.time()
+            info = {
+                'status': 'processing' if thread_active else 'idle',
+                'message': 'Preparing video' if thread_active else 'Ready to generate video',
+                'progress': 0.0,
+                'path': export_path if ready else None,
+                'started_at': now if thread_active else None,
+                'updated_at': now
+            }
+
+        payload = format_route_export_status(
+            route_base,
+            camera,
+            info,
+            export_path if ready else None
+        )
+        return payload, 200
+
     def download_full_route(self, route_base, camera, segments):
-        """Download full route by concatenating all segments"""
+        """Download previously generated full route export"""
         try:
-            # Create filename for download
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{route_base}_{camera}_{timestamp}.mp4"
-
-            # Set download headers
-            self.send_response(200)
-            self.send_header('Content-Type', 'video/mp4')
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.send_cors_headers()
-            self.end_headers()
-
-            # Get camera file mapping
-            camera_files = {
-                'front': 'fcamera.hevc',
-                'wide': 'ecamera.hevc',
-                'driver': 'dcamera.hevc',
-                'lq': 'qcamera.ts'
-            }
-
-            # Create FFmpeg concat file list
-            concat_list = []
-            for seg in segments:
-                seg_path = os.path.join(seg['path'], camera_files[camera])
-                if os.path.exists(seg_path):
-                    concat_list.append(seg_path)
-
-            if not concat_list:
-                logger.error(f"No segments found for route {route_base} camera {camera}")
+            payload, status_code = self.build_route_export_status(route_base, camera, segments)
+            if status_code != 200:
+                self.send_json_response(payload, status_code)
                 return
 
-            # Create temporary concat file
-            concat_file = f"/tmp/concat_{route_base}_{camera}.txt"
-            with open(concat_file, 'w') as f:
-                for video_file in concat_list:
-                    f.write(f"file '{video_file}'\n")
-
-            # Use FFmpeg to concatenate all segments
-            # Check if ffmpeg is available
-            if FFMPEG_BINARY is None:
-                logger.error("FFmpeg not available, cannot download route")
-                self.send_json_response({
-                    'error': 'FFmpeg not installed on server',
-                    'details': 'Video conversion tool is not available',
-                    'hint': 'Contact system administrator or install FFmpeg'
-                }, 500)
+            if payload.get('status') != 'ready':
+                response = dict(payload)
+                response['error'] = 'Route export not ready'
+                self.send_json_response(response, 409)
                 return
 
-            # For HEVC raw streams, use concat protocol with proper input format
-            if camera in ['front', 'wide', 'driver']:
-                # HEVC files are raw elementary streams
-                # Use concat protocol: concat:file1|file2|file3
-                concat_protocol = 'concat:' + '|'.join(concat_list)
+            export_path = get_export_output_path(route_base, camera)
+            if not os.path.exists(export_path):
+                message = 'Generated video file not found'
+                logger.error(f"{message}: {export_path}")
+                info = server_state.fail_route_export(route_export_key(route_base, camera), message)
+                broadcast_route_export_update(route_base, camera, info)
+                response = dict(payload)
+                response['status'] = 'error'
+                response['error'] = message
+                self.send_json_response(response, 500)
+                return
 
-                cmd = [
-                    FFMPEG_BINARY,
-                    '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
-                    '-f', 'hevc',  # Input format is raw HEVC
-                    '-r', '20',  # Comma camera framerate (20 fps)
-                    '-i', concat_protocol,  # Use concat protocol
-                    '-c:v', 'copy',  # Copy without re-encoding
-                    '-movflags', '+faststart',  # Optimize for web playback
-                    '-f', 'mp4',
-                    '-'  # Output to stdout
-                ]
-            else:
-                # LQ files (qcamera.ts) can use concat demuxer
-                cmd = [
-                    FFMPEG_BINARY,
-                    '-loglevel', 'error',  # Reduce stderr output to prevent buffer deadlock
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_file,
-                    '-c', 'copy',  # Copy without re-encoding
-                    '-movflags', '+faststart',  # Optimize for web playback
-                    '-f', 'mp4',
-                    '-'  # Output to stdout
-                ]
-
-            # Start FFmpeg process
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=8192
-            )
-
-            # Stream output to client
-            try:
-                while True:
-                    chunk = process.stdout.read(8192)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-            except (BrokenPipeError, ConnectionResetError):
-                logger.warning("Client disconnected during download")
-                process.kill()
-                try:
-                    process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    logger.warning("FFmpeg download process did not terminate, force killing")
-                    process.kill()
-                    process.wait()
-            finally:
-                # Cleanup - ensure process is terminated
-                if process.poll() is None:
-                    logger.warning("FFmpeg download process still running in finally block")
-                    process.kill()
-                    try:
-                        process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        logger.exception("FFmpeg download process would not die")
-                        process.kill()
-                        process.wait()
-
-                # Remove temp file
-                if os.path.exists(concat_file):
-                    os.remove(concat_file)
+            filename = generate_route_export_filename(route_base, camera)
+            self.send_file_response(export_path, 'video/mp4', download_filename=filename)
 
         except Exception as e:
-            logger.error(f"Error downloading full route {route_base}: {e}")
-
-    def download_segment(self, route_base, segment_num, camera, segment_data):
-        """Download individual segment"""
-        try:
-            # Create filename for download
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{route_base}_segment_{segment_num:03d}_{camera}_{timestamp}.mp4"
-
-            # Set download headers
-            self.send_response(200)
-            self.send_header('Content-Type', 'video/mp4')
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.send_cors_headers()
-            self.end_headers()
-
-            # Get video file path
-            camera_files = {
-                'front': 'fcamera.hevc',
-                'wide': 'ecamera.hevc',
-                'driver': 'dcamera.hevc',
-                'lq': 'qcamera.ts'
-            }
-
-            video_path = os.path.join(segment_data['path'], camera_files[camera])
-
-            # For HEVC files, remux to MP4 for browser compatibility
-            if camera in ['front', 'wide', 'driver']:
-                # Check if already cached
-                cache_filename = f"{route_base}_{segment_num}_{camera}.mp4"
-                cache_path = os.path.join(REMUX_CACHE, cache_filename)
-
-                if os.path.exists(cache_path):
-                    # Serve cached version
-                    with open(cache_path, 'rb') as f:
-                        shutil.copyfileobj(f, self.wfile)
-                else:
-                    # Remux on-demand for download
-                    self.send_remuxed_hevc(video_path, route_base, segment_num, camera)
-            else:
-                # LQ files are already in correct format
-                with open(video_path, 'rb') as f:
-                    shutil.copyfileobj(f, self.wfile)
-
-        except Exception as e:
-            logger.error(f"Error downloading segment {route_base}/{segment_num}: {e}")
+            logger.error(f"Error downloading full route {route_base}: {e}", exc_info=True)
+            self.send_json_response({
+                'error': 'Failed to download route',
+                'details': str(e)
+            }, 500)
 
     def do_POST(self):
         """Handle POST requests"""
@@ -4252,7 +4565,80 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 503)
                 return
 
-            if path.startswith('/api/preserve/'):
+            if path.startswith('/api/route-export/'):
+                parts = path.split('/')[3:]
+                if len(parts) < 2:
+                    self.send_json_response({'error': 'Invalid route export path'}, 400)
+                    return
+
+                route_base = parts[0]
+                camera = parts[1]
+
+                segments = get_route_segments(route_base)
+                if not segments:
+                    self.send_json_response({'error': 'Route not found'}, 404)
+                    return
+
+                if camera not in CAMERA_FILES:
+                    self.send_json_response({'error': 'Invalid camera type'}, 400)
+                    return
+
+                ready, export_path = export_is_up_to_date(route_base, camera, segments)
+                key = route_export_key(route_base, camera)
+
+                if ready:
+                    payload, _ = self.build_route_export_status(route_base, camera, segments)
+                    self.send_json_response(payload)
+                    return
+
+                existing_thread = server_state.get_route_export_thread(key)
+                if existing_thread:
+                    payload, _ = self.build_route_export_status(route_base, camera, segments)
+                    self.send_json_response(payload)
+                    return
+
+                started = server_state.start_route_export(key, "Preparing route video")
+                if not started:
+                    payload, _ = self.build_route_export_status(route_base, camera, segments)
+                    self.send_json_response(payload)
+                    return
+
+                info = server_state.update_route_export(key, progress=0.05, message="Preparing route video")
+                broadcast_route_export_update(route_base, camera, info)
+
+                def progress_callback(progress, message):
+                    try:
+                        progress_value = max(0.0, min(1.0, float(progress)))
+                    except (TypeError, ValueError):
+                        progress_value = 0.0
+                    info = server_state.update_route_export(key, progress=progress_value, message=message)
+                    broadcast_route_export_update(route_base, camera, info)
+
+                def worker():
+                    try:
+                        export_path_local = generate_route_export(route_base, camera, progress_callback)
+                        info = server_state.complete_route_export(key, export_path_local, message="Video ready")
+                        broadcast_route_export_update(route_base, camera, info, export_path_local)
+                    except Exception as exc:
+                        logger.error(f"Route export failed for {route_base}/{camera}: {exc}", exc_info=True)
+                        info = server_state.fail_route_export(key, str(exc))
+                        broadcast_route_export_update(route_base, camera, info)
+                    finally:
+                        server_state.clear_route_export_thread(key)
+
+                thread = threading.Thread(
+                    target=worker,
+                    daemon=True,
+                    name=f"route-export-{route_base}-{camera}"
+                )
+                server_state.set_route_export_thread(key, thread)
+                thread.start()
+
+                payload, _ = self.build_route_export_status(route_base, camera)
+                self.send_json_response(payload)
+                return
+
+            elif path.startswith('/api/preserve/'):
                 # Preserve/unpreserve a route using preserve xattr with disk space checking
                 route_base = path.split('/api/preserve/')[1].strip('/')
 

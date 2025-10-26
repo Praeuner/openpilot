@@ -27,6 +27,7 @@ class WebSocketEvent:
     PROCESSING_UPDATE = 'processing_update'
     PROCESSING_STARTED = 'processing_started'
     PROCESSING_COMPLETED = 'processing_completed'
+    ROUTE_EXPORT_UPDATE = 'route_export_update'
     CACHE_CLEARED = 'cache_cleared'
     DISK_UPDATED = 'disk_updated'  # Disk space changed
     FFMPEG_LOG = 'ffmpeg_log'  # Real-time FFmpeg debug logs

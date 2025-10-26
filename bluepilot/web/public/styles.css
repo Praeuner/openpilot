@@ -905,6 +905,84 @@ body {
   background: #ffa726;
 }
 
+.route-download-status {
+  font-size: 0.85rem;
+  color: var(--bp-text-secondary);
+  min-height: 1.1rem;
+  line-height: 1.2;
+}
+
+.route-download-status.is-active {
+  color: var(--bp-accent-blue);
+}
+
+.route-download-status.is-error {
+  color: var(--bp-error);
+}
+
+.route-download-history {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.route-download-history-empty {
+  color: var(--bp-text-secondary);
+  font-style: italic;
+}
+
+.download-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.45rem 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.download-history-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.download-history-filename {
+  color: var(--bp-text-primary);
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.download-history-meta {
+  margin-top: 0.15rem;
+  color: var(--bp-text-secondary);
+  font-size: 0.75rem;
+}
+
+.download-history-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.download-history-time {
+  color: var(--bp-text-secondary);
+  font-size: 0.75rem;
+}
+
+.download-history-link {
+  color: var(--bp-accent-blue);
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.download-history-link:hover {
+  text-decoration: underline;
+}
+
 /* Responsive - Mobile: video top, sidebar below */
 @media (max-width: 768px) {
   .header-title {

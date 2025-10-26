@@ -3,23 +3,15 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QFontMetrics>
-#include <QGuiApplication>
 #include <map>
-
-#ifdef QCOM2
-#include <qpa/qplatformnativeinterface.h>
-#include <wayland-client-protocol.h>
-#endif
 
 #include "selfdrive/ui/qt/util.h"
 #include "common/params.h"
 
 OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
-  // Make this a top-level overlay widget that floats above everything
-  setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  // Allow this widget to draw over other UI elements without stealing input
   setAttribute(Qt::WA_TranslucentBackground, true);
   setAttribute(Qt::WA_TransparentForMouseEvents, true);
-  setAttribute(Qt::WA_ShowWithoutActivating, true);  // Don't steal focus
 
   // Setup opacity animation for smooth transitions
   opacity_animation = new QPropertyAnimation(this, "alertOpacity");
@@ -52,30 +44,10 @@ OnroadAlertsBP::~OnroadAlertsBP() {
 void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
-  // Match the parent window geometry (fullscreen)
-  // As a top-level widget, we cover the entire screen independently
+  // Match the parent window geometry (fullscreen overlay inside parent)
   if (parentWidget()) {
-    QWidget *window = parentWidget()->window();
-    setGeometry(window->geometry());
+    setGeometry(0, 0, parentWidget()->width(), parentWidget()->height());
   }
-}
-
-void OnroadAlertsBP::showEvent(QShowEvent *event) {
-  QWidget::showEvent(event);
-
-#ifdef QCOM2
-  // Apply QCOM2 buffer transform for proper rotation on Comma2 devices
-  // This must be done after the widget is shown and has a valid window handle
-  if (!qcom2_transform_applied && windowHandle()) {
-    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-    wl_surface *s = reinterpret_cast<wl_surface*>(native->nativeResourceForWindow("surface", windowHandle()));
-    if (s) {
-      wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-      wl_surface_commit(s);
-      qcom2_transform_applied = true;
-    }
-  }
-#endif
 }
 
 void OnroadAlertsBP::updateState(const UIState &s) {

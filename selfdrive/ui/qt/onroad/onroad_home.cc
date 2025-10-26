@@ -34,9 +34,9 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   stock_alerts->setAttribute(Qt::WA_TransparentForMouseEvents, true);
   stacked_layout->addWidget(stock_alerts);
 
-  // BluePilot alerts are a floating top-level overlay - not in stacked layout
+  // BluePilot alerts render as a manual overlay (kept outside stacked layout)
   bp_alerts = new OnroadAlertsBP(this);
-  // bp_alerts manages its own geometry and stays on top via window flags
+  // bp_alerts manages its own geometry to cover the parent window
 
   // Set initial visibility based on parameter
   use_bp_alerts = Params().getBool("BPUseBluepilotAlerts");
