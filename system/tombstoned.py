@@ -19,6 +19,7 @@ MAX_TOMBSTONE_FN_LEN = 62  # 85 - 23 ("<dongle id>/crash/")
 
 TOMBSTONE_DIR = "/data/tombstones/"
 APPORT_DIR = "/var/crash/"
+CRASHLOGS_DIR = "/data/crashlogs/"
 
 
 def safe_fn(s):
@@ -55,6 +56,14 @@ def get_tombstones():
           files.append((f.path, int(f.stat().st_ctime)))
         elif f.name.endswith(".crash") and f.stat().st_mode == 0o100640:
           files.append((f.path, int(f.stat().st_ctime)))
+
+  # Also scan for CrashHooks backtrace files
+  if os.path.exists(CRASHLOGS_DIR):
+    with os.scandir(CRASHLOGS_DIR) as d:
+      for _, f in zip(range(1000), d, strict=False):
+        if f.name.startswith("ui_crash.log.") and f.is_file():
+          files.append((f.path, int(f.stat().st_ctime)))
+
   return files
 
 
@@ -140,6 +149,107 @@ def report_tombstone_apport(fn):
     pass
 
 
+def report_crashhooks_log(fn):
+  """Report CrashHooks backtrace file to Sentry"""
+  f_size = os.path.getsize(fn)
+  if f_size > MAX_SIZE:
+    cloudlog.error(f"CrashHooks log {fn} too big, {f_size}. Skipping...")
+    return
+
+  message = "Qt UI Crash"
+  signal_name = "UNKNOWN"
+  signal_num = None
+  tid = None
+  crash_reason = "unknown"
+  contents = ""
+
+  try:
+    with open(fn, 'r') as f:
+      contents = f.read()
+
+    # Parse signal information from first line
+    # Format: [CrashHooks] Caught SIGSEGV (11), tid=12345
+    for line in contents.split('\n'):
+      if '[CrashHooks] Caught' in line:
+        parts = line.split()
+        for i, part in enumerate(parts):
+          if part.startswith('(') and part.endswith('),'):
+            # Extract signal number
+            try:
+              signal_num = int(part.strip('(),'))
+            except ValueError:
+              pass
+          if part.startswith('tid='):
+            # Extract thread ID
+            tid = part.replace('tid=', '')
+          # Extract signal name (word before the parenthesis)
+          if i > 0 and '(' in parts[i] and parts[i-1] not in ['Caught', '[CrashHooks]']:
+            signal_name = parts[i-1]
+        break
+
+    # Extract crash reason from thread dump line
+    for line in contents.split('\n'):
+      if '===== Thread dump @' in line and '(' in line:
+        reason_match = re.search(r'\(([^)]+)\)', line)
+        if reason_match:
+          crash_reason = reason_match.group(1)
+        break
+
+    # Format message
+    message = f"Qt UI - {signal_name}"
+    if signal_num:
+      try:
+        signal_obj = signal.Signals(signal_num)
+        message += f" ({signal_obj.name})"
+      except ValueError:
+        message += f" ({signal_num})"
+
+    if crash_reason:
+      message += f" - {crash_reason}"
+
+    if tid:
+      message += f" - tid={tid}"
+
+    # Extract first meaningful backtrace line for summary
+    lines = contents.split('\n')
+    for i, line in enumerate(lines):
+      if '=== Backtrace for tid' in line and i + 1 < len(lines):
+        # Get first non-empty backtrace line
+        for bt_line in lines[i+1:]:
+          bt_line = bt_line.strip()
+          if bt_line and not bt_line.startswith('===') and not bt_line.startswith('[CrashHooks]'):
+            # Extract function name if present
+            func_match = re.search(r'\(([^+]+)', bt_line)
+            if func_match:
+              message += f" - {func_match.group(1)}"
+            break
+        break
+
+  except Exception as e:
+    cloudlog.exception(f"Error parsing CrashHooks log {fn}: {e}")
+    message = f"Qt UI Crash (parse error) - {os.path.basename(fn)}"
+
+  # Report to Sentry
+  sentry.report_tombstone(fn, message, contents)
+
+  # Copy to crash upload folder
+  date = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+  build_metadata = get_build_metadata()
+  new_fn = f"{date}_{(build_metadata.openpilot.git_commit or 'nocommit')[:8]}_ui_crash"[:MAX_TOMBSTONE_FN_LEN]
+
+  crashlog_dir = os.path.join(Paths.log_root(), "crash")
+  os.makedirs(crashlog_dir, exist_ok=True)
+
+  # Copy file
+  shutil.copy(fn, os.path.join(crashlog_dir, new_fn))
+
+  # Remove original
+  try:
+    os.remove(fn)
+  except PermissionError:
+    pass
+
+
 def main() -> NoReturn:
   should_report = sentry.init(sentry.SentryProject.SELFDRIVE_NATIVE)
 
@@ -163,6 +273,8 @@ def main() -> NoReturn:
         cloudlog.info(f"reporting new tombstone {fn}")
         if fn.endswith(".crash"):
           report_tombstone_apport(fn)
+        elif "ui_crash.log." in fn:
+          report_crashhooks_log(fn)
         else:
           cloudlog.error(f"unknown crash type: {fn}")
       except Exception:
