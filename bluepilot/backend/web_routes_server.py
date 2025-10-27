@@ -2575,38 +2575,9 @@ def get_video_duration(filepath):
         return 60.0  # Default fallback
 
     try:
-        # For raw HEVC files (.hevc), we need to analyze the stream differently
+        # Raw HEVC segments always record ~60 seconds at 20 fps; avoid heavy ffprobe
         if filepath.endswith('.hevc'):
-            # Get stream info including frame count and frame rate
-            cmd = [
-                FFPROBE_BINARY,
-                '-v', 'error',
-                '-count_frames',
-                '-select_streams', 'v:0',
-                '-show_entries', 'stream=nb_read_frames,r_frame_rate',
-                '-of', 'default=noprint_wrappers=1',
-                filepath
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            if result.returncode == 0 and result.stdout.strip():
-                lines = result.stdout.strip().split('\n')
-                frame_count = None
-                frame_rate = None
-
-                for line in lines:
-                    if line.startswith('nb_read_frames='):
-                        frame_count = int(line.split('=')[1])
-                    elif line.startswith('r_frame_rate='):
-                        # Parse fraction like "20/1"
-                        rate_str = line.split('=')[1]
-                        if '/' in rate_str:
-                            num, den = rate_str.split('/')
-                            frame_rate = float(num) / float(den)
-
-                if frame_count and frame_rate and frame_rate > 0:
-                    duration = frame_count / frame_rate
-                    logger.debug(f"Calculated duration for {filepath}: {duration:.3f}s ({frame_count} frames @ {frame_rate} fps)")
-                    return round(duration, 3)
+            return 60.0
         else:
             # For container formats (mp4, ts), use standard duration query
             cmd = [
@@ -2616,7 +2587,11 @@ def get_video_duration(filepath):
                 '-of', 'default=noprint_wrappers=1:nokey=1',
                 filepath
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.debug(f"ffprobe timed out while probing {filepath}, using default duration")
+                return 60.0
             if result.returncode == 0 and result.stdout.strip():
                 duration = float(result.stdout.strip())
                 return round(duration, 3)
@@ -3182,6 +3157,7 @@ def scan_routes():
             'sizeBytes': total_size,
             'hasVideo': has_video,
             'isPreserved': is_preserved,
+            'isStarred': is_preserved,
             'dateTime': route_dt.isoformat(),  # For sorting
             # GPS metrics
             'mileage': mileage_str,
@@ -3862,6 +3838,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 # Load GPS metrics from cache if available
                 cache_file = os.path.join(METRICS_CACHE, f"{route_base}.json")
+                avg_speed_str = None
+                max_speed_str = None
                 if os.path.exists(cache_file):
                     try:
                         with open(cache_file) as f:
@@ -3877,16 +3855,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     is_metric = params.get_bool("IsMetric")
                     if is_metric:
                         distance_km = gps_metrics['total_distance_meters'] / 1000
+                        avg_speed_kmh = gps_metrics['avg_speed_ms'] * 3.6
+                        max_speed_kmh = gps_metrics['max_speed_ms'] * 3.6
                         mileage_str = f"{distance_km:.2f} km"
+                        avg_speed_str = f"{avg_speed_kmh:.1f} km/h"
+                        max_speed_str = f"{max_speed_kmh:.1f} km/h"
                     else:
                         distance_miles = gps_metrics['total_distance_meters'] / 1609.34
+                        avg_speed_mph = gps_metrics['avg_speed_ms'] * 2.237
+                        max_speed_mph = gps_metrics['max_speed_ms'] * 2.237
                         mileage_str = f"{distance_miles:.2f} mi"
+                        avg_speed_str = f"{avg_speed_mph:.1f} mph"
+                        max_speed_str = f"{max_speed_mph:.1f} mph"
                     start_location = gps_metrics.get('start_location')
                     end_location = gps_metrics.get('end_location')
                 else:
                     mileage_str = None
                     start_location = None
                     end_location = None
+                    avg_speed_str = None
+                    max_speed_str = None
 
                 # Build segment details
                 segments_detail = []
@@ -3910,10 +3898,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'size': format_size(total_size),
                     'sizeBytes': total_size,
                     'mileage': mileage_str,
+                    'avgSpeed': avg_speed_str,
+                    'topSpeed': max_speed_str,
                     'hasGpsData': gps_metrics['has_gps_data'],
                     'startLocation': start_location,
                     'endLocation': end_location,
                     'isPreserved': is_preserved,
+                    'isStarred': is_preserved,
                     'segments': segments_detail,
                     'totalSegments': len(segments_detail)
                 })

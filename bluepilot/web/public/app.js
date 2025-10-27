@@ -398,6 +398,8 @@ constructor() {
     this.$diskThresholdMarker = document.getElementById("disk-threshold-marker");
     this.$diskWarning = document.getElementById("disk-warning");
     this.$diskWarningText = document.getElementById("disk-warning-text");
+    this.$diskPreservedValue = document.getElementById("disk-preserved-legend");
+    this.$diskRoutesValue = document.getElementById("disk-routes-legend");
 
     // Status overlay
     this.$statusOverlay = document.getElementById("status-overlay");
@@ -445,11 +447,12 @@ constructor() {
     this.$videoPlayer = document.getElementById("video-player");
     this.$videoTitle = document.getElementById("video-title");
     this.$videoRouteId = document.getElementById("video-route-id");
+    this.$playerRouteRange = document.getElementById("player-route-range");
     this.$videoCanvas = document.getElementById("video-canvas");
     this.$videoLoading = document.getElementById("video-loading");
     this.$videoReplay = document.getElementById("video-replay");
     this.$replayBtn = document.getElementById("replay-btn");
-    this.$closeVideo = document.getElementById("close-video");
+    this.$playerBackBtn = document.getElementById("player-back-btn");
     this.$segmentInfo = document.getElementById("segment-info");
     this.$cameraButtons = document.querySelectorAll(".camera-btn");
 
@@ -463,6 +466,8 @@ constructor() {
     this.$statSegments = document.getElementById("stat-segments");
     this.$statSize = document.getElementById("stat-size");
     this.$statDistance = document.getElementById("stat-distance");
+    this.$statAvgSpeed = document.getElementById("stat-avg-speed");
+    this.$statTopSpeed = document.getElementById("stat-top-speed");
     this.$statLocationStart = document.getElementById("stat-location-start");
     this.$statLocationEnd = document.getElementById("stat-location-end");
 
@@ -562,7 +567,9 @@ constructor() {
     this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
     this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
     this.$retryBtn.addEventListener("click", () => this.loadRoutes());
-    this.$closeVideo.addEventListener("click", () => this.closeVideo());
+    if (this.$playerBackBtn) {
+      this.$playerBackBtn.addEventListener("click", () => this.closeVideo());
+    }
     this.$replayBtn.addEventListener("click", () => this.replayRoute());
 
     // FFmpeg Debug Panel
@@ -794,7 +801,14 @@ constructor() {
         throw new Error(data.error || "Failed to load routes");
       }
 
-      this.routes = data.routes;
+      this.routes = data.routes.map((route) => ({
+        ...route,
+        isStarred:
+          route.isStarred ??
+          route.isPreserved ??
+          route.is_preserved ??
+          false,
+      }));
       this.hideLoading();
 
       if (this.routes.length === 0) {
@@ -1068,6 +1082,12 @@ constructor() {
 
       // Update compact disk info text
       this.$diskVizStatsText.textContent = `${disk.formatted.used} / ${disk.formatted.total} (${disk.formatted.free} free)`;
+      if (this.$diskPreservedValue) {
+        this.$diskPreservedValue.textContent = disk.formatted.preserved;
+      }
+      if (this.$diskRoutesValue) {
+        this.$diskRoutesValue.textContent = disk.formatted.non_preserved;
+      }
 
       // Calculate percentages for gauge bar segments (only show USED space)
       const preservedPercent = (disk.preserved_bytes / disk.total_bytes) * 100;
@@ -1230,10 +1250,16 @@ constructor() {
 
     group.appendChild(header);
 
+    // Create grid container for cards
+    const cardsContainer = document.createElement("div");
+    cardsContainer.className = "date-group-cards";
+
     for (const route of routes) {
       const card = this.createRouteCard(route);
-      group.appendChild(card);
+      cardsContainer.appendChild(card);
     }
+
+    group.appendChild(cardsContainer);
 
     return group;
   }
@@ -1283,129 +1309,135 @@ constructor() {
       ? `${displayTime} - ${displayEndTime}`
       : displayTime;
 
-    // Thumbnail - try to load from cache
-    const thumbnailHTML = `
-            <div class="route-thumbnail">
-                <img src="${this.API_BASE}/api/thumbnail/${route.baseName}"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polygon points="10 8 16 12 10 16 10 8"/>
-                </svg>
-            </div>
-        `;
-
-    // Camera badges
-    const cameras = [];
-    if (route.hasVideo?.front)
-      cameras.push('<span class="camera-badge available">Front</span>');
-    if (route.hasVideo?.wide)
-      cameras.push('<span class="camera-badge available">Wide</span>');
-    if (route.hasVideo?.driver)
-      cameras.push('<span class="camera-badge available">Driver</span>');
-    if (route.hasVideo?.lq)
-      cameras.push('<span class="camera-badge available">LQ</span>');
-
-    const starIcon = route.isStarred ? '<span class="star-icon">★</span>' : "";
-
-    // Show time range as the title
-    const displayTitle = timeRange || route.baseName;
+    // Preserved badge
+    const preservedBadge = route.isStarred ? `
+      <div class="preserved-badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Preserved
+      </div>
+    ` : "";
 
     // Format location subtitle (start -> end)
-    let locationSubtitle = "";
+    let locationHTML = "";
     if (route.startLocation || route.endLocation) {
       const start = route.startLocation || "N/A";
       const end = route.endLocation || "N/A";
       if (start === end) {
-        locationSubtitle = `<div class="route-location">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-          ${start}
-        </div>`;
+        locationHTML = `
+          <div class="route-location">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            ${start}
+          </div>`;
       } else {
-        locationSubtitle = `<div class="route-location">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-          ${start} → ${end}
-        </div>`;
+        locationHTML = `
+          <div class="route-location">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            ${start} → ${end}
+          </div>`;
       }
     }
 
+    const preserveButtonClass = route.isStarred
+      ? "route-preserve-btn active"
+      : "route-preserve-btn";
+    const preserveButtonLabel = route.isStarred ? "Preserved" : "Preserve";
+    const preserveIconFill = route.isStarred ? "currentColor" : "none";
+
     card.innerHTML = `
-            <div class="route-card-content">
-                ${thumbnailHTML}
-                <div class="route-info">
-                    <div class="route-title">
-                        ${starIcon}
-                        ${displayTitle}
-                    </div>
-                    ${locationSubtitle}
-                    <div class="route-meta">
-                        <span class="route-meta-item meta-time">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            ${route.duration}
-                        </span>
-                        <span class="route-meta-item meta-segments">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                            </svg>
-                            ${route.segments} segments
-                        </span>
-                        <span class="route-meta-item meta-size">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                <polyline points="13 2 13 9 20 9"/>
-                            </svg>
-                            ${route.size}
-                        </span>
-                        ${
-                          route.hasGpsData && route.mileage
-                            ? `<span class="route-meta-item meta-distance">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>
-                                <path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z"/>
-                            </svg>
-                            ${route.mileage}
-                        </span>`
-                            : ""
-                        }
-                        ${
-                          route.hasGpsData && route.avgSpeed
-                            ? `<span class="route-meta-item meta-speed-avg">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
-                                <path d="M12 7v5l3 3"/>
-                            </svg>
-                            ${route.avgSpeed} avg
-                        </span>`
-                            : ""
-                        }
-                        ${
-                          route.hasGpsData && route.topSpeed
-                            ? `<span class="route-meta-item meta-speed-top">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 12a9 9 0 0 1 9 -9a9.75 9.75 0 0 1 6.74 2.74l-4.74 4.76"/>
-                                <path d="M12 3v9l3 3"/>
-                            </svg>
-                            ${route.topSpeed} top
-                        </span>`
-                            : ""
-                        }
-                    </div>
-                    <div class="route-cameras">
-                        ${cameras.join("")}
-                    </div>
-                    ${this.createRiskBadge(route)}
-                </div>
+      ${preservedBadge}
+      <div class="route-thumbnail">
+        <img src="${this.API_BASE}/api/thumbnail/${route.baseName}"
+             onerror="this.style.display='none'">
+        <div class="play-overlay">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="#2196f3" stroke="#2196f3" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </div>
+      </div>
+      <div class="route-info">
+        <div class="route-info-header">
+          <div class="route-time-range">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            ${timeRange || route.baseName}
+          </div>
+          <button
+            type="button"
+            class="${preserveButtonClass}"
+            aria-pressed="${route.isStarred}"
+            title="${preserveButtonLabel} this route"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="${preserveIconFill}" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>${preserveButtonLabel}</span>
+          </button>
+        </div>
+        ${locationHTML}
+        <div class="route-stats-grid">
+          <div class="route-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            ${route.duration}
+          </div>
+          <div class="route-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            ${route.mileage || route.distance || '--'}
+          </div>
+          ${route.avgSpeed ? `
+            <div class="route-stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4"/><path d="m6.8 15-3.5 2"/><path d="m20.7 7-3.5 2"/>
+                <path d="M6.8 9 3.3 7"/><path d="m20.7 17-3.5-2"/><path d="M18 18.7a9 9 0 1 0-12 0"/>
+              </svg>
+              ${route.avgSpeed} avg
             </div>
-        `;
+          ` : ''}
+          ${route.topSpeed ? `
+            <div class="route-stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              ${route.topSpeed} top
+            </div>
+          ` : ''}
+          <div class="route-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            ${route.segments} seg
+          </div>
+          <div class="route-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="12" x2="2" y2="12"/>
+              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            </svg>
+            ${route.size}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const preserveBtn = card.querySelector(".route-preserve-btn");
+    if (preserveBtn) {
+      preserveBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.toggleStar(route);
+      });
+    }
 
     // Make entire card clickable
     card.addEventListener("click", () => {
@@ -1471,7 +1503,24 @@ constructor() {
         throw new Error(data.error || "Failed to load route details");
       }
 
-      this.currentRoute = data;
+      const mergedRoute = {
+        ...(route || {}),
+        ...data,
+      };
+      if (
+        mergedRoute.isStarred === undefined ||
+        mergedRoute.isStarred === null
+      ) {
+        mergedRoute.isStarred =
+          data.isStarred ??
+          data.isPreserved ??
+          data.is_preserved ??
+          route?.isStarred ??
+          route?.isPreserved ??
+          false;
+      }
+
+      this.currentRoute = mergedRoute;
       this.currentSegment = 0;
 
       // Determine best camera to start with based on HEVC support
@@ -1559,6 +1608,10 @@ constructor() {
     const timeRange = displayEndTime
       ? `${displayTime} - ${displayEndTime}`
       : displayTime;
+    if (this.$playerRouteRange) {
+      this.$playerRouteRange.textContent =
+        timeRange || this.currentRoute.displayTime || "--";
+    }
     this.$videoTitle.textContent =
       displayDate + (displayDate && timeRange ? " - " : "") + timeRange;
 
@@ -1592,6 +1645,10 @@ constructor() {
     // Distance - use GPS metrics if available
     this.$statDistance.textContent = this.currentRoute.mileage || "--";
 
+    // Speed stats
+    this.$statAvgSpeed.textContent = this.currentRoute.avgSpeed || "--";
+    this.$statTopSpeed.textContent = this.currentRoute.topSpeed || "--";
+
     // Location start and end
     this.$statLocationStart.textContent =
       this.currentRoute.startLocation || "--";
@@ -1602,7 +1659,7 @@ constructor() {
     if (!this.currentRoute) return;
 
     const isStarred = this.currentRoute.isStarred || false;
-    this.$playerStarText.textContent = isStarred ? "Unstar" : "Star";
+    this.$playerStarText.textContent = isStarred ? "Preserved" : "Preserve";
 
     // Update button styling based on starred state
     if (isStarred) {
