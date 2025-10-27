@@ -304,8 +304,12 @@
             }
           },
           "enableConditions": {
-            "paramNotLocked": "RecordFront",
-            "reason": "Setting is locked"
+            "allConditionsTrue": [
+              {
+                "paramNotLocked": "RecordFront",
+                "reason": "Setting is locked"
+              }
+            ]
           }
         },
         {
@@ -326,8 +330,12 @@
             }
           },
           "enableConditions": {
-            "paramNotLocked": "RecordAudio",
-            "reason": "Setting is locked"
+            "allConditionsTrue": [
+              {
+                "paramNotLocked": "RecordAudio",
+                "reason": "Setting is locked"
+              }
+            ]
           }
         }
       ]

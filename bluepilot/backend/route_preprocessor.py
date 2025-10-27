@@ -45,7 +45,8 @@ from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(levelname)s [%(name)s]: %(message)s',
+    force=True  # Force reconfiguration if already configured
 )
 logger = logging.getLogger("route_preprocessor")
 

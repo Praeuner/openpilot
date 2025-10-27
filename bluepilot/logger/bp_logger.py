@@ -67,7 +67,7 @@ DEFAULT_CONFIG = {
   "backup_count": 10,
   "log_dir": get_default_log_dir(),  # Dynamic log directory
   "log_filename": "bluepilot.log",
-  "format": "%(asctime)s [%(levelname)s] %(message)s",
+  "format": "%(levelname)s [%(name)s]: %(message)s",
   "date_format": "%Y-%m-%d %H:%M:%S",
   "enabled": True,
 }

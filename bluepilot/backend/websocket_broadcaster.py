@@ -41,7 +41,7 @@ class WebSocketBroadcaster:
     Cross-process: HTTP POST to web server's internal broadcast endpoint
     """
 
-    def __init__(self, websocket_clients=None, loop=None, http_fallback_port=8088):
+    def __init__(self, websocket_clients=None, loop=None, http_fallback_port=8088, server_state=None):
         """
         Initialize broadcaster
 
@@ -49,11 +49,16 @@ class WebSocketBroadcaster:
             websocket_clients: Set of connected WebSocket clients (in-process only)
             loop: Event loop for async operations (in-process only)
             http_fallback_port: Port for HTTP fallback when cross-process
+            server_state: Optional ServerState instance for live client access
         """
+        self.server_state = server_state
         self.websocket_clients = websocket_clients
         self.loop = loop
         self.http_fallback_port = http_fallback_port
-        self.use_http_fallback = websocket_clients is None
+        if self.server_state is not None:
+            self.use_http_fallback = False
+        else:
+            self.use_http_fallback = websocket_clients is None
 
     def broadcast(self, event_type, data=None):
         """
@@ -63,7 +68,7 @@ class WebSocketBroadcaster:
             event_type: Type of event (use WebSocketEvent constants)
             data: Event data dictionary
         """
-        if not self.use_http_fallback and not self.websocket_clients:
+        if not self.use_http_fallback and not self._has_clients():
             return  # No clients connected
 
         event_data = {
@@ -81,18 +86,22 @@ class WebSocketBroadcaster:
         """Broadcast to clients in the same process"""
         import asyncio
 
-        if not self.websocket_clients or not self.loop:
+        if not self.loop:
+            return
+
+        clients = self._get_clients()
+        if not clients:
             return
 
         # Send to all connected clients
-        for client in list(self.websocket_clients):  # Create a copy to avoid modification during iteration
+        for client in clients:
             try:
                 # Use asyncio.run_coroutine_threadsafe to send from this thread to the event loop
                 asyncio.run_coroutine_threadsafe(client.send(json.dumps(event_data)), self.loop)
             except Exception as e:
                 logger.debug(f"Failed to send to client: {e}")
-                # Remove failed client
-                self.websocket_clients.discard(client)
+                # Remove failed client so future broadcasts skip it
+                self._remove_client(client)
 
     def _broadcast_via_http(self, event_data):
         """Broadcast via HTTP to the web server (cross-process)"""
@@ -123,6 +132,30 @@ class WebSocketBroadcaster:
             logger.debug("Broadcast HTTP request timed out")
         except Exception as e:
             logger.debug(f"Error broadcasting via HTTP: {e}")
+
+    def _get_clients(self):
+        """Return a snapshot list of active WebSocket clients."""
+        if self.server_state is not None:
+            return self.server_state.get_websocket_clients()
+        if self.websocket_clients:
+            return list(self.websocket_clients)
+        return []
+
+    def _has_clients(self):
+        """Check if there are active WebSocket clients."""
+        if self.server_state is not None:
+            return bool(self.server_state.get_websocket_clients())
+        return bool(self.websocket_clients)
+
+    def _remove_client(self, client):
+        """Drop a client from the active set using the appropriate state container."""
+        try:
+            if self.server_state is not None:
+                self.server_state.remove_websocket_client(client)
+            elif self.websocket_clients:
+                self.websocket_clients.discard(client)
+        except Exception:
+            pass
 
     def broadcast_processing_update(self, route_base, status, progress=None, message=None):
         """

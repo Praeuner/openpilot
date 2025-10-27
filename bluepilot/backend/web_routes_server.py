@@ -29,8 +29,8 @@ from collections import defaultdict
 # Configure logging early for import error handling
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format='%(levelname)s [%(name)s]: %(message)s',
+    force=True  # Force reconfiguration if already configured
 )
 logger = logging.getLogger(__name__)
 
@@ -568,7 +568,8 @@ async def start_websocket_server():
                     WEBSOCKET_PORT,
                     ping_interval=30,
                     ping_timeout=10,
-                    close_timeout=5
+                    close_timeout=5,
+                    compression=None  # Disable permessage-deflate for Safari compatibility
                 )
                 logger.info("WebSocket server started successfully")
                 break
@@ -901,7 +902,7 @@ def remux_segment_to_cache(hevc_path, route_base, segment_num, camera):
                 '-f', 'hevc',
                 '-r', '20',
                 '-i', hevc_path,
-                '-c:v', 'copy',
+                '-c', 'copy',  # Copy all streams (video + audio if available)
                 '-movflags', 'frag_every_frame+empty_moov+default_base_moof+omit_tfhd_offset',
                 '-frag_duration', '2000000',  # 2 seconds per fragment
                 '-fflags', '+genpts+igndts',
@@ -1283,7 +1284,7 @@ def generate_route_export(route_base, camera, progress_callback=None):
                 '-f', 'hevc',
                 '-r', '20',
                 '-i', concat_protocol,
-                '-c:v', 'copy',
+                '-c', 'copy',  # Copy all streams (video + audio if available)
                 '-movflags', '+faststart',
                 '-f', 'mp4',
                 temp_output
@@ -3417,7 +3418,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     '-f', 'hevc',
                     '-r', '20',  # Comma camera framerate (20 fps)
                     '-i', hevc_path,
-                    '-c:v', 'copy',
+                    '-c', 'copy',  # Copy all streams (video + audio if available)
                     # Safari HLS buffer-friendly fragmentation:
                     # Create smaller fragments (every 2 seconds) to prevent buffer overflow
                     # Safari's MediaSource buffer can't handle 75MB segments
@@ -5020,12 +5021,11 @@ def main():
         # Wait for WebSocket to be ready (max 2 seconds)
         if server_state.wait_for_websocket(timeout=2.0):
             logger.info("WebSocket event loop ready")
-            # Get WebSocket clients and loop from server state
-            ws_clients = server_state.get_websocket_clients()
+            # Get WebSocket event loop from server state
             ws_loop = server_state.get_websocket_loop()
 
             # Initialize broadcaster with in-process WebSocket support
-            broadcaster_instance = WebSocketBroadcaster(websocket_clients=set(ws_clients), loop=ws_loop)
+            broadcaster_instance = WebSocketBroadcaster(loop=ws_loop, server_state=server_state)
             server_state.set_broadcaster(broadcaster_instance)
             logger.info("WebSocket broadcaster initialized (in-process mode)")
         else:
