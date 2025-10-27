@@ -21,7 +21,14 @@ QPropertyAnimation* HybridGaugesOverlay::bracketAnimation = nullptr;
 QWidget* HybridGaugesOverlay::animationWidget = nullptr;
 
 void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIState &s, const HybridState &hybrid_state) {
+  // Hide when overlays are disabled, no data available
   if (!s.scene.show_hybrid_drive_overlay || !hybrid_state.hybrid_available) {
+    return;
+  }
+
+  // Hide when any alert is showing (matches driver monitor behavior)
+  auto &sm = *(s.sm);
+  if (sm["selfdriveState"].getSelfdriveState().getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
     return;
   }
 

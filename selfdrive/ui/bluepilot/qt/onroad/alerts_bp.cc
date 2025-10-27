@@ -4,9 +4,12 @@
 #include <QPainterPath>
 #include <QFontMetrics>
 #include <map>
+#include <algorithm>
 
 #include "selfdrive/ui/qt/util.h"
 #include "common/params.h"
+#include <QColor>
+#include <QRectF>
 
 OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
   // Allow this widget to draw over other UI elements without stealing input
@@ -215,7 +218,6 @@ void OnroadAlertsBP::drawModernCard(QPainter &p, const QRect &rect, bool isFulls
     QColor fullscreenColor = alert_colors[alert.status];
     fullscreenColor.setAlpha(255);  // Fully opaque, no transparency
 
-    p.setBrush(fullscreenColor);
     p.fillRect(rect, fullscreenColor);
     return;
   }
@@ -276,9 +278,209 @@ void OnroadAlertsBP::drawBlurryBorder(QPainter &p, const QColor &borderColor) {
   drawScreenBorder(p, borderColor);
 }
 
+// Determine which rendering mode to use for this alert
+BPAlertRenderMode OnroadAlertsBP::determineRenderMode(const Alert &a) const {
+  // Debug logging
+  qDebug() << "Alert Type:" << a.type << "Text1:" << a.text1 << "Text2:" << a.text2 << "Size:" << (int)a.size;
+
+  // Critical alerts always use fullscreen
+  if (a.status == cereal::SelfdriveState::AlertStatus::CRITICAL ||
+      a.size == cereal::SelfdriveState::AlertSize::FULL) {
+    qDebug() << "  -> Using FULLSCREEN_TAKEOVER";
+    return BPAlertRenderMode::FULLSCREEN_TAKEOVER;
+  }
+
+  // Lane change and blindspot alerts use pill
+  QString alertType = a.type;
+  if (alertType.contains("laneChange", Qt::CaseInsensitive) ||
+      alertType.contains("Blindspot", Qt::CaseInsensitive) ||
+      alertType == "preLaneChangeLeft" ||
+      alertType == "preLaneChangeRight") {
+    qDebug() << "  -> Using PILL_BOTTOM";
+    return BPAlertRenderMode::PILL_BOTTOM;
+  }
+
+  // Everything else uses browser tab card
+  qDebug() << "  -> Using BROWSER_TAB_CARD";
+  return BPAlertRenderMode::BROWSER_TAB_CARD;
+}
+
+// Determine pill size based on alert content
+PillAlertSize OnroadAlertsBP::getPillSize(const Alert &a) const {
+  // If alert has text2, use 2-line pill
+  if (!a.text2.isEmpty()) {
+    return PillAlertSize::PILL_MEDIUM;
+  }
+  return PillAlertSize::PILL_SMALL;
+}
+
+// Calculate pill dimensions with dynamic font scaling
+PillDimensions OnroadAlertsBP::calculatePillDimensions(const QString &text1, const QString &text2, PillAlertSize size) const {
+  // Use parent width if available, otherwise use widget width (accounts for sidebar)
+  int contentWidth = parentWidget() ? parentWidget()->width() : width();
+  const int maxWidth = contentWidth - 40;  // 20px margin per side
+  const int horizontalPadding = (size == PillAlertSize::PILL_SMALL) ? 100 : 120;  // 50px or 60px per side
+  const int maxTextWidth = maxWidth - horizontalPadding;
+
+  PillDimensions result;
+  result.height = (size == PillAlertSize::PILL_SMALL) ? 84 : 140;  // Increased for more vertical padding
+  result.fontSize2 = 0;  // Default for single-line
+
+  if (size == PillAlertSize::PILL_SMALL) {
+    // Single line
+    int baseFontSize = 64;
+    QFont font = InterFont(baseFontSize, QFont::DemiBold);
+    QFontMetrics fm(font);
+    int textWidth = fm.horizontalAdvance(text1);
+
+    // Scale font down if text too wide
+    if (textWidth > maxTextWidth) {
+      float scale = (float)maxTextWidth / textWidth;
+      result.fontSize1 = (int)(baseFontSize * scale);
+
+      // Recalculate width with scaled font
+      QFont scaledFont = InterFont(result.fontSize1, QFont::DemiBold);
+      QFontMetrics scaledFm(scaledFont);
+      result.width = scaledFm.horizontalAdvance(text1) + horizontalPadding;
+    } else {
+      result.fontSize1 = baseFontSize;
+      result.width = textWidth + horizontalPadding;
+    }
+
+  } else {
+    // Two lines - measure both, scale proportionally if needed
+    int baseFontSize1 = 72;
+    int baseFontSize2 = 56;
+
+    QFont font1 = InterFont(baseFontSize1, QFont::Bold);
+    QFont font2 = InterFont(baseFontSize2);
+    QFontMetrics fm1(font1);
+    QFontMetrics fm2(font2);
+
+    int textWidth1 = fm1.horizontalAdvance(text1);
+    int textWidth2 = fm2.horizontalAdvance(text2);
+    int maxTextWidthNeeded = std::max(textWidth1, textWidth2);
+
+    // Scale both lines proportionally if needed
+    if (maxTextWidthNeeded > maxTextWidth) {
+      float scale = (float)maxTextWidth / maxTextWidthNeeded;
+      result.fontSize1 = (int)(baseFontSize1 * scale);
+      result.fontSize2 = (int)(baseFontSize2 * scale);
+
+      // Recalculate width with scaled fonts
+      QFont scaledFont1 = InterFont(result.fontSize1, QFont::Bold);
+      QFont scaledFont2 = InterFont(result.fontSize2);
+      QFontMetrics scaledFm1(scaledFont1);
+      QFontMetrics scaledFm2(scaledFont2);
+
+      int scaledWidth1 = scaledFm1.horizontalAdvance(text1);
+      int scaledWidth2 = scaledFm2.horizontalAdvance(text2);
+      result.width = std::max(scaledWidth1, scaledWidth2) + horizontalPadding;
+    } else {
+      result.fontSize1 = baseFontSize1;
+      result.fontSize2 = baseFontSize2;
+      result.width = maxTextWidthNeeded + horizontalPadding;
+    }
+  }
+
+  return result;
+}
+
+// Calculate pill rectangle position (bottom-centered in parent container)
+QRect OnroadAlertsBP::calculatePillRect(int pillWidth, int pillHeight) const {
+  // Use parent dimensions to properly center even when sidebar is visible
+  int contentWidth = parentWidget() ? parentWidget()->width() : width();
+  int contentHeight = parentWidget() ? parentWidget()->height() : height();
+
+  int x = (contentWidth - pillWidth) / 2;  // Center horizontally in parent
+  int y = contentHeight - pillHeight - 50; // 50px from bottom edge
+
+  return QRect(x, y, pillWidth, pillHeight);
+}
+
+
+// Get pill background color based on alert status
+QColor OnroadAlertsBP::getPillBackgroundColor(cereal::SelfdriveState::AlertStatus status) const {
+  if (status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
+    return QColor(220, 100, 20, 255);  // Orange warning (fully opaque)
+  }
+  return QColor(45, 46, 48, 255);  // Dark neutral (fully opaque)
+}
+
+// Get pill border color based on alert status
+QColor OnroadAlertsBP::getPillBorderColor(cereal::SelfdriveState::AlertStatus status) const {
+  if (status == cereal::SelfdriveState::AlertStatus::USER_PROMPT) {
+    return QColor(255, 140, 60, 200);  // Warm glow
+  }
+  return QColor(80, 82, 85, 200);  // Subtle border
+}
+
+// Draw pill alert (multi-line, no wrapping per line, dynamic font scaling)
+void OnroadAlertsBP::drawPillAlert(QPainter &p, const QRect &rect, const PillDimensions &dims) {
+  p.setRenderHint(QPainter::Antialiasing, true);
+  p.setPen(Qt::NoPen);
+
+  // Draw drop shadow layers for depth
+  p.setBrush(QColor(0, 0, 0, 100));
+  p.drawRoundedRect(rect.adjusted(0, 6, 0, 6), rect.height() / 2, rect.height() / 2);
+
+  p.setBrush(QColor(0, 0, 0, 60));
+  p.drawRoundedRect(rect.adjusted(0, 4, 0, 4), rect.height() / 2, rect.height() / 2);
+
+  p.setBrush(QColor(0, 0, 0, 30));
+  p.drawRoundedRect(rect.adjusted(0, 2, 0, 2), rect.height() / 2, rect.height() / 2);
+
+  // Background with status-based color
+  QColor bgColor = getPillBackgroundColor(alert.status);
+  p.setBrush(bgColor);
+  p.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2);
+
+  // Border
+  QColor borderColor = getPillBorderColor(alert.status);
+  p.setPen(QPen(borderColor, 2));
+  p.setBrush(Qt::NoBrush);
+  p.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2);
+
+  // Text rendering with scaled fonts (no wrapping per line)
+  p.setRenderHint(QPainter::TextAntialiasing);
+
+  if (alert.text2.isEmpty()) {
+    // Single line with scaled font
+    p.setFont(InterFont(dims.fontSize1, QFont::DemiBold));
+
+    // Subtle shadow
+    p.setPen(QColor(0, 0, 0, 100));
+    p.drawText(rect.adjusted(2, 2, 2, 2), Qt::AlignCenter | Qt::TextSingleLine, alert.text1);
+
+    // Main text (no wrapping)
+    p.setPen(Qt::white);
+    p.drawText(rect, Qt::AlignCenter | Qt::TextSingleLine, alert.text1);
+
+  } else {
+    // Two lines with scaled fonts (no wrapping per line)
+    // Line 1
+    p.setFont(InterFont(dims.fontSize1, QFont::Bold));
+    QRect line1Rect(rect.x(), rect.y(), rect.width(), rect.height() * 0.55);
+
+    p.setPen(QColor(0, 0, 0, 100));
+    p.drawText(line1Rect.adjusted(2, 2, 2, 2), Qt::AlignHCenter | Qt::AlignBottom | Qt::TextSingleLine, alert.text1);
+
+    p.setPen(Qt::white);
+    p.drawText(line1Rect, Qt::AlignHCenter | Qt::AlignBottom | Qt::TextSingleLine, alert.text1);
+
+    // Line 2
+    p.setFont(InterFont(dims.fontSize2));
+    p.setPen(QColor(220, 220, 220));
+    QRect line2Rect(rect.x(), rect.y() + rect.height() * 0.55, rect.width(), rect.height() * 0.45);
+    p.drawText(line2Rect, Qt::AlignHCenter | Qt::AlignTop | Qt::TextSingleLine, alert.text2);
+  }
+}
+
 void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
   // Check if custom alerts are enabled
-  if (!Params().getBool("BPUseBluepilotAlerts")) {
+  bool bpAlertsEnabled = Params().getBool("BPUseBluepilotAlerts");
+  if (!bpAlertsEnabled) {
+    qDebug() << "BPUseBluepilotAlerts is disabled - not rendering BluePilot alerts";
     return;
   }
 
@@ -286,10 +488,29 @@ void OnroadAlertsBP::paintEvent(QPaintEvent *event) {
     return;
   }
 
+  qDebug() << "Rendering alert with opacity:" << alert_opacity;
+
   bool isFullscreen = (alert.size == cereal::SelfdriveState::AlertSize::FULL);
 
   QPainter p(this);
 
+  // Determine rendering mode
+  BPAlertRenderMode renderMode = determineRenderMode(alert);
+
+  if (renderMode == BPAlertRenderMode::PILL_BOTTOM) {
+    // Pill alert rendering - no backdrop, just the pill with drop shadow
+    PillAlertSize pillSize = getPillSize(alert);
+    PillDimensions dims = calculatePillDimensions(alert.text1, alert.text2, pillSize);
+    QRect pillRect = calculatePillRect(dims.width, dims.height);
+
+    p.setOpacity(alert_opacity);
+
+    // Draw pill with drop shadow
+    drawPillAlert(p, pillRect, dims);
+    return;
+  }
+
+  // Existing rendering modes (fullscreen and browser tab)
   // For non-fullscreen alerts, we now draw full-screen background with portal window
   // No need to draw separate border - it's integrated into the alert drawing
 

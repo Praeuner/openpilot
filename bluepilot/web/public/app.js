@@ -3031,6 +3031,8 @@ constructor() {
 
       case "route_starred":
       case "route_unstarred":
+      case "route_preserved":
+      case "route_unpreserved":
         this.handleWebSocketRouteStarred(message.data, message.type);
         break;
 
@@ -3218,22 +3220,36 @@ constructor() {
   }
 
   handleWebSocketRouteStarred(data, eventType) {
-    // Route starred/unstarred - update local state
+    // Route preserved/unpreserved - update local state
     console.log(
-      "Route starred status changed via WebSocket:",
+      "Route preserve status changed via WebSocket:",
       data.route_base,
       eventType
     );
 
+    const isStarred =
+      data?.is_preserved ??
+      data?.is_starred ??
+      data?.isPreserved ??
+      data?.isStarred;
+
+    if (typeof isStarred !== "boolean") {
+      console.warn(
+        "WebSocket preserve event missing boolean status:",
+        data
+      );
+      return;
+    }
+
     // Update in local routes array
     const routeInList = this.routes.find((r) => r.baseName === data.route_base);
     if (routeInList) {
-      routeInList.isStarred = data.is_starred;
+      routeInList.isStarred = isStarred;
     }
 
     // Update current route if it's the same
     if (this.currentRoute && this.currentRoute.baseName === data.route_base) {
-      this.currentRoute.isStarred = data.is_starred;
+      this.currentRoute.isStarred = isStarred;
       this.updatePlayerStarButton();
     }
 
@@ -3613,35 +3629,26 @@ constructor() {
 
   async toggleStar(route) {
     try {
-      const response = await fetch(
-        `${this.API_BASE}/api/star/${route.baseName}`,
-        {
-          method: "POST",
-        }
+      const { isStarred } = await this.sendPreserveToggle(
+        route.baseName,
+        "route"
       );
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to toggle star");
-      }
-
       // Update local state
-      route.isStarred = data.isStarred;
+      route.isStarred = isStarred;
 
       // Update the routes array
       const routeInList = this.routes.find(
         (r) => r.baseName === route.baseName
       );
       if (routeInList) {
-        routeInList.isStarred = data.isStarred;
+        routeInList.isStarred = isStarred;
       }
 
       // Refresh display without full reload
       this.renderRoutes();
     } catch (error) {
-      console.error("Error toggling star:", error);
-      alert("Failed to update star: " + error.message);
+      this.handlePreserveToggleError(error);
     }
   }
 
@@ -3649,28 +3656,20 @@ constructor() {
     if (!this.currentRoute) return;
 
     try {
-      const response = await fetch(
-        `${this.API_BASE}/api/star/${this.currentRoute.baseName}`,
-        {
-          method: "POST",
-        }
+      const { isStarred } = await this.sendPreserveToggle(
+        this.currentRoute.baseName,
+        "player"
       );
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to toggle star");
-      }
-
       // Update current route state
-      this.currentRoute.isStarred = data.isStarred;
+      this.currentRoute.isStarred = isStarred;
 
       // Update the routes array
       const routeInList = this.routes.find(
         (r) => r.baseName === this.currentRoute.baseName
       );
       if (routeInList) {
-        routeInList.isStarred = data.isStarred;
+        routeInList.isStarred = isStarred;
       }
 
       // Update player UI
@@ -3679,8 +3678,166 @@ constructor() {
       // Update routes list in background (no reload)
       this.renderRoutes();
     } catch (error) {
-      console.error("Error toggling star:", error);
-      alert("Failed to update star: " + error.message);
+      this.handlePreserveToggleError(error);
+    }
+  }
+
+  async sendPreserveToggle(routeBase, source = "route") {
+    const response = await fetch(
+      `${this.API_BASE}/api/preserve/${routeBase}`,
+      {
+        method: "POST",
+      }
+    );
+
+    const rawText = await response.text();
+    let data = null;
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseError) {
+        console.warn(
+          "Failed to parse preserve toggle response as JSON:",
+          parseError,
+          rawText
+        );
+      }
+    }
+
+    const isStarred =
+      data?.isPreserved ??
+      data?.isStarred ??
+      data?.is_preserved ??
+      data?.is_starred;
+
+    if (!response.ok || !data?.success) {
+      const error = this.buildPreserveError(response, data, rawText, source);
+      throw error;
+    }
+
+    if (typeof isStarred !== "boolean") {
+      const error = new Error("Invalid preserve status from server");
+      error.response = response;
+      error.data = data;
+      throw error;
+    }
+
+    // Update disk visualization if server provided fresh stats
+    if (data?.disk_space) {
+      this.updateDiskVisualizationFromData(data.disk_space);
+    } else {
+      // Fall back to requesting updated disk info in the background
+      this.updateDiskVisualization();
+    }
+
+    return { data, isStarred };
+  }
+
+  buildPreserveError(response, data, rawText, source) {
+    const parts = [];
+
+    if (data) {
+      if (data.error) parts.push(data.error);
+      if (data.message && data.message !== data.error) {
+        parts.push(data.message);
+      }
+      if (data.details) parts.push(data.details);
+      if (data.hint) parts.push(data.hint);
+    }
+
+    if (!parts.length) {
+      if (response.statusText) {
+        parts.push(`${response.status} ${response.statusText}`);
+      } else {
+        parts.push(`Request failed with status ${response.status}`);
+      }
+      if (rawText && !data) {
+        parts.push(rawText);
+      }
+    }
+
+    const errorMessage = parts.filter(Boolean).join("\n\n");
+    const error = new Error(errorMessage || "Failed to update preserve status");
+    error.response = response;
+    error.data = data;
+    error.source = source;
+    return error;
+  }
+
+  handlePreserveToggleError(error) {
+    console.error("Error toggling preserve:", error);
+
+    // Update disk visualization if server included fresh data
+    if (error?.data?.disk_space) {
+      this.updateDiskVisualizationFromData(error.data.disk_space);
+    } else {
+      // Refresh disk metrics in background so UI stays current
+      this.updateDiskVisualization();
+    }
+
+    const message =
+      error?.message && error.message.trim().length > 0
+        ? error.message
+        : "Failed to update preserve status.";
+
+    alert(message);
+  }
+
+  updateDiskVisualizationFromData(diskData) {
+    if (!diskData || !diskData.formatted) {
+      // If data is malformed, fall back to full refresh
+      this.updateDiskVisualization();
+      return;
+    }
+
+    try {
+      this.$diskVizContainer.classList.remove("hidden");
+
+      const usedText = diskData.formatted.used ?? "";
+      const totalText = diskData.formatted.total ?? "";
+      const freeText =
+        diskData.formatted.free ?? diskData.formatted.available ?? "";
+
+      if (usedText && totalText && freeText) {
+        this.$diskVizStatsText.textContent = `${usedText} / ${totalText} (${freeText} free)`;
+      }
+
+      if (
+        this.$diskPreservedValue &&
+        diskData.formatted.preserved !== undefined
+      ) {
+        this.$diskPreservedValue.textContent = diskData.formatted.preserved;
+      }
+
+      if (
+        this.$diskRoutesValue &&
+        diskData.formatted.non_preserved !== undefined
+      ) {
+        this.$diskRoutesValue.textContent = diskData.formatted.non_preserved;
+      }
+
+      if (
+        typeof diskData.preserved_bytes === "number" &&
+        typeof diskData.total_bytes === "number" &&
+        this.$diskPreservedBar
+      ) {
+        const preservedPercent =
+          (diskData.preserved_bytes / diskData.total_bytes) * 100;
+        this.$diskPreservedBar.style.width = `${preservedPercent}%`;
+      }
+
+      if (
+        typeof diskData.non_preserved_bytes === "number" &&
+        typeof diskData.total_bytes === "number" &&
+        this.$diskRoutesBar
+      ) {
+        const routesPercent =
+          (diskData.non_preserved_bytes / diskData.total_bytes) * 100;
+        this.$diskRoutesBar.style.width = `${routesPercent}%`;
+      }
+    } catch (err) {
+      console.warn("Failed to update disk visualization from data:", err);
+      this.updateDiskVisualization();
     }
   }
 

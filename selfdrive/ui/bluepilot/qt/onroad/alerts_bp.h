@@ -5,6 +5,28 @@
 
 #include "selfdrive/ui/ui.h"
 
+// Pill alert rendering mode
+enum class BPAlertRenderMode {
+  FULLSCREEN_TAKEOVER,   // Critical alerts (existing)
+  BROWSER_TAB_CARD,      // Mid-priority alerts (existing)
+  PILL_BOTTOM,           // NEW: Lane changes and blindspot
+};
+
+// Pill alert sizes
+enum class PillAlertSize {
+  NONE,
+  PILL_SMALL,   // 1-line: "Changing Lanes"
+  PILL_MEDIUM,  // 2-line: "Car Detected in Blindspot" + "Lane Change Blocked"
+};
+
+// Pill dimensions with scaled fonts
+struct PillDimensions {
+  int width;
+  int height;
+  int fontSize1;  // Scaled font size for line 1
+  int fontSize2;  // Scaled font size for line 2 (0 if single-line)
+};
+
 class OnroadAlertsBP : public QWidget {
   Q_OBJECT
   Q_PROPERTY(qreal alertOpacity MEMBER alert_opacity NOTIFY valueChanged);
@@ -59,6 +81,15 @@ protected:
   void drawBrowserTabCard(QPainter &p, const QRect &rect);
   void drawScreenBorder(QPainter &p, const QColor &borderColor);
   void drawBlurryBorder(QPainter &p, const QColor &borderColor);  // Legacy - redirects to drawScreenBorder
+
+  // Pill alert methods
+  BPAlertRenderMode determineRenderMode(const Alert &alert) const;
+  PillAlertSize getPillSize(const Alert &alert) const;
+  PillDimensions calculatePillDimensions(const QString &text1, const QString &text2, PillAlertSize size) const;
+  QRect calculatePillRect(int pillWidth, int pillHeight) const;
+  void drawPillAlert(QPainter &p, const QRect &rect, const PillDimensions &dims);
+  QColor getPillBackgroundColor(cereal::SelfdriveState::AlertStatus status) const;
+  QColor getPillBorderColor(cereal::SelfdriveState::AlertStatus status) const;
 
   QColor bg;
   Alert alert = {};
