@@ -14,9 +14,9 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
 
   // Setup pulse timer for warning animations
   pulse_timer = new QTimer(this);
-  connect(pulse_timer, &QTimer::timeout, this, [=]() {
+  connect(pulse_timer, &QTimer::timeout, this, [this]() {
     // Pulse between 0.7 and 1.0 opacity for warning pills
-    const float pulse_speed = 0.03f;
+    const float pulse_speed = 0.015f;  // Slower pulse (was 0.03f)
     const float pulse_min = 0.7f;
     const float pulse_max = 1.0f;
 
@@ -37,6 +37,16 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
   });
 }
 
+OnroadAlertsBP::~OnroadAlertsBP() {
+  // Stop and clean up pulse timer
+  if (pulse_timer) {
+    pulse_timer->stop();
+    disconnect(pulse_timer, nullptr, this, nullptr);
+    delete pulse_timer;
+    pulse_timer = nullptr;
+  }
+}
+
 void OnroadAlertsBP::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
@@ -52,17 +62,19 @@ void OnroadAlertsBP::updateState(const UIState &s) {
     alert = a;
 
     // Start/stop pulse animation for warning pills
-    bool should_pulse = (alert.size != cereal::SelfdriveState::AlertSize::NONE &&
-                         alert.size != cereal::SelfdriveState::AlertSize::FULL &&
-                         alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT);
+    if (pulse_timer) {
+      bool should_pulse = (alert.size != cereal::SelfdriveState::AlertSize::NONE &&
+                           alert.size != cereal::SelfdriveState::AlertSize::FULL &&
+                           alert.status == cereal::SelfdriveState::AlertStatus::USER_PROMPT);
 
-    if (should_pulse && !pulse_timer->isActive()) {
-      pulse_opacity = 1.0;
-      pulse_increasing = false;
-      pulse_timer->start(16); // ~60fps
-    } else if (!should_pulse && pulse_timer->isActive()) {
-      pulse_timer->stop();
-      pulse_opacity = 1.0;
+      if (should_pulse && !pulse_timer->isActive()) {
+        pulse_opacity = 1.0;
+        pulse_increasing = false;
+        pulse_timer->start(16); // ~60fps
+      } else if (!should_pulse && pulse_timer->isActive()) {
+        pulse_timer->stop();
+        pulse_opacity = 1.0;
+      }
     }
 
     // Ensure widget covers entire parent when showing an alert
@@ -78,7 +90,7 @@ void OnroadAlertsBP::updateState(const UIState &s) {
 
 void OnroadAlertsBP::clear() {
   alert = {};
-  if (pulse_timer->isActive()) {
+  if (pulse_timer && pulse_timer->isActive()) {
     pulse_timer->stop();
   }
   update();

@@ -29,6 +29,10 @@ Usage:
 
     # Run once through filtered alerts
     ./selfdrive/debug/test_all_alerts.py --size mid --once
+
+    # Simulate calibration progress (0% to 100%)
+    ./selfdrive/debug/test_all_alerts.py --calibration
+    ./selfdrive/debug/test_all_alerts.py --calibration --duration 60
 """
 import time
 from cereal import log
@@ -487,6 +491,72 @@ def filter_alerts(all_alerts, size_filter=None, status_filter=None, type_filter=
     return filtered
 
 
+def simulate_calibration_progress(duration=30.0):
+    """
+    Simulate calibration progress from 0% to 100%.
+
+    Args:
+        duration: Total duration for calibration from 0% to 100% (seconds)
+    """
+    pm = messaging.PubMaster(['selfdriveState', 'deviceState', 'pandaStates'])
+
+    print("=" * 80)
+    print("CALIBRATION PROGRESS SIMULATION")
+    print("=" * 80)
+    print(f"Simulating calibration from 0% to 100% over {duration} seconds")
+    print("Press Ctrl+C to stop")
+    print()
+
+    try:
+        start_time = time.time()
+        while True:
+            elapsed = time.time() - start_time
+
+            # Calculate percentage (0-100)
+            percentage = min(100, int((elapsed / duration) * 100))
+
+            # Create calibration alert
+            dat = messaging.new_message('selfdriveState')
+            dat.selfdriveState.enabled = False
+            dat.selfdriveState.alertText1 = f'Calibration: {percentage}%'
+            dat.selfdriveState.alertText2 = 'Drive Above 45 mph'
+            dat.selfdriveState.alertSize = AlertSize.mid
+            dat.selfdriveState.alertStatus = AlertStatus.userPrompt
+            dat.selfdriveState.alertType = 'calibrationProgress'
+            pm.send('selfdriveState', dat)
+
+            # Send deviceState to keep system "alive"
+            dat = messaging.new_message('deviceState')
+            dat.deviceState.started = True
+            pm.send('deviceState', dat)
+
+            # Send pandaStates
+            dat = messaging.new_message('pandaStates', 1)
+            dat.pandaStates[0].ignitionLine = True
+            dat.pandaStates[0].pandaType = log.PandaState.PandaType.uno
+            pm.send('pandaStates', dat)
+
+            print(f"\rCalibration Progress: {percentage}%", end='', flush=True)
+
+            # Reset after reaching 100%
+            if percentage >= 100:
+                print("\n\nCalibration complete! Restarting...")
+                time.sleep(2)
+                start_time = time.time()
+
+            time.sleep(DT_CTRL)
+
+    except KeyboardInterrupt:
+        print("\n\nStopping calibration test...")
+
+        # Clear alerts
+        dat = messaging.new_message('selfdriveState')
+        dat.selfdriveState.alertSize = AlertSize.none
+        pm.send('selfdriveState', dat)
+
+        print("Test complete!")
+
+
 def cycle_test_alerts(duration_per_alert=5.0, continuous=True,
                      size_filter=None, status_filter=None, type_filter=None):
     """
@@ -629,6 +699,12 @@ Examples:
 
   # Run once with custom duration
   %(prog)s --size small --duration 2.0 --once
+
+  # Simulate calibration progress (0%% to 100%% over 30 seconds)
+  %(prog)s --calibration
+
+  # Calibration with custom duration (60 seconds)
+  %(prog)s --calibration --duration 60
         """)
 
     parser.add_argument('--duration', type=float, default=5.0,
@@ -642,13 +718,19 @@ Examples:
                        help='Filter by alert status (normal, userPrompt, or critical)')
     parser.add_argument('--type', type=str,
                        help='Filter by alert type keyword (e.g., "laneChange", "blindspot", "driver")')
+    parser.add_argument('--calibration', action='store_true',
+                       help='Simulate calibration progress from 0%% to 100%% (overrides all other options)')
 
     args = parser.parse_args()
 
-    cycle_test_alerts(
-        duration_per_alert=args.duration,
-        continuous=not args.once,
-        size_filter=args.size,
-        status_filter=args.status,
-        type_filter=args.type
-    )
+    # Special mode: calibration simulation
+    if args.calibration:
+        simulate_calibration_progress(duration=args.duration if args.duration != 5.0 else 30.0)
+    else:
+        cycle_test_alerts(
+            duration_per_alert=args.duration,
+            continuous=not args.once,
+            size_filter=args.size,
+            status_filter=args.status,
+            type_filter=args.type
+        )

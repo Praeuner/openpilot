@@ -38,6 +38,7 @@ class OnroadAlertsBP : public QWidget {
 
 public:
   OnroadAlertsBP(QWidget *parent = 0);
+  ~OnroadAlertsBP();
   void updateState(const UIState &s);
   void clear();
 
