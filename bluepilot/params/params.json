@@ -457,6 +457,69 @@
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": false,
       "enabled": true
+    },
+    {
+      "name": "UpdaterCommand",
+      "default": "",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Command JSON for Python updater (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandID",
+      "default": "",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Current command ID being executed (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandStatus",
+      "default": "idle",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Command execution status: idle, running, completed, failed (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandProgress",
+      "default": "0",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Command progress percentage 0-100 (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandOutput",
+      "default": "",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Real-time command output stream (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandResult",
+      "default": "",
+      "type": "string",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Final command result JSON (non-persistent runtime state)"
+    },
+    {
+      "name": "UpdaterCommandCancel",
+      "default": false,
+      "type": "bool",
+      "flags": [],
+      "create_default": false,
+      "enabled": true,
+      "description": "Flag to cancel running command (non-persistent runtime state)"
     }
   ]
 }
