@@ -1,51 +1,48 @@
 #pragma once
 
 #include <QWidget>
-#include <QPropertyAnimation>
+#include <QTimer>
 
 #include "selfdrive/ui/ui.h"
 
-// Pill alert rendering mode
-enum class BPAlertRenderMode {
-  FULLSCREEN_TAKEOVER,   // Critical alerts (existing)
-  BROWSER_TAB_CARD,      // Mid-priority alerts (existing)
-  PILL_BOTTOM,           // NEW: Lane changes and blindspot
-};
+// ============================================================================
+// BluePilot Alert Rendering System
+// ============================================================================
+//
+// This module implements a simplified alert rendering system with two modes:
+//
+// 1. FULLSCREEN - Critical safety alerts (e.g., "BRAKE!", "TAKE CONTROL")
+// 2. PILL - All other alerts as bottom-centered pills
+//
+// Alert Properties:
+// - Status: NORMAL (info), USER_PROMPT (warning), CRITICAL (danger)
+// - Size: SMALL (compact), MID (two-line), FULL (fullscreen)
+// ============================================================================
 
 // Pill alert sizes
 enum class PillAlertSize {
-  NONE,
-  PILL_SMALL,   // 1-line: "Changing Lanes"
-  PILL_MEDIUM,  // 2-line: "Car Detected in Blindspot" + "Lane Change Blocked"
+  PILL_SMALL,   // 1-line pill: 74pt font, 70px horizontal padding
+  PILL_MEDIUM,  // 2-line pill: 88pt/66pt fonts, 80px horizontal padding
 };
 
-// Pill dimensions with scaled fonts
+// Pill dimensions with dynamically scaled fonts
 struct PillDimensions {
-  int width;
-  int height;
-  int fontSize1;  // Scaled font size for line 1
-  int fontSize2;  // Scaled font size for line 2 (0 if single-line)
+  int width;       // Total pill width including padding
+  int height;      // Dynamic height based on text height + vertical padding
+  int fontSize1;   // Font size for primary text (scaled if needed)
+  int fontSize2;   // Font size for secondary text (0 if single-line, scaled if needed)
 };
 
 class OnroadAlertsBP : public QWidget {
   Q_OBJECT
-  Q_PROPERTY(qreal alertOpacity MEMBER alert_opacity NOTIFY valueChanged);
 
 public:
   OnroadAlertsBP(QWidget *parent = 0);
-  ~OnroadAlertsBP();
   void updateState(const UIState &s);
   void clear();
 
-private:
-  bool is_destroying = false;
-
-signals:
-  void valueChanged();
-
 protected:
   void resizeEvent(QResizeEvent *event) override;
-
   struct Alert {
     QString text1;
     QString text2;
@@ -58,44 +55,29 @@ protected:
     }
   };
 
-  // Modern color scheme inspired by sidebar
-  const QColor good_color = QColor(42, 199, 122);
-  const QColor warning_color = QColor(255, 195, 0);
-  const QColor danger_color = QColor(242, 72, 85);
-  const QColor background_color = QColor(32, 33, 35);
-  const QColor card_background = QColor(48, 49, 51);
-
-  // Alert status colors with modern touch
   const QMap<cereal::SelfdriveState::AlertStatus, QColor> alert_colors = {
-    {cereal::SelfdriveState::AlertStatus::NORMAL, QColor(35, 36, 38, 241)},      // Darker background
-    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(220, 100, 20, 241)}, // Less yellow orange warning
-    {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(242, 72, 85, 241)},    // Danger
+    {cereal::SelfdriveState::AlertStatus::NORMAL, QColor(0x15, 0x15, 0x15, 0xf1)},
+    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(0xDA, 0x6F, 0x25, 0xf1)},
+    {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(0xC9, 0x22, 0x31, 0xf1)},
   };
-
 
   void paintEvent(QPaintEvent*) override;
   OnroadAlertsBP::Alert getAlert(const SubMaster &sm, uint64_t started_frame);
 
-  // Helper methods
-  void drawModernCard(QPainter &p, const QRect &rect, bool isFullscreen);
-  void drawBrowserTabCard(QPainter &p, const QRect &rect);
-  void drawScreenBorder(QPainter &p, const QColor &borderColor);
-  void drawBlurryBorder(QPainter &p, const QColor &borderColor);  // Legacy - redirects to drawScreenBorder
-
-  // Pill alert methods
-  BPAlertRenderMode determineRenderMode(const Alert &alert) const;
+  // Pill rendering methods
   PillAlertSize getPillSize(const Alert &alert) const;
   PillDimensions calculatePillDimensions(const QString &text1, const QString &text2, PillAlertSize size) const;
   QRect calculatePillRect(int pillWidth, int pillHeight) const;
-  void drawPillAlert(QPainter &p, const QRect &rect, const PillDimensions &dims);
+  void drawPillAlert(QPainter &p, const QRect &rect, const PillDimensions &dims, float pulseOpacity);
+  void drawFullscreenAlert(QPainter &p);
   QColor getPillBackgroundColor(cereal::SelfdriveState::AlertStatus status) const;
   QColor getPillBorderColor(cereal::SelfdriveState::AlertStatus status) const;
 
   QColor bg;
   Alert alert = {};
 
-  // Animation properties
-  QPropertyAnimation *opacity_animation = nullptr;
-  qreal alert_opacity = 0.0;
-  int dev_ui_info = 0;  // Store developer UI state for positioning
+  // Pulsing animation for warning pills
+  QTimer *pulse_timer = nullptr;
+  float pulse_opacity = 1.0;
+  bool pulse_increasing = false;
 };
