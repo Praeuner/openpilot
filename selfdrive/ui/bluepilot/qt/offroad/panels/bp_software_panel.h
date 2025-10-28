@@ -28,6 +28,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/qt/util.h"
+#include "selfdrive/ui/bluepilot/qt/widgets/bp_updater_client.h"
 #include "common/params.h"
 #include "common/util.h"
 
@@ -77,7 +78,7 @@ private:
   void checkForUpdates();
   void searchBranches(const QString &query);
 
-  // Advanced operations (async, non-blocking)
+  // Advanced operations (now simplified via updater client)
   void manualUpdate();
   void repairRepository();
   void resetRepository();
@@ -85,16 +86,8 @@ private:
   void showRecentChanges();
   void showCommitHistory(const QString &title, const QString &workingDir);
 
-  // Command execution with advanced features (from bp_updater_panel)
-  void showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir,
-                                int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn,
-                                bool showRestartUIBtn = false);
-  bool checkIfUIOnlyChanges() const;
-
-  // Power management methods
-  bool isPowerSaveActive() const;
-  void disablePowerSave();
-  void restorePowerSave();
+  // Helper to show command progress
+  void executeUpdaterCommand(const QString &title, const QString &cmd, const QJsonObject &args = {});
 
   static void setupFullscreenDialog(QDialog *dialog);
 
@@ -102,6 +95,7 @@ private:
   Params params;
   ParamWatcher *fs_watch;
   BPGitManager *gitManager;
+  BPUpdaterClient *updaterClient;
 
   // === Main Layout ===
   QVBoxLayout *mainLayout;
@@ -154,9 +148,6 @@ private:
   // State tracking
   bool is_onroad = false;
   QString updater_state;
-  bool commandInProgress = false;
-  bool powerSaveWasActive = false;
-  QDialog *currentDialog = nullptr;
 
 private slots:
   void onDownloadClicked();

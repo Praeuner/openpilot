@@ -24,6 +24,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_recent_changes.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/software/bp_git_manager.h"
+#include "selfdrive/ui/bluepilot/qt/widgets/bp_command_progress_dialog.h"
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
 #include "selfdrive/ui/sunnypilot/qt/util.h"
@@ -128,6 +129,9 @@ static QString formatBPChanges(const QJsonObject &versionData, int maxItems = 6)
 BPSoftwarePanel::BPSoftwarePanel(QWidget *parent) : QWidget(parent) {
   // Initialize git manager
   gitManager = new BPGitManager(this);
+
+  // Initialize updater client
+  updaterClient = new BPUpdaterClient(this);
 
   // Setup UI with tabs
   setupUI();
@@ -1097,11 +1101,6 @@ void BPSoftwarePanel::onSunnypilotChangesClicked() {
 }
 
 void BPSoftwarePanel::onManualUpdateClicked() {
-  if (commandInProgress) {
-    showBPAlert(tr("A command is already running. Please wait."), this);
-    return;
-  }
-
   // Check for uncommitted changes
   gitManager->hasUncommittedChanges([this](bool hasChanges) {
     QString message;
@@ -1118,11 +1117,6 @@ void BPSoftwarePanel::onManualUpdateClicked() {
 }
 
 void BPSoftwarePanel::onRepairClicked() {
-  if (commandInProgress) {
-    showBPAlert(tr("A command is already running. Please wait."), this);
-    return;
-  }
-
   if (showBPConfirmation(
         tr("Repair Repository"),
         tr("This will reset and clean the repository. All local changes will be lost. Continue?"),
@@ -1134,11 +1128,6 @@ void BPSoftwarePanel::onRepairClicked() {
 }
 
 void BPSoftwarePanel::onResetClicked() {
-  if (commandInProgress) {
-    showBPAlert(tr("A command is already running. Please wait."), this);
-    return;
-  }
-
   if (showBPConfirmation(
         tr("Reset Changes"),
         tr("This will discard all uncommitted changes. This cannot be undone. Continue?"),
@@ -1154,97 +1143,18 @@ void BPSoftwarePanel::onHistoryClicked() {
 }
 
 void BPSoftwarePanel::manualUpdate() {
-  if (commandInProgress) {
-    showBPAlert(tr("A command is already running. Please wait."), this);
-    return;
-  }
-
-  // Confirm before proceeding
-  if (!showBPConfirmation(
-        tr("Manual Update"),
-        tr("This will fetch and pull the latest changes, then rebuild.\n\n"
-           "Any local changes will be discarded. Continue?"),
-        tr("Update"),
-        tr("Cancel"),
-        this)) {
-    return;
-  }
-
-  // Kill the update daemon to prevent conflicts
-  QProcess::execute("killall", QStringList() << "system.updated.updated");
-
-  // Build the update command
-  QString command = "git reset --hard HEAD && "
-                    "git clean -fd && "
-                    "rm -f .git/index.lock && "
-                    "git fetch && "
-                    "git pull && "
-                    "scons -j$(nproc)";
-
-  // Use the advanced command dialog with all features:
-  // - 30 minute timeout (1800000ms)
-  // - Kill button enabled
-  // - Retry button enabled
-  // - Reboot button enabled (will auto-detect UI-only changes)
-  // - Restart UI button enabled (shown instead of reboot for UI-only changes)
-  showCommandOutputDialog(
-    tr("Manual Update"),
-    command,
-    BPGitManager::getGitRoot(),
-    1800000,  // 30 minute timeout for builds
-    true,      // showKillBtn
-    true,      // showRetryBtn
-    true,      // showRebootBtn
-    true       // showRestartUIBtn
-  );
+  // Execute manual_update command via updater
+  executeUpdaterCommand(tr("Manual Update"), "manual_update");
 }
 
 void BPSoftwarePanel::repairRepository() {
-  commandInProgress = true;
-
-  // Run git reset and clean
-  QtConcurrent::run([this]() {
-    auto result = BPGitManager::executeCommand("git reset --hard HEAD && git clean -xdff", "", 60000);
-
-    QMetaObject::invokeMethod(this, [this, result]() {
-      commandInProgress = false;
-
-      if (result.success) {
-        showBPAlert(tr("Repository repaired successfully!"), this);
-      } else {
-        showBPAlert(
-          tr("Repair failed: %1").arg(result.error.isEmpty() ? result.output : result.error),
-          this
-        );
-      }
-
-      updateRepoStatus();
-    }, Qt::QueuedConnection);
-  });
+  // Execute repair_repo command via updater
+  executeUpdaterCommand(tr("Repair Repository"), "repair_repo");
 }
 
 void BPSoftwarePanel::resetRepository() {
-  commandInProgress = true;
-
-  // Run git reset
-  QtConcurrent::run([this]() {
-    auto result = BPGitManager::executeCommand("git reset --hard HEAD", "", 30000);
-
-    QMetaObject::invokeMethod(this, [this, result]() {
-      commandInProgress = false;
-
-      if (result.success) {
-        showBPAlert(tr("Changes reset successfully!"), this);
-      } else {
-        showBPAlert(
-          tr("Reset failed: %1").arg(result.error.isEmpty() ? result.output : result.error),
-          this
-        );
-      }
-
-      updateRepoStatus();
-    }, Qt::QueuedConnection);
-  });
+  // Execute reset_changes command via updater
+  executeUpdaterCommand(tr("Reset Changes"), "reset_changes");
 }
 
 void BPSoftwarePanel::viewHistory() {
@@ -1481,722 +1391,38 @@ void BPSoftwarePanel::showCommitHistory(const QString &title, const QString &wor
   dialog->exec();
 }
 
+void BPSoftwarePanel::executeUpdaterCommand(const QString &title, const QString &cmd, const QJsonObject &args) {
+  // Send command to updater
+  QString commandID = updaterClient->sendCommand(cmd, args);
+
+  // Create and show progress dialog
+  BPCommandProgressDialog *dialog = new BPCommandProgressDialog(title, this);
+
+  // Connect client signals to dialog slots
+  connect(updaterClient, &BPUpdaterClient::commandProgressChanged,
+          dialog, &BPCommandProgressDialog::setProgress);
+  connect(updaterClient, &BPUpdaterClient::commandOutputReceived,
+          dialog, &BPCommandProgressDialog::appendOutput);
+  connect(updaterClient, &BPUpdaterClient::commandCompleted,
+          dialog, &BPCommandProgressDialog::onSuccess);
+  connect(updaterClient, &BPUpdaterClient::commandFailed,
+          dialog, &BPCommandProgressDialog::onFailure);
+
+  // When dialog completes, update repo status
+  connect(dialog, &QDialog::finished, [this]() {
+    updateRepoStatus();
+  });
+
+  // Start watching the command
+  updaterClient->watchCommand(commandID);
+
+  // Show dialog (blocks until command completes)
+  dialog->exec();
+
+  // Clean up
+  dialog->deleteLater();
+}
+
 void BPSoftwarePanel::showRecentChanges() {
   onRecentChangesClicked();
-}
-
-// ========== Power Management Methods (from bp_updater_panel) ==========
-
-bool BPSoftwarePanel::isPowerSaveActive() const {
-#ifdef QCOM2
-  // Check if power save is active by counting CPU cores
-  QProcess process;
-  process.start("nproc", QStringList());
-  if (process.waitForFinished(5000)) {
-    QString output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
-    int coreCount = output.toInt();
-    return coreCount <= 4; // Power save is active if 4 or fewer cores are available
-  }
-  return false;
-#else
-  // On non-QCOM2 platforms, power save is not applicable
-  return false;
-#endif
-}
-
-void BPSoftwarePanel::disablePowerSave() {
-#ifdef QCOM2
-  powerSaveWasActive = isPowerSaveActive();
-  if (powerSaveWasActive) {
-    // Use absolute path to ensure script is found
-    QString scriptPath = BPGitManager::getGitRoot() + "/scripts/disable-powersave.py";
-    if (QFile::exists(scriptPath)) {
-      QProcess::execute("python3", QStringList() << scriptPath);
-
-      // Wait for cores to come online (max 10 seconds)
-      int attempts = 0;
-      while (sysconf(_SC_NPROCESSORS_ONLN) < 8 && attempts < 20) {
-        QThread::msleep(500);  // Wait 500ms between checks
-        attempts++;
-      }
-
-      // Log the final core count for debugging
-      int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
-      if (finalCoreCount >= 8) {
-        BPLog::bpInfo() << "[bp.software.panel] disablePowerSave | Power save disabled successfully. All " << finalCoreCount << " cores are online." << std::endl;
-      } else {
-        BPLog::bpError() << "[bp.software.panel] disablePowerSave | Warning: Only " << finalCoreCount << " cores are online after disabling power save." << std::endl;
-      }
-    } else {
-      BPLog::bpError() << "[bp.software.panel] disablePowerSave | Power save script not found at: " << scriptPath.toStdString() << std::endl;
-    }
-  }
-#else
-  // On non-QCOM2 platforms, do nothing
-  powerSaveWasActive = false;
-#endif
-}
-
-void BPSoftwarePanel::restorePowerSave() {
-#ifdef QCOM2
-  if (powerSaveWasActive) {
-    // Use absolute path to ensure script is found
-    QString scriptPath = BPGitManager::getGitRoot() + "/scripts/manage-powersave.py";
-    if (QFile::exists(scriptPath)) {
-      QProcess::execute("python3", QStringList() << scriptPath << "--enable");
-
-      // Wait for cores to go offline (max 5 seconds)
-      int attempts = 0;
-      while (sysconf(_SC_NPROCESSORS_ONLN) > 4 && attempts < 10) {
-        QThread::msleep(500);  // Wait 500ms between checks
-        attempts++;
-      }
-
-      // Log the final core count for debugging
-      int finalCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
-      if (finalCoreCount <= 4) {
-        BPLog::bpInfo() << "[bp.software.panel] restorePowerSave | Power save restored successfully. " << finalCoreCount << " cores are now online." << std::endl;
-      } else {
-        BPLog::bpError() << "[bp.software.panel] restorePowerSave | Warning: " << finalCoreCount << " cores are still online after restoring power save." << std::endl;
-      }
-    } else {
-      BPLog::bpError() << "[bp.software.panel] restorePowerSave | Power save script not found at: " << scriptPath.toStdString() << std::endl;
-    }
-    powerSaveWasActive = false;
-  }
-#else
-  // On non-QCOM2 platforms, do nothing
-  powerSaveWasActive = false;
-#endif
-}
-
-bool BPSoftwarePanel::checkIfUIOnlyChanges() const {
-  // Check if the last pull/update only touched UI files under selfdrive/ui/
-  QProcess process;
-  process.setWorkingDirectory(BPGitManager::getGitRoot());
-
-  // Get the list of changed files in the last commit (HEAD vs HEAD~1)
-  // This checks what was just pulled/updated
-  process.start("/bin/bash", QStringList() << "-c" << "git diff --name-only HEAD@{1} HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null");
-
-  if (!process.waitForFinished(5000)) {
-    process.kill();
-    process.waitForFinished(1000);
-    return false; // Default to requiring full reboot on timeout
-  }
-
-  QString output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
-
-  if (output.isEmpty()) {
-    // No changes detected, safe to just restart UI
-    return true;
-  }
-
-  // Check each changed file
-  QStringList changedFiles = output.split('\n', QString::SkipEmptyParts);
-  for (const QString &file : changedFiles) {
-    QString trimmedFile = file.trimmed();
-    if (trimmedFile.isEmpty()) {
-      continue;
-    }
-
-    // If any file is outside selfdrive/ui/, we need a full reboot
-    if (!trimmedFile.startsWith("selfdrive/ui/")) {
-      return false;
-    }
-  }
-
-  // All changed files are under selfdrive/ui/
-  return true;
-}
-
-void BPSoftwarePanel::setupFullscreenDialog(QDialog *dialog) {
-#ifdef QCOM2
-  QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-  wl_surface *s = reinterpret_cast<wl_surface *>(native->nativeResourceForWindow("surface", dialog->windowHandle()));
-  if (s) {
-    wl_surface_set_buffer_transform(s, WL_OUTPUT_TRANSFORM_270);
-    wl_surface_commit(s);
-  }
-  dialog->setWindowState(Qt::WindowFullScreen);
-  dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->layout()->activate();
-  void *egl = native->nativeResourceForWindow("egldisplay", dialog->windowHandle());
-  assert(egl != nullptr);
-#endif
-}
-
-// ========== Advanced Command Execution Dialog (from bp_updater_panel) ==========
-
-void BPSoftwarePanel::showCommandOutputDialog(const QString &title, const QString &command, const QString &workingDir,
-                                               int timeoutMs, bool showKillBtn, bool showRetryBtn, bool showRebootBtn,
-                                               bool showRestartUIBtn) {
-  // Clean up any existing dialog
-  if (currentDialog) {
-    currentDialog->close();
-    currentDialog->deleteLater();
-    currentDialog = nullptr;
-  }
-
-  // Set commandInProgress to true to make sure the UI stays awake while the command is running
-  commandInProgress = true;
-
-#ifdef QCOM2
-  // Disable power save mode for better performance during git/scons operations
-  disablePowerSave();
-#endif
-
-  // Create and set up process
-  QProcess *process = new QProcess(this);
-  if (!workingDir.isEmpty()) {
-    process->setWorkingDirectory(workingDir);
-  } else {
-    process->setWorkingDirectory(BPGitManager::getGitRoot());
-  }
-
-  // Create command output dialog with proper flags
-  currentDialog = new QDialog(this);
-  currentDialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-  currentDialog->setStyleSheet("background-color: black;");
-
-  // Create main layout
-  QVBoxLayout *layout = new QVBoxLayout(currentDialog);
-  layout->setContentsMargins(45, 35, 45, 45);
-  layout->setSpacing(0);
-
-  // Create title section with horizontal layout
-  QWidget *titleSection = new QWidget(currentDialog);
-  QHBoxLayout *titleLayout = new QHBoxLayout(titleSection);
-  titleLayout->setContentsMargins(0, 0, 0, 0);
-  titleLayout->setSpacing(0);
-
-  // Add title label (without cores)
-  QLabel *titleLabel = new QLabel(title);
-  titleLabel->setStyleSheet("font-size: 90px; font-weight: 600; background-color: black; color: white;");
-  titleLayout->addWidget(titleLabel);
-
-  // Add spacer to push cores display to the right
-  titleLayout->addStretch();
-
-    // Add cores display with microchip icon
-  int numCores = sysconf(_SC_NPROCESSORS_ONLN);
-  QLabel *coresLabel = new QLabel(QString("🔲 %1").arg(numCores));
-  coresLabel->setStyleSheet("font-size: 60px; font-weight: 600; background-color: black; color: #888888; padding: 10px;");
-  coresLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  titleLayout->addWidget(coresLabel);
-
-  // Create timer to update core count frequently
-  QTimer *coresUpdateTimer = new QTimer(currentDialog);
-  coresUpdateTimer->setInterval(500); // Update every 500ms for more responsiveness
-  coresUpdateTimer->setSingleShot(false);
-
-    // Connect timer to update core count
-  QObject::connect(coresUpdateTimer, &QTimer::timeout, [=]() {
-    int numCores = sysconf(_SC_NPROCESSORS_ONLN);
-    coresLabel->setText(QString("🔲 %1").arg(numCores));
-  });
-
-  // Start the timer
-  coresUpdateTimer->start();
-
-  // Ensure timer is stopped when dialog is destroyed
-  QObject::connect(currentDialog, &QDialog::destroyed, [=]() {
-    if (coresUpdateTimer) {
-      coresUpdateTimer->stop();
-    }
-  });
-
-  layout->addWidget(titleSection);
-  layout->addSpacing(30);
-
-  // Create elapsed timer to track runtime
-  QElapsedTimer *elapsedTimer = new QElapsedTimer();
-  elapsedTimer->start();
-
-  // Format time values as m:ss
-  auto formatTime = [](int totalSeconds) {
-    int minutes = totalSeconds / 60;
-    int seconds = totalSeconds % 60;
-    return QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QChar('0'));
-  };
-
-  // Create output text area
-  QTextEdit *outputText = new QTextEdit(currentDialog);
-  outputText->setReadOnly(true);
-  outputText->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse);
-  outputText->setStyleSheet(R"(
-        QTextEdit {
-            font-family: monospace;
-            font-size: 35px;
-            font-weight: 200;
-            color: #C9C9C9;
-            background-color: #1B1B1B;
-            padding: 50px;
-            border: none;
-        }
-        QTextEdit QScrollBar:vertical {
-            width: 20px;
-            background: #1B1B1B;
-            margin: 0px;
-        }
-        QTextEdit QScrollBar::handle:vertical {
-            background-color: white;
-            min-height: 30px;
-            border-radius: 5px;
-            margin: 2px;
-            width: 16px;
-        }
-        QTextEdit QScrollBar::add-line:vertical,
-        QTextEdit QScrollBar::sub-line:vertical {
-            height: 0px;
-            background: none;
-        }
-        QTextEdit QScrollBar::add-page:vertical,
-        QTextEdit QScrollBar::sub-page:vertical {
-            background: none;
-        }
-    )");
-  outputText->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-  outputText->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  outputText->viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);  // Enable touch scrolling
-  layout->addWidget(outputText);
-
-  // Create button layout
-  QHBoxLayout *buttonLayout = new QHBoxLayout();
-  buttonLayout->setSpacing(20);
-
-  // Add kill button (if enabled)
-  QPushButton *killButton = nullptr;
-  if (showKillBtn) {
-    killButton = new QPushButton(tr("Stop Command"), currentDialog);
-    killButton->setFixedHeight(100);
-    killButton->setStyleSheet(R"(
-            QPushButton {
-                background-color: #EA4646;
-                font-size: 55px;
-                font-weight: 400;
-                border-radius: 20px;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #F43030;
-            }
-        )");
-    buttonLayout->addWidget(killButton);
-  }
-
-  // Add retry button (if enabled)
-  QPushButton *retryButton = nullptr;
-  if (showRetryBtn) {
-    retryButton = new QPushButton(tr("Retry"), currentDialog);
-    retryButton->setFixedHeight(100);
-    retryButton->setVisible(false); // Hide initially
-    retryButton->setStyleSheet(R"(
-            QPushButton {
-                background-color: #7B1FA2;
-                font-size: 55px;
-                font-weight: 400;
-                border-radius: 20px;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #6A1B9A;
-            }
-            QPushButton:disabled {
-                background-color: #4F4F4F;
-                color: #888888;
-            }
-        )");
-    buttonLayout->addWidget(retryButton);
-  }
-
-  // Add reboot button (if enabled)
-  QPushButton *rebootButton = nullptr;
-  if (showRebootBtn) {
-    rebootButton = new QPushButton(tr("Reboot"), currentDialog);
-    rebootButton->setFixedHeight(100);
-    rebootButton->setVisible(false); // Hide initially
-    rebootButton->setStyleSheet(R"(
-            QPushButton {
-                background-color: #33Ab4C;
-                font-size: 55px;
-                font-weight: 400;
-                border-radius: 20px;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #2A9040;
-            }
-        )");
-    buttonLayout->addWidget(rebootButton);
-  }
-
-  // Add restart UI button (if enabled)
-  QPushButton *restartUIButton = nullptr;
-  if (showRestartUIBtn) {
-    restartUIButton = new QPushButton(tr("Restart UI"), currentDialog);
-    restartUIButton->setFixedHeight(100);
-    restartUIButton->setVisible(false); // Hide initially
-    restartUIButton->setStyleSheet(R"(
-            QPushButton {
-                background-color: #465BEA;
-                font-size: 55px;
-                font-weight: 400;
-                border-radius: 20px;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #3049F4;
-            }
-        )");
-    buttonLayout->addWidget(restartUIButton);
-  }
-
-  // Close button (initially disabled)
-  QPushButton *closeButton = new QPushButton(tr("Command Running..."), currentDialog);
-  closeButton->setEnabled(false);
-  closeButton->setFixedHeight(100);
-  closeButton->setStyleSheet(R"(
-        QPushButton {
-            background-color: #465BEA;
-            font-size: 55px;
-            font-weight: 400;
-            border-radius: 20px;
-            color: white;
-        }
-        QPushButton:pressed {
-            background-color: #3049F4;
-        }
-        QPushButton:disabled {
-            background-color: #4F4F4F;
-            color: white;
-        }
-    )");
-  buttonLayout->addWidget(closeButton);
-
-  layout->addSpacing(50);
-  layout->addLayout(buttonLayout);
-
-  // Add timeout timer
-  QTimer *timeoutTimer = new QTimer(currentDialog);
-  timeoutTimer->setSingleShot(true);
-  timeoutTimer->setInterval(timeoutMs);
-
-  // Create runtime display timer that updates every second
-  QTimer *runtimeTimer = new QTimer(currentDialog);
-  runtimeTimer->setInterval(1000); // Update every second
-  runtimeTimer->setTimerType(Qt::PreciseTimer);
-
-  // Update the runtime timer on the button and title
-  connect(runtimeTimer, &QTimer::timeout, [=]() {
-    // Always update the elapsed time display every second while the timer is running
-    int elapsedSecs = elapsedTimer->elapsed() / 1000;
-    int timeoutSecs = timeoutMs / 1000;
-
-    // Format as Command Running: (MM:SS/TT:TT)
-    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
-
-    // Set the button text with formatting and ensure it repaints immediately
-    closeButton->setText(timerText);
-    closeButton->repaint();
-
-    // Title stays static - elapsed time shown in button
-    titleLabel->setText(title);
-  });
-
-  // Start the runtime timer immediately and trigger initial update
-  runtimeTimer->start();
-
-  // Set initial title (no elapsed time)
-  titleLabel->setText(title);
-
-  // Trigger initial timer update to show 0:00 immediately
-  QTimer::singleShot(0, [=]() {
-    int elapsedSecs = elapsedTimer->elapsed() / 1000;
-    int timeoutSecs = timeoutMs / 1000;
-    QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
-    closeButton->setText(timerText);
-  });
-
-  // Connect process signals for output
-  connect(process, &QProcess::readyReadStandardOutput, [=]() {
-    QString output = QString::fromUtf8(process->readAllStandardOutput());
-    outputText->append(output);
-  });
-
-  connect(process, &QProcess::readyReadStandardError, [=]() {
-    QString error = QString::fromUtf8(process->readAllStandardError());
-    outputText->append("<span style='color: #ff7c30;'>" + error.toHtmlEscaped() + "</span>");
-  });
-
-  // Connect timeout handler
-  connect(timeoutTimer, &QTimer::timeout, [=]() {
-    if (process->state() != QProcess::NotRunning) {
-      outputText->append("\n<span style='color: #ff7c30;'>Process timed out after " + QString::number(timeoutMs / 1000) + " seconds</span>");
-      process->kill();
-      commandInProgress = false;
-      if (killButton)
-        killButton->hide();
-      if (retryButton) {
-        retryButton->setVisible(true);
-        retryButton->setEnabled(true);
-      }
-      closeButton->setEnabled(true);
-      closeButton->setText(tr("Close (Timed Out)"));
-      closeButton->setFixedHeight(100);
-      closeButton->setStyleSheet(R"(
-                QPushButton {
-                    background-color: #EA4646;
-                    font-size: 55px;
-                    font-weight: 400;
-                    border-radius: 20px;
-                    color: white;
-                }
-                QPushButton:pressed {
-                    background-color: #F43030;
-                }
-            )");
-
-      // Stop the runtime timer
-      runtimeTimer->stop();
-
-      // Title stays static - timeout status shown in button
-      titleLabel->setText(title);
-    }
-  });
-
-  // Connect kill button
-  if (killButton) {
-    connect(killButton, &QPushButton::clicked, [=]() {
-      if (process->state() != QProcess::NotRunning) {
-        outputText->append("\n<span style='color: #ff7c30;'>Process terminated by user</span>");
-        process->kill();
-        killButton->hide();
-        if (retryButton)
-          retryButton->setEnabled(true);
-        closeButton->setEnabled(true);
-        closeButton->setText(tr("Close (Terminated)"));
-        closeButton->setStyleSheet(R"(
-                    QPushButton {
-                        background-color: #EA4646;
-                        font-size: 55px;
-                        font-weight: 400;
-                        border-radius: 20px;
-                        color: white;
-                    }
-                    QPushButton:pressed {
-                        background-color: #F43030;
-                    }
-                )");
-
-        // Stop the runtime timer
-        runtimeTimer->stop();
-
-        // Show terminated message - title stays static
-        int elapsedSecs = elapsedTimer->elapsed() / 1000;
-        QString finalTime = QString("Terminated at %1").arg(formatTime(elapsedSecs));
-        titleLabel->setText(title);
-      }
-    });
-  }
-
-  // Handle process completion
-  connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), [=](int exitCode, QProcess::ExitStatus exitStatus) {
-#ifdef QCOM2
-    // Restore power save mode after command completion
-    restorePowerSave();
-#endif
-    timeoutTimer->stop();
-    closeButton->setEnabled(true);
-    commandInProgress = false;
-    if (killButton)
-      killButton->hide();
-
-    // Stop the runtime timer
-    runtimeTimer->stop();
-
-    // Show final runtime
-    int elapsedSecs = elapsedTimer->elapsed() / 1000;
-    QString finalTime = QString("Total Runtime: %1").arg(formatTime(elapsedSecs));
-
-    // Title stays static - completion status shown in button
-    titleLabel->setText(title);
-
-    if (exitStatus == QProcess::CrashExit) {
-      // Show retry button for crash
-      if (retryButton) {
-        retryButton->setVisible(true);
-        retryButton->setEnabled(true);
-      }
-      closeButton->setText(tr("Close (Crashed)"));
-    } else if (exitCode != 0) {
-      outputText->append(QString("\n<span style='color: #ff7c30;'>Command failed with exit code: %1</span>").arg(exitCode));
-      closeButton->setText(tr("Close (Command Failed | Exit code: %1)").arg(exitCode));
-      closeButton->setStyleSheet(R"(
-                QPushButton {
-                    background-color: #EA4646;
-                    font-size: 55px;
-                    font-weight: 400;
-                    border-radius: 10px;
-                    color: white;
-                }
-                QPushButton:pressed {
-                    background-color: #F43030;
-                }
-            )");
-      // Show retry button for failure
-      if (retryButton) {
-        retryButton->setVisible(true);
-        retryButton->setEnabled(true);
-      }
-    } else {
-      outputText->append("\n<span style='color: #50d332;'>Command completed successfully</span>");
-      closeButton->setText(tr("Close (Completed Successfully)"));
-      closeButton->setStyleSheet(R"(
-                QPushButton {
-                    background-color: #33Ab4C;
-                    font-size: 55px;
-                    font-weight: 400;
-                    border-radius: 10px;
-                    color: white;
-                }
-                QPushButton:pressed {
-                    background-color: #2A9040;
-                }
-            )");
-
-      // Hide retry button on success if retry is enabled
-      if (retryButton) {
-        retryButton->setVisible(false);
-      }
-
-      // Intelligently show reboot or restart UI button based on changes
-      if (rebootButton || restartUIButton) {
-        bool uiOnlyChanges = checkIfUIOnlyChanges();
-        if (uiOnlyChanges && restartUIButton) {
-          // Only UI changes detected - show restart UI button
-          restartUIButton->setVisible(true);
-          if (rebootButton) {
-            rebootButton->setVisible(false);
-          }
-        } else if (rebootButton) {
-          // Non-UI changes detected or restart UI not available - show reboot button
-          rebootButton->setVisible(true);
-          if (restartUIButton) {
-            restartUIButton->setVisible(false);
-          }
-        }
-      }
-
-      // Refresh repo status after successful completion
-      updateRepoStatus();
-    }
-  });
-
-  // Add retry button functionality
-  if (retryButton) {
-    connect(retryButton, &QPushButton::clicked, [=]() {
-#ifdef QCOM2
-      // Disable power save mode again for retry
-      disablePowerSave();
-#endif
-      outputText->clear();
-      outputText->append(tr("Retrying command:\n\n%1\n\n").arg(command));
-      retryButton->setEnabled(false);
-      retryButton->setVisible(false); // Hide when retrying
-      closeButton->setEnabled(false);
-      closeButton->setText(tr("Command Running..."));
-      closeButton->setStyleSheet(R"(
-                QPushButton {
-                    background-color: #465BEA;
-                    font-size: 55px;
-                    font-weight: 400;
-                    border-radius: 10px;
-                    color: white;
-                }
-                QPushButton:pressed {
-                    background-color: #3049F4;
-                }
-                QPushButton:disabled {
-                    background-color: #4F4F4F;
-                    color: white;
-                }
-            )");
-      if (killButton) {
-        killButton->show();
-      }
-
-      // Reset elapsed timer
-      elapsedTimer->restart();
-
-      // Reset and start timer display
-      runtimeTimer->start();
-
-      // Reset and start timeout timer
-      timeoutTimer->start();
-
-      // Trigger immediate timer update to show 0:00 for retry
-      QTimer::singleShot(0, [=]() {
-        int elapsedSecs = elapsedTimer->elapsed() / 1000;
-        int timeoutSecs = timeoutMs / 1000;
-        QString timerText = tr("Command Running: (%1/%2)").arg(formatTime(elapsedSecs)).arg(formatTime(timeoutSecs));
-        closeButton->setText(timerText);
-      });
-
-      // Start process again
-      process->start("/bin/bash", QStringList() << "-c" << command);
-    });
-  }
-
-  // Connect reboot button
-  if (rebootButton) {
-    connect(rebootButton, &QPushButton::clicked, [=]() {
-      if (showBPConfirmation(tr("Reboot"), tr("Are you sure you want to reboot?"), tr("Reboot"), tr("Cancel"), currentDialog)) {
-        params.putBool("DoReboot", true);
-        QProcess::execute("reboot");
-      }
-    });
-  }
-
-  // Connect restart UI button
-  if (restartUIButton) {
-    connect(restartUIButton, &QPushButton::clicked, [=]() {
-      if (showBPConfirmation(tr("Restart UI"), tr("Are you sure you want to restart the UI?"), tr("Restart"), tr("Cancel"), currentDialog)) {
-        // Exit with code 18 - manager will restart the UI automatically
-        qApp->exit(18);
-      }
-    });
-  }
-
-  // Connect close button and cleanup
-  connect(closeButton, &QPushButton::clicked, currentDialog, &QDialog::accept);
-  connect(currentDialog, &QDialog::finished, [=]() {
-#ifdef QCOM2
-    // Restore power save mode if dialog is closed manually
-    restorePowerSave();
-#endif
-    timeoutTimer->stop();
-    runtimeTimer->stop();
-    delete elapsedTimer;
-    process->deleteLater();
-    if (currentDialog) {
-      currentDialog->deleteLater();
-      currentDialog = nullptr;
-    }
-  });
-
-  // Set dialog size and show
-  QScreen *screen = QGuiApplication::primaryScreen();
-  if (screen) {
-    currentDialog->setFixedSize(2160, 1080);
-  }
-  currentDialog->show();
-  setupFullscreenDialog(currentDialog);
-
-  // Start timeout timer
-  timeoutTimer->start();
-
-  // Start process
-  outputText->append(tr("Executing command:\n\n%1\n\n").arg(command));
-  process->start("/bin/bash", QStringList() << "-c" << command);
 }

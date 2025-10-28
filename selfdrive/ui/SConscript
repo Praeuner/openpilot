@@ -48,6 +48,8 @@ bp_qt_src = [
   # BluePilot Software Panel (Native)
   "bluepilot/qt/offroad/panels/bp_software_panel.cc",
   "bluepilot/qt/offroad/software/bp_git_manager.cc",
+  "bluepilot/qt/widgets/bp_updater_client.cc",
+  "bluepilot/qt/widgets/bp_command_progress_dialog.cc",
   # BluePilot Models Panel (Native)
   "bluepilot/qt/offroad/panels/bp_models_panel.cc",
   # BluePilot OSM Panel (Native)
