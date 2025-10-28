@@ -145,7 +145,7 @@ class SelfdriveD(CruiseHelper):
     self.ignored_processes = {'mapd', }
 
     # Determine startup event
-    is_remote = build_metadata.openpilot.comma_remote or build_metadata.openpilot.sunnypilot_remote
+    is_remote = build_metadata.openpilot.comma_remote or build_metadata.openpilot.sunnypilot_remote or build_metadata.openpilot.bluepilot_remote
     self.startup_event = EventName.startup if is_remote and build_metadata.tested_channel else EventName.startup
     if not car_recognized:
       self.startup_event = EventName.startupNoCar
