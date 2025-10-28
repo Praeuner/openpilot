@@ -21,17 +21,17 @@ Table of Contents
 
 ---
 
-As of May 2025, we are updating the way branches are named and how links are generated. We had intially intended to use a branch naming system similar to openpilot and sunnypilot where there was a "stable" or "release" branch which included all fully vetted code, and then "staging" or "beta" branches with new code that would eventually move into the stable/release branches.  However as we evolved we found everyone liked being able to bounce between newer and older branches to compare features and control. Moving forwards all releases will simply be named bp-"feature release number" as an example "staging-1.1" which features the bluepilot 1.1 features (custom tuning) will become "bp-1.1".  We will not delete older branches so that anyone can go back and view older code for references.  Branches that no longer work properly will be denoted as -deprecated.
+As of May 2025, we are updating the way branches are named and how links are generated. We had initially intended to use a branch naming system similar to openpilot and sunnypilot where there was a "stable" or "release" branch which included all fully vetted code, and then "staging" or "beta" branches with new code that would eventually move into the stable/release branches.  However as we evolved we found everyone liked being able to bounce between newer and older branches to compare features and control. Moving forwards all releases will simply be named bp-"feature release number" as an example "staging-1.1" which features the bluepilot 1.1 features (custom tuning) will become "bp-1.1".  We will not delete older branches so that anyone can go back and view older code for references.  Branches that no longer work properly will be denoted as -deprecated.
 
-To install any version of bleupilot, use the following URL formula (URL is case sensitive)
+To install any version of bluepilot, use the following URL formula (URL is case sensitive)
 
 installer.comma.ai/BluePilotDev/"branch name"
 
 For example
 
-installer.comma.ai/BluePilotDev/bp-2.1
+installer.comma.ai/BluePilotDev/bp-5.0
 
-will install the bp-2.1 branch.  Branches known to no longer work due to changes in the comma codebase will be apended with -deprecated so it will be obvious they will not install or work correctly.
+will install the **bp-5.0** branch (current release based on SunnyPilot v2025.001.000).  Branches known to no longer work due to changes in the comma codebase will be appended with -deprecated so it will be obvious they will not install or work correctly.
 
 </details>
 
@@ -52,6 +52,15 @@ Join the official #ford channel at the sunnypilot Discord server to stay up to d
 ---
 
 [bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.
+
+**BluePilot bp-5.0** is based on **SunnyPilot v2025.001.000** and includes all upstream sunnypilot features plus Ford-specific enhancements. This release runs on AGNOS 13.1 and brings significant improvements to the UI, settings management, and onroad experience.
+
+### Upstream SunnyPilot Features
+BluePilot includes **all** features from the upstream SunnyPilot project. For a complete list of sunnypilot features and changes:
+* **[CHANGELOG_SP.md](CHANGELOG_SP.md)** - Complete sunnypilot changelog with all upstream features
+* **[README_SP.md](README_SP.md)** - Full sunnypilot documentation and feature descriptions
+
+Key upstream features include: MADS (Modular Assistive Driving System), Neural Network Lateral Control (NNLC), Dynamic Experimental Control (DEC), Speed Limit Assist (SLA), Intelligent Cruise Button Management (ICBM), Smart Cruise Control Map & Vision (SCC-M / SCC-V), Driving Model Manager with 86+ models, sunnylink integration, and much more.
 
 </details>
 
@@ -77,7 +86,7 @@ The following changes are a **VIOLATION** of this policy and **ARE NOT** include
 * bluepilot not installed
   1. [Factory reset/uninstall](https://github.com/commaai/openpilot/wiki/FAQ#how-can-i-reset-the-device) the previous software if you have another software/fork installed.
   2. After factory reset/uninstall and upon reboot, select `Custom Software` when given the option.
-  3. Input the installation URL based on the desired branch. Example: ```installter.comma.ai/BluePilotDev/staging-2.1``` [^4] (note: `https://` is not requirement on the comma three)
+  3. Input the installation URL based on the desired branch. Example: ```installer.comma.ai/BluePilotDev/bp-5.0``` (note: `https://` is not required on the comma three)
   4. Complete the rest of the installation following the onscreen instructions.
 
 * bluepilot already installed and you installed a version after 0.8.17?
@@ -91,41 +100,87 @@ Requires further assistance with software installation? Join the [sunnypilot Dis
 
   </details>
 
-<details><summary><h3>🚗 BluePilot Specific Features</h3></summary>
+<details><summary><h3>🚗 BluePilot Specific Features - bp-5.0</h3></summary>
 
 ---
-In addition to all sunnypilot features, bluepilot incorporates the following Ford specific enhacements.
 
-- [**Improved Ford Longitudinal controls**] - logic to adjust stock OpenPilot single acceleration signal into seperate gas and brake signals for much smoother long control on ford vehicles.
-- [**Anti-Windup in Turns**] - Logic to reset the EPAS back to zero when a human turn is detected.  This prevents the EPAS from winding up and fighting to keep turning after the car has straightened up.  Makes experimental mode and MADS safer to use.
-- [**OEM Style Lateral Control Logic**] - This is a complete rewrite of the lateral control logic to match the behavior of the OEM EPAS system.  It includes a blend of desired curvature and predicted curvature to achieve smoother signals, incorporation of curvature_rate signal to help with getting in and out of curves more ontime and the path_offset and path_angle variables to increase the available steering torque and to allow for custom in lane positioning as well as enabling the legacy sunnypilot style lanefull mode.
-- [**Improved Lane Change Logic**] - Even further improvements to the lange change logic to help fix issues with the older logic that caused the lane change to overshoot and then have to correct back.
+## What's New in bp-5.0
 
-The following settings and tuning are available in the BluePilot menu (after completing one drive in a Ford vehnicle)
+BluePilot 5.0 is a **major update** based on SunnyPilot v2025.001.000 (AGNOS 13.1) with significant improvements to the UI, settings management, and onroad experience.
 
-- [**Disable GPS Alert**] - Disable the GPS alert. This is useful if you don't want to be alerted when the GPS signal is weak because of how your comma device is mounted
-- [**Show Animated Steer Angle Icon**] - This option will animate the steering icon in the upper right to match the approximate angle of the steering wheel
-- [**Show Brake Status**] - This option will animate the color of the speed display on the UI to track brake light status
-- [**Custom Model Path Color**] - Choose different colors for the path animation on the UI.  This does not work when experimental mode is engaged.
-- [**Show Radar Lead Vehicle Overview**] - Animate the icon on the lead vehicle.  Blue equals radar lead, yellow means vision lead.
-- [**Show Hybrid Electric Data Overlays**] - Add a panel at the bottom of the UI showing how the electrical battery and motor are being utilized
-- [**Show Hybrid Battery Data Overlay**] - Add a panel at the bottom of the UI showing the hybrid or electic battery status
-- [**Hybrid Drive Gauge Size**] - Adjust the size of the hybrid/electric data panel on the UI
-- [**Show G-Force Meter**] - Displays a g-force meter when onroad
-- [**Show Blindspot Indicators**] - Another sunny feature not yet ported but available in BluePilot.  Get red inidcators on the UI of blindspot detection.
-- [**Show Stop Indicator Overlay**] - Add a stop sign on the UI where OpenPilot has detect a stop or redlight.  Great for knowing what experimental mode detected.
-- [**Show Wide Camera at Low Speed**] - Still a work in progress
-- [**Show Hands Free UI**] - This setting enables the hands free Blue Cruise dash.  This will only work in vehicles with a digital dash that can display the icon.  Known to work in Mach E, Lightning, Ranger, and F150s with digital dash.
-- [**Send Lane Depature Signals**] - This sends the lane depature alerts to the dash on vehicles with a supporting dash.
-- [**Enable Human Turn Detection**] - This setting enables the human turn detection logic.  This will help prevent the EPAS from winding up and fighting to keep turning after the car has straightened up.  Makes experimental mode and MADS safer to use.
-- [**Lane Change Factor**] - This is a tunable reduction in lane change signal to enable less aggressive lane changes.  Lower numbers equal slower lane changes.  Too low and the lane chagne might fail.
-- [**Use Custom Tuning Profile**] - There are 2 preset tuning profiles which are automatically selected based on the vehicle driven (CAN or CANFD). Toggling this parameter will enable custom tuning values for lateral control
-- [**Predicted Curvature Blend Ratio Low**] - This setting allows for a blend of desired curvature and predicted curvature on straight aways to achieve smoother signals.  Lower numbers will make steering more aggressive.  To tune this value begin to increase the blend ratio until the car starts to "wander" or experience a slow ping pong effect at highway speeds.  If using advanced lateral control, leave it at a wander, it is not desired for this number to be low enough for complete control, because if the signal is too strong it will conflict with the other signals. If not using advanced lateral control, then lower the PC Blend Ratio back down until wadnering stops. Default Values are CANFD = 0.65, CAN = 0.4
-- [**Predicted Curvature Blend Ratio High**] - This setting allows for a blend of desired curvature and predicted curvature in curves to achieve smoother signals.  Lower numbers will make steering more aggressive.  To tune this value begin to decrease the blend ratio until the car starts to ping pong inside of curves, then increase slightly until the behavior stops. Default Values are CANFD = 0.4, CAN = 0.2
-- [**Enable Advanced Lane Positioning**] - This settings enables the OEM style logic with path_offset and path_angle variables.  This allows for custom in lane positioning. Disabling this setting will revert to only using curvature and curvature_rate which was the previous behavior in bluepilot 1.0
-- [**Enable Legacy Style Lanefull Mode**] - This setting enables the legacy style lanefull mode which will use lane lines to determine the ideal path for the vehicle rather than Commas model.  This setting is only applicable when linelines are strong and the lane width is not too wide.
-- [**In lane offset**] - This setting allows for custom in lane positioning.  Negative numbers will move the car to the left, positive numbers will move the car to the right.
-- [**Low Curvature PID Gain**] - This setting controls how aggressive the path_angle signal is applied to correct for deviations from the ideal path.  Default Values are CANFD = 3.0, CAN = 5.0
+### User Interface & Experience
+* **Completely redesigned settings menu** - Reorganized into focused panels (Device, Display, Network, Vehicle, Toggles, Cruise, Steering, Developer, Visuals) for better navigation
+* **Enhanced BluePilot Sidebar** - WiFi status with SSID and signal strength, improved network info card, removed constant fan animation (now shows memory usage only)
+* **Improved Onroad Rendering** - Enhanced lane lines, road edges, and path rendering with glow effects and smoother curve tracking
+* **Routes Panel (Beta)** - View dashcam footage directly on the device with video playback, web-based routes viewer for logs and cereal data
+* **Brightness Control System** - Perceptual brightness correction for better viewing experience with more responsive adjustments
+* **Model Info & Drive Stats Widgets** - Real-time onroad display of model information and enhanced drive statistics
+
+### Software & Management
+* **New Software Panel** - Integrated updater with branch management, model selection interface, git manager integration, and improved power management
+* **Models Panel** - Easy switching between different driving models without reinstalling branches
+* **Developer Tools** - Customizable debug panel with adjustable settings, conditional building, crash detection system with better error reporting
+
+### Vehicle Features
+* **Brake Status Indicator** - Now attempts to use brake light CAN signal when available for more accurate display
+* **Radar Overlay** - Speed display matches system units (mph/kph)
+* **Stop Sign Overlay** - Better positioning, enhanced visual effects, improved detection logic
+* **Hybrid Drive Battery Gauge** - More accurate battery percentage calculations with fixed scaling
+* **Option to Bypass BluePilot Lateral Controls** - Added for testing and diagnostic purposes
+
+### Ford-Specific Lateral Control
+In addition to all sunnypilot features, BluePilot incorporates the following Ford-specific enhancements:
+
+* **Improved Ford Longitudinal Controls** - Logic to adjust stock OpenPilot single acceleration signal into separate gas and brake signals for smoother long control
+* **Anti-Windup in Turns** - Resets EPAS back to zero when human turn is detected, preventing wind-up and fighting after straightening
+* **OEM Style Lateral Control Logic** - Complete rewrite matching OEM EPAS behavior with curvature blending, curvature_rate integration, path_offset and path_angle variables
+* **Improved Lane Change Logic** - Further improvements to fix overshoot issues from older logic
+
+### BluePilot Settings & Tuning
+
+The following settings are available in the BluePilot menu (after completing one drive in a Ford vehicle):
+
+**Display & Visual Settings:**
+* Disable GPS Alert
+* Show Animated Steer Angle Icon
+* Show Brake Status (now uses CAN signal when available)
+* Custom Model Path Color
+* Show Radar Lead Vehicle Overview
+* Show Hybrid Electric Data Overlays
+* Show Hybrid Battery Data Overlay
+* Hybrid Drive Gauge Size
+* Show Blindspot Indicators
+* Show Stop Indicator Overlay
+* Show Wide Camera at Low Speed
+
+**Vehicle Integration:**
+* Show Hands Free UI (Blue Cruise dash for supported digital dashes)
+* Send Lane Departure Signals
+
+**Lateral Control Tuning:**
+* Enable Human Turn Detection
+* Lane Change Factor
+* Use Custom Tuning Profile (Auto-selected based on CAN/CANFD)
+* Predicted Curvature Blend Ratio Low (Default: CANFD=0.65, CAN=0.4)
+* Predicted Curvature Blend Ratio High (Default: CANFD=0.4, CAN=0.2)
+* Enable Advanced Lane Positioning
+* Enable Legacy Style Lanefull Mode
+* In Lane Offset
+* Low Curvature PID Gain (Default: CANFD=3.0, CAN=5.0)
+* Bypass BluePilot Lateral Controls (for testing)
+
+### Performance & Stability
+* Refactored renderer for better performance
+* Integrated lead tracking and stop detection into ModelRendererBP
+* Enhanced frame state updates
+* Better lane line mapping using model transform
+* Thread safety improvements throughout UI
+* Multiple stability fixes and bug fixes
+
+### Known Issues
+* Routes Panel video playback is in beta and may have performance issues on some devices
+
+For complete details on all changes, see [CHANGELOG.md](CHANGELOG.md) or the [BP_CHANGES.json](BP_CHANGES.json) file.
 
 </details>
 
