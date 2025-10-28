@@ -86,7 +86,7 @@ class ManagerProcess(ABC):
 
   def restart(self) -> None:
     # Pre-kill hook: send SIGUSR1 to UI processes to trigger thread dump before killing
-    if self.name in ("ui", "bluepilot-ui", "bp-ui") and self.proc and self.proc.poll() is None:
+    if self.name in ("ui", "bluepilot-ui", "bp-ui") and self.proc and self.proc.exitcode is None:
       try:
         cloudlog.info(f"sending SIGUSR1 to {self.name} for pre-kill debug dump")
         os.kill(self.proc.pid, signal.SIGUSR1)

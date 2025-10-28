@@ -554,22 +554,34 @@ void BPModelsPanel::handleBundleDownloadProgress() {
 }
 
 QString BPModelsPanel::getActiveModelName() {
-  if (model_manager.hasActiveBundle()) {
-    return QString::fromStdString(model_manager.getActiveBundle().getDisplayName());
+  try {
+    if (model_manager.hasActiveBundle()) {
+      return QString::fromStdString(model_manager.getActiveBundle().getDisplayName());
+    }
+  } catch (const kj::Exception &e) {
+    qWarning() << "Error reading active model display name:" << e.getDescription().cStr();
   }
   return DEFAULT_MODEL;
 }
 
 QString BPModelsPanel::getActiveModelInternalName() {
-  if (model_manager.hasActiveBundle()) {
-    return QString::fromStdString(model_manager.getActiveBundle().getInternalName());
+  try {
+    if (model_manager.hasActiveBundle()) {
+      return QString::fromStdString(model_manager.getActiveBundle().getInternalName());
+    }
+  } catch (const kj::Exception &e) {
+    qWarning() << "Error reading active model internal name:" << e.getDescription().cStr();
   }
   return DEFAULT_MODEL;
 }
 
 QString BPModelsPanel::getActiveModelRef() {
-  if (model_manager.hasActiveBundle()) {
-    return QString::fromStdString(model_manager.getActiveBundle().getRef());
+  try {
+    if (model_manager.hasActiveBundle()) {
+      return QString::fromStdString(model_manager.getActiveBundle().getRef());
+    }
+  } catch (const kj::Exception &e) {
+    qWarning() << "Error reading active model ref:" << e.getDescription().cStr();
   }
   return DEFAULT_MODEL;
 }
@@ -623,24 +635,42 @@ void BPModelsPanel::onModelSelectionClicked() {
   QList<TreeNode> sortedModels;
   QSet<QString> modelFolders;
   QRegularExpression re("\\(([^)]*)\\)[^(]*$");
-  const auto bundles = model_manager.getAvailableBundles();
 
-  for (const auto &bundle : bundles) {
-    auto overrides = bundle.getOverrides();
-    QString folder;
-    for (const auto &override : overrides) {
-      if (override.getKey() == "folder") {
-        folder = QString::fromStdString(override.getValue().cStr());
+  try {
+    const auto bundles = model_manager.getAvailableBundles();
+
+    for (const auto &bundle : bundles) {
+      try {
+        auto overrides = bundle.getOverrides();
+        QString folder;
+        for (const auto &override : overrides) {
+          try {
+            if (override.getKey() == "folder") {
+              folder = QString::fromStdString(override.getValue().cStr());
+            }
+          } catch (const kj::Exception &e) {
+            qWarning() << "Error reading bundle override:" << e.getDescription().cStr();
+            continue;
+          }
+        }
+
+        modelFolders.insert(folder);
+        sortedModels.append(TreeNode{
+          folder,
+          QString::fromStdString(bundle.getDisplayName()),
+          QString::fromStdString(bundle.getRef()),
+          static_cast<int>(bundle.getIndex())
+        });
+      } catch (const kj::Exception &e) {
+        qWarning() << "Error reading bundle data:" << e.getDescription().cStr();
+        continue;
       }
     }
-
-    modelFolders.insert(folder);
-    sortedModels.append(TreeNode{
-      folder,
-      QString::fromStdString(bundle.getDisplayName()),
-      QString::fromStdString(bundle.getRef()),
-      static_cast<int>(bundle.getIndex())
-    });
+  } catch (const kj::Exception &e) {
+    qWarning() << "Error reading available bundles:" << e.getDescription().cStr();
+    currentModelLabel->setText(tr("Error loading models"));
+    currentModelBtn->setEnabled(true);
+    return;
   }
 
   std::sort(sortedModels.begin(), sortedModels.end(),
@@ -706,14 +736,24 @@ void BPModelsPanel::onModelSelectionClicked() {
     showResetParamsDialog();
   } else {
     // Find selected bundle and initiate download
-    for (const auto &bundle: bundles) {
-      if (QString::fromStdString(bundle.getRef()) == selectedBundleRef) {
-        params.put("ModelManager_DownloadIndex", std::to_string(bundle.getIndex()));
-        if (bundle.getGeneration() != model_manager.getActiveBundle().getGeneration()) {
-          showResetParamsDialog();
+    try {
+      const auto bundles = model_manager.getAvailableBundles();
+      for (const auto &bundle: bundles) {
+        if (QString::fromStdString(bundle.getRef()) == selectedBundleRef) {
+          params.put("ModelManager_DownloadIndex", std::to_string(bundle.getIndex()));
+          try {
+            if (model_manager.hasActiveBundle() &&
+                bundle.getGeneration() != model_manager.getActiveBundle().getGeneration()) {
+              showResetParamsDialog();
+            }
+          } catch (const kj::Exception &e) {
+            qWarning() << "Error comparing bundle generations:" << e.getDescription().cStr();
+          }
+          break;
         }
-        break;
       }
+    } catch (const kj::Exception &e) {
+      qWarning() << "Error processing selected bundle:" << e.getDescription().cStr();
     }
   }
 
@@ -731,8 +771,14 @@ void BPModelsPanel::showResetParamsDialog() {
                   "<p style=\"text-align: center; margin: 0 128px; font-size: 50px;\">" + confirmMsg + "</p></body>");
 
   if (showBPConfirmation(tr("Driving Model Selector"), content, tr("Reset Calibration"), tr("Cancel"), this)) {
+    // Remove all calibration and learning parameters
     params.remove("CalibrationParams");
     params.remove("LiveTorqueParameters");
+    params.remove("LiveParameters");
+    params.remove("LiveParametersV2");
+    params.remove("LiveDelay");
+    // Trigger soft restart of onroad processes to apply changes
+    params.putBool("OnroadCycleRequested", true);
   }
 }
 
