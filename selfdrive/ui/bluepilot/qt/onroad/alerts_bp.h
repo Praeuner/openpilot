@@ -56,10 +56,11 @@ protected:
     }
   };
 
+  // Fullscreen alert colors - opaque, matching pill alert style
   const QMap<cereal::SelfdriveState::AlertStatus, QColor> alert_colors = {
-    {cereal::SelfdriveState::AlertStatus::NORMAL, QColor(0x15, 0x15, 0x15, 0xf1)},
-    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(0xDA, 0x6F, 0x25, 0xf1)},
-    {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(0xC9, 0x22, 0x31, 0xf1)},
+    {cereal::SelfdriveState::AlertStatus::NORMAL, QColor(45, 46, 48, 255)},        // Dark neutral (matches pills)
+    {cereal::SelfdriveState::AlertStatus::USER_PROMPT, QColor(220, 100, 20, 255)}, // Orange warning (matches pills)
+    {cereal::SelfdriveState::AlertStatus::CRITICAL, QColor(201, 34, 49, 255)},     // Red critical (opaque)
   };
 
   void paintEvent(QPaintEvent*) override;

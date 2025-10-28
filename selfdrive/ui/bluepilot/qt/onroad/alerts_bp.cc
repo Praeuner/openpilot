@@ -16,7 +16,7 @@ OnroadAlertsBP::OnroadAlertsBP(QWidget *parent) : QWidget(parent) {
   pulse_timer = new QTimer(this);
   connect(pulse_timer, &QTimer::timeout, this, [this]() {
     // Pulse between 0.7 and 1.0 opacity for warning pills
-    const float pulse_speed = 0.015f;  // Slower pulse (was 0.03f)
+    const float pulse_speed = 0.035f;  // Faster, more attention-grabbing pulse
     const float pulse_min = 0.7f;
     const float pulse_max = 1.0f;
 
@@ -341,7 +341,7 @@ void OnroadAlertsBP::drawPillAlert(QPainter &p, const QRect &rect, const PillDim
   }
 }
 
-// Draw fullscreen alert (mirrors stock alert style)
+// Draw fullscreen alert (pill-inspired style with drop shadows)
 void OnroadAlertsBP::drawFullscreenAlert(QPainter &p) {
   static std::map<cereal::SelfdriveState::AlertSize, const int> alert_heights = {
     {cereal::SelfdriveState::AlertSize::SMALL, 271},
@@ -358,39 +358,83 @@ void OnroadAlertsBP::drawFullscreenAlert(QPainter &p) {
   }
   QRect r = QRect(0 + margin, height() - h + margin, width() - margin*2, h - margin*2);
 
-  // Draw background + gradient (stock style)
+  p.setRenderHint(QPainter::Antialiasing, true);
   p.setPen(Qt::NoPen);
-  p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-  p.setBrush(QBrush(alert_colors[alert.status]));
+
+  // Draw drop shadow layers for depth (pill style)
+  if (margin > 0) {
+    p.setBrush(QColor(0, 0, 0, 100));
+    p.drawRoundedRect(r.adjusted(0, 6, 0, 6), radius, radius);
+
+    p.setBrush(QColor(0, 0, 0, 60));
+    p.drawRoundedRect(r.adjusted(0, 4, 0, 4), radius, radius);
+
+    p.setBrush(QColor(0, 0, 0, 30));
+    p.drawRoundedRect(r.adjusted(0, 2, 0, 2), radius, radius);
+  }
+
+  // Solid opaque background (pill style - no transparency or gradients)
+  QColor bgColor = alert_colors[alert.status];
+  p.setBrush(bgColor);
   p.drawRoundedRect(r, radius, radius);
 
-  QLinearGradient g(0, r.y(), 0, r.bottom());
-  g.setColorAt(0, QColor::fromRgbF(0, 0, 0, 0.05));
-  g.setColorAt(1, QColor::fromRgbF(0, 0, 0, 0.35));
+  // Optional subtle border for non-fullscreen
+  if (margin > 0) {
+    QColor borderColor = bgColor.lighter(120);
+    borderColor.setAlpha(150);
+    p.setPen(QPen(borderColor, 2));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(r, radius, radius);
+  }
 
-  p.setCompositionMode(QPainter::CompositionMode_DestinationOver);
-  p.setBrush(QBrush(g));
-  p.drawRoundedRect(r, radius, radius);
-  p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-  // Text (stock style)
-  const QPoint c = r.center();
-  p.setPen(QColor(0xff, 0xff, 0xff));
+  // Text rendering with subtle shadows
   p.setRenderHint(QPainter::TextAntialiasing);
+  p.setPen(Qt::NoPen);
+  const QPoint c = r.center();
 
   if (alert.size == cereal::SelfdriveState::AlertSize::SMALL) {
     p.setFont(InterFont(74, QFont::DemiBold));
+
+    // Text shadow
+    p.setPen(QColor(0, 0, 0, 100));
+    p.drawText(r.adjusted(2, 2, 2, 2), Qt::AlignCenter, alert.text1);
+
+    // Main text
+    p.setPen(Qt::white);
     p.drawText(r, Qt::AlignCenter, alert.text1);
+
   } else if (alert.size == cereal::SelfdriveState::AlertSize::MID) {
+    // Line 1
     p.setFont(InterFont(88, QFont::Bold));
-    p.drawText(QRect(0, c.y() - 125, width(), 150), Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+    QRect line1Rect = QRect(0, c.y() - 125, width(), 150);
+
+    p.setPen(QColor(0, 0, 0, 100));
+    p.drawText(line1Rect.adjusted(2, 2, 2, 2), Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+
+    p.setPen(Qt::white);
+    p.drawText(line1Rect, Qt::AlignHCenter | Qt::AlignTop, alert.text1);
+
+    // Line 2
     p.setFont(InterFont(66));
+    p.setPen(QColor(220, 220, 220));
     p.drawText(QRect(0, c.y() + 21, width(), 90), Qt::AlignHCenter, alert.text2);
+
   } else if (alert.size == cereal::SelfdriveState::AlertSize::FULL) {
     bool l = alert.text1.length() > 15;
+
+    // Line 1 - large critical text
     p.setFont(InterFont(l ? 132 : 177, QFont::Bold));
-    p.drawText(QRect(0, r.y() + (l ? 240 : 270), width(), 600), Qt::AlignHCenter | Qt::TextWordWrap, alert.text1);
+    QRect line1Rect = QRect(0, r.y() + (l ? 240 : 270), width(), 600);
+
+    p.setPen(QColor(0, 0, 0, 120));
+    p.drawText(line1Rect.adjusted(3, 3, 3, 3), Qt::AlignHCenter | Qt::TextWordWrap, alert.text1);
+
+    p.setPen(Qt::white);
+    p.drawText(line1Rect, Qt::AlignHCenter | Qt::TextWordWrap, alert.text1);
+
+    // Line 2 - explanation
     p.setFont(InterFont(88));
+    p.setPen(QColor(220, 220, 220));
     p.drawText(QRect(0, r.height() - (l ? 361 : 420), width(), 300), Qt::AlignHCenter | Qt::TextWordWrap, alert.text2);
   }
 }
