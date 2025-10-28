@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "selfdrive/ui/bluepilot/bp_logging.h"
+
 BPUpdaterClient::BPUpdaterClient(QObject *parent)
   : QObject(parent),
     currentProgress(0) {
@@ -29,7 +31,7 @@ QString BPUpdaterClient::sendCommand(const QString &cmd, const QJsonObject &args
   QJsonDocument doc(cmdObj);
   params.put("UpdaterCommand", doc.toJson(QJsonDocument::Compact).toStdString());
 
-  qDebug() << "[BPUpdaterClient] Sent command:" << cmd << "ID:" << commandID;
+  BPLog::bpInfo() << "[bp.updater.client] Sent command: " << cmd.toStdString() << " ID: " << commandID.toStdString() << std::endl;
 
   return commandID;
 }
@@ -43,20 +45,20 @@ void BPUpdaterClient::watchCommand(const QString &commandID) {
   // Start polling for status
   statusPollTimer->start();
 
-  qDebug() << "[BPUpdaterClient] Watching command:" << commandID;
+  BPLog::bpInfo() << "[bp.updater.client] Watching command: " << commandID.toStdString() << std::endl;
 }
 
 void BPUpdaterClient::stopWatching() {
   statusPollTimer->stop();
   clearStatus();
 
-  qDebug() << "[BPUpdaterClient] Stopped watching";
+  BPLog::bpInfo() << "[bp.updater.client] Stopped watching" << std::endl;
 }
 
 void BPUpdaterClient::cancelCommand() {
   params.putBool("UpdaterCommandCancel", true);
 
-  qDebug() << "[BPUpdaterClient] Cancelled command:" << currentCommandID;
+  BPLog::bpInfo() << "[bp.updater.client] Cancelled command: " << currentCommandID.toStdString() << std::endl;
 }
 
 void BPUpdaterClient::pollStatus() {
