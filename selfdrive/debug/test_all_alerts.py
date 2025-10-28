@@ -33,11 +33,22 @@ Usage:
     # Simulate calibration progress (0% to 100%)
     ./selfdrive/debug/test_all_alerts.py --calibration
     ./selfdrive/debug/test_all_alerts.py --calibration --duration 60
+
+Performance Notes:
+    - Message rate optimized to 20Hz to match UI update frequency
+    - Reduces CPU/GPU load, especially for BluePilot alerts with pulse animations
+    - Only sends essential messages (selfdriveState) to minimize overhead
 """
 import time
 from cereal import log
 import cereal.messaging as messaging
-from openpilot.common.realtime import DT_CTRL
+
+# UI update frequency - match this to avoid overwhelming the UI
+# BluePilot alerts are rendering-intensive with drop shadows, font calculations,
+# and 60fps pulse animations. Publishing at controlsd rate (100Hz) causes
+# severe performance issues on Comma 3 hardware.
+UI_FREQ = 20  # Hz
+UPDATE_INTERVAL = 1.0 / UI_FREQ  # 50ms
 
 AlertSize = log.SelfdriveState.AlertSize
 AlertStatus = log.SelfdriveState.AlertStatus
@@ -504,13 +515,15 @@ def simulate_calibration_progress(duration=30.0):
     print("CALIBRATION PROGRESS SIMULATION")
     print("=" * 80)
     print(f"Simulating calibration from 0% to 100% over {duration} seconds")
+    print(f"Update rate: {UI_FREQ}Hz (optimized for UI performance)")
     print("Press Ctrl+C to stop")
     print()
 
     try:
-        start_time = time.time()
+        start_time = time.monotonic()
         while True:
-            elapsed = time.time() - start_time
+            loop_start = time.monotonic()
+            elapsed = time.monotonic() - start_time
 
             # Calculate percentage (0-100)
             percentage = min(100, int((elapsed / duration) * 100))
@@ -542,9 +555,12 @@ def simulate_calibration_progress(duration=30.0):
             if percentage >= 100:
                 print("\n\nCalibration complete! Restarting...")
                 time.sleep(2)
-                start_time = time.time()
+                start_time = time.monotonic()
 
-            time.sleep(DT_CTRL)
+            # Sleep for remainder of update interval to maintain consistent rate
+            elapsed_loop = time.monotonic() - loop_start
+            sleep_time = max(0, UPDATE_INTERVAL - elapsed_loop)
+            time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         print("\n\nStopping calibration test...")
@@ -595,12 +611,18 @@ def cycle_test_alerts(duration_per_alert=5.0, continuous=True,
     print(f"Total alerts in catalog: {len(all_alerts)}")
     print(f"Alerts to display: {len(alerts)}")
     print(f"Duration per alert: {duration_per_alert} seconds")
+    print(f"Update rate: {UI_FREQ}Hz (optimized for UI performance)")
     print(f"Mode: {'Continuous loop' if continuous else 'Single pass'}")
     print("=" * 80)
     print()
     print("RENDERING LOGIC:")
     print("  • CRITICAL status or FULL size -> FULLSCREEN")
     print("  • All other alerts (SMALL/MID + NORMAL/USER_PROMPT) -> PILL")
+    print()
+    print("PERFORMANCE OPTIMIZATIONS:")
+    print(f"  • Message rate: {UI_FREQ}Hz (matches UI update frequency)")
+    print("  • Reduces CPU/GPU load from BluePilot's pulse animations")
+    print("  • Minimizes drop shadow and font calculation overhead")
     print("=" * 80)
     print("Press Ctrl+C to stop")
     print()
@@ -632,10 +654,12 @@ def cycle_test_alerts(duration_per_alert=5.0, continuous=True,
                 if alert_data['text2']:
                     print(f"    Text2: {alert_data['text2']}")
 
-                # Calculate frames for duration
-                frames = int(duration_per_alert / DT_CTRL)
+                # Calculate number of updates for duration at UI_FREQ rate
+                num_updates = int(duration_per_alert * UI_FREQ)
 
-                for _ in range(frames):
+                for _ in range(num_updates):
+                    loop_start = time.monotonic()
+
                     # Send selfdriveState with alert
                     dat = messaging.new_message('selfdriveState')
                     dat.selfdriveState.enabled = False
@@ -657,7 +681,10 @@ def cycle_test_alerts(duration_per_alert=5.0, continuous=True,
                     dat.pandaStates[0].pandaType = log.PandaState.PandaType.uno
                     pm.send('pandaStates', dat)
 
-                    time.sleep(DT_CTRL)
+                    # Sleep for remainder of update interval to maintain consistent rate
+                    elapsed = time.monotonic() - loop_start
+                    sleep_time = max(0, UPDATE_INTERVAL - elapsed)
+                    time.sleep(sleep_time)
 
             if not continuous:
                 break
