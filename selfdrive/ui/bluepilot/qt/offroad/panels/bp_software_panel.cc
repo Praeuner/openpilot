@@ -178,6 +178,10 @@ void BPSoftwarePanel::setupUI() {
   mainLayout->addWidget(advancedWarningLabel);
   mainLayout->addStretch();
 
+  // DISABLED: Hide advanced updater controls until system is ready
+  gitOperationsGroup->setVisible(false);
+  advancedWarningLabel->setVisible(false);
+
   setStyleSheet(R"(
     BPSoftwarePanel {
       background-color: #1B1B1B;
