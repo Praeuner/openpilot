@@ -27,6 +27,8 @@
 #include <QStyle>
 #include <QTimer>
 #include <QGridLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <cmath>
 
 #ifdef QCOM2
@@ -38,6 +40,9 @@
 #include "common/params.h"
 #include "bp_nested_view.h"
 #include "bp_panel_dialogs.h"
+#include "cereal/gen/cpp/car.capnp.h"
+#include <capnp/serialize.h>
+#include <kj/array.h>
 
 class BPParamViewerDialog;
 class BPParamListDialog;
@@ -2685,5 +2690,148 @@ private:
   QVector<QPushButton*> buttons;
   QTimer *refreshTimer;
   MeteredType currentMetered = MeteredType::UNKNOWN;
+};
+
+/**
+ * BPPlatformDisplayControl - Display vehicle platform/fingerprint info
+ *
+ * Shows the current vehicle fingerprint from CarParamsPersistent or manual
+ * selection from CarPlatformBundle, with color coding:
+ * - Green: Auto-fingerprinted
+ * - Blue: Manually selected
+ * - Yellow: Unrecognized/not detected
+ */
+class BPPlatformDisplayControl : public QFrame {
+  Q_OBJECT
+
+public:
+  BPPlatformDisplayControl(const QString &title, const QString &desc,
+                          const QString &valueColor = "#0086E9", QWidget *parent = nullptr)
+    : QFrame(parent), defaultValueColor(valueColor) {
+
+    // Get text sizes
+    BPTextSizes sizes = BPTextSizes::getSizes();
+
+    // Main layout with consistent margins/spacing
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(25, 25, 25, 25);
+    layout->setSpacing(50);
+
+    // Left side: Title & Description
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(10);
+
+    titleLabel = new QLabel(title, this);
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
+    titleLabel->setWordWrap(true);
+    textLayout->addWidget(titleLabel);
+
+    if (!desc.isEmpty()) {
+      descLabel = new QLabel(desc, this);
+      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
+      descLabel->setWordWrap(true);
+      textLayout->addWidget(descLabel);
+    }
+
+    layout->addLayout(textLayout, 1);
+
+    // Right side: Value display - vertically centered
+    QVBoxLayout *valueLayout = new QVBoxLayout();
+    valueLayout->setContentsMargins(0, 0, 0, 0);
+    valueLayout->setSpacing(0);
+
+    valueLabel = new QLabel(this);
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 600;")
+                              .arg(sizes.valueDisplaySize).arg(defaultValueColor));
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    valueLabel->setWordWrap(true);
+    valueLayout->addWidget(valueLabel);
+
+    // Center the value vertically
+    layout->addLayout(valueLayout, 0);
+    layout->setAlignment(valueLayout, Qt::AlignVCenter);
+
+    // Frame styling
+    setStyleSheet(R"(
+      BPPlatformDisplayControl {
+        background-color: #242424;
+        border-radius: 10px;
+        min-height: 150px;
+      }
+    )");
+
+    refresh();
+  }
+
+  void refresh() {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    QString platform = tr("Unrecognized Vehicle");
+    QString platform_color = "#FFD500";  // Yellow for unrecognized
+
+    // Check for manual selection first (CarPlatformBundle)
+    std::string platform_bundle = params.get("CarPlatformBundle");
+    if (!platform_bundle.empty()) {
+      QString platformBundleStr = QString::fromStdString(platform_bundle);
+      QJsonDocument json = QJsonDocument::fromJson(platformBundleStr.toUtf8());
+      if (!json.isNull() && json.isObject()) {
+        QString name = json.object().value("name").toString();
+        if (!name.isEmpty()) {
+          platform = name;
+          platform_color = "#0086E9";  // Blue for manual selection
+        }
+      }
+    } else {
+      // Check for auto-fingerprint (CarParamsPersistent)
+      auto cp_bytes = params.get("CarParamsPersistent");
+      if (!cp_bytes.empty()) {
+        try {
+          // Parse the capnp message
+          kj::ArrayPtr<const capnp::word> words_ptr;
+          size_t words_size = cp_bytes.size() / sizeof(capnp::word) + 1;
+          kj::Array<capnp::word> aligned_buf = kj::heapArray<capnp::word>(words_size < 512 ? 512 : words_size);
+          memcpy(aligned_buf.begin(), cp_bytes.data(), cp_bytes.size());
+          words_ptr = aligned_buf.slice(0, words_size);
+
+          capnp::FlatArrayMessageReader cmsg(words_ptr);
+          cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+
+          QString fingerprint = QString::fromStdString(CP.getCarFingerprint().cStr());
+
+          if (fingerprint != "MOCK" && !fingerprint.isEmpty()) {
+            platform = fingerprint;
+            platform_color = "#00F100";  // Green for auto-fingerprint
+          }
+        } catch (const std::exception &e) {
+          BPLog::bpWarn() << "[bp.platform_display] Error parsing CarParams: " << e.what() << std::endl;
+        }
+      }
+    }
+
+    // Update the display
+    valueLabel->setText(platform);
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 600;")
+                              .arg(sizes.valueDisplaySize).arg(platform_color));
+  }
+
+  void setEnabled(bool enabled) {
+    BPTextSizes sizes = BPTextSizes::getSizes();
+    titleLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 500;")
+                              .arg(sizes.titleSize).arg(enabled ? "white" : "#666666"));
+    if (descLabel) {
+      descLabel->setStyleSheet(QString("font-size: %1px; color: %2;")
+                               .arg(sizes.descSize).arg(enabled ? "#AAAAAA" : "#444444"));
+    }
+    QString currentColor = enabled ? defaultValueColor : "#444444";
+    valueLabel->setStyleSheet(QString("font-size: %1px; color: %2; font-weight: 600;")
+                              .arg(sizes.valueDisplaySize).arg(currentColor));
+  }
+
+private:
+  QString defaultValueColor;
+  QLabel *titleLabel;
+  QLabel *descLabel = nullptr;
+  QLabel *valueLabel;
+  Params params;
 };
 

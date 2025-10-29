@@ -1290,9 +1290,13 @@ QWidget *BPPanelBase::createStaticTextControl(const QJsonObject &control) {
 }
 
 QWidget *BPPanelBase::createPlatformDisplayControl(const QJsonObject &control) {
-  // For now, create a placeholder - this would need proper implementation
-  // based on the vehicle platform display requirements
-  return createStaticTextControl(control);
+  QString title = control["title"].toString();
+  QString desc = control["desc"].toString();
+  QString valueColor = control.value("value_color").toString("#0086E9");
+
+  auto platformDisplay = new BPPlatformDisplayControl(title, desc, valueColor);
+  platformDisplay->setObjectName("platform_display");
+  return platformDisplay;
 }
 
 QWidget *BPPanelBase::createNestedControlsButton(const QJsonObject &control) {
