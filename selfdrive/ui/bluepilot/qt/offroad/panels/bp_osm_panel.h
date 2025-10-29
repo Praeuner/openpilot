@@ -23,8 +23,10 @@
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
 
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_base.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_dialogs.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_ui_helpers.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/osm/locations_fetcher.h"
 #include "selfdrive/ui/sunnypilot/ui.h"
@@ -58,6 +60,7 @@ private:
   void updateLabels();
   void updateDownloadProgress();
   void updateMapSize();
+  void updateDividerVisibility();
 
   // Helper functions
   static int extractIntFromJson(const QJsonObject &json, const QString &key);
@@ -115,6 +118,7 @@ private:
   BPButton *stateBtn;
   QLabel *stateValue;
   QWidget *stateWidget;  // Container for state button/value pair
+  QWidget *countryStateDivider;  // Divider between country and state
 
   // Database Update Group
   QGroupBox *databaseUpdateGroup;
@@ -126,6 +130,8 @@ private:
   QLabel *elapsedValue;
   QWidget *etaWidget;       // Container for ETA label/value pair
   QWidget *elapsedWidget;   // Container for Elapsed label/value pair
+  QWidget *updateEtaDivider;     // Divider between update and ETA
+  QWidget *etaElapsedDivider;    // Divider between ETA and elapsed
 
   Params params;
   Params mem_params{Hardware::PC() ? "" : "/dev/shm/params"};

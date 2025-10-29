@@ -201,6 +201,9 @@ void BPModelsPanel::createModelSelectionGroup() {
   currentModelLayout->addLayout(modelStatusLayout, 1);
   layout->addWidget(currentModelWidget);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Refresh models button
   QWidget *refreshWidget = new QWidget(this);
   QHBoxLayout *refreshLayout = new QHBoxLayout(refreshWidget);
@@ -231,6 +234,9 @@ void BPModelsPanel::createModelSelectionGroup() {
   refreshLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
   refreshLayout->addWidget(refreshLabel, 1);
   layout->addWidget(refreshWidget);
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   // Clear cache button
   QWidget *cacheWidget = new QWidget(this);
@@ -286,13 +292,22 @@ void BPModelsPanel::createDownloadProgressGroup() {
   supercomboFrame = createModelDetailFrame(this, tr("Driving Model"), supercomboProgressBar);
   layout->addWidget(supercomboFrame);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   navigationProgressBar = createProgressBar(this);
   navigationFrame = createModelDetailFrame(this, tr("Navigation Model"), navigationProgressBar);
   layout->addWidget(navigationFrame);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   visionProgressBar = createProgressBar(this);
   visionFrame = createModelDetailFrame(this, tr("Vision Model"), visionProgressBar);
   layout->addWidget(visionFrame);
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   policyProgressBar = createProgressBar(this);
   policyFrame = createModelDetailFrame(this, tr("Policy Model"), policyProgressBar);
@@ -325,6 +340,10 @@ void BPModelsPanel::createLaneTurnGroup() {
   connect(laneTurnDesireToggle, &BPToggleControl::toggleFlipped, this, &BPModelsPanel::onLaneTurnDesireToggled);
   laneTurnDesireToggle->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(laneTurnDesireToggle);
+
+  // Divider
+  laneTurnValueDivider = BPUIHelpers::createDivider();
+  layout->addWidget(laneTurnValueDivider);
 
   // Lane Turn Value control
   bool is_metric = params.getBool("IsMetric");
@@ -368,6 +387,10 @@ void BPModelsPanel::createSteerDelayGroup() {
   lagdToggleControl->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(lagdToggleControl);
 
+  // Divider
+  delayControlDivider = BPUIHelpers::createDivider();
+  layout->addWidget(delayControlDivider);
+
   // Software delay control
   delayControl = new BPNumericControl(
     "LagdToggleDelay",
@@ -384,7 +407,9 @@ void BPModelsPanel::createSteerDelayGroup() {
   layout->addWidget(delayControl);
 
   // Initially hide delay control if lagd is enabled (default is on)
-  delayControl->setVisible(!params.getBool("LagdToggle"));
+  bool lagdDisabled = !params.getBool("LagdToggle");
+  delayControl->setVisible(lagdDisabled);
+  delayControlDivider->setVisible(lagdDisabled);
 
   mainLayout->addWidget(steerDelayGroup);
 }
@@ -463,7 +488,9 @@ void BPModelsPanel::updateLabels() {
   refreshLaneTurnValueControl();
 
   // Update delay control visibility and value
-  delayControl->setVisible(!params.getBool("LagdToggle"));
+  bool lagdDisabled = !params.getBool("LagdToggle");
+  delayControl->setVisible(lagdDisabled);
+  delayControlDivider->setVisible(lagdDisabled);
   if (delayControl->isVisible()) {
     refreshDelayControl();
   }
@@ -588,7 +615,11 @@ QString BPModelsPanel::getActiveModelRef() {
 
 void BPModelsPanel::refreshLaneTurnValueControl() {
   if (!laneTurnValueControl) return;
-  laneTurnValueControl->setVisible(params.getBool("LaneTurnDesire"));
+  bool laneTurnDesireEnabled = params.getBool("LaneTurnDesire");
+  laneTurnValueControl->setVisible(laneTurnDesireEnabled);
+  if (laneTurnValueDivider) {
+    laneTurnValueDivider->setVisible(laneTurnDesireEnabled);
+  }
 }
 
 void BPModelsPanel::refreshDelayControl() {
@@ -849,5 +880,6 @@ void BPModelsPanel::onLaneTurnDesireToggled(bool enabled) {
 
 void BPModelsPanel::onLagdToggled(bool enabled) {
   delayControl->setVisible(!enabled);
+  delayControlDivider->setVisible(!enabled);
   updateSteerDelayDescription();
 }

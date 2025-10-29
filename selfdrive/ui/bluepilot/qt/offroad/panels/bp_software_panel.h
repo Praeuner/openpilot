@@ -25,7 +25,9 @@
 #include <wayland-client-protocol.h>
 #endif
 
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_base.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_ui_helpers.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/bluepilot/qt/widgets/bp_updater_client.h"
@@ -75,6 +77,7 @@ private:
   void updateInstallButton();
   void updateBranchSelector();
   void updateRepoStatus();
+  void updateDividerVisibility();
   void checkForUpdates();
   void searchBranches(const QString &query);
 
@@ -107,6 +110,7 @@ private:
   QLabel *currentVersionDesc;
   QLabel *newVersionLabel;
   QLabel *newVersionDesc;
+  QWidget *newVersionDivider;  // Divider after newVersionWidget
   BPCommandControl *sunnypilotChangesBtn;
   QPushButton *downloadBtn;
   QLabel *downloadStatusLabel;

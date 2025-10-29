@@ -11,7 +11,9 @@
 #include <QProgressBar>
 #include <QFrame>
 
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_base.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_ui_helpers.h"
 #include "common/params.h"
 #include "common/util.h"
 
@@ -107,10 +109,12 @@ private:
   // Lane Turn Group
   BPToggleControl *laneTurnDesireToggle;
   BPNumericControl *laneTurnValueControl;
+  QWidget *laneTurnValueDivider;  // Divider before laneTurnValueControl
 
   // Steer Delay Group
   BPToggleControl *lagdToggleControl;
   BPNumericControl *delayControl;
+  QWidget *delayControlDivider;  // Divider before delayControl
 
   // State tracking
   bool is_onroad = false;

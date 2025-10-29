@@ -283,6 +283,9 @@ void BPSoftwarePanel::createVersionInfoGroup() {
 
   layout->addWidget(currentVersionWidget);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // New version info (initially hidden)
   QWidget *newVersionWidget = new QWidget(this);
   QVBoxLayout *newLayout = new QVBoxLayout(newVersionWidget);
@@ -313,6 +316,10 @@ void BPSoftwarePanel::createVersionInfoGroup() {
   layout->addWidget(newVersionWidget);
   newVersionWidget->setVisible(false);
 
+  // Divider
+  newVersionDivider = BPUIHelpers::createDivider();
+  layout->addWidget(newVersionDivider);
+
   // Sunnypilot Changes button
   sunnypilotChangesBtn = new BPCommandControl(
     tr("Sunnypilot Changes"),
@@ -330,6 +337,9 @@ void BPSoftwarePanel::createVersionInfoGroup() {
   connect(sunnypilotChangesBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onSunnypilotChangesClicked);
   sunnypilotChangesBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(sunnypilotChangesBtn);
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   // Check for Updates button (styled like BPCommandControl)
   QFrame *downloadFrame = new QFrame(this);
@@ -488,6 +498,9 @@ void BPSoftwarePanel::createSystemGroup() {
   disableUpdatesToggle->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(disableUpdatesToggle);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Uninstall button
   uninstallBtn = new BPCommandControl(
     tr("Uninstall %1").arg(getBrand()),
@@ -586,6 +599,7 @@ void BPSoftwarePanel::updateVersionInfo() {
   if (newVersionWidget) {
     newVersionWidget->setVisible(!is_onroad && updateAvailable);
   }
+  updateDividerVisibility();
 
   if (updateAvailable) {
     newVersionLabel->setText(tr("New Version: %1").arg(newVersion));
@@ -638,6 +652,14 @@ void BPSoftwarePanel::updateInstallButton() {
 void BPSoftwarePanel::updateBranchSelector() {
   QString targetBranch = QString::fromStdString(params.get("UpdaterTargetBranch"));
   branchStatusLabel->setText(targetBranch.isEmpty() ? tr("No branch selected") : targetBranch);
+}
+
+void BPSoftwarePanel::updateDividerVisibility() {
+  // Hide dividers if the widget they precede is hidden
+  QWidget *newVersionWidget = newVersionLabel->parentWidget();
+  if (newVersionWidget && newVersionDivider) {
+    newVersionDivider->setVisible(newVersionWidget->isVisible());
+  }
 }
 
 void BPSoftwarePanel::checkForUpdates() {
@@ -757,6 +779,9 @@ void BPSoftwarePanel::createRepoStatusGroup() {
   repoBranchLabel->setStyleSheet("QLabel { color: #4CAF50; font-size: 40px; font-weight: 600; }");
   layout->addWidget(repoBranchLabel);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Commit message
   repoCommitLabel = new QLabel("", this);
   repoCommitLabel->setStyleSheet("QLabel { color: #E0E0E0; font-size: 34px; }");
@@ -779,6 +804,9 @@ void BPSoftwarePanel::createRepoStatusGroup() {
 
   metadataLayout->addStretch();
   layout->addWidget(metadataWidget);
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   // Status with color
   repoStatusLabel = new QLabel("", this);
@@ -840,6 +868,9 @@ void BPSoftwarePanel::createGitOperationsGroup() {
   manualUpdateBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(addAdvancedBadge(manualUpdateBtn));
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Repair button
   repairBtn = new BPCommandControl(
     tr("Repair Repository"),
@@ -858,6 +889,9 @@ void BPSoftwarePanel::createGitOperationsGroup() {
   repairBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(addAdvancedBadge(repairBtn));
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Reset button
   resetBtn = new BPCommandControl(
     tr("Reset Changes"),
@@ -875,6 +909,9 @@ void BPSoftwarePanel::createGitOperationsGroup() {
   connect(resetBtn, &BPCommandControl::commandRequested, this, &BPSoftwarePanel::onResetClicked);
   resetBtn->setStyleSheet("BPCommandControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(addAdvancedBadge(resetBtn));
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   // History button
   historyBtn = new BPCommandControl(

@@ -11,7 +11,9 @@
 
 #include "selfdrive/ui/qt/network/wifi_manager.h"
 #include "selfdrive/ui/qt/network/networking.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_base.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_ui_helpers.h"
 #include "common/params.h"
 
 /**
@@ -71,6 +73,7 @@ private:
   // Tethering Group
   BPToggleControl *tetheringToggle;
   BPCommandControl *tetheringPasswordBtn;
+  QWidget *tetheringPasswordDivider;  // Divider before tetheringPasswordBtn
 
   // Cellular Group (tici only)
   BPToggleControl *gsmRoamingToggle;

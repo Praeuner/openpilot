@@ -178,6 +178,9 @@ void BPNetworkPanel::createWifiNetworksGroup() {
   wifiList->setStyleSheet("BPWifiListControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(wifiList);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // WiFi Metered Control - moved from management group
   wifiMeteredControl = new BPWifiMeteredControl(
     tr("Wi-Fi Network Metered"),
@@ -211,6 +214,10 @@ void BPNetworkPanel::createTetheringGroup() {
   connect(tetheringToggle, &BPToggleControl::toggleFlipped, this, &BPNetworkPanel::onTetheringToggled);
   tetheringToggle->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(tetheringToggle);
+
+  // Divider
+  tetheringPasswordDivider = BPUIHelpers::createDivider();
+  layout->addWidget(tetheringPasswordDivider);
 
   // Tethering Password Button
   tetheringPasswordBtn = new BPCommandControl(
@@ -252,6 +259,9 @@ void BPNetworkPanel::createCellularGroup() {
   gsmRoamingToggle->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(gsmRoamingToggle);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // GSM Metered Toggle
   gsmMeteredToggle = new BPToggleControl(
     "GsmMetered",
@@ -262,6 +272,9 @@ void BPNetworkPanel::createCellularGroup() {
   connect(gsmMeteredToggle, &BPToggleControl::toggleFlipped, this, &BPNetworkPanel::onGsmMeteredToggled);
   gsmMeteredToggle->setStyleSheet("BPToggleControl { background-color: transparent; border-radius: 0px; }");
   layout->addWidget(gsmMeteredToggle);
+
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
 
   // APN Setting Button
   apnSettingBtn = new BPCommandControl(
@@ -359,6 +372,9 @@ void BPNetworkPanel::updateTetheringPasswordVisibility() {
   bool tetheringEnabled = params.getBool("EnableTethering");
   if (tetheringPasswordBtn) {
     tetheringPasswordBtn->setVisible(tetheringEnabled);
+  }
+  if (tetheringPasswordDivider) {
+    tetheringPasswordDivider->setVisible(tetheringEnabled);
   }
 }
 

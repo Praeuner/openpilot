@@ -108,6 +108,9 @@ void BPOsmPanel::createMapInfoGroup() {
 
   layout->addWidget(versionWidget);
 
+  // Divider
+  layout->addWidget(BPUIHelpers::createDivider());
+
   // Delete Maps Button
   QWidget *deleteWidget = new QWidget(this);
   QHBoxLayout *deleteLayout = new QHBoxLayout(deleteWidget);
@@ -115,7 +118,7 @@ void BPOsmPanel::createMapInfoGroup() {
   deleteLayout->setContentsMargins(0, 0, 0, 0);
 
   deleteMapsBtn = new BPButton(tr("DELETE"), this);
-  deleteMapsBtn->setMinimumWidth(250);
+  deleteMapsBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   deleteMapsBtn->setMinimumHeight(100);
   deleteMapsBtn->setStyleSheet(R"(
     BPButton {
@@ -123,6 +126,7 @@ void BPOsmPanel::createMapInfoGroup() {
       border-radius: 40px;
       font-size: 42px;
       font-weight: 600;
+      padding: 15px 40px;
     }
     BPButton:hover {
       background-color: #c82333;
@@ -169,7 +173,7 @@ void BPOsmPanel::createCountrySelectionGroup() {
   countryLayout->setContentsMargins(0, 0, 0, 0);
 
   countryBtn = new BPButton(tr("SELECT"), this);
-  countryBtn->setMinimumWidth(250);
+  countryBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   countryBtn->setMinimumHeight(100);
   countryBtn->setStyleSheet(R"(
     BPButton {
@@ -177,6 +181,7 @@ void BPOsmPanel::createCountrySelectionGroup() {
       border-radius: 40px;
       font-size: 42px;
       font-weight: 600;
+      padding: 15px 40px;
     }
     BPButton:hover {
       background-color: #1E88E5;
@@ -207,6 +212,10 @@ void BPOsmPanel::createCountrySelectionGroup() {
   countryLayout->addLayout(countryStatusLayout, 1);
   layout->addWidget(countryWidget);
 
+  // Divider
+  countryStateDivider = BPUIHelpers::createDivider();
+  layout->addWidget(countryStateDivider);
+
   // State Selection (initially hidden)
   stateWidget = new QWidget(this);
   QHBoxLayout *stateLayout = new QHBoxLayout(stateWidget);
@@ -214,7 +223,7 @@ void BPOsmPanel::createCountrySelectionGroup() {
   stateLayout->setContentsMargins(0, 0, 0, 0);
 
   stateBtn = new BPButton(tr("SELECT"), this);
-  stateBtn->setMinimumWidth(250);
+  stateBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   stateBtn->setMinimumHeight(100);
   stateBtn->setStyleSheet(R"(
     BPButton {
@@ -222,6 +231,7 @@ void BPOsmPanel::createCountrySelectionGroup() {
       border-radius: 40px;
       font-size: 42px;
       font-weight: 600;
+      padding: 15px 40px;
     }
     BPButton:hover {
       background-color: #1E88E5;
@@ -269,7 +279,7 @@ void BPOsmPanel::createDatabaseUpdateGroup() {
   updateLayout->setContentsMargins(0, 0, 0, 0);
 
   updateBtn = new BPButton(tr("UPDATE"), this);
-  updateBtn->setMinimumWidth(250);
+  updateBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   updateBtn->setMinimumHeight(100);
   updateBtn->setStyleSheet(R"(
     BPButton {
@@ -277,6 +287,7 @@ void BPOsmPanel::createDatabaseUpdateGroup() {
       border-radius: 40px;
       font-size: 42px;
       font-weight: 600;
+      padding: 15px 40px;
     }
     BPButton:hover {
       background-color: #218838;
@@ -307,6 +318,10 @@ void BPOsmPanel::createDatabaseUpdateGroup() {
   updateLayout->addLayout(updateStatusLayout, 1);
   layout->addWidget(updateWidget);
 
+  // Divider
+  updateEtaDivider = BPUIHelpers::createDivider();
+  layout->addWidget(updateEtaDivider);
+
   // ETA (initially hidden)
   etaWidget = new QWidget(this);
   QVBoxLayout *etaLayout = new QVBoxLayout(etaWidget);
@@ -323,6 +338,10 @@ void BPOsmPanel::createDatabaseUpdateGroup() {
 
   etaWidget->setVisible(false);
   layout->addWidget(etaWidget);
+
+  // Divider
+  etaElapsedDivider = BPUIHelpers::createDivider();
+  layout->addWidget(etaElapsedDivider);
 
   // Elapsed Time (initially hidden)
   elapsedWidget = new QWidget(this);
@@ -423,6 +442,7 @@ void BPOsmPanel::updateLabels() {
   countryValue->setText(QString::fromStdString(params.get("OsmLocationTitle")));
   stateValue->setText(QString::fromStdString(params.get("OsmStateTitle")));
 
+  updateDividerVisibility();
   update();
 }
 
@@ -440,6 +460,7 @@ void BPOsmPanel::updateDownloadProgress() {
     etaWidget->setVisible(false);
     elapsedWidget->setVisible(false);
   }
+  updateDividerVisibility();
 
   const int total_files = extractIntFromJson(osmDownloadProgress, "total_files");
   const int downloaded_files = extractIntFromJson(osmDownloadProgress, "downloaded_files");
@@ -579,7 +600,7 @@ void BPOsmPanel::onDeleteMapsButtonClicked() {
       dir.removeRecursively();
       updateMapSize();
       deleteMapsBtn->setEnabled(true);
-      deleteMapsBtn->setText(tr("DELETE MAPS"));
+      deleteMapsBtn->setText(tr("DELETE"));
     });
     updateLabels();
   }
@@ -746,4 +767,11 @@ void BPOsmPanel::updateMapSize() {
   if (!mapSizeFuture.has_value() || !mapSizeFuture.value().isRunning()) {
     mapSizeFuture = QtConcurrent::run(getDirSize, BPOsmConstants::MAP_PATH);
   }
+}
+
+void BPOsmPanel::updateDividerVisibility() {
+  // Hide dividers if the widget they precede is hidden (or if they're the last element)
+  countryStateDivider->setVisible(stateWidget->isVisible());
+  updateEtaDivider->setVisible(etaWidget->isVisible());
+  etaElapsedDivider->setVisible(elapsedWidget->isVisible());
 }
