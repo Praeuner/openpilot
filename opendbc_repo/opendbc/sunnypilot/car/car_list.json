@@ -430,7 +430,7 @@
     "model": "Kuga Plug-in Hybrid",
     "year": ["2020", "2021", "2022", "2023"],
     "package": "Adaptive Cruise Control with Lane Centering"
-  },FORD_ESCAPE_MK5
+  },
   "Ford Kuga Plug-in Hybrid 2024": {
     "platform": "FORD_ESCAPE_MK5",
     "make": "Ford",
@@ -453,7 +453,7 @@
     "brand": "ford",
     "model": "Maverick",
     "year": ["2023", "2024"],
-    "package": "CFORD_ESCAPE_MK5"
+    "package": "Co-Pilot360 Assist"
   },
   "Ford Maverick Hybrid 2022": {
     "platform": "FORD_MAVERICK_MK1",
@@ -476,7 +476,7 @@
     "make": "Ford",
     "brand": "ford",
     "model": "Mustang Mach-E",
-    "year": ["202FORD_ESCAPE_MK5", "2024"],
+    "year": ["2021", "2022", "2023", "2024"],
     "package": "All"
   },
   "Ford Ranger 2024": {
@@ -608,7 +608,7 @@
     "package": "Adaptive Cruise Control (ACC)"
   },
   "GMC Sierra 1500 2020-21": {
-    "platform": "FORD_ESCAPE_MK5DO",
+    "platform": "CHEVROLET_SILVERADO",
     "make": "GMC",
     "brand": "gm",
     "model": "Sierra 1500",
@@ -631,7 +631,7 @@
     "year": ["2023", "2024", "2025"],
     "package": "All"
   },
-  "Honda Accord HFORD_ESCAPE_MK5
+  "Honda Accord Hybrid 2018-22": {
     "platform": "HONDA_ACCORD",
     "make": "Honda",
     "brand": "honda",
