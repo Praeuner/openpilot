@@ -13,6 +13,7 @@ constructor() {
     this.hevcSupported = false; // Will be set during init
     this.webglSupported = false; // Will be set during init
     this.isSafari = false; // Safari detection for playback strategy
+    this.isFirefox = false; // Firefox detection for limited functionality warning
     this.retryCount = 0; // Track retry attempts for network errors
     this.maxRetries = 3; // Maximum retry attempts
     this.retryDelay = 1000; // Initial retry delay in ms
@@ -59,7 +60,9 @@ constructor() {
 
   async detectBrowserCapabilities() {
     this.isSafari = this.detectSafari();
+    this.isFirefox = this.detectFirefox();
     console.log("Safari browser detected:", this.isSafari);
+    console.log("Firefox browser detected:", this.isFirefox);
 
     // Check for native HEVC support
     this.hevcSupported = await this.checkNativeHEVCSupport();
@@ -88,6 +91,9 @@ constructor() {
     console.log("WebGL support:", this.webglSupported);
     console.log("h265-web-player available:", playerAvailable);
     console.log("Can play HEVC videos:", this.canPlayHEVC());
+
+    // Show Firefox warning if detected and HEVC is not supported
+    this.initFirefoxWarning();
   }
 
   detectSafari() {
@@ -96,6 +102,14 @@ constructor() {
     }
     const ua = navigator.userAgent;
     return /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
+  }
+
+  detectFirefox() {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+    const ua = navigator.userAgent;
+    return /firefox/i.test(ua);
   }
 
   canPlayHEVC() {
@@ -427,6 +441,12 @@ constructor() {
       "cellular-warning-close"
     );
 
+    // Firefox warning
+    this.$firefoxWarning = document.getElementById("firefox-warning");
+    this.$firefoxWarningClose = document.getElementById(
+      "firefox-warning-close"
+    );
+
     // Header
     this.$routeCount = document.getElementById("route-count");
     this.$totalSize = document.getElementById("total-size");
@@ -563,6 +583,15 @@ constructor() {
       // Store dismissal in session storage
       sessionStorage.setItem("cellularWarningDismissed", "true");
     });
+
+    // Firefox warning close
+    if (this.$firefoxWarningClose) {
+      this.$firefoxWarningClose.addEventListener("click", () => {
+        this.$firefoxWarning.classList.add("hidden");
+        // Store dismissal in session storage
+        sessionStorage.setItem("firefoxWarningDismissed", "true");
+      });
+    }
 
     this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
     this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
@@ -2240,6 +2269,29 @@ constructor() {
     } catch (e) {
       console.warn("WebGL detection failed:", e);
       return false;
+    }
+  }
+
+  /**
+   * Initialize Firefox warning banner if Firefox is detected and HEVC is not supported
+   */
+  initFirefoxWarning() {
+    if (!this.$firefoxWarning) {
+      console.warn("Firefox warning element not found in DOM");
+      return;
+    }
+
+    // Check if user has already dismissed the warning
+    const dismissed = sessionStorage.getItem("firefoxWarningDismissed");
+    if (dismissed === "true") {
+      return;
+    }
+
+    // Show warning if Firefox is detected (regardless of HEVC support)
+    // This informs users about limited functionality
+    if (this.isFirefox) {
+      console.log("Showing Firefox limited functionality warning");
+      this.$firefoxWarning.classList.remove("hidden");
     }
   }
 

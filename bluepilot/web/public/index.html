@@ -71,6 +71,39 @@
         </div>
       </div>
 
+      <!-- Firefox Warning Banner -->
+      <div id="firefox-warning" class="firefox-warning hidden">
+        <div class="firefox-warning-content">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div class="firefox-warning-text">
+            <strong>Limited Functionality on Firefox</strong>
+            <span
+              >HEVC video playback is not supported. Only the LQ (H.264) camera
+              will be available for route viewing. For full functionality,
+              please use Safari, Chrome, or Edge.</span
+            >
+          </div>
+          <button
+            id="firefox-warning-close"
+            class="firefox-warning-close"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
       <!-- Header -->
       <header class="header">
         <h1 class="header-title">BluePilot Routes</h1>
