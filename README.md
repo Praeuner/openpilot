@@ -3,17 +3,16 @@
 Table of Contents
 =======================
 
-* [Updates on Branch Names and Links](#-updates-on-branch-names-and-links)
-* [Join our Discord](#-join-our-discord)
-* [What is bluepilot?](#-what-is-sunnypilot)
-* [Running in a car](#-running-on-a-dedicated-device-in-a-car)
-* [Read Before Installing](#-read-before-installing)
-* [Prohibited Safety Modifications](#-prohibited-safety-modifications)
-* [Installation](#-installation)
-* [Bluepilot Specific Features](#-bluepilot-specific-features)
-* [Special Thanks](#-special-thanks)
-* [User Data](#-user-data)
-* [Licensing](#licensing)
+- [Table of Contents](#table-of-contents)
+    - [Upstream SunnyPilot Features](#upstream-sunnypilot-features)
+  - [What's New in bp-5.0](#whats-new-in-bp-50)
+    - [User Interface \& Experience](#user-interface--experience)
+    - [Software \& Management](#software--management)
+    - [Vehicle Features](#vehicle-features)
+    - [Ford-Specific Lateral Control](#ford-specific-lateral-control)
+    - [BluePilot Settings \& Tuning](#bluepilot-settings--tuning)
+    - [Performance \& Stability](#performance--stability)
+    - [Known Issues](#known-issues)
 
 ---
 

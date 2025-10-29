@@ -1,7 +1,7 @@
-BluePilot - 5.0.0 (2024-10-24)
+BluePilot - 5.0.0 (2025-10-29)
 ========================
-* Based on sunnypilot 0.10.1.0
-* AGNOS 13.1 support
+* Based on sunnypilot 2025.001.0.0
+* Includes AGNOS 13.1 Update
 ************************
 ### User Interface & Design
 * NEW❗: Completely redesigned settings menu structure
