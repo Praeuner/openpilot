@@ -328,6 +328,12 @@ bool PanelConditions::validateConditionObject(const QJsonObject &conditionObj) {
 }
 
 bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions) {
+  // Handle non-composite conditions (bare condition objects without allConditionsTrue/anyConditionsTrue)
+  // If the object doesn't contain composite keys, treat it as a simple condition object
+  if (!conditions.contains("allConditionsTrue") && !conditions.contains("anyConditionsTrue")) {
+    return validateConditionObject(conditions);
+  }
+
   bool result = true;
 
   if (conditions.contains("anyConditionsTrue")) {
@@ -380,7 +386,7 @@ bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions)
 }
 
 void PanelConditions::updateConditionsForAllControls(std::function<void()> updateGroupVisibility) {
-  static std::set<std::string> processedControls;
+  static std::set<QWidget *> processedControls;
   processedControls.clear();
 
   // Create a copy since we might modify during iteration
@@ -398,12 +404,10 @@ void PanelConditions::updateConditionsForAllControls(std::function<void()> updat
 
     // Check if this control has any conditions (legacy, enabled, or visible)
     if ((conds.hasConditions || conds.hasEnableConditions || conds.hasVisibleConditions) && ctrl) {
-      std::string controlName = ctrl->objectName().toStdString();
-
-      if (processedControls.find(controlName) != processedControls.end()) {
+      if (processedControls.find(ctrl) != processedControls.end()) {
         continue;
       }
-      processedControls.insert(controlName);
+      processedControls.insert(ctrl);
 
       // Use the unified updateConditionsForWidget function which handles all condition types
       updateConditionsForWidget(ctrl, conds);

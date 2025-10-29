@@ -41,9 +41,9 @@
               "button_text": "ADD",
               "action": "manage_ssh_keys",
               "icon": "../assets/icons/shell.png",
-              "enableConditions": {
+              "visibleConditions": {
                 "allConditionsTrue": [
-                  { "SshEnabled": true },
+                  { "paramIsTrue": "SshEnabled" },
                   { "isOffroad": true }
                 ]
               }
@@ -76,7 +76,7 @@
               "desc": "Enable longitudinal maneuver mode for testing",
               "icon": "../assets/icons/shell.png",
               "visibleConditions": {
-                "isReleaseBranch": false
+                "allConditionsTrue": [{ "isReleaseBranch": false }]
               },
               "enableConditions": {
                 "allConditionsTrue": [
@@ -145,6 +145,21 @@
               "icon": "../assets/icons/network.png"
             },
             {
+              "type": "command_button",
+              "title": "Copyparty Password",
+              "desc": "Set a password to secure access to your Copyparty file server. Leave empty for no password protection. Reboot required to apply changes.",
+              "button_text": "SET",
+              "action": "set_copyparty_password",
+              "icon": "../assets/icons/network.png",
+              "visibleConditions": {
+                "allConditionsTrue": [
+                  {
+                    "paramIsTrue": "EnableCopyparty"
+                  }
+                ]
+              }
+            },
+            {
               "type": "toggle",
               "param": "QuickBootToggle",
               "title": "Enable Quickboot Mode",
@@ -171,7 +186,7 @@
                 "allConditionsTrue": [
                   {
                     "paramIsTrue": "DisableUpdates",
-                    "reason": "Requires DisableUpdates"
+                    "reason": "Requires DisableUpdates in the Software panel"
                   }
                 ]
               }
@@ -182,15 +197,7 @@
               "desc": "View the error log for sunnypilot crashes.",
               "button_text": "VIEW",
               "action": "view_error_log",
-              "icon": "../assets/icons/shell.png",
-              "visibleConditions": {
-                "allConditionsTrue": [
-                  {
-                    "isReleaseBranch": false,
-                    "reason": "Requires non-release branch"
-                  }
-                ]
-              }
+              "icon": "../assets/icons/shell.png"
             }
           ]
         }

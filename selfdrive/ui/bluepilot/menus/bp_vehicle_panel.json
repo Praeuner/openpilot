@@ -29,7 +29,7 @@
           "button_text": "REMOVE",
           "action": "remove_platform",
           "visibleConditions": {
-            "paramExists": "CarPlatformBundle"
+            "allConditionsTrue": [{ "paramExists": "CarPlatformBundle" }]
           }
         }
       ]

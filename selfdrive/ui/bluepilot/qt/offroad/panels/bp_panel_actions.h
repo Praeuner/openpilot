@@ -66,6 +66,7 @@ private:
   void handleToggleOffroadMode(const QJsonObject &data);
   void handleViewErrorLog(const QJsonObject &data);
   void handleManageSshKeys(const QJsonObject &data);
+  void handleSetCopypartyPassword(const QJsonObject &data);
   void handleSearchPlatform(const QJsonObject &data);
   void handleRemovePlatform(const QJsonObject &data);
 

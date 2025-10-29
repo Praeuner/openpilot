@@ -1672,12 +1672,29 @@ public:
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(10);
     titleLabel = new QLabel(title, this);
-    titleLabel->setStyleSheet(QString("font-size: %1px; color: white; font-weight: 500;").arg(sizes.titleSize));
+    titleLabel->setStyleSheet(QString(R"(
+        QLabel {
+            font-size: %1px;
+            color: white;
+            font-weight: 500;
+        }
+        QLabel:disabled {
+            color: #666666;
+        }
+    )").arg(sizes.titleSize));
     titleLabel->setWordWrap(true);
     textLayout->addWidget(titleLabel);
     if (!desc.isEmpty()) {
       descLabel = new QLabel(desc, this);
-      descLabel->setStyleSheet(QString("font-size: %1px; color: #AAAAAA;").arg(sizes.descSize));
+      descLabel->setStyleSheet(QString(R"(
+          QLabel {
+              font-size: %1px;
+              color: #AAAAAA;
+          }
+          QLabel:disabled {
+              color: #444444;
+          }
+      )").arg(sizes.descSize));
       descLabel->setWordWrap(true);
       textLayout->addWidget(descLabel);
     }
@@ -1723,6 +1740,16 @@ public:
     )").arg(bgColor, textColor, bgColorPressed).arg(sizes.descSize);
 
     executeButton->setStyleSheet(styleSheet);
+  }
+
+  // Override setEnabled to propagate disabled state to labels for proper styling
+  void setEnabled(bool enabled) {
+    QFrame::setEnabled(enabled);
+    executeButton->setEnabled(enabled);
+    titleLabel->setEnabled(enabled);
+    if (descLabel) {
+      descLabel->setEnabled(enabled);
+    }
   }
 
 signals:

@@ -68,6 +68,8 @@ void BPActionHandler::handleAction(const QString &action, const QJsonObject &act
     handleRemovePlatform(actionData);
   } else if (action == "manage_ssh_keys") {
     handleManageSshKeys(actionData);
+  } else if (action == "set_copyparty_password") {
+    handleSetCopypartyPassword(actionData);
   } else {
     BPLog::bpWarn() << "[bp.action.handler] Unknown action: " << action.toStdString() << std::endl;
   }
@@ -530,6 +532,26 @@ void BPActionHandler::getUserSshKeys(const QString &username) {
   });
 
   request->sendRequest("https://github.com/" + username + ".keys");
+}
+
+void BPActionHandler::handleSetCopypartyPassword(const QJsonObject &data) {
+  BPLog::bpInfo() << "[bp.action.handler] Setting Copyparty password" << std::endl;
+
+  QString current_password = QString::fromStdString(params.get("CopypartyPassword"));
+  QString new_password = InputDialog::getText(QObject::tr("Set Copyparty Password"), widget,
+                                             QObject::tr("Enter a password to protect your Copyparty server.\nLeave empty to disable password protection."),
+                                             true, -1, current_password);
+
+  if (!new_password.isNull() && new_password != current_password) {
+    params.put("CopypartyPassword", new_password.toStdString());
+    BPLog::bpInfo() << "[bp.action.handler] Copyparty password updated" << std::endl;
+
+    // Ask user if they want to reboot now to apply changes
+    if (ConfirmationDialog::confirm(QObject::tr("Password saved. Reboot now to apply changes?"),
+                                    QObject::tr("Reboot"), widget)) {
+      params.putBool("DoReboot", true);
+    }
+  }
 }
 
 void BPActionHandler::handleSearchPlatform(const QJsonObject &data) {
