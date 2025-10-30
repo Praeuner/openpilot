@@ -162,7 +162,7 @@ class BPCommandDialog : public BPDialogBase {
 public:
   explicit BPCommandDialog(QWidget *parent = nullptr);
 
-  void executeCommand(const QString &command, const QString &title, const QString &workingDir = QString(), const QJsonArray &actionButtons = QJsonArray());
+  void executeCommand(const QString &command, const QString &title, const QString &workingDir = QString(), const QJsonArray &actionButtons = QJsonArray(), int timeoutMs = 120000);
 
 signals:
   void dialogVisibilityChanged(bool visible);
@@ -187,8 +187,19 @@ private:
   QTextEdit *outputText;
   QHBoxLayout *buttonLayout;
   BPButton *killButton;
+  BPButton *retryButton;
   BPButton *closeButton;
   QProcess *process;
+
+  // ==============
+  // Stored command parameters for retry
+  // ==============
+  QString storedCommand;
+  QString storedTitle;
+  QString storedWorkingDir;
+  QJsonArray storedActionButtons;
+  int storedTimeoutMs;
+  QTimer *timeoutTimer;
 
   // ==============
   // Internal logic
@@ -197,12 +208,14 @@ private:
   void setupCommandUI(const QString &title);
   void setupActionButtons(const QJsonArray &actionButtons);
   QPushButton *createActionButton(const QJsonObject &buttonObj);
+  void startCommand();
 
 private slots:
   void handleProcessOutput();
   void handleProcessError();
   void handleProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
   void killProcess();
+  void retryCommand();
 };
 
 // BPFileViewerControl: A "VIEW FILE" style control with BP UI

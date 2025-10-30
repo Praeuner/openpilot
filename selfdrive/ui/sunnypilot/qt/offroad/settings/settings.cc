@@ -113,7 +113,7 @@ SettingsWindowSP::SettingsWindowSP(QWidget *parent) : SettingsWindow(parent) {
   BPBaseView *bpSteeringView = new BPBaseView(this);
   bpSteeringView->initialize("/selfdrive/ui/bluepilot/menus/bp_steering_panel.json");
 
-  BPNavBarView *bpDeveloperView = new BPNavBarView(this);
+  BPBaseView *bpDeveloperView = new BPBaseView(this);
   bpDeveloperView->initialize("/selfdrive/ui/bluepilot/menus/bp_developer_panel.json");
 
   BPBaseView *bpVehicleView = new BPBaseView(this);

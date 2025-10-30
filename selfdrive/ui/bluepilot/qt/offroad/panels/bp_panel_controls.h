@@ -1796,6 +1796,7 @@ public:
     // Get text sizes
     BPTextSizes sizes = BPTextSizes::getSizes();
 
+
     setStyleSheet(R"(
       BPFileViewerControl {
         background-color: #242424;

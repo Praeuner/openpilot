@@ -398,6 +398,31 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
   )");
   buttonLayout->addWidget(killButton);
 
+  // "Retry" button (initially hidden, shown on failure/timeout)
+  retryButton = new BPButton(tr("Retry"), this);
+  retryButton->setMinimumHeight(100);
+  retryButton->setVisible(false);
+  retryButton->setStyleSheet(R"(
+    BPButton {
+      background-color: #7B1FA2;
+      border-radius: 20px;
+      font-size: 45px;
+      font-weight: 500;
+      color: white;
+    }
+    BPButton:hover {
+      background-color: #8E24AA;
+    }
+    BPButton:pressed {
+      background-color: #6A1B9A;
+    }
+    BPButton:disabled {
+      background-color: #4F4F4F;
+      color: #888888;
+    }
+  )");
+  buttonLayout->addWidget(retryButton);
+
   // "Close" button (initially disabled until the process finishes)
   closeButton = new BPButton(tr("Command is Running..."), this);
   closeButton->setEnabled(false);
@@ -428,11 +453,19 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
 
   // Connect signals
   connect(killButton, &QPushButton::clicked, this, &BPCommandDialog::killProcess);
+  connect(retryButton, &QPushButton::clicked, this, &BPCommandDialog::retryCommand);
   connect(closeButton, &QPushButton::clicked, this, &QDialog::accept);
 }
 
-// 2) Actually spawns the process, sets up the action buttons, etc.
-void BPCommandDialog::executeCommand(const QString &command, const QString &title, const QString &workingDir, const QJsonArray &actionButtons) {
+// 2) Store parameters and start the command
+void BPCommandDialog::executeCommand(const QString &command, const QString &title, const QString &workingDir, const QJsonArray &actionButtons, int timeoutMs) {
+  // Store parameters for potential retry
+  storedCommand = command;
+  storedTitle = title;
+  storedWorkingDir = workingDir;
+  storedActionButtons = actionButtons;
+  storedTimeoutMs = timeoutMs;
+
   // Build out the UI
   setupCommandUI(title);
   setupActionButtons(actionButtons);
@@ -454,11 +487,102 @@ void BPCommandDialog::executeCommand(const QString &command, const QString &titl
   connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &BPCommandDialog::handleProcessFinished);
   connect(this, &QDialog::finished, process, &QProcess::deleteLater);
 
+  // Setup timeout if specified
+  timeoutTimer = nullptr;
+  if (storedTimeoutMs > 0) {
+    timeoutTimer = new QTimer(this);
+    timeoutTimer->setSingleShot(true);
+    connect(timeoutTimer, &QTimer::timeout, this, [this]() {
+      if (process && process->state() == QProcess::Running) {
+        // Add brief message to output
+        outputText->append(QString("\n<span style='color: #ff7c30;'>⏱ Command timeout reached (%1s)</span>").arg(storedTimeoutMs / 1000));
+
+        // Kill the process
+        process->kill();
+
+        // Update close button to show timeout error
+        closeButton->setEnabled(true);
+        closeButton->setText(tr("⏱ TIMEOUT: Command exceeded %1 seconds - Click to Close").arg(storedTimeoutMs / 1000));
+        closeButton->setStyleSheet(R"(
+          BPButton {
+            background-color: #EA4646;
+            border-radius: 20px;
+            font-size: 40px;
+            font-weight: 500;
+            color: white;
+          }
+          BPButton:hover {
+            background-color: #F15959;
+          }
+          BPButton:pressed {
+            background-color: #F43030;
+          }
+        )");
+
+        // Show retry button
+        retryButton->setVisible(true);
+        retryButton->setEnabled(true);
+
+        // Hide kill button since process is dead
+        killButton->setVisible(false);
+
+        BPLog::bpWarn() << "[bp.command.dialog] Command timed out after " << storedTimeoutMs / 1000 << " seconds" << std::endl;
+      }
+    });
+    BPLog::bpDebugGeneral() << "[bp.command.dialog] Timeout set to " << storedTimeoutMs / 1000 << " seconds" << std::endl;
+  }
+
   setupFullscreen();
 
   // Start the process
-  BPLog::bpDebugGeneral() << "[bp.command.dialog] executing command: " << command.toStdString() << std::endl;
-  process->start("/bin/bash", QStringList() << "-c" << command);
+  startCommand();
+}
+
+// 2b) Start or restart the command
+void BPCommandDialog::startCommand() {
+  // Reset UI state
+  retryButton->setVisible(false);
+  killButton->setVisible(true);
+  closeButton->setEnabled(false);
+  closeButton->setText(tr("Command is Running..."));
+  closeButton->setStyleSheet(R"(
+    BPButton {
+      background-color: #4F4F4F;
+      border-radius: 20px;
+      font-size: 45px;
+      font-weight: 500;
+      color: #888888;
+    }
+    BPButton:hover {
+      background-color: #5F5F5F;
+    }
+    BPButton:pressed {
+      background-color: #6F6F6F;
+    }
+    BPButton:disabled {
+      background-color: #4F4F4F;
+      color: #888888;
+    }
+  )");
+
+  // Restart timeout timer if it exists
+  if (timeoutTimer && storedTimeoutMs > 0) {
+    // Explicitly stop timer first to ensure clean restart
+    timeoutTimer->stop();
+    timeoutTimer->start(storedTimeoutMs);
+    BPLog::bpDebugGeneral() << "[bp.command.dialog] Restarted timeout timer: " << storedTimeoutMs / 1000 << " seconds" << std::endl;
+  }
+
+  // Ensure process is not already running before starting
+  if (process && process->state() != QProcess::NotRunning) {
+    BPLog::bpWarn() << "[bp.command.dialog] Process still running, terminating before restart" << std::endl;
+    process->kill();
+    process->waitForFinished(1000);
+  }
+
+  // Start the process
+  BPLog::bpDebugGeneral() << "[bp.command.dialog] executing command: " << storedCommand.toStdString() << std::endl;
+  process->start("/bin/bash", QStringList() << "-c" << storedCommand);
 }
 
 // 3) Adds optional action buttons
@@ -549,7 +673,8 @@ void BPCommandDialog::handleProcessFinished(int exitCode, QProcess::ExitStatus e
   killButton->hide();
 
   if (exitStatus == QProcess::CrashExit) {
-    // user killed it or it crashed
+    // user killed it or it crashed (possibly from timeout handler)
+    // Timeout handler already set retry button visibility, so just return
     return;
   }
   if (exitCode != 0) {
@@ -567,6 +692,10 @@ void BPCommandDialog::handleProcessFinished(int exitCode, QProcess::ExitStatus e
         background-color: #F15959;
       }
     )");
+
+    // Show retry button on failure
+    retryButton->setVisible(true);
+    retryButton->setEnabled(true);
   } else {
     outputText->append("\n<span style='color: #50d332;'>Command completed successfully</span>");
     closeButton->setText(tr("Close (Completed Successfully)"));
@@ -582,6 +711,9 @@ void BPCommandDialog::handleProcessFinished(int exitCode, QProcess::ExitStatus e
         background-color: #2A9040;
       }
     )");
+
+    // Hide retry button on success
+    retryButton->setVisible(false);
   }
 }
 void BPCommandDialog::killProcess() {
@@ -604,6 +736,28 @@ void BPCommandDialog::killProcess() {
       }
     )");
   }
+}
+
+void BPCommandDialog::retryCommand() {
+  BPLog::bpInfo() << "[bp.command.dialog] Retrying command" << std::endl;
+
+  // Ensure previous process is fully stopped before retrying
+  if (process && process->state() != QProcess::NotRunning) {
+    BPLog::bpDebugGeneral() << "[bp.command.dialog] Waiting for previous process to stop before retry..." << std::endl;
+    process->kill();
+    process->waitForFinished(2000);
+  }
+
+  // Clear output and add retry message
+  outputText->clear();
+  outputText->append(QString("<b>Retrying command:</b>\n\n%1\n\n").arg(storedCommand));
+
+  // Disable retry button while running
+  retryButton->setEnabled(false);
+  retryButton->setVisible(false);
+
+  // Start the command again
+  startCommand();
 }
 
 BPFileViewerDialog::BPFileViewerDialog(QWidget *parent) : BPDialogBase(parent) {

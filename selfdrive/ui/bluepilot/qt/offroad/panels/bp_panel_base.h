@@ -35,7 +35,7 @@ public:
     outer_layout.addLayout(&inner_layout);
     inner_layout.setMargin(0);
     inner_layout.setSpacing(50);  // Default spacing for BP panels
-    outer_layout.addStretch();
+    inner_layout.setSizeConstraint(QLayout::SetMinimumSize);
   }
 
   inline void addItem(QWidget *w) { inner_layout.addWidget(w); }

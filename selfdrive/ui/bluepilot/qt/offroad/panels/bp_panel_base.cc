@@ -326,13 +326,23 @@ QWidget *BPPanelBase::createTabContent(const QJsonArray &tabGroups) {
     groupLayout->setSpacing(10);
 
     const QJsonArray &controls = groupObj["controls"].toArray();
+    bool hasVisibleControls = false;
     for (const auto &controlRef : controls) {
       if (QWidget *control = processControlCreation(controlRef.toObject())) {
         groupLayout->addWidget(control);
+        hasVisibleControls = true;
       }
     }
 
-    layout->addWidget(group);
+    // For single-control groups, prevent vertical expansion by setting Minimum size policy
+    if (hasVisibleControls) {
+      if (controls.size() == 1) {
+        group->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+      }
+      layout->addWidget(group);
+    } else {
+      group->deleteLater();
+    }
   }
 
   layout->addStretch();
@@ -1111,6 +1121,7 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
   QString confirmYesText = control["confirm_yes_text"].toString();
   QString confirmNoText = control["confirm_no_text"].toString();
   bool requireConfirm = control["confirm"].toBool();
+  int timeoutMs = control["command_timeout_ms"].toInt(120000); // Default 2 minutes
   QJsonArray actionButtons;
 
   if (control.contains("actionButtons")) {
@@ -1149,7 +1160,7 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
 
   // Connect command handler (for shell commands)
   connect(cmdCtrl, &BPCommandControl::commandRequested, this,
-          [this](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
+          [this, timeoutMs](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
                  const QString &yesText, const QString &noText) {
             if (confirmRequired) {
               BPConfirmationDialog::ConfirmConfig config;
@@ -1162,12 +1173,12 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
               connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
                 if (accepted) {
                   BPCommandDialog *commandDialog = new BPCommandDialog(this);
-                  commandDialog->executeCommand(cmd, dialogTitle, dir, buttons);
+                  commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs);
                 }
               });
             } else {
               BPCommandDialog *commandDialog = new BPCommandDialog(this);
-              commandDialog->executeCommand(cmd, dialogTitle, dir, buttons);
+              commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs);
             }
           });
 
@@ -1451,8 +1462,19 @@ void BPPanelBase::resetGroupControls(const std::vector<QWidget *> &controls) {
 bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   // Check if it's a Comma device restriction
   if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool() && !CommaTools::isCommaDevice()) {
-    BPLog::bpInfo() << "[bp.panel.base] validateControlBasics | Control is only available on Comma devices | Type: " << control["type"].toString().toStdString() << " | Param: " << control["param"].toString().toStdString()
-              << std::endl;
+    QString logMsg = "[bp.panel.base] validateControlBasics | Control is only available on Comma devices | Type: " + control["type"].toString();
+
+    // Add title if available
+    if (control.contains("title") && !control["title"].toString().isEmpty()) {
+      logMsg += " | Title: " + control["title"].toString();
+    }
+
+    // Add param only if it exists and is not empty
+    if (control.contains("param") && !control["param"].toString().isEmpty()) {
+      logMsg += " | Param: " + control["param"].toString();
+    }
+
+    BPLog::bpInfo() << logMsg.toStdString() << std::endl;
     return false;
   }
 
