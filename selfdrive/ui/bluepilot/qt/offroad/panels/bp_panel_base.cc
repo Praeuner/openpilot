@@ -1122,6 +1122,7 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
   QString confirmNoText = control["confirm_no_text"].toString();
   bool requireConfirm = control["confirm"].toBool();
   int timeoutMs = control["command_timeout_ms"].toInt(120000); // Default 2 minutes
+  bool showRetry = control["showRetry"].toBool(true); // Default to true
   QJsonArray actionButtons;
 
   if (control.contains("actionButtons")) {
@@ -1160,7 +1161,7 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
 
   // Connect command handler (for shell commands)
   connect(cmdCtrl, &BPCommandControl::commandRequested, this,
-          [this, timeoutMs](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
+          [this, timeoutMs, showRetry](const QString &cmd, const QString &dialogTitle, const QString &dir, const QJsonArray &buttons, bool confirmRequired, const QString &confText,
                  const QString &yesText, const QString &noText) {
             if (confirmRequired) {
               BPConfirmationDialog::ConfirmConfig config;
@@ -1173,12 +1174,12 @@ QWidget *BPPanelBase::createCommandButtonControl(const QJsonObject &control) {
               connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
                 if (accepted) {
                   BPCommandDialog *commandDialog = new BPCommandDialog(this);
-                  commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs);
+                  commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs, showRetry);
                 }
               });
             } else {
               BPCommandDialog *commandDialog = new BPCommandDialog(this);
-              commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs);
+              commandDialog->executeCommand(cmd, dialogTitle, dir, buttons, timeoutMs, showRetry);
             }
           });
 

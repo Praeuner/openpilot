@@ -497,30 +497,69 @@ Executes a specified command when clicked, optionally requiring user confirmatio
 | `type` | String | Must be `"command_button"`. | Yes | \-  |
 | `command` | String | The command to execute. | Yes | \-  |
 | `working_dir` | String | The working directory to execute the command in. | No  | Current directory |
+| `command_timeout_ms` | Integer | Timeout in milliseconds for the command execution. | No  | `120000` (2 minutes) |
 | `title` | String | The display title of the command button. | Yes | \-  |
 | `desc` | String | Description of what the command does. | Yes | \-  |
 | `button_text` | String | The text displayed on the button. | No  | `"EXECUTE"` |
 | `confirm` | Boolean | Whether to prompt for confirmation before executing the command. | No  | `false` |
-| `confirm_text` | String | The confirmation message displayed to the user. | No  | Default confirmation message |
-| `confirm_yes_text` | String | The text for the confirmation "Yes" button. | No  | `"Yes"` |
-| `confirm_no_text` | String | The text for the confirmation "No" button. | No  | `"No"` |
+| `confirm_text` | String | The confirmation message displayed to the user. Supports HTML. | No  | Default confirmation message |
+| `confirm_button_text` | String | The text for the main confirmation button. | No  | `"Yes"` |
+| `cancel_button_text` | String | The text for the cancel button. | No  | `"Cancel"` |
+| `showRetry` | Boolean | Whether to show the retry button when the command fails. | No  | `true` |
+| `actionButtons` | Array | Array of action button objects to display after command execution. See Action Buttons below. | No  | `[]` |
 | `disable` | Boolean | Disables the control if set to `true`. | No  | `false` |
 | `hidden` | Boolean | Hides the control if set to `true`. | No  | `false` |
 
+##### Action Buttons
+
+Action buttons are optional buttons that appear in the command execution dialog after the command completes. They can be configured to show based on whether the command succeeded or failed.
+
+**Action Button Properties:**
+
+| Property | Type | Description | Required | Default |
+| --- | --- | --- | --- | --- |
+| `text` | String | The text displayed on the action button. | Yes | \-  |
+| `action` | String | Built-in action to perform. Currently supports: `"reboot"`. Mutually exclusive with `command`. | No  | \-  |
+| `command` | String | Shell command to execute when clicked. Mutually exclusive with `action`. | No  | \-  |
+| `showWhen` | String | When to display this button: `"success"` (only on successful command completion), `"failure"` (only on command failure), or `"always"` (show regardless of outcome). | No  | `"always"` |
+| `confirm` | Boolean | Whether to prompt for confirmation before executing the action. | No  | `false` |
+| `confirm_text` | String | The confirmation message. Supports HTML. | No  | `"Are you sure?"` |
+| `confirm_yes_text` | String | Text for the confirmation button. | No  | `"Yes"` |
+| `confirm_no_text` | String | Text for the cancel button. | No  | `"No"` |
+
 **Example:**
 
-```
+```json
 {
   "type": "command_button",
-  "command": "touch test.txt",
+  "command": "/data/openpilot/scripts/force_branch_update.sh bp-5.0-beta",
   "working_dir": "/data/openpilot",
-  "title": "Create test file",
-  "desc": "Create a test file in the openpilot directory",
-  "button_text": "Create",
+  "command_timeout_ms": 900000,
+  "title": "Force Update to bp-5.0-beta",
+  "desc": "Clones a fresh copy of bp-5.0-beta and replaces /data/openpilot. Uses automatic rollback on failure.",
+  "button_text": "Force Update",
   "confirm": true,
-  "confirm_text": "Are you sure you want to create a test file?",
-  "confirm_yes_text": "Yes",
-  "confirm_no_text": "No",
+  "confirm_text": "This will force update to bp-5.0-beta. Continue?",
+  "confirm_button_text": "Yes, Force Update",
+  "cancel_button_text": "Cancel",
+  "showRetry": true,
+  "actionButtons": [
+    {
+      "text": "Reboot Device",
+      "action": "reboot",
+      "showWhen": "success",
+      "confirm": true,
+      "confirm_text": "The update is complete. Reboot now to apply changes?",
+      "confirm_yes_text": "Reboot Now",
+      "confirm_no_text": "Later"
+    },
+    {
+      "text": "View Error Logs",
+      "command": "tail -n 100 /data/community/crashes/*",
+      "showWhen": "failure",
+      "confirm": false
+    }
+  ],
   "disable": false,
   "hidden": false
 }
@@ -1261,24 +1300,48 @@ This float control allows users to adjust the lane change modifier with a defaul
 
 #### Command Button Control with Confirmation
 
-This command button control executes a command to create a test file, with a confirmation prompt before execution.
+This command button control executes a system update command with confirmation and action buttons that appear based on the command result.
 
-```
+```json
 {
   "type": "command_button",
-  "command": "touch test.txt",
+  "command": "/data/openpilot/scripts/system_update.sh",
   "working_dir": "/data/openpilot",
-  "title": "Create test file",
-  "desc": "Create a test file in the openpilot directory",
-  "button_text": "Create",
+  "command_timeout_ms": 600000,
+  "title": "System Update",
+  "desc": "Updates the system to the latest version with automatic rollback on failure",
+  "button_text": "Update Now",
   "confirm": true,
-  "confirm_text": "Are you sure you want to create a test file?",
-  "confirm_yes_text": "Yes",
-  "confirm_no_text": "No",
+  "confirm_text": "This will update your system. Continue?<br><br><b>Note:</b> The process may take several minutes.",
+  "confirm_button_text": "Yes, Update",
+  "cancel_button_text": "Cancel",
+  "showRetry": true,
+  "actionButtons": [
+    {
+      "text": "Reboot Device",
+      "action": "reboot",
+      "showWhen": "success",
+      "confirm": true,
+      "confirm_text": "Update completed successfully. Reboot now to apply changes?",
+      "confirm_yes_text": "Reboot Now",
+      "confirm_no_text": "Later"
+    },
+    {
+      "text": "View Logs",
+      "command": "tail -n 50 /data/openpilot/update.log",
+      "showWhen": "failure",
+      "confirm": false
+    }
+  ],
   "disable": false,
   "hidden": false
 }
 ```
+
+_In this example:_
+- The "Reboot Device" button only appears when the update succeeds (`showWhen: "success"`)
+- The "View Logs" button only appears when the update fails (`showWhen: "failure"`)
+- Both buttons have appropriate actions for their respective scenarios
 
 #### Segmented Control Example
 

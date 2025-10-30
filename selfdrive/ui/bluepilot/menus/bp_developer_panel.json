@@ -346,6 +346,7 @@
             {
               "text": "Reboot Device",
               "action": "reboot",
+              "showWhen": "success",
               "confirm": true,
               "confirm_text": "The update is complete. Reboot now to apply changes?<br><br><b>Note:</b> If an AGNOS update is required, the device prompt you to install after rebooting (this may take 5-10 minutes).",
               "confirm_yes_text": "Reboot Now",

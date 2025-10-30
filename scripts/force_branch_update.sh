@@ -104,6 +104,24 @@ else
         rm -f "$LOCK_FILE"
     }
     trap cleanup_lock EXIT
+
+    # Cleanup handler for unexpected termination (before directory swap)
+    # After the swap, the rollback function handles cleanup
+    cleanup_on_error() {
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo ""
+            echo "Script terminated unexpectedly (exit code: $exit_code)"
+            # Only clean up temp dir if it still exists and we haven't swapped yet
+            if [ -d "$TEMP_DIR" ] && [ -d "$TARGET_DIR" ]; then
+                echo "Cleaning up temporary directory..."
+                rm -rf "$TEMP_DIR"
+            fi
+        fi
+        cleanup_lock
+    }
+    # This trap is overridden after the swap by the rollback logic
+    trap cleanup_on_error EXIT ERR INT TERM
 fi
 
 # Clean up any existing temp directories from failed previous attempts
@@ -269,23 +287,8 @@ if [ -f "/COMMA" ]; then
     echo ""
 fi
 
-echo "Stopping openpilot processes..."
-if [ "$TEST_MODE" = true ]; then
-    echo "  [TEST] Would run: pkill -9 -f openpilot"
-else
-    pkill -9 -f openpilot || true
-    sleep 2
-fi
-
-echo "Stopping updater..."
-if [ "$TEST_MODE" = true ]; then
-    echo "  [TEST] Would run: pkill -9 -f system.updated"
-else
-    pkill -9 -f system.updated || true
-    sleep 1
-fi
-
-echo "Swapping directories (this will be quick)..."
+echo "Swapping directories (atomic move operation)..."
+echo "Note: Processes will continue running and will pick up new code on next reboot"
 cd /data
 
 # Move old installation to backup (fast move operation)

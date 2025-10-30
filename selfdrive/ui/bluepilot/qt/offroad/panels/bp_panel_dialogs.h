@@ -162,7 +162,7 @@ class BPCommandDialog : public BPDialogBase {
 public:
   explicit BPCommandDialog(QWidget *parent = nullptr);
 
-  void executeCommand(const QString &command, const QString &title, const QString &workingDir = QString(), const QJsonArray &actionButtons = QJsonArray(), int timeoutMs = 120000);
+  void executeCommand(const QString &command, const QString &title, const QString &workingDir = QString(), const QJsonArray &actionButtons = QJsonArray(), int timeoutMs = 120000, bool showRetry = true);
 
 signals:
   void dialogVisibilityChanged(bool visible);
@@ -191,6 +191,12 @@ private:
   BPButton *closeButton;
   QProcess *process;
 
+  struct ActionButtonInfo {
+    QPushButton* button;
+    QString showWhen; // "success", "failure", or "always"
+  };
+  QVector<ActionButtonInfo> actionButtonWidgets;
+
   // ==============
   // Stored command parameters for retry
   // ==============
@@ -199,6 +205,7 @@ private:
   QString storedWorkingDir;
   QJsonArray storedActionButtons;
   int storedTimeoutMs;
+  bool storedShowRetry;
   QTimer *timeoutTimer;
 
   // ==============

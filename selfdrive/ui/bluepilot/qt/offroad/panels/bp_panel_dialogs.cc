@@ -458,13 +458,14 @@ void BPCommandDialog::setupCommandUI(const QString &title) {
 }
 
 // 2) Store parameters and start the command
-void BPCommandDialog::executeCommand(const QString &command, const QString &title, const QString &workingDir, const QJsonArray &actionButtons, int timeoutMs) {
+void BPCommandDialog::executeCommand(const QString &command, const QString &title, const QString &workingDir, const QJsonArray &actionButtons, int timeoutMs, bool showRetry) {
   // Store parameters for potential retry
   storedCommand = command;
   storedTitle = title;
   storedWorkingDir = workingDir;
   storedActionButtons = actionButtons;
   storedTimeoutMs = timeoutMs;
+  storedShowRetry = showRetry;
 
   // Build out the UI
   setupCommandUI(title);
@@ -585,8 +586,12 @@ void BPCommandDialog::startCommand() {
   process->start("/bin/bash", QStringList() << "-c" << storedCommand);
 }
 
-// 3) Adds optional action buttons
+// 3) Creates action buttons but doesn't add them to layout yet
+// They will be shown based on their showWhen condition (success/failure/always)
 void BPCommandDialog::setupActionButtons(const QJsonArray &actionButtons) {
+  // Clear any previous action buttons
+  actionButtonWidgets.clear();
+
   int maxActionButtons = 3;
   int addedButtons = 0;
 
@@ -596,9 +601,15 @@ void BPCommandDialog::setupActionButtons(const QJsonArray &actionButtons) {
       break;
     }
     QJsonObject buttonObj = btnVal.toObject();
+    QString showWhen = buttonObj["showWhen"].toString("always"); // Default to "always" if not specified
     QPushButton *actionBtn = createActionButton(buttonObj);
     if (actionBtn) {
-      buttonLayout->addWidget(actionBtn);
+      // Store the button with its showWhen condition
+      // It will be shown in handleProcessFinished() based on the condition
+      ActionButtonInfo info;
+      info.button = actionBtn;
+      info.showWhen = showWhen.toLower(); // Normalize to lowercase
+      actionButtonWidgets.append(info);
       addedButtons++;
     }
   }
@@ -606,12 +617,13 @@ void BPCommandDialog::setupActionButtons(const QJsonArray &actionButtons) {
 QPushButton *BPCommandDialog::createActionButton(const QJsonObject &buttonObj) {
   QString buttonText = buttonObj["text"].toString();
   QString buttonCommand = buttonObj["command"].toString();
+  QString buttonAction = buttonObj["action"].toString();
   bool buttonConfirm = buttonObj["confirm"].toBool();
   QString buttonConfirmText = buttonObj["confirm_text"].toString();
   QString buttonConfirmYesText = buttonObj["confirm_yes_text"].toString();
   QString buttonConfirmNoText = buttonObj["confirm_no_text"].toString();
 
-  // Use BPButton or just plain; let's do BPButton for that consistent feel:
+  // Use BPButton for consistent UI feel
   BPButton *actionBtn = new BPButton(buttonText, this);
 
   // Make the buttons smaller, with some "Material-like" colors and rounding:
@@ -635,24 +647,39 @@ QPushButton *BPCommandDialog::createActionButton(const QJsonObject &buttonObj) {
     }
   )");
 
-  // On click, optionally confirm, then run the command
+  // On click, optionally confirm, then run the command or action
   connect(actionBtn, &QPushButton::clicked, [=]() {
+    auto executeAction = [=]() {
+      if (!buttonAction.isEmpty()) {
+        // Handle built-in actions
+        if (buttonAction == "reboot") {
+          Params params;
+          params.putBool("DoReboot", true);
+        } else {
+          BPLog::bpWarn() << "[bp.command.dialog] Unknown action: " << buttonAction.toStdString() << std::endl;
+        }
+      } else if (!buttonCommand.isEmpty()) {
+        // Execute custom command
+        QProcess::execute("/bin/bash", QStringList() << "-c" << buttonCommand);
+      }
+    };
+
     if (buttonConfirm) {
       BPConfirmationDialog::ConfirmConfig config;
       config.title = tr("Confirmation Required");
       config.prompt = buttonConfirmText.isEmpty() ? tr("Are you sure?") : buttonConfirmText;
       config.confirmText = buttonConfirmYesText.isEmpty() ? tr("Yes") : buttonConfirmYesText;
       config.cancelText = buttonConfirmNoText.isEmpty() ? tr("No") : buttonConfirmNoText;
-      config.richText = false;
+      config.richText = true; // Enable HTML for better formatting
       auto *dialog = BPConfirmationDialog::showConfirmation(config, this);
 
       connect(dialog, &BPConfirmationDialog::confirmed, this, [=](bool accepted) {
         if (accepted) {
-          QProcess::execute("/bin/bash", QStringList() << "-c" << buttonCommand);
+          executeAction();
         }
       });
     } else {
-      QProcess::execute("/bin/bash", QStringList() << "-c" << buttonCommand);
+      executeAction();
     }
   });
 
@@ -693,9 +720,21 @@ void BPCommandDialog::handleProcessFinished(int exitCode, QProcess::ExitStatus e
       }
     )");
 
-    // Show retry button on failure
-    retryButton->setVisible(true);
-    retryButton->setEnabled(true);
+    // Show retry button on failure (if enabled)
+    retryButton->setVisible(storedShowRetry);
+    retryButton->setEnabled(storedShowRetry);
+
+    // Show action buttons that should appear on failure
+    if (!actionButtonWidgets.isEmpty()) {
+      BPLog::bpDebugGeneral() << "[bp.command.dialog] Command failed, adding action buttons for failure/always" << std::endl;
+      for (const auto &info : actionButtonWidgets) {
+        if (info.showWhen == "failure" || info.showWhen == "always") {
+          buttonLayout->addWidget(info.button);
+          info.button->show();
+          BPLog::bpDebugGeneral() << "[bp.command.dialog] Added action button with showWhen=" << info.showWhen.toStdString() << std::endl;
+        }
+      }
+    }
   } else {
     outputText->append("\n<span style='color: #50d332;'>Command completed successfully</span>");
     closeButton->setText(tr("Close (Completed Successfully)"));
@@ -714,6 +753,18 @@ void BPCommandDialog::handleProcessFinished(int exitCode, QProcess::ExitStatus e
 
     // Hide retry button on success
     retryButton->setVisible(false);
+
+    // Show action buttons that should appear on success
+    if (!actionButtonWidgets.isEmpty()) {
+      BPLog::bpDebugGeneral() << "[bp.command.dialog] Command succeeded, adding action buttons for success/always" << std::endl;
+      for (const auto &info : actionButtonWidgets) {
+        if (info.showWhen == "success" || info.showWhen == "always") {
+          buttonLayout->addWidget(info.button);
+          info.button->show();
+          BPLog::bpDebugGeneral() << "[bp.command.dialog] Added action button with showWhen=" << info.showWhen.toStdString() << std::endl;
+        }
+      }
+    }
   }
 }
 void BPCommandDialog::killProcess() {
