@@ -78,6 +78,20 @@ if [ ! -d "/data" ]; then
     exit 1
 fi
 
+# Disable power save mode for faster update
+echo "Disabling power save mode for faster update..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/disable-powersave.py" ]; then
+    if [ "$TEST_MODE" = true ]; then
+        echo "  [TEST] Would run: python3 $SCRIPT_DIR/disable-powersave.py"
+    else
+        python3 "$SCRIPT_DIR/disable-powersave.py" 2>/dev/null || echo "  ⚠ Warning: Could not disable power save mode"
+    fi
+else
+    echo "  ⚠ Warning: disable-powersave.py not found, skipping"
+fi
+echo ""
+
 # Acquire lock to prevent concurrent updates
 echo "Checking for concurrent update processes..."
 if [ -f "$LOCK_FILE" ]; then
