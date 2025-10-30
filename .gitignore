@@ -2,6 +2,7 @@ venv/
 .venv/
 .ci_cache
 .env
+.sentryclirc
 .clang-format
 .DS_Store
 .tags
