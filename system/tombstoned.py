@@ -195,6 +195,17 @@ def report_crashhooks_log(fn):
           crash_reason = reason_match.group(1)
         break
 
+    # Skip reporting if we couldn't extract meaningful crash information
+    # This typically happens on non-Linux platforms (e.g., macOS) where CrashHooks
+    # has limited functionality and produces incomplete crash logs
+    if signal_name == "UNKNOWN" and crash_reason == "unknown":
+      cloudlog.warning(f"Skipping tombstone report for {fn}: no meaningful crash data (likely macOS/dev environment)")
+      try:
+        os.remove(fn)
+      except PermissionError:
+        pass
+      return
+
     # Format message
     message = f"Qt UI - {signal_name}"
     if signal_num:
