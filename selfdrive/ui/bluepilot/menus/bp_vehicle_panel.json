@@ -11,9 +11,86 @@
         {
           "type": "platform_display",
           "title": "Current Vehicle",
-          "desc": "Automatically detected from CAN fingerprint or manually selected.\n\n🟢 = Auto-fingerprinted | 🔵 = Manual | 🟡 = Unrecognized",
+          "desc": "Shows the active vehicle fingerprint with priority:\n1. BluePilot Ford Vehicle Selector (if set)\n2. SunnyPilot Manual Selection (if set)\n3. Auto-detected from CAN fingerprint\n\n🟢 = Auto-fingerprinted | 🔵 = Manual Selection | 🟡 = Unrecognized",
           "value_param": "VehiclePlatformDisplay",
           "value_color": "#0086E9"
+        },
+        {
+          "type": "selection",
+          "param": "FordSelectedVehicleModel",
+          "title": "BluePilot Ford Vehicle Selector",
+          "desc": "Force fingerprint for Ford vehicles to exit Dashcam Mode. This setting has priority over SunnyPilot manual selection.\n\n🔵 Select your specific Ford/Lincoln vehicle model to override automatic detection.",
+          "requiresReboot": false,
+          "options": [
+            {
+              "name": "Auto Detect",
+              "value": ""
+            },
+            {
+              "name": "Ford Bronco Sport (2021-2024)",
+              "value": "FORD_BRONCO_SPORT_MK1"
+            },
+            {
+              "name": "Ford Edge (2019-2024)",
+              "value": "FORD_EDGE_MK2"
+            },
+            {
+              "name": "Ford Escape (2020-2022)",
+              "value": "FORD_ESCAPE_MK4"
+            },
+            {
+              "name": "Ford Escape (2023-2025)",
+              "value": "FORD_ESCAPE_MK5"
+            },
+            {
+              "name": "Ford Expedition (2022-2024)",
+              "value": "FORD_EXPEDITION_MK4"
+            },
+            {
+              "name": "Ford Explorer (2020-2024)",
+              "value": "FORD_EXPLORER_MK6"
+            },
+            {
+              "name": "Ford F-150 (2021-2023)",
+              "value": "FORD_F_150_MK14"
+            },
+            {
+              "name": "Ford F-150 Lightning (2022-2025)",
+              "value": "FORD_F_150_LIGHTNING_MK1"
+            },
+            {
+              "name": "Ford Maverick 1st Gen",
+              "value": "FORD_MAVERICK_MK1"
+            },
+            {
+              "name": "Ford Mustang Mach-E (2021-2024)",
+              "value": "FORD_MUSTANG_MACH_E_MK1"
+            },
+            {
+              "name": "Ford Ranger (2023-2024)",
+              "value": "FORD_RANGER_MK2"
+            },
+            {
+              "name": "Lincoln Aviator (2020-2024)",
+              "value": "FORD_EXPLORER_MK6"
+            },
+            {
+              "name": "Lincoln Corsair (2020-2022)",
+              "value": "FORD_ESCAPE_MK4"
+            },
+            {
+              "name": "Lincoln Corsair (2023-2025)",
+              "value": "FORD_ESCAPE_MK5"
+            },
+            {
+              "name": "Lincoln Nautilus (2019-2024)",
+              "value": "FORD_EDGE_MK2"
+            },
+            {
+              "name": "Lincoln Navigator (2022-2024)",
+              "value": "FORD_EXPEDITION_MK4"
+            }
+          ]
         },
         {
           "type": "command_button",
@@ -25,11 +102,14 @@
         {
           "type": "command_button",
           "title": "Remove Manual Selection",
-          "desc": "Remove the manually selected vehicle and return to automatic fingerprinting.",
+          "desc": "Remove the manually selected vehicle (BluePilot or SunnyPilot) and return to automatic fingerprinting.",
           "button_text": "REMOVE",
           "action": "remove_platform",
           "visibleConditions": {
-            "allConditionsTrue": [{ "paramExists": "CarPlatformBundle" }]
+            "anyConditionsTrue": [
+              { "paramExists": "FordSelectedVehicleModel" },
+              { "paramExists": "CarPlatformBundle" }
+            ]
           }
         }
       ]

@@ -38,6 +38,7 @@
 
 #include "selfdrive/ui/bluepilot/bp_logging.h"
 #include "common/params.h"
+#include "selfdrive/ui/qt/util.h"
 #include "bp_nested_view.h"
 #include "bp_panel_dialogs.h"
 #include "cereal/gen/cpp/car.capnp.h"
@@ -2709,6 +2710,17 @@ public:
                           const QString &valueColor = "#0086E9", QWidget *parent = nullptr)
     : QFrame(parent), defaultValueColor(valueColor) {
 
+    // Setup ParamWatcher for reactive updates when vehicle selection changes
+    paramWatcher = new ParamWatcher(this);
+    QObject::connect(paramWatcher, &ParamWatcher::paramChanged, [=](const QString &param_name, const QString &param_value) {
+      // Refresh when any vehicle selection parameter changes
+      if (param_name == "FordSelectedVehicleModel" ||
+          param_name == "CarPlatformBundle" ||
+          param_name == "CarParamsPersistent") {
+        refresh();
+      }
+    });
+
     // Get text sizes
     BPTextSizes sizes = BPTextSizes::getSizes();
 
@@ -2769,41 +2781,51 @@ public:
     QString platform = tr("Unrecognized Vehicle");
     QString platform_color = "#FFD500";  // Yellow for unrecognized
 
-    // Check for manual selection first (CarPlatformBundle)
-    std::string platform_bundle = params.get("CarPlatformBundle");
-    if (!platform_bundle.empty()) {
-      QString platformBundleStr = QString::fromStdString(platform_bundle);
-      QJsonDocument json = QJsonDocument::fromJson(platformBundleStr.toUtf8());
-      if (!json.isNull() && json.isObject()) {
-        QString name = json.object().value("name").toString();
-        if (!name.isEmpty()) {
-          platform = name;
-          platform_color = "#0086E9";  // Blue for manual selection
-        }
-      }
-    } else {
-      // Check for auto-fingerprint (CarParamsPersistent)
-      auto cp_bytes = params.get("CarParamsPersistent");
-      if (!cp_bytes.empty()) {
-        try {
-          // Parse the capnp message
-          kj::ArrayPtr<const capnp::word> words_ptr;
-          size_t words_size = cp_bytes.size() / sizeof(capnp::word) + 1;
-          kj::Array<capnp::word> aligned_buf = kj::heapArray<capnp::word>(words_size < 512 ? 512 : words_size);
-          memcpy(aligned_buf.begin(), cp_bytes.data(), cp_bytes.size());
-          words_ptr = aligned_buf.slice(0, words_size);
-
-          capnp::FlatArrayMessageReader cmsg(words_ptr);
-          cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
-
-          QString fingerprint = QString::fromStdString(CP.getCarFingerprint().cStr());
-
-          if (fingerprint != "MOCK" && !fingerprint.isEmpty()) {
-            platform = fingerprint;
-            platform_color = "#00F100";  // Green for auto-fingerprint
+    // Check for BluePilot Ford Vehicle Selector first (FordSelectedVehicleModel) - has priority
+    std::string ford_selected_model = params.get("FordSelectedVehicleModel");
+    if (!ford_selected_model.empty()) {
+      platform = QString::fromStdString(ford_selected_model);
+      platform_color = "#0086E9";  // Blue for BP manual selection
+      BPLog::bpInfo() << "[bp.platform_display] Using BluePilot vehicle selector: " << ford_selected_model << std::endl;
+    }
+    // Check for SunnyPilot manual selection second (CarPlatformBundle)
+    else {
+      std::string platform_bundle = params.get("CarPlatformBundle");
+      if (!platform_bundle.empty()) {
+        QString platformBundleStr = QString::fromStdString(platform_bundle);
+        QJsonDocument json = QJsonDocument::fromJson(platformBundleStr.toUtf8());
+        if (!json.isNull() && json.isObject()) {
+          QString name = json.object().value("name").toString();
+          if (!name.isEmpty()) {
+            platform = name;
+            platform_color = "#0086E9";  // Blue for SP manual selection
+            BPLog::bpInfo() << "[bp.platform_display] Using SunnyPilot platform selector: " << name.toStdString() << std::endl;
           }
-        } catch (const std::exception &e) {
-          BPLog::bpWarn() << "[bp.platform_display] Error parsing CarParams: " << e.what() << std::endl;
+        }
+      } else {
+        // Check for auto-fingerprint (CarParamsPersistent)
+        auto cp_bytes = params.get("CarParamsPersistent");
+        if (!cp_bytes.empty()) {
+          try {
+            // Parse the capnp message
+            kj::ArrayPtr<const capnp::word> words_ptr;
+            size_t words_size = cp_bytes.size() / sizeof(capnp::word) + 1;
+            kj::Array<capnp::word> aligned_buf = kj::heapArray<capnp::word>(words_size < 512 ? 512 : words_size);
+            memcpy(aligned_buf.begin(), cp_bytes.data(), cp_bytes.size());
+            words_ptr = aligned_buf.slice(0, words_size);
+
+            capnp::FlatArrayMessageReader cmsg(words_ptr);
+            cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+
+            QString fingerprint = QString::fromStdString(CP.getCarFingerprint().cStr());
+
+            if (fingerprint != "MOCK" && !fingerprint.isEmpty()) {
+              platform = fingerprint;
+              platform_color = "#00F100";  // Green for auto-fingerprint
+            }
+          } catch (const std::exception &e) {
+            BPLog::bpWarn() << "[bp.platform_display] Error parsing CarParams: " << e.what() << std::endl;
+          }
         }
       }
     }
@@ -2833,5 +2855,6 @@ private:
   QLabel *descLabel = nullptr;
   QLabel *valueLabel;
   Params params;
+  ParamWatcher *paramWatcher;
 };
 

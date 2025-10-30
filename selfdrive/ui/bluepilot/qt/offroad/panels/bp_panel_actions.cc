@@ -569,8 +569,10 @@ void BPActionHandler::handleRemovePlatform(const QJsonObject &data) {
 
   if (ConfirmationDialog::confirm(QObject::tr("Remove manual vehicle selection and return to automatic fingerprinting?"),
                                   QObject::tr("Remove"), widget)) {
+    // Remove both BluePilot and SunnyPilot manual selections
+    params.remove("FordSelectedVehicleModel");
     params.remove("CarPlatformBundle");
-    BPLog::bpInfo() << "[bp.action.handler] Platform bundle removed" << std::endl;
+    BPLog::bpInfo() << "[bp.action.handler] BluePilot and SunnyPilot manual selections removed" << std::endl;
     ConfirmationDialog::alert(QObject::tr("Manual vehicle selection removed. The device will fingerprint automatically on next drive."), widget);
   }
 }
