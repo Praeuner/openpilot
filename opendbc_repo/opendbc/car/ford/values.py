@@ -96,7 +96,7 @@ class FordCarDocs(CarDocs):
       CAR.FORD_MAVERICK_MK1,
       CAR.FORD_F_150_MK14,
       CAR.FORD_F_150_LIGHTNING_MK1,
-      CAR.FORD_ESCAPE_MK5,
+      CAR.FORD_ESCAPE_MK4_5,
       CAR.FORD_MUSTANG_MACH_E_MK1,
       CAR.FORD_RANGER_MK2,
     ):
@@ -165,7 +165,7 @@ class CAR(Platforms):
     ],
     CarSpecs(mass=1750, wheelbase=2.71, steerRatio=16.7),
   )
-  FORD_ESCAPE_MK5 = FordCANFDPlatformConfig(
+  FORD_ESCAPE_MK4_5 = FordCANFDPlatformConfig(
     [
       FordCarDocs("Ford Escape 2023-24", hybrid=True, plug_in_hybrid=True, setup_video="https://www.youtube.com/watch?v=M6uXf4b2SHM"),
       FordCarDocs("Ford Kuga Hybrid 2024", "All"),

@@ -376,7 +376,7 @@ class CarController(CarControllerBase):
         elif self.CP.flags & FordFlags.CANFD:
           self.pc_blend_ratio_low_C = self.pc_blend_ratio_low_C_CANFD
           self.pc_blend_ratio_high_C = self.pc_blend_ratio_high_C_CANFD
-          if (self.CP.carFingerprint == CAR.FORD_ESCAPE_MK5 or self.CP.carFingerprint == CAR.FORD_MUSTANG_MACH_E_MK1):
+          if (self.CP.carFingerprint == CAR.FORD_ESCAPE_MK4_5 or self.CP.carFingerprint == CAR.FORD_MUSTANG_MACH_E_MK1):
             self.LC_PID_gain = self.LC_PID_GAIN_CANFD_SMALL_VEHICLE
           else:
             self.LC_PID_gain = self.LC_PID_GAIN_CANFD_LARGE_VEHICLE

@@ -296,7 +296,7 @@
     "package": "Co-Pilot360 Assist+"
   },
   "Ford Escape 2023-24": {
-    "platform": "FORD_ESCAPE_MK5",
+    "platform": "FORD_ESCAPE_MK4_5",
     "make": "Ford",
     "brand": "ford",
     "model": "Escape",
@@ -312,7 +312,7 @@
     "package": "Co-Pilot360 Assist+"
   },
   "Ford Escape Hybrid 2023-24": {
-    "platform": "FORD_ESCAPE_MK5",
+    "platform": "FORD_ESCAPE_MK4_5",
     "make": "Ford",
     "brand": "ford",
     "model": "Escape Hybrid",
@@ -328,7 +328,7 @@
     "package": "Co-Pilot360 Assist+"
   },
   "Ford Escape Plug-in Hybrid 2023-24": {
-    "platform": "FORD_ESCAPE_MK5",
+    "platform": "FORD_ESCAPE_MK4_5",
     "make": "Ford",
     "brand": "ford",
     "model": "Escape Plug-in Hybrid",
@@ -416,7 +416,7 @@
     "package": "Adaptive Cruise Control with Lane Centering"
   },
   "Ford Kuga Hybrid 2024": {
-    "platform": "FORD_ESCAPE_MK5",
+    "platform": "FORD_ESCAPE_MK4_5",
     "make": "Ford",
     "brand": "ford",
     "model": "Kuga Hybrid",
@@ -432,7 +432,7 @@
     "package": "Adaptive Cruise Control with Lane Centering"
   },
   "Ford Kuga Plug-in Hybrid 2024": {
-    "platform": "FORD_ESCAPE_MK5",
+    "platform": "FORD_ESCAPE_MK4_5",
     "make": "Ford",
     "brand": "ford",
     "model": "Kuga Plug-in Hybrid",
