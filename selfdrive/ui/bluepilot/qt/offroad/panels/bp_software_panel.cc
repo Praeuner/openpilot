@@ -1673,11 +1673,6 @@ void BPSoftwarePanel::onForceUpdateClicked() {
     return;
   }
 
-  // The BPCommandControl will handle the confirmation and execution
-  // We just need to trigger it with the branch parameter
-  // Since BPCommandControl doesn't directly support dynamic parameters,
-  // we need to execute the command manually here
-
   if (!showBPConfirmation(
         tr("Force Update"),
         tr("This will force update to <b>%1</b> by:<br>"
@@ -1697,44 +1692,33 @@ void BPSoftwarePanel::onForceUpdateClicked() {
     return;
   }
 
-  // Create progress dialog
-  BPCommandProgressDialog *dialog = new BPCommandProgressDialog(tr("Force Update to %1").arg(targetBranch), this);
+  // Build the command
+  QString command = QString("/data/openpilot/scripts/force_branch_update.sh %1").arg(targetBranch);
+  QString dialogTitle = tr("Force Update to %1").arg(targetBranch);
+  QString workingDir = "/data/openpilot";
+  int timeoutMs = 900000;  // 15 minutes
+
+  // Create action buttons for reboot
+  QJsonArray actionButtons;
+  QJsonObject rebootButton;
+  rebootButton["text"] = tr("Reboot Device");
+  rebootButton["action"] = "reboot";
+  rebootButton["showWhen"] = "success";
+  rebootButton["confirm"] = true;
+  rebootButton["confirm_text"] = tr("The update is complete. Reboot now to apply changes?<br><br><b>Note:</b> If an AGNOS update is required, the device will prompt you to install after rebooting (this may take 5-10 minutes).");
+  rebootButton["confirm_yes_text"] = tr("Reboot Now");
+  rebootButton["confirm_no_text"] = tr("Later");
+  actionButtons.append(rebootButton);
+
+  // Create BPCommandDialog for real-time output streaming
+  BPCommandDialog *commandDialog = new BPCommandDialog(this);
 
   // Connect to dialog finished signal to always clear param when dialog closes
-  connect(dialog, &QDialog::finished, this, [this]() {
+  connect(commandDialog, &QDialog::finished, this, [this]() {
     params.remove("BPForceUpdateTargetBranch");
     updateForceUpdateButtonVisibility();
   });
 
-  // Execute the command in background
-  QtConcurrent::run([this, targetBranch, dialog]() {
-    QString command = QString("/data/openpilot/scripts/force_branch_update.sh %1").arg(targetBranch);
-    auto result = BPGitManager::executeCommand(
-      command,
-      "/data/openpilot",
-      900000  // 15 minute timeout
-    );
-
-    QMetaObject::invokeMethod(this, [this, result, targetBranch, dialog]() {
-      if (result.success) {
-        dialog->onSuccess(QJsonObject());
-        // Show reboot confirmation
-        if (showBPConfirmation(
-              tr("Update Complete"),
-              tr("The update is complete. Reboot now to apply changes?<br><br><b>Note:</b> If an AGNOS update is required, the device will prompt you to install after rebooting (this may take 5-10 minutes)."),
-              tr("Reboot Now"),
-              tr("Later"),
-              this)) {
-          params.putBool("DoReboot", true);
-        }
-      } else {
-        dialog->onFailure(result.error);
-      }
-      // Note: param cleanup happens in dialog finished signal
-    }, Qt::QueuedConnection);
-  });
-
-  // Show dialog
-  dialog->exec();
-  dialog->deleteLater();
+  // Execute the command with real-time output
+  commandDialog->executeCommand(command, dialogTitle, workingDir, actionButtons, timeoutMs, true);
 }
