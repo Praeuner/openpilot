@@ -93,3 +93,5 @@ echo "  2. Monitor the device for a few minutes"
 echo "  3. If issues persist, check journalctl: journalctl -u comma -f"
 echo ""
 
+
+
