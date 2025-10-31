@@ -236,6 +236,30 @@ else
 fi
 echo "  ✓ Commit hash: ${CLONED_COMMIT:0:10}"
 
+# Check for and initialize submodules if present
+echo ""
+echo "Checking for submodules..."
+if [ -f "$TEMP_DIR/.gitmodules" ]; then
+    echo "  ✓ Submodules detected, initializing..."
+    if [ "$TEST_MODE" = true ]; then
+        echo "  [TEST] Would run: git submodule update --init --recursive"
+        echo "  [TEST] Simulating submodule initialization..."
+    else
+        cd "$TEMP_DIR"
+        if git submodule update --init --recursive; then
+            echo "  ✓ Submodules initialized successfully"
+        else
+            echo "  ✗ ERROR: Failed to initialize submodules"
+            cd /data
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+        cd /data
+    fi
+else
+    echo "  ✓ No submodules detected"
+fi
+
 # Check for AGNOS version mismatch (TICI devices only)
 if [ -f "/COMMA" ]; then
     echo ""
