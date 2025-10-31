@@ -166,6 +166,7 @@ void BPSoftwarePanel::setupUI() {
   createRepoStatusGroup();
   createGitOperationsGroup();
   createSystemGroup();
+  createForceBranchUpdateGroup();
   createAdvancedWarning();
 
   // Add all groups to main layout
@@ -175,6 +176,7 @@ void BPSoftwarePanel::setupUI() {
   mainLayout->addWidget(repoStatusGroup);
   mainLayout->addWidget(gitOperationsGroup);
   mainLayout->addWidget(systemGroup);
+  mainLayout->addWidget(forceBranchUpdateGroup);
   mainLayout->addWidget(advancedWarningLabel);
   mainLayout->addStretch();
 
@@ -520,6 +522,117 @@ void BPSoftwarePanel::createSystemGroup() {
   layout->addWidget(uninstallBtn);
 }
 
+void BPSoftwarePanel::createForceBranchUpdateGroup() {
+  forceBranchUpdateGroup = createStyledGroupBox(tr("Force Branch Update"));
+  QVBoxLayout *layout = new QVBoxLayout(forceBranchUpdateGroup);
+  layout->setSpacing(15);
+  layout->setContentsMargins(25, 25, 25, 25);
+
+  // Branch selector button (styled like BPCommandControl)
+  QFrame *selectBranchFrame = new QFrame(this);
+  selectBranchFrame->setStyleSheet(R"(
+    QFrame {
+      background-color: #242424;
+      border-radius: 10px;
+    }
+  )");
+
+  QHBoxLayout *selectBranchLayout = new QHBoxLayout(selectBranchFrame);
+  selectBranchLayout->setContentsMargins(25, 25, 25, 25);
+  selectBranchLayout->setSpacing(50);
+
+  selectForceUpdateBranchBtn = new BPButton(tr("SELECT"), this);
+  selectForceUpdateBranchBtn->setMinimumWidth(250);
+  selectForceUpdateBranchBtn->setMinimumHeight(100);
+  connect(selectForceUpdateBranchBtn, &QPushButton::clicked, this, &BPSoftwarePanel::onSelectForceUpdateBranchClicked);
+  selectBranchLayout->addWidget(selectForceUpdateBranchBtn);
+  selectBranchLayout->setAlignment(selectForceUpdateBranchBtn, Qt::AlignVCenter);
+
+  QVBoxLayout *selectBranchTextLayout = new QVBoxLayout();
+  selectBranchTextLayout->setContentsMargins(0, 0, 0, 0);
+  selectBranchTextLayout->setSpacing(5);
+
+  QLabel *selectBranchTitleLabel = new QLabel(tr("Select Branch for Force Update"), this);
+  selectBranchTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+  selectBranchTitleLabel->setWordWrap(true);
+  selectBranchTextLayout->addWidget(selectBranchTitleLabel);
+
+  forceUpdateBranchLabel = new QLabel(tr("No branch selected"), this);
+  forceUpdateBranchLabel->setStyleSheet("font-size: 34px; color: #AAAAAA;");
+  forceUpdateBranchLabel->setWordWrap(true);
+  selectBranchTextLayout->addWidget(forceUpdateBranchLabel);
+
+  selectBranchLayout->addLayout(selectBranchTextLayout, 1);
+  selectBranchLayout->setAlignment(selectBranchTextLayout, Qt::AlignVCenter);
+  layout->addWidget(selectBranchFrame);
+
+  // Divider (initially hidden, shown when force update button is shown)
+  forceUpdateDivider = BPUIHelpers::createDivider();
+  layout->addWidget(forceUpdateDivider);
+  forceUpdateDivider->setVisible(false);
+
+  // Force update button (initially hidden, styled like BPCommandControl)
+  forceUpdateFrame = new QFrame(this);
+  forceUpdateFrame->setStyleSheet(R"(
+    QFrame {
+      background-color: #242424;
+      border-radius: 10px;
+    }
+  )");
+
+  QHBoxLayout *forceUpdateLayout = new QHBoxLayout(forceUpdateFrame);
+  forceUpdateLayout->setContentsMargins(25, 25, 25, 25);
+  forceUpdateLayout->setSpacing(50);
+
+  forceUpdateBtn = new BPButton(tr("FORCE UPDATE"), this);
+  // Copy BPButton default style but make it orange
+  forceUpdateBtn->setStyleSheet(R"(
+    QPushButton {
+      background-color: #FF6B00;
+      border: none;
+      border-radius: 40px;
+      color: #FFFFFF;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
+    }
+    QPushButton:hover {
+      background-color: #E65F00;
+    }
+    QPushButton:pressed {
+      background-color: #CC5500;
+    }
+    QPushButton:disabled {
+      background-color: #202020;
+      color: #666666;
+    }
+  )");
+  connect(forceUpdateBtn, &QPushButton::clicked, this, &BPSoftwarePanel::onForceUpdateClicked);
+  forceUpdateLayout->addWidget(forceUpdateBtn);
+  forceUpdateLayout->setAlignment(forceUpdateBtn, Qt::AlignVCenter);
+
+  QVBoxLayout *forceUpdateTextLayout = new QVBoxLayout();
+  forceUpdateTextLayout->setContentsMargins(0, 0, 0, 0);
+  forceUpdateTextLayout->setSpacing(5);
+
+  QLabel *forceUpdateTitleLabel = new QLabel(tr("Force Update to Selected Branch"), this);
+  forceUpdateTitleLabel->setStyleSheet("font-size: 40px; color: white; font-weight: 500;");
+  forceUpdateTitleLabel->setWordWrap(true);
+  forceUpdateTextLayout->addWidget(forceUpdateTitleLabel);
+
+  QLabel *forceUpdateDescLabel = new QLabel(tr("WARNING: Clones a fresh copy of the selected branch, verifies integrity, then replaces /data/openpilot. Uses bulletproof cloning with automatic rollback on failure. Requires reboot after completion."), this);
+  forceUpdateDescLabel->setStyleSheet("font-size: 34px; color: #AAAAAA;");
+  forceUpdateDescLabel->setWordWrap(true);
+  forceUpdateTextLayout->addWidget(forceUpdateDescLabel);
+
+  forceUpdateLayout->addLayout(forceUpdateTextLayout, 1);
+  forceUpdateLayout->setAlignment(forceUpdateTextLayout, Qt::AlignVCenter);
+  layout->addWidget(forceUpdateFrame);
+
+  // Initially hide the force update button
+  forceUpdateFrame->setVisible(false);
+}
+
 void BPSoftwarePanel::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
 
@@ -554,6 +667,7 @@ void BPSoftwarePanel::updateLabels() {
   fs_watch->addParam("UpdateFailedCount");
   fs_watch->addParam("UpdaterState");
   fs_watch->addParam("UpdateAvailable");
+  fs_watch->addParam("BPForceUpdateTargetBranch");
 
   if (!isVisible()) {
     return;
@@ -563,6 +677,7 @@ void BPSoftwarePanel::updateLabels() {
   updateDownloadButton();
   updateInstallButton();
   updateBranchSelector();
+  updateForceUpdateButtonVisibility();
 }
 
 void BPSoftwarePanel::updateVersionInfo() {
@@ -1466,4 +1581,160 @@ void BPSoftwarePanel::executeUpdaterCommand(const QString &title, const QString 
 
 void BPSoftwarePanel::showRecentChanges() {
   onRecentChangesClicked();
+}
+
+void BPSoftwarePanel::fetchUpstreamBranches() {
+  // Fetch list of upstream branches using git ls-remote
+  selectForceUpdateBranchBtn->setEnabled(false);
+  selectForceUpdateBranchBtn->setText(tr("LOADING..."));
+
+  QtConcurrent::run([this]() {
+    QString repoUrl = "https://github.com/BluePilotDev/bluepilot.git";
+    auto result = BPGitManager::executeCommand(
+      QString("git ls-remote --heads %1").arg(repoUrl),
+      BPGitManager::getGitRoot(),
+      30000  // 30 second timeout
+    );
+
+    QMetaObject::invokeMethod(this, [this, result]() {
+      selectForceUpdateBranchBtn->setEnabled(true);
+      selectForceUpdateBranchBtn->setText(tr("SELECT"));
+
+      if (!result.success) {
+        showBPAlert(tr("Failed to fetch branches: %1").arg(result.error), this);
+        return;
+      }
+
+      // Parse branches from git ls-remote output
+      QStringList branches;
+      QStringList lines = result.output.split("\n", QString::SkipEmptyParts);
+      for (const QString &line : lines) {
+        // Format: "hash\trefs/heads/branch-name"
+        QStringList parts = line.split("\t");
+        if (parts.size() == 2 && parts[1].startsWith("refs/heads/")) {
+          QString branchName = parts[1].mid(11);  // Remove "refs/heads/"
+          branches.append(branchName);
+        }
+      }
+
+      if (branches.isEmpty()) {
+        showBPAlert(tr("No branches found in repository"), this);
+        return;
+      }
+
+      // Sort branches alphabetically
+      branches.sort();
+
+      // Show selection dialog
+      QString currentBranch = QString::fromStdString(params.get("BPForceUpdateTargetBranch"));
+      QString selectedBranch = BPSelectionDialog::getSelection(
+        tr("Select Branch for Force Update"),
+        branches,
+        currentBranch.isEmpty() ? "" : currentBranch,
+        this
+      );
+
+      if (!selectedBranch.isEmpty()) {
+        params.put("BPForceUpdateTargetBranch", selectedBranch.toStdString());
+        forceUpdateBranchLabel->setText(selectedBranch);
+        forceUpdateBranchLabel->setStyleSheet("font-size: 34px; color: #4CAF50; font-weight: 500;");
+        updateForceUpdateButtonVisibility();
+      }
+    }, Qt::QueuedConnection);
+  });
+}
+
+void BPSoftwarePanel::updateForceUpdateButtonVisibility() {
+  QString targetBranch = QString::fromStdString(params.get("BPForceUpdateTargetBranch"));
+  bool hasBranch = !targetBranch.isEmpty();
+
+  forceUpdateDivider->setVisible(hasBranch);
+  forceUpdateFrame->setVisible(hasBranch);
+
+  if (hasBranch) {
+    forceUpdateBranchLabel->setText(targetBranch);
+    forceUpdateBranchLabel->setStyleSheet("font-size: 34px; color: #4CAF50; font-weight: 500;");
+  } else {
+    forceUpdateBranchLabel->setText(tr("No branch selected"));
+    forceUpdateBranchLabel->setStyleSheet("font-size: 34px; color: #AAAAAA;");
+  }
+}
+
+void BPSoftwarePanel::onSelectForceUpdateBranchClicked() {
+  fetchUpstreamBranches();
+}
+
+void BPSoftwarePanel::onForceUpdateClicked() {
+  // Get the selected branch from params
+  QString targetBranch = QString::fromStdString(params.get("BPForceUpdateTargetBranch"));
+
+  if (targetBranch.isEmpty()) {
+    showBPAlert(tr("No branch selected for force update"), this);
+    return;
+  }
+
+  // The BPCommandControl will handle the confirmation and execution
+  // We just need to trigger it with the branch parameter
+  // Since BPCommandControl doesn't directly support dynamic parameters,
+  // we need to execute the command manually here
+
+  if (!showBPConfirmation(
+        tr("Force Update"),
+        tr("This will force update to <b>%1</b> by:<br>"
+           "• Cloning fresh copy to temporary directory<br>"
+           "• Verifying branch, commit hash, and critical files<br>"
+           "• Replacing /data/openpilot (with automatic rollback on errors)<br>"
+           "• Fixing permissions<br><br>"
+           "<b>AGNOS Update:</b> If your device requires an AGNOS update, it will automatically download and install after the first reboot (may take 5-10 minutes).<br><br>"
+           "<b>Timeout:</b> Operation will timeout after 15 minutes.<br><br>"
+           "Continue?").arg(targetBranch),
+        tr("Yes, Force Update"),
+        tr("Cancel"),
+        this)) {
+    // User cancelled - clear the temp param
+    params.remove("BPForceUpdateTargetBranch");
+    updateForceUpdateButtonVisibility();
+    return;
+  }
+
+  // Create progress dialog
+  BPCommandProgressDialog *dialog = new BPCommandProgressDialog(tr("Force Update to %1").arg(targetBranch), this);
+
+  // Connect to dialog finished signal to always clear param when dialog closes
+  connect(dialog, &QDialog::finished, this, [this]() {
+    params.remove("BPForceUpdateTargetBranch");
+    updateForceUpdateButtonVisibility();
+  });
+
+  // Execute the command in background
+  QtConcurrent::run([this, targetBranch, dialog]() {
+    QString command = QString("/data/openpilot/scripts/force_branch_update.sh %1").arg(targetBranch);
+    auto result = BPGitManager::executeCommand(
+      command,
+      "/data/openpilot",
+      900000  // 15 minute timeout
+    );
+
+    QMetaObject::invokeMethod(this, [this, result, targetBranch, dialog]() {
+      if (result.success) {
+        dialog->onSuccess(QJsonObject());
+        // Show reboot confirmation
+        if (showBPConfirmation(
+              tr("Update Complete"),
+              tr("The update is complete. Reboot now to apply changes?<br><br><b>Note:</b> If an AGNOS update is required, the device will prompt you to install after rebooting (this may take 5-10 minutes)."),
+              tr("Reboot Now"),
+              tr("Later"),
+              this)) {
+          params.putBool("DoReboot", true);
+        }
+      } else {
+        dialog->onFailure(result.error);
+      }
+      // Note: param cleanup happens in dialog finished signal
+    }, Qt::QueuedConnection);
+  });
+
+  // Show dialog
+  dialog->exec();
+  dialog->deleteLater();
 }

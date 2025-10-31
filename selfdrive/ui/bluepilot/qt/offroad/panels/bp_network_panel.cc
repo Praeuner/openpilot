@@ -107,7 +107,7 @@ void BPNetworkPanel::createWifiNetworksGroup() {
     }
   )");
   ipAddressLabel->setAlignment(Qt::AlignCenter);
-  ipAddressLabel->setMaximumWidth(320);
+  ipAddressLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
   topRow->addWidget(ipAddressLabel);
 
   topRow->addStretch();

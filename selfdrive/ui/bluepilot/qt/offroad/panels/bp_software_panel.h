@@ -67,6 +67,7 @@ private:
   void createRepoStatusGroup();
   void createGitOperationsGroup();
   void createSystemGroup();
+  void createForceBranchUpdateGroup();
   void createAdvancedWarning();
 
   // Helper methods
@@ -80,6 +81,8 @@ private:
   void updateDividerVisibility();
   void checkForUpdates();
   void searchBranches(const QString &query);
+  void fetchUpstreamBranches();
+  void updateForceUpdateButtonVisibility();
 
   // Advanced operations (now simplified via updater client)
   void manualUpdate();
@@ -146,6 +149,14 @@ private:
   BPToggleControl *disableUpdatesToggle;
   BPCommandControl *uninstallBtn;
 
+  // === Force Branch Update ===
+  QGroupBox *forceBranchUpdateGroup;
+  QPushButton *selectForceUpdateBranchBtn;
+  QLabel *forceUpdateBranchLabel;
+  QWidget *forceUpdateDivider;
+  QFrame *forceUpdateFrame;
+  QPushButton *forceUpdateBtn;
+
   // === Warning ===
   QLabel *advancedWarningLabel;
 
@@ -166,4 +177,6 @@ private slots:
   void onHistoryClicked();
   void onRecentChangesClicked();
   void onSunnypilotChangesClicked();
+  void onSelectForceUpdateBranchClicked();
+  void onForceUpdateClicked();
 };

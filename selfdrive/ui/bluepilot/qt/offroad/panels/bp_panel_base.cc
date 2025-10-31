@@ -1463,7 +1463,7 @@ void BPPanelBase::resetGroupControls(const std::vector<QWidget *> &controls) {
 bool BPPanelBase::validateControlBasics(const QJsonObject &control) {
   // Check if it's a Comma device restriction
   if (control.contains("OnlyOnCommaDevice") && control["OnlyOnCommaDevice"].toBool() && !CommaTools::isCommaDevice()) {
-    QString logMsg = "[bp.panel.base] validateControlBasics | Control is only available on Comma devices | Type: " + control["type"].toString();
+    QString logMsg = "[bp.panel.base] validateControlBasics | OnlyShownOnCommaDevice | Type: " + control["type"].toString();
 
     // Add title if available
     if (control.contains("title") && !control["title"].toString().isEmpty()) {

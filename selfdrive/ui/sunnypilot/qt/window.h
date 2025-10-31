@@ -9,7 +9,12 @@
 
 #include "selfdrive/ui/qt/window.h"
 #include "selfdrive/ui/sunnypilot/qt/home.h"
+
+#ifdef BLUEPILOT
+#include "selfdrive/ui/bluepilot/qt/offroad/settings.h"
+#else
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/settings.h"
+#endif
 
 class MainWindowSP : public MainWindow {
   Q_OBJECT
@@ -19,6 +24,10 @@ public:
 
 private:
   HomeWindowSP *homeWindow;
+#ifdef BLUEPILOT
+  BPSettingsWindow *settingsWindow;
+#else
   SettingsWindowSP *settingsWindow;
+#endif
   void closeSettings() override;
 };
