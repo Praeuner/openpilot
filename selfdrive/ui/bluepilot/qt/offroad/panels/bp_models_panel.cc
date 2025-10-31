@@ -169,8 +169,9 @@ void BPModelsPanel::createModelSelectionGroup() {
     BPButton {
       background-color: #2196F3;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #1E88E5;
@@ -217,8 +218,9 @@ void BPModelsPanel::createModelSelectionGroup() {
     BPButton {
       background-color: #FF9800;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #FB8C00;
@@ -251,8 +253,9 @@ void BPModelsPanel::createModelSelectionGroup() {
     BPButton {
       background-color: #F44336;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #E53935;

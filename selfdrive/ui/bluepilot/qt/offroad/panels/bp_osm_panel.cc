@@ -124,9 +124,9 @@ void BPOsmPanel::createMapInfoGroup() {
     BPButton {
       background-color: #dc3545;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-      padding: 15px 40px;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #c82333;
@@ -179,9 +179,9 @@ void BPOsmPanel::createCountrySelectionGroup() {
     BPButton {
       background-color: #2196F3;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-      padding: 15px 40px;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #1E88E5;
@@ -229,9 +229,9 @@ void BPOsmPanel::createCountrySelectionGroup() {
     BPButton {
       background-color: #2196F3;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-      padding: 15px 40px;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #1E88E5;
@@ -285,9 +285,9 @@ void BPOsmPanel::createDatabaseUpdateGroup() {
     BPButton {
       background-color: #28a745;
       border-radius: 40px;
-      font-size: 42px;
-      font-weight: 600;
-      padding: 15px 40px;
+      font-size: 32px;
+      font-weight: 500;
+      padding: 15px 30px;
     }
     BPButton:hover {
       background-color: #218838;

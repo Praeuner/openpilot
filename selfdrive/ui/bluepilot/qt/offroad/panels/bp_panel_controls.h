@@ -110,6 +110,13 @@ public:
 
 protected:
   void hideEvent(QHideEvent *e) override { verticalScrollBar()->setValue(0); }
+
+  void resizeEvent(QResizeEvent *event) override {
+    if (widget()) {
+      widget()->setFixedWidth(viewport()->width());
+    }
+    QScrollArea::resizeEvent(event);
+  }
 };
 
 // Helper class for making labels clickable

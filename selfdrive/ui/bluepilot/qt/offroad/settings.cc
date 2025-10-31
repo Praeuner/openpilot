@@ -174,6 +174,23 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
   main_layout->addWidget(sidebar_widget);
   main_layout->addWidget(panel_widget);
 
+  // Set a global stylesheet for the settings window to ensure consistency
+  // across all panels, especially those inherited from sunnypilot that
+  // may not have their own styling.
+  setStyleSheet(R"(
+    * {
+      color: white;
+      font-size: 50px;
+    }
+    BPSettingsWindow {
+      background-color: black;
+    }
+    QStackedWidget, BPScrollView, ScrollViewSP {
+      background-color: black;
+      border-radius: 30px;
+    }
+  )");
+
   // === MODERN BP STYLING ===
   // Only style the sidebar, let panels use their own styling
   sidebar_widget->setStyleSheet(QString(R"(
