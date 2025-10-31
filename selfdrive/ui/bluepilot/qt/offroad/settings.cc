@@ -164,7 +164,7 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
   }
 
   // Add buttons to scrollable area
-  BPScrollView *buttons_scrollview = new BPScrollView(buttons_widget, this);
+  ScrollViewSP *buttons_scrollview = new ScrollViewSP(buttons_widget, this);
   sidebar_layout->addWidget(buttons_scrollview);
 
   // Set sidebar width - narrower than stock for more content space
