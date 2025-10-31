@@ -198,6 +198,7 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
     QWidget#bpSidebar {
       background-color: %1;
       border-right: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
     }
 
     /* Close button - modern circular design */
