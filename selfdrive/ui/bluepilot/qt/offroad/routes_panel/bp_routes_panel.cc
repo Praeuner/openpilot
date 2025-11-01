@@ -702,12 +702,12 @@ void BPRoutesPanel::updateWebSocketStatus() {
         int wsClients = obj["websocket_clients"].toInt(0);
 
         if (wsAvailable) {
-          QString badgeText = QString("WS: %1 client%2").arg(wsClients).arg(wsClients == 1 ? "" : "s");
+          QString badgeText = QString("Users: %1 client%2").arg(wsClients).arg(wsClients == 1 ? "" : "s");
           websocketStatusBadge->setText(badgeText);
           websocketStatusBadge->setStyleSheet(websocketStatusBadge->styleSheet().replace("#AAAAAA", "#4CAF50"));
           websocketStatusBadge->setVisible(true);
         } else {
-          websocketStatusBadge->setText("WS: Disabled");
+          websocketStatusBadge->setText("Users: Disabled");
           websocketStatusBadge->setStyleSheet(websocketStatusBadge->styleSheet().replace("#4CAF50", "#FF9800"));
           websocketStatusBadge->setVisible(true);
         }

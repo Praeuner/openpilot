@@ -46,6 +46,7 @@ class BluePilotRoutes {
   async init() {
     this.cacheElements();
     this.attachEventListeners();
+    this.setupTimelineListeners();
 
     // Detect browser capabilities once at startup
     await this.detectBrowserCapabilities();
@@ -161,7 +162,7 @@ class BluePilotRoutes {
       video.id = "route-video";
       video.setAttribute("playsinline", ""); // iOS inline playback
       video.setAttribute("muted", ""); // allow programmatic play
-      video.setAttribute("preload", "auto");
+      video.setAttribute("preload", "metadata"); // Load first frame only (thumbnail)
       video.controls = true;
       video.className = "video-element";
       video.style.width = "100%";
@@ -414,6 +415,7 @@ class BluePilotRoutes {
     this.$diskVizStatsText = document.getElementById("disk-viz-stats-text");
     this.$diskPreservedBar = document.getElementById("disk-preserved-bar");
     this.$diskRoutesBar = document.getElementById("disk-routes-bar");
+    this.$diskCacheBar = document.getElementById("disk-cache-bar");
     this.$diskThresholdMarker = document.getElementById(
       "disk-threshold-marker"
     );
@@ -421,6 +423,7 @@ class BluePilotRoutes {
     this.$diskWarningText = document.getElementById("disk-warning-text");
     this.$diskPreservedValue = document.getElementById("disk-preserved-legend");
     this.$diskRoutesValue = document.getElementById("disk-routes-legend");
+    this.$diskCacheValue = document.getElementById("disk-cache-legend");
 
     // Status overlay
     this.$statusOverlay = document.getElementById("status-overlay");
@@ -495,19 +498,29 @@ class BluePilotRoutes {
     this.$statDistance = document.getElementById("stat-distance");
     this.$statAvgSpeed = document.getElementById("stat-avg-speed");
     this.$statTopSpeed = document.getElementById("stat-top-speed");
+    this.$statOpEngaged = document.getElementById("stat-op-engaged");
+    this.$statDisengagements = document.getElementById("stat-disengagements");
+    this.$statAlerts = document.getElementById("stat-alerts");
+    this.$statLaneChanges = document.getElementById("stat-lane-changes");
     this.$statLocationStart = document.getElementById("stat-location-start");
     this.$statLocationEnd = document.getElementById("stat-location-end");
 
-    // Vehicle info elements
-    this.$vehicleInfoGroup = document.getElementById("vehicle-info-group");
+    // Vehicle info panel elements
+    this.$vehiclePanel = document.getElementById("vehicle-panel");
+    this.$vehiclePanelHeader = document.getElementById("vehicle-panel-header");
+    this.$vehiclePanelContent = document.getElementById(
+      "vehicle-panel-content"
+    );
     this.$vehiclePlatform = document.getElementById("vehicle-platform");
     this.$vehicleVin = document.getElementById("vehicle-vin");
     this.$vehicleBrand = document.getElementById("vehicle-brand");
     this.$vehicleSource = document.getElementById("vehicle-source");
-    this.$firmwareTableContainer = document.getElementById(
-      "firmware-table-container"
-    );
     this.$firmwareTableBody = document.getElementById("firmware-table-body");
+
+    // Timeline elements
+    this.$routeTimeline = document.getElementById("route-timeline");
+    this.$timelineCanvas = document.getElementById("timeline-canvas");
+    this.$timelineTooltip = document.getElementById("timeline-tooltip");
 
     // Debug canvas element
     console.log("Canvas element found:", !!this.$videoCanvas);
@@ -682,6 +695,10 @@ class BluePilotRoutes {
       }
     });
 
+    this.$vehiclePanelHeader.addEventListener("click", () => {
+      this.togglePanel(this.$vehiclePanelContent);
+    });
+
     // Log viewer controls
     this.$logTypeButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -770,7 +787,7 @@ class BluePilotRoutes {
     // Confirm before clearing cache
     if (
       !confirm(
-        "Clear all cached data? This will remove cached videos, thumbnails, and GPS metrics. Route files will NOT be deleted."
+        "Clear all cached data? This will remove cached videos, thumbnails, GPS metrics, drive stats, and fingerprints. Route files will NOT be deleted."
       )
     ) {
       return;
@@ -797,14 +814,18 @@ class BluePilotRoutes {
           cleared.remux_cache +
           cleared.thumbnails +
           cleared.gps_metrics +
-          cleared.gps_coordinates;
+          cleared.gps_coordinates +
+          (cleared.drive_stats || 0) +
+          (cleared.fingerprints || 0);
 
         alert(
           `Cache cleared successfully!\n\n` +
             `• Remuxed videos: ${cleared.remux_cache}\n` +
             `• Thumbnails: ${cleared.thumbnails}\n` +
             `• GPS metrics: ${cleared.gps_metrics}\n` +
-            `• GPS coordinates: ${cleared.gps_coordinates}\n\n` +
+            `• GPS coordinates: ${cleared.gps_coordinates}\n` +
+            `• Drive stats: ${cleared.drive_stats || 0}\n` +
+            `• Fingerprints: ${cleared.fingerprints || 0}\n\n` +
             `Total items cleared: ${totalCleared}`
         );
 
@@ -869,6 +890,34 @@ class BluePilotRoutes {
 
       if (!data.success) {
         throw new Error(data.error || "Failed to load routes");
+      }
+
+      // Debug: Log first route to see data structure
+      console.log("=== DEBUG: Routes API Response ===");
+      console.log("routes data:", data.routes);
+      console.log("Total routes:", data.routes.length);
+      if (data.routes.length > 0) {
+        console.log("First route sample:", data.routes[0]);
+        console.log("First route driveStats:", data.routes[0].driveStats);
+
+        // Debug: Check all routes for driveStats
+        const routesWithStats = data.routes.filter((r) => r.driveStats).length;
+        const routesWithoutStats = data.routes.length - routesWithStats;
+        console.log(
+          `Routes with driveStats: ${routesWithStats}/${data.routes.length}`
+        );
+        console.log(
+          `Routes without driveStats: ${routesWithoutStats}/${data.routes.length}`
+        );
+
+        // Sample a few routes
+        console.log("=== Sample of first 3 routes ===");
+        data.routes.slice(0, 3).forEach((route, idx) => {
+          console.log(`Route ${idx + 1}: ${route.baseName}`);
+          console.log(`  - driveStats:`, route.driveStats);
+          console.log(`  - hasGpsData:`, route.hasGpsData);
+          console.log(`  - mileage:`, route.mileage);
+        });
       }
 
       const newRoutes = data.routes.map((route) => ({
@@ -1160,7 +1209,7 @@ class BluePilotRoutes {
         return;
       }
 
-      const { disk } = data;
+      const { disk, cache } = data;
 
       // Show the disk info container
       this.$diskVizContainer.classList.remove("hidden");
@@ -1173,15 +1222,24 @@ class BluePilotRoutes {
       if (this.$diskRoutesValue) {
         this.$diskRoutesValue.textContent = disk.formatted.non_preserved;
       }
+      if (this.$diskCacheValue && cache) {
+        this.$diskCacheValue.textContent = cache.formatted.total;
+      }
 
       // Calculate percentages for gauge bar segments (only show USED space)
       const preservedPercent = (disk.preserved_bytes / disk.total_bytes) * 100;
       const routesPercent = (disk.non_preserved_bytes / disk.total_bytes) * 100;
+      const cachePercent = cache
+        ? (cache.total_bytes / disk.total_bytes) * 100
+        : 0;
       // Free space is just the empty part of the gauge - no need to render it
 
       // Update gauge bar widths
       this.$diskPreservedBar.style.width = `${preservedPercent}%`;
       this.$diskRoutesBar.style.width = `${routesPercent}%`;
+      if (this.$diskCacheBar) {
+        this.$diskCacheBar.style.width = `${cachePercent}%`;
+      }
 
       // Position threshold marker (shows critical point where deletion starts)
       const thresholdPercent =
@@ -1357,6 +1415,17 @@ class BluePilotRoutes {
     card.className = "route-card";
     card.dataset.baseName = route.baseName; // For finding card later during geocoding
 
+    // Debug: Log drive stats for this route
+    console.log("route:", route);
+    console.log(`Route ${route.baseName} - driveStats:`, route.driveStats);
+    if (route.driveStats) {
+      console.log(`  opEngagedPercent: ${route.driveStats.opEngagedPercent}`);
+      console.log(`  alertCount: ${route.driveStats.alertCount}`);
+      console.log(
+        `  disengagementCount: ${route.driveStats.disengagementCount}`
+      );
+    }
+
     // Convert UTC timestamps to browser's local timezone
     const displayTime = route.timestamp
       ? this.formatLocalTime(route.timestamp)
@@ -1454,8 +1523,22 @@ class BluePilotRoutes {
     const preserveButtonLabel = route.isStarred ? "Preserved" : "Preserve";
     const preserveIconFill = route.isStarred ? "currentColor" : "none";
 
+    // Processing banner - show if drive stats are not yet available
+    const processingBanner = !route.driveStats
+      ? `
+      <div class="route-processing-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        <span class="banner-text">Processing drive statistics...</span>
+      </div>
+    `
+      : "";
+
     card.innerHTML = `
       ${preservedBadge}
+      ${processingBanner}
       <div class="route-thumbnail">
         <img src="${this.API_BASE}/api/thumbnail/${route.baseName}"
              onerror="this.style.display='none'">
@@ -1526,11 +1609,45 @@ class BluePilotRoutes {
           `
               : ""
           }
+          ${
+            route.driveStats && route.driveStats.opEngagedPercent !== undefined
+              ? `
+            <div class="route-stat route-stat-engagement">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              ${route.driveStats.opEngagedPercent.toFixed(0)}% engaged
+            </div>
+          `
+              : ""
+          }
+          ${
+            route.driveStats &&
+            route.driveStats.alertCount !== undefined &&
+            route.driveStats.alertCount > 0
+              ? `
+            <div class="route-stat route-stat-alerts">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              ${route.driveStats.alertCount} alerts
+            </div>
+          `
+              : ""
+          }
           <div class="route-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
             </svg>
-            ${route.segments} seg
+            ${
+              route.totalSegments ||
+              (Array.isArray(route.segments)
+                ? route.segments.length
+                : route.segments)
+            } seg
           </div>
           <div class="route-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1739,6 +1856,9 @@ class BluePilotRoutes {
     // Populate stats
     this.updatePlayerStats();
 
+    // Render timeline
+    this.renderTimeline();
+
     // Update star button text
     this.updatePlayerStarButton();
 
@@ -1760,12 +1880,44 @@ class BluePilotRoutes {
     // Size
     this.$statSize.textContent = this.currentRoute.size || "--";
 
-    // Distance - use GPS metrics if available
-    this.$statDistance.textContent = this.currentRoute.mileage || "--";
+    // Drive stats data (from log extraction)
+    const driveStats = this.currentRoute.driveStats;
 
-    // Speed stats
-    this.$statAvgSpeed.textContent = this.currentRoute.avgSpeed || "--";
-    this.$statTopSpeed.textContent = this.currentRoute.topSpeed || "--";
+    // Distance - prefer drive stats, fallback to GPS metrics
+    if (driveStats && driveStats.distance > 0) {
+      this.$statDistance.textContent = `${driveStats.distance.toFixed(2)} mi`;
+    } else {
+      this.$statDistance.textContent = this.currentRoute.mileage || "--";
+    }
+
+    // Speed stats - prefer drive stats
+    if (driveStats && driveStats.avgSpeed > 0) {
+      this.$statAvgSpeed.textContent = `${driveStats.avgSpeed.toFixed(1)} mph`;
+    } else {
+      this.$statAvgSpeed.textContent = this.currentRoute.avgSpeed || "--";
+    }
+
+    if (driveStats && driveStats.maxSpeed > 0) {
+      this.$statTopSpeed.textContent = `${driveStats.maxSpeed.toFixed(1)} mph`;
+    } else {
+      this.$statTopSpeed.textContent = this.currentRoute.topSpeed || "--";
+    }
+
+    // Engagement stats
+    if (driveStats) {
+      this.$statOpEngaged.textContent = `${driveStats.opEngagedPercent.toFixed(
+        1
+      )}%`;
+      this.$statDisengagements.textContent =
+        driveStats.disengagementCount || "0";
+      this.$statAlerts.textContent = driveStats.alertCount || "0";
+      this.$statLaneChanges.textContent = driveStats.laneChanges || "0";
+    } else {
+      this.$statOpEngaged.textContent = "--";
+      this.$statDisengagements.textContent = "--";
+      this.$statAlerts.textContent = "--";
+      this.$statLaneChanges.textContent = "--";
+    }
 
     // Location start and end
     this.$statLocationStart.textContent =
@@ -1779,8 +1931,8 @@ class BluePilotRoutes {
     ) {
       const fp = this.currentRoute.fingerprint;
 
-      // Show vehicle info group
-      this.$vehicleInfoGroup.style.display = "";
+      // Show vehicle info panel
+      this.$vehiclePanel.style.display = "";
 
       // Populate basic vehicle info
       this.$vehiclePlatform.textContent = fp.carFingerprint || "--";
@@ -1792,30 +1944,243 @@ class BluePilotRoutes {
 
       // Populate firmware table if firmware versions exist
       if (fp.firmwareVersions && fp.firmwareVersions.length > 0) {
-        this.$firmwareTableContainer.style.display = "";
         this.$firmwareTableBody.innerHTML = "";
 
+        // Ford part number format: PL3A-14C204-XK or PL3A-14C204-XKK
+        // Pattern: [4 alphanumeric]-[5-6 alphanumeric]-[2-3 alphanumeric]
+        const fordPartNumberRegex =
+          /^[A-Z0-9]{4}-[A-Z0-9]{5,6}-[A-Z0-9]{2,3}$/i;
+
         // Deduplicate firmware versions based on ECU+version combination
+        // Filter to only show Ford part number formats
         const seenFirmware = new Set();
         fp.firmwareVersions.forEach((fw) => {
           const key = `${fw.ecu}:${fw.version}`;
-          if (!seenFirmware.has(key)) {
+          // Only show firmware entries matching Ford part number format
+          if (!seenFirmware.has(key) && fordPartNumberRegex.test(fw.version)) {
             seenFirmware.add(key);
             const row = document.createElement("tr");
             row.innerHTML = `
               <td>${fw.ecu}</td>
-              <td class="firmware-version">${fw.version}</td>
+              <td>${fw.version}</td>
             `;
             this.$firmwareTableBody.appendChild(row);
           }
         });
-      } else {
-        this.$firmwareTableContainer.style.display = "none";
       }
     } else {
-      // Hide vehicle info group if no fingerprint data
-      this.$vehicleInfoGroup.style.display = "none";
+      // Hide vehicle info panel if no fingerprint data
+      this.$vehiclePanel.style.display = "none";
     }
+  }
+
+  renderTimeline() {
+    if (!this.currentRoute || !this.currentRoute.driveStats) {
+      this.$routeTimeline.classList.add("hidden");
+      return;
+    }
+
+    const stats = this.currentRoute.driveStats;
+    if (!stats.duration || stats.duration === 0) {
+      this.$routeTimeline.classList.add("hidden");
+      return;
+    }
+
+    // Show timeline
+    this.$routeTimeline.classList.remove("hidden");
+
+    // Setup canvas
+    const canvas = this.$timelineCanvas;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+    const duration = stats.duration;
+
+    // State colors (matching comma connect style)
+    const stateColors = {
+      disabled: "#3a5a7f", // Blue
+      preEnabled: "#5a7fa3", // Light blue
+      enabled: "#4caf50", // Green
+      softDisabling: "#ff9800", // Orange
+      overriding: "#9e9e9e", // Gray
+    };
+
+    // Build time-based state segments
+    const stateSegments = [];
+    let currentStart = 0;
+
+    // Create segments from state times
+    // Note: This is an approximation since we don't have exact state change timestamps
+    if (stats.opStateTimes) {
+      for (const [state, timeInState] of Object.entries(stats.opStateTimes)) {
+        if (timeInState > 0) {
+          const segmentEnd = currentStart + timeInState;
+          stateSegments.push({
+            state: state,
+            start: currentStart,
+            end: segmentEnd,
+            color: stateColors[state] || stateColors["disabled"],
+          });
+          currentStart = segmentEnd;
+        }
+      }
+    }
+
+    // If no segments, create one default disabled segment
+    if (stateSegments.length === 0) {
+      stateSegments.push({
+        state: "disabled",
+        start: 0,
+        end: duration,
+        color: stateColors["disabled"],
+      });
+    }
+
+    // Draw state segments
+    stateSegments.forEach((segment) => {
+      const startX = (segment.start / duration) * width;
+      const endX = (segment.end / duration) * width;
+      const segmentWidth = endX - startX;
+
+      ctx.fillStyle = segment.color;
+      ctx.fillRect(startX, 0, segmentWidth, height);
+    });
+
+    // Draw event markers
+    const drawEventMarker = (time, color) => {
+      const x = (time / duration) * width;
+      const markerWidth = 3;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x - markerWidth / 2, 0, markerWidth, height);
+    };
+
+    // Disengagements (red)
+    if (stats.disengagements) {
+      stats.disengagements.forEach((event) => {
+        drawEventMarker(event.time, "#f44336");
+      });
+    }
+
+    // Alerts (orange)
+    if (stats.alerts) {
+      stats.alerts.forEach((event) => {
+        drawEventMarker(event.time, "#ff9800");
+      });
+    }
+  }
+
+  setupTimelineListeners() {
+    if (!this.$timelineCanvas) return;
+
+    // Mouse move for tooltip
+    this.$timelineCanvas.addEventListener("mousemove", (e) => {
+      if (!this.currentRoute || !this.currentRoute.driveStats) return;
+
+      const rect = this.$timelineCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const width = rect.width;
+      const duration = this.currentRoute.driveStats.duration;
+      const time = (x / width) * duration;
+
+      // Format time
+      const hours = Math.floor(time / 3600);
+      const minutes = Math.floor((time % 3600) / 60);
+      const seconds = Math.floor(time % 60);
+      const timeStr =
+        hours > 0
+          ? `${hours}h ${minutes}m ${seconds}s`
+          : `${minutes}m ${seconds}s`;
+
+      // Find relevant events at this time
+      const events = [];
+      const timeWindow = duration * 0.01; // 1% of total duration as window
+
+      if (this.currentRoute.driveStats.disengagements) {
+        this.currentRoute.driveStats.disengagements.forEach((event) => {
+          if (Math.abs(event.time - time) < timeWindow) {
+            events.push({
+              type: "disengage",
+              name: event.type,
+              color: "#f44336",
+            });
+          }
+        });
+      }
+
+      if (this.currentRoute.driveStats.alerts) {
+        this.currentRoute.driveStats.alerts.forEach((event) => {
+          if (Math.abs(event.time - time) < timeWindow) {
+            events.push({
+              type: "alert",
+              name: event.type,
+              color: "#ff9800",
+            });
+          }
+        });
+      }
+
+      // Show tooltip
+      let tooltipHTML = `<div class="tooltip-time">${timeStr}</div>`;
+
+      if (events.length > 0) {
+        events.forEach((event) => {
+          tooltipHTML += `
+            <div class="tooltip-event">
+              <div class="event-icon" style="background: ${event.color}"></div>
+              <span>${event.name}</span>
+            </div>
+          `;
+        });
+      }
+
+      this.$timelineTooltip.querySelector(".tooltip-content").innerHTML =
+        tooltipHTML;
+      this.$timelineTooltip.classList.remove("hidden");
+
+      // Position tooltip
+      const tooltipRect = this.$timelineTooltip.getBoundingClientRect();
+      let left = e.clientX - tooltipRect.width / 2;
+      const top = rect.top - tooltipRect.height - 10;
+
+      // Keep tooltip on screen
+      if (left < 10) left = 10;
+      if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipRect.width - 10;
+      }
+
+      this.$timelineTooltip.style.left = left + "px";
+      this.$timelineTooltip.style.top = top + "px";
+    });
+
+    // Mouse leave to hide tooltip
+    this.$timelineCanvas.addEventListener("mouseleave", () => {
+      this.$timelineTooltip.classList.add("hidden");
+    });
+
+    // Click to scrub video
+    this.$timelineCanvas.addEventListener("click", (e) => {
+      if (!this.currentRoute || !this.currentRoute.driveStats) return;
+
+      const rect = this.$timelineCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const width = rect.width;
+      const duration = this.currentRoute.driveStats.duration;
+      const targetTime = (x / width) * duration;
+
+      // Seek to that time
+      this.seekToSeconds(targetTime);
+    });
   }
 
   updatePlayerStarButton() {
@@ -2774,7 +3139,8 @@ class BluePilotRoutes {
         this.$videoElement = document.createElement("video");
         this.$videoElement.className = "video-element";
         this.$videoElement.controls = true;
-        this.$videoElement.autoplay = true;
+        this.$videoElement.autoplay = false; // Disabled autoplay
+        this.$videoElement.setAttribute("preload", "metadata"); // Load first frame only (thumbnail)
         this.$videoElement.style.width = "100%";
         this.$videoElement.style.height = "100%";
         this.$videoElement.style.backgroundColor = "#000";
@@ -2933,9 +3299,10 @@ class BluePilotRoutes {
             this.lastPlaybackTime = 0; // Reset after use
           }
 
-          this.$videoElement.play().catch((e) => {
-            console.warn("Autoplay failed:", e);
-          });
+          // Autoplay disabled - user must click play
+          // this.$videoElement.play().catch((e) => {
+          //   console.warn("Autoplay failed:", e);
+          // });
         });
 
         this.hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -3066,11 +3433,12 @@ class BluePilotRoutes {
         this.$videoElement.src = hlsUrl;
         this.$videoElement.load();
 
-        setTimeout(() => {
-          this.$videoElement.play().catch((e) => {
-            console.warn("Autoplay failed:", e);
-          });
-        }, 100);
+        // Autoplay disabled - user must click play
+        // setTimeout(() => {
+        //   this.$videoElement.play().catch((e) => {
+        //     console.warn("Autoplay failed:", e);
+        //   });
+        // }, 100);
       } else {
         // HLS not supported, fallback to direct video (segment by segment)
         console.warn(

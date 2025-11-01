@@ -90,6 +90,8 @@ from bluepilot.backend.route_processing import (
     get_route_gps_metrics,
     generate_thumbnail,
     get_route_fingerprint,
+    get_route_drive_stats,
+    get_route_drive_stats_cached_only,
     check_processing_status,
     process_route,
     kill_existing_process,
@@ -137,7 +139,7 @@ except ImportError:
         return o + [s.rjust(10, '0') for s in d.rsplit('--', 1)]
 
 try:
-    from common.params import Params
+    from openpilot.common.params import Params
     params = Params()
 except ImportError:
     # Mock for testing
@@ -1354,16 +1356,97 @@ def generate_route_export(route_base, camera, progress_callback=None):
                 except OSError:
                     pass
 
-def get_cache_size():
-    """Get total size of remux cache in bytes"""
+def get_directory_size(directory_path):
+    """Get total size of a directory in bytes
+
+    Args:
+        directory_path: Path to directory to measure
+
+    Returns:
+        int: Total size in bytes
+    """
     total = 0
     try:
-        for entry in os.scandir(REMUX_CACHE):
-            if entry.is_file():
-                total += entry.stat().st_size
+        if os.path.exists(directory_path):
+            for entry in os.scandir(directory_path):
+                if entry.is_file():
+                    total += entry.stat().st_size
     except OSError:
         pass
     return total
+
+
+def get_cache_size():
+    """Get total size of remux cache in bytes (deprecated - use get_remux_cache_size)"""
+    return get_remux_cache_size()
+
+
+def get_remux_cache_size():
+    """Get total size of remux cache in bytes"""
+    return get_directory_size(REMUX_CACHE)
+
+
+def get_thumbnail_cache_size():
+    """Get total size of thumbnail cache in bytes"""
+    return get_directory_size(THUMBNAIL_CACHE)
+
+
+def get_metrics_cache_size():
+    """Get total size of GPS metrics cache in bytes"""
+    return get_directory_size(METRICS_CACHE)
+
+
+def get_drive_stats_cache_size():
+    """Get total size of drive stats cache in bytes"""
+    from bluepilot.backend.route_processing import DRIVE_STATS_CACHE
+    return get_directory_size(DRIVE_STATS_CACHE)
+
+
+def get_fingerprint_cache_size():
+    """Get total size of fingerprint cache in bytes"""
+    from bluepilot.backend.route_processing import FINGERPRINT_CACHE
+    return get_directory_size(FINGERPRINT_CACHE)
+
+
+def get_route_export_cache_size():
+    """Get total size of route export cache in bytes"""
+    return get_directory_size(ROUTE_EXPORT_CACHE)
+
+
+def get_all_cache_sizes():
+    """Get sizes of all cache directories
+
+    Returns:
+        dict with cache sizes in bytes and formatted strings
+    """
+    remux_bytes = get_remux_cache_size()
+    thumbnail_bytes = get_thumbnail_cache_size()
+    metrics_bytes = get_metrics_cache_size()
+    drive_stats_bytes = get_drive_stats_cache_size()
+    fingerprint_bytes = get_fingerprint_cache_size()
+    export_bytes = get_route_export_cache_size()
+
+    total_bytes = (remux_bytes + thumbnail_bytes + metrics_bytes +
+                   drive_stats_bytes + fingerprint_bytes + export_bytes)
+
+    return {
+        'remux_bytes': remux_bytes,
+        'thumbnail_bytes': thumbnail_bytes,
+        'metrics_bytes': metrics_bytes,
+        'drive_stats_bytes': drive_stats_bytes,
+        'fingerprint_bytes': fingerprint_bytes,
+        'export_bytes': export_bytes,
+        'total_bytes': total_bytes,
+        'formatted': {
+            'remux': format_size(remux_bytes),
+            'thumbnails': format_size(thumbnail_bytes),
+            'metrics': format_size(metrics_bytes),
+            'drive_stats': format_size(drive_stats_bytes),
+            'fingerprints': format_size(fingerprint_bytes),
+            'exports': format_size(export_bytes),
+            'total': format_size(total_bytes)
+        }
+    }
 
 
 def get_free_disk_space(path="/data"):
@@ -1487,9 +1570,19 @@ def get_system_metrics():
 
     # Cache sizes
     try:
+        cache_sizes = get_all_cache_sizes()
         metrics['cache'] = {
-            'remux_cache_bytes': get_cache_size(),
-            'remux_cache_gb': round(get_cache_size() / 1024 / 1024 / 1024, 2),
+            'remux_bytes': cache_sizes['remux_bytes'],
+            'thumbnail_bytes': cache_sizes['thumbnail_bytes'],
+            'metrics_bytes': cache_sizes['metrics_bytes'],
+            'drive_stats_bytes': cache_sizes['drive_stats_bytes'],
+            'fingerprint_bytes': cache_sizes['fingerprint_bytes'],
+            'export_bytes': cache_sizes['export_bytes'],
+            'total_bytes': cache_sizes['total_bytes'],
+            'formatted': cache_sizes['formatted'],
+            # Legacy fields for backwards compatibility
+            'remux_cache_bytes': cache_sizes['remux_bytes'],
+            'remux_cache_gb': round(cache_sizes['remux_bytes'] / 1024 / 1024 / 1024, 2),
         }
     except Exception as e:
         logger.debug(f"Error reading cache metrics: {e}")
@@ -3161,6 +3254,9 @@ def scan_routes():
         # Get fingerprint data if cached (don't process logs during scan)
         fingerprint_data = get_route_fingerprint(base_name, segments)
 
+        # Get drive statistics if cached (don't extract during scan - too slow)
+        drive_stats = get_route_drive_stats_cached_only(base_name)
+
         # Build route info matching old panel structure
         routes_dict[base_name] = {
             'baseName': base_name,
@@ -3189,6 +3285,8 @@ def scan_routes():
             'deletionRisk': deletion_risk,
             # Fingerprint data
             'fingerprint': fingerprint_data if fingerprint_data else None,
+            # Drive statistics
+            'driveStats': drive_stats if drive_stats else None,
         }
 
     # Convert to list and sort by datetime (newest first)
@@ -3220,8 +3318,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
     """HTTP request handler for web routes server"""
 
     def log_message(self, format, *args):
-        """Override to use logger"""
-        logger.info(f"{self.address_string()} - {format % args}")
+        """Override to use logger - log at DEBUG level to reduce verbosity"""
+        pass
+        # logger.debug(f"{self.address_string()} - {format % args}")
 
     def send_cors_headers(self):
         """Send CORS headers for local network access"""
@@ -3701,7 +3800,10 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     connection_type = get_connection_type()
                     wifi_ip = get_wifi_ip()
                     all_wifi_ips = get_all_wifi_ips()
-                    tethering_enabled = params.get_bool("EnableTethering")
+                    try:
+                        tethering_enabled = params.get_bool("EnableTethering")
+                    except Exception:
+                        tethering_enabled = False
 
                     # Server uptime
                     try:
@@ -3907,6 +4009,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'videos': videos
                     })
 
+                # Get drive statistics if cached (for processing banner)
+                drive_stats = get_route_drive_stats_cached_only(route_base)
+
                 self.send_json_response({
                     'success': True,
                     'baseName': route_base,
@@ -3926,7 +4031,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'isPreserved': is_preserved,
                     'isStarred': is_preserved,
                     'segments': segments_detail,
-                    'totalSegments': len(segments_detail)
+                    'totalSegments': len(segments_detail),
+                    'driveStats': drive_stats if drive_stats else None
                 })
 
             elif path == '/api/routes':
@@ -3979,6 +4085,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'rank': i + 1
                     })
 
+                # Get cache sizes
+                cache_sizes = get_all_cache_sizes()
+
                 self.send_json_response({
                     'success': True,
                     'disk': {
@@ -4001,6 +4110,16 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             'non_preserved': format_size(non_preserved_bytes),
                             'threshold': format_size(MIN_BYTES),
                         }
+                    },
+                    'cache': {
+                        'remux_bytes': cache_sizes['remux_bytes'],
+                        'thumbnail_bytes': cache_sizes['thumbnail_bytes'],
+                        'metrics_bytes': cache_sizes['metrics_bytes'],
+                        'drive_stats_bytes': cache_sizes['drive_stats_bytes'],
+                        'fingerprint_bytes': cache_sizes['fingerprint_bytes'],
+                        'export_bytes': cache_sizes['export_bytes'],
+                        'total_bytes': cache_sizes['total_bytes'],
+                        'formatted': cache_sizes['formatted']
                     },
                     'deletion_queue': {
                         'total_segments': deletion_data['total_count'],
@@ -4690,14 +4809,16 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     # Return error from set_route_preserve
                     self.send_json_response(result, 400 if 'disk space' in result.get('error', '').lower() else 500)
             elif path == '/api/clear-cache':
-                # Clear all cached data (remuxed videos, thumbnails, GPS metrics)
+                # Clear all cached data (remuxed videos, thumbnails, GPS metrics, drive stats, fingerprints)
                 import shutil
 
                 cleared = {
                     'remux_cache': 0,
                     'thumbnails': 0,
                     'gps_metrics': 0,
-                    'gps_coordinates': 0
+                    'gps_coordinates': 0,
+                    'drive_stats': 0,
+                    'fingerprints': 0
                 }
 
                 # Clear remuxed video cache
@@ -4728,11 +4849,42 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             if filename.endswith('_coords.json'):
                                 os.remove(filepath)
                                 cleared['gps_coordinates'] += 1
-                            elif filename.endswith('.json') and filename != 'geocoding_cache.json':
+                            elif filename.endswith('.json') and filename not in ('geocoding_cache.json', 'preprocessing_state.json'):
                                 os.remove(filepath)
                                 cleared['gps_metrics'] += 1
                         except Exception as e:
                             logger.warning(f"Error deleting metrics cache file {filename}: {e}")
+
+                # Clear drive stats cache
+                from bluepilot.backend.route_processing import DRIVE_STATS_CACHE
+                if os.path.exists(DRIVE_STATS_CACHE):
+                    for filename in os.listdir(DRIVE_STATS_CACHE):
+                        if filename.endswith('.json'):
+                            try:
+                                os.remove(os.path.join(DRIVE_STATS_CACHE, filename))
+                                cleared['drive_stats'] += 1
+                            except Exception as e:
+                                logger.warning(f"Error deleting drive stats cache file {filename}: {e}")
+
+                # Clear fingerprint cache
+                from bluepilot.backend.route_processing import FINGERPRINT_CACHE
+                if os.path.exists(FINGERPRINT_CACHE):
+                    for filename in os.listdir(FINGERPRINT_CACHE):
+                        if filename.endswith('.json'):
+                            try:
+                                os.remove(os.path.join(FINGERPRINT_CACHE, filename))
+                                cleared['fingerprints'] += 1
+                            except Exception as e:
+                                logger.warning(f"Error deleting fingerprint cache file {filename}: {e}")
+
+                # Clear preprocessor state file so routes get reprocessed
+                preprocessing_state_file = os.path.join(METRICS_CACHE, 'preprocessing_state.json')
+                if os.path.exists(preprocessing_state_file):
+                    try:
+                        os.remove(preprocessing_state_file)
+                        logger.info("Cleared preprocessing state - routes will be reprocessed")
+                    except Exception as e:
+                        logger.warning(f"Error clearing preprocessing state: {e}")
 
                 # Clear in-memory route cache
                 get_route_segments.cache_clear()
@@ -4975,7 +5127,7 @@ def ensure_dependencies():
                     return False
             else:
                 logger.warning("uv not available - cannot install websockets automatically")
-                logger.info("To enable WebSocket support, run: uv pip install --user websockets websocket-client")
+                logger.info("To enable WebSocket support, run: uv pip install websockets websocket-client")
                 return False
 
         except subprocess.TimeoutExpired:
@@ -4993,7 +5145,18 @@ def ensure_dependencies():
 
 def main():
     """Start the server"""
-    port = int(params.get("BPWebServerPort") or "8088")
+    # Add venv site-packages to sys.path so we can import pycapnp and other venv packages
+    # This only affects the web server process, not other openpilot processes
+    venv_site_packages = "/usr/local/venv/lib/python3.12/site-packages"
+    if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
+        sys.path.insert(0, venv_site_packages)
+        logger.info("Added venv site-packages to sys.path for LogReader support")
+
+    try:
+        port = int(params.get("BPWebServerPort") or "8088")
+    except Exception:
+        # BPWebServerPort may not be registered in params schema, use default
+        port = 8088
 
     logger.info(f"Starting BluePilot Web Routes Server on port {port}")
     logger.info(f"Routes directory: {ROUTES_DIR}")
@@ -5070,7 +5233,11 @@ def main():
     # Only wlan IPs are advertised to users (cellular IPs are filtered out)
     wifi_ip = get_wifi_ip()
     all_wifi_ips = get_all_wifi_ips()
-    tethering_enabled = params.get_bool("EnableTethering")
+    try:
+        tethering_enabled = params.get_bool("EnableTethering")
+    except Exception:
+        # EnableTethering may not be registered in params schema
+        tethering_enabled = False
 
     # Always bind to all interfaces to support both WiFi and hotspot seamlessly
     bind_address = '0.0.0.0'

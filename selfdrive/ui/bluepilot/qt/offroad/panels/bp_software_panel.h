@@ -1,9 +1,8 @@
 // selfdrive/ui/bluepilot/qt/offroad/panels/bp_software_panel.h
-// BluePilot Software Panel - Unified software management panel
+// BluePilot Software Panel - Software management panel
 //
 // Features:
 // - Daemon-based updates (safe, automatic)
-// - Direct git operations (manual, power user)
 // - ParamWatcher for reactive UI updates
 // - Non-blocking QtConcurrent operations
 
@@ -30,7 +29,6 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_ui_helpers.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/qt/util.h"
-#include "selfdrive/ui/bluepilot/qt/widgets/bp_updater_client.h"
 #include "common/params.h"
 #include "common/util.h"
 
@@ -40,12 +38,11 @@ class BPGitManager;
 class BPRecentChangesDialog;
 
 /**
- * BPSoftwarePanel - Unified software management panel
+ * BPSoftwarePanel - Software management panel
  *
- * Combines daemon-based updates with advanced git operations
+ * Daemon-based updates
  * - ParamWatcher for reactive UI updates
  * - Works with system/updated/updated.py
- * - Direct git operations for advanced features
  * - Non-blocking QtConcurrent operations
  */
 class BPSoftwarePanel : public QWidget {
@@ -65,10 +62,8 @@ private:
   void createUpdateControlsGroup();
   void createBranchSelectionGroup();
   void createRepoStatusGroup();
-  void createGitOperationsGroup();
   void createSystemGroup();
   void createForceBranchUpdateGroup();
-  void createAdvancedWarning();
 
   // Helper methods
   QGroupBox* createStyledGroupBox(const QString &title);
@@ -84,16 +79,7 @@ private:
   void fetchUpstreamBranches();
   void updateForceUpdateButtonVisibility();
 
-  // Advanced operations (now simplified via updater client)
-  void manualUpdate();
-  void repairRepository();
-  void resetRepository();
-  void viewHistory();
   void showRecentChanges();
-  void showCommitHistory(const QString &title, const QString &workingDir);
-
-  // Helper to show command progress
-  void executeUpdaterCommand(const QString &title, const QString &cmd, const QJsonObject &args = {});
 
   static void setupFullscreenDialog(QDialog *dialog);
 
@@ -101,7 +87,6 @@ private:
   Params params;
   ParamWatcher *fs_watch;
   BPGitManager *gitManager;
-  BPUpdaterClient *updaterClient;
 
   // === Main Layout ===
   QVBoxLayout *mainLayout;
@@ -137,13 +122,6 @@ private:
   QLabel *repoStatusLabel;
   QTimer *repoStatusTimer;
 
-  // === Git Operations ===
-  QGroupBox *gitOperationsGroup;
-  BPCommandControl *manualUpdateBtn;
-  BPCommandControl *repairBtn;
-  BPCommandControl *resetBtn;
-  BPCommandControl *historyBtn;
-
   // === System ===
   QGroupBox *systemGroup;
   BPToggleControl *disableUpdatesToggle;
@@ -157,9 +135,6 @@ private:
   QFrame *forceUpdateFrame;
   QPushButton *forceUpdateBtn;
 
-  // === Warning ===
-  QLabel *advancedWarningLabel;
-
   // State tracking
   bool is_onroad = false;
   QString updater_state;
@@ -171,10 +146,6 @@ private slots:
   void onUninstallClicked();
   void onDisableUpdatesToggled(bool enabled);
   void updateDisableUpdatesToggle(bool offroad);
-  void onManualUpdateClicked();
-  void onRepairClicked();
-  void onResetClicked();
-  void onHistoryClicked();
   void onRecentChangesClicked();
   void onSunnypilotChangesClicked();
   void onSelectForceUpdateBranchClicked();

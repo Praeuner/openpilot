@@ -62,11 +62,13 @@ ROUTES_DIR = "/data/media/0/realdata" if os.path.exists("/data/media/0/realdata"
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
 THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/thumbs_cache")
 FINGERPRINT_CACHE = "/data/bluepilot/routes/fingerprint_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/fingerprint_cache")
+DRIVE_STATS_CACHE = "/data/bluepilot/routes/drive_stats_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/drive_stats_cache")
 
 # Ensure cache directories exist
 os.makedirs(METRICS_CACHE, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE, exist_ok=True)
 os.makedirs(FINGERPRINT_CACHE, exist_ok=True)
+os.makedirs(DRIVE_STATS_CACHE, exist_ok=True)
 
 # Geocoding cache (in-memory)
 _geocoding_cache = {}
@@ -642,7 +644,7 @@ def get_route_fingerprint(route_base, segments):
             if cache_mtime >= segment_mtime:
                 with open(cache_file) as f:
                     cached_data = json.load(f)
-                    logger.debug(f"Using cached fingerprint for {route_base}")
+                    # logger.debug(f"Using cached fingerprint for {route_base}")
                     return cached_data
         except Exception as e:
             logger.debug(f"Error reading fingerprint cache for {route_base}: {e}")
@@ -667,6 +669,414 @@ def get_route_fingerprint(route_base, segments):
     return fingerprint_data
 
 
+def extract_drive_stats_from_segments(segments):
+    """Extract comprehensive drive statistics from route segments
+
+    Args:
+        segments: List of segment dictionaries with 'path' key
+
+    Returns:
+        dict with drive statistics or None if extraction fails:
+        - duration: Total drive duration in seconds
+        - distance: Total distance in miles
+        - avgSpeed: Average speed in mph
+        - maxSpeed: Maximum speed in mph
+        - opEngagedTime: Time with OP engaged in seconds
+        - opEngagedPercent: Percentage of time OP was engaged
+        - disengagements: List of disengagement events with type and time
+        - disengagementCount: Total number of disengagements
+        - alerts: List of alert events with type and time
+        - alertCount: Total number of alerts
+        - laneChanges: Number of lane changes
+        - safetyEvents: Count of safety events (FCW, AEB, etc.)
+        - controlMetrics: Control performance metrics
+    """
+    if not segments:
+        return None
+
+    # Try method 1: LogReader (preferred when pycapnp is available)
+    use_logreader = False
+    try:
+        from openpilot.tools.lib.logreader import LogReader
+        use_logreader = True
+        logger.info("✓ LogReader available - using for drive stats extraction")
+    except ImportError as e:
+        logger.warning(f"✗ LogReader not available: {e}")
+        logger.info("Trying manual method...")
+
+    # Try method 2: Manual decompression + cereal.messaging (fallback for device without pycapnp)
+    use_manual_method = False
+    if not use_logreader:
+        try:
+            import cereal.messaging as messaging
+            from cereal import log as log_capnp
+            import bz2
+            import subprocess
+
+            # Try to import zstandard Python module
+            try:
+                import zstandard as zstd
+                use_zstd_module = True
+            except ImportError:
+                # Fall back to system zstd command if Python module not available
+                use_zstd_module = False
+                logger.debug("zstandard module not available, using system zstd command")
+
+            use_manual_method = True
+            logger.debug("Using manual decompression method for drive stats extraction")
+        except ImportError as e:
+            logger.debug(f"cereal.messaging not available: {e}")
+            logger.debug("Drive stats extraction disabled - no extraction method available")
+            return None
+
+    # Initialize accumulators
+    total_duration = 0.0
+    total_distance = 0.0
+    speed_sum = 0.0
+    speed_count = 0
+    max_speed = 0.0
+
+    op_engaged_time = 0.0
+    op_state_times = {'disabled': 0.0, 'preEnabled': 0.0, 'enabled': 0.0, 'softDisabling': 0.0, 'overriding': 0.0}
+
+    disengagements = []
+    alerts = []
+    lane_changes = 0
+    safety_events = {'fcw': 0, 'aeb': 0, 'stockFcw': 0, 'stockAeb': 0}
+
+    steering_saturated_count = 0
+    control_lag_sum = 0.0
+    control_lag_count = 0
+    control_lag_max = 0.0
+
+    prev_time = None
+    prev_speed = None
+    prev_state = None
+
+    def read_messages_manual(log_path):
+        """Read messages using manual decompression + cereal.messaging"""
+        import struct
+
+        # Decompress file
+        try:
+            if log_path.endswith('.zst'):
+                if use_zstd_module:
+                    # Use Python zstandard module
+                    with open(log_path, 'rb') as f:
+                        dctx = zstd.ZstdDecompressor()
+                        # Use streaming decompression to handle files without content size header
+                        with dctx.stream_reader(f) as reader:
+                            data = reader.read()
+                else:
+                    # Use system zstd command
+                    result = subprocess.run(['zstd', '-d', '-c', log_path],
+                                          capture_output=True, check=True)
+                    data = result.stdout
+            elif log_path.endswith('.bz2'):
+                with bz2.open(log_path, 'rb') as f:
+                    data = f.read()
+            else:
+                return
+        except Exception as e:
+            logger.debug(f"Error decompressing {log_path}: {e}")
+            return
+
+        # Parse message stream
+        offset = 0
+        while offset < len(data):
+            # Each message is: 4 bytes length + message data
+            if offset + 4 > len(data):
+                break
+
+            try:
+                msg_len = struct.unpack('<I', data[offset:offset+4])[0]
+            except struct.error:
+                break
+
+            offset += 4
+
+            if offset + msg_len > len(data) or msg_len > 10_000_000:  # Sanity check
+                break
+
+            msg_data = data[offset:offset+msg_len]
+            offset += msg_len
+
+            try:
+                msg = messaging.log_from_bytes(msg_data)
+                yield msg
+            except Exception as e:
+                logger.debug(f"Error deserializing message: {e}")
+                continue
+
+    try:
+        # Process each segment
+        for segment in segments:
+            segment_path = segment['path']
+
+            # Try rlog first (has all messages), fallback to qlog
+            log_path = None
+            for filename in ['rlog.zst', 'rlog.bz2', 'qlog.zst', 'qlog.bz2']:
+                candidate = os.path.join(segment_path, filename)
+                if os.path.exists(candidate):
+                    log_path = candidate
+                    break
+
+            if not log_path:
+                logger.debug(f"No log file found in {segment_path}")
+                continue
+
+            logger.debug(f"Processing drive stats from {os.path.basename(segment_path)}")
+
+            try:
+                # Choose appropriate message reader
+                if use_logreader:
+                    lr = LogReader(log_path)
+                    msg_iterator = lr
+                elif use_manual_method:
+                    msg_iterator = read_messages_manual(log_path)
+                else:
+                    logger.warning(f"No extraction method available for {log_path}")
+                    continue
+
+                for msg in msg_iterator:
+                    msg_type = msg.which()
+                    current_time = msg.logMonoTime / 1e9  # Convert to seconds
+
+                    # Track time deltas
+                    if prev_time is not None:
+                        dt = current_time - prev_time
+                        if dt > 0 and dt < 1.0:  # Sanity check (less than 1 second)
+                            total_duration += dt
+
+                            # Track state time
+                            if prev_state is not None:
+                                op_state_times[prev_state] = op_state_times.get(prev_state, 0.0) + dt
+                                if prev_state in ['enabled', 'overriding']:
+                                    op_engaged_time += dt
+
+                    # Process carState messages for speed and distance
+                    if msg_type == 'carState':
+                        cs = msg.carState
+
+                        # Speed tracking
+                        if hasattr(cs, 'vEgo'):
+                            speed_mps = float(cs.vEgo)
+                            speed_mph = speed_mps * 2.23694  # m/s to mph
+
+                            if speed_mph > max_speed:
+                                max_speed = speed_mph
+
+                            speed_sum += speed_mph
+                            speed_count += 1
+
+                            # Distance calculation
+                            if prev_speed is not None and prev_time is not None:
+                                dt = current_time - prev_time
+                                if dt > 0 and dt < 1.0:
+                                    # Average speed over interval * time = distance
+                                    avg_speed_mps = (speed_mps + prev_speed) / 2.0
+                                    distance_m = avg_speed_mps * dt
+                                    distance_mi = distance_m / 1609.34  # meters to miles
+                                    total_distance += distance_mi
+
+                            prev_speed = speed_mps
+
+                    # Process selfdriveState for engagement tracking
+                    elif msg_type == 'selfdriveState':
+                        sds = msg.selfdriveState
+
+                        if hasattr(sds, 'state'):
+                            state_str = str(sds.state)
+                            prev_state = state_str
+
+                    # Process controlsState for control metrics
+                    elif msg_type == 'controlsState':
+                        ctrl = msg.controlsState
+
+                        # Track steering saturation
+                        if hasattr(ctrl, 'lateralControlState'):
+                            lat_state = ctrl.lateralControlState
+                            if hasattr(lat_state, 'saturated') and lat_state.saturated:
+                                steering_saturated_count += 1
+
+                        # Track control lag
+                        if hasattr(ctrl, 'cumLagMs'):
+                            lag_ms = float(ctrl.cumLagMs)
+                            control_lag_sum += lag_ms
+                            control_lag_count += 1
+                            if lag_ms > control_lag_max:
+                                control_lag_max = lag_ms
+
+                    # Process onroadEvents for disengagements, alerts, and safety events
+                    elif msg_type == 'onroadEvent':
+                        event = msg.onroadEvent
+                        event_name = str(event.name) if hasattr(event, 'name') else 'unknown'
+
+                        # Disengagement events
+                        if hasattr(event, 'userDisable') and event.userDisable:
+                            disengagements.append({
+                                'time': current_time,
+                                'type': event_name,
+                                'reason': 'userDisable'
+                            })
+                        elif hasattr(event, 'immediateDisable') and event.immediateDisable:
+                            disengagements.append({
+                                'time': current_time,
+                                'type': event_name,
+                                'reason': 'immediateDisable'
+                            })
+                        elif hasattr(event, 'softDisable') and event.softDisable:
+                            disengagements.append({
+                                'time': current_time,
+                                'type': event_name,
+                                'reason': 'softDisable'
+                            })
+
+                        # Alert events (warnings and critical)
+                        if hasattr(event, 'warning') and event.warning:
+                            alerts.append({
+                                'time': current_time,
+                                'type': event_name,
+                                'level': 'warning'
+                            })
+
+                        # Safety events
+                        if event_name == 'fcw':
+                            safety_events['fcw'] += 1
+                        elif event_name == 'aeb':
+                            safety_events['aeb'] += 1
+                        elif event_name == 'stockFcw':
+                            safety_events['stockFcw'] += 1
+                        elif event_name == 'stockAeb':
+                            safety_events['stockAeb'] += 1
+
+                        # Lane changes
+                        if event_name in ['preLaneChangeLeft', 'preLaneChangeRight', 'laneChange']:
+                            lane_changes += 1
+
+                    prev_time = current_time
+
+            except Exception as e:
+                logger.debug(f"Error reading log {log_path}: {e}")
+                continue
+
+        # Calculate derived metrics
+        avg_speed = speed_sum / speed_count if speed_count > 0 else 0.0
+        op_engaged_percent = (op_engaged_time / total_duration * 100) if total_duration > 0 else 0.0
+        avg_control_lag = control_lag_sum / control_lag_count if control_lag_count > 0 else 0.0
+
+        # Format duration as HH:MM:SS
+        hours = int(total_duration // 3600)
+        minutes = int((total_duration % 3600) // 60)
+        seconds = int(total_duration % 60)
+        duration_str = f"{hours}h {minutes}m {seconds}s" if hours > 0 else f"{minutes}m {seconds}s"
+
+        stats = {
+            'duration': total_duration,
+            'durationStr': duration_str,
+            'distance': round(total_distance, 2),
+            'avgSpeed': round(avg_speed, 1),
+            'maxSpeed': round(max_speed, 1),
+            'opEngagedTime': round(op_engaged_time, 1),
+            'opEngagedPercent': round(op_engaged_percent, 1),
+            'opStateTimes': {k: round(v, 1) for k, v in op_state_times.items()},
+            'disengagements': disengagements,
+            'disengagementCount': len(disengagements),
+            'alerts': alerts,
+            'alertCount': len(alerts),
+            'laneChanges': lane_changes,
+            'safetyEvents': safety_events,
+            'controlMetrics': {
+                'steeringSaturated': steering_saturated_count,
+                'avgControlLag': round(avg_control_lag, 2),
+                'maxControlLag': round(control_lag_max, 2)
+            }
+        }
+
+        logger.info(f"✓ Extracted drive stats: {duration_str}, {round(op_engaged_percent, 1)}% engaged, {len(disengagements)} disengagements")
+        return stats
+
+    except Exception as e:
+        logger.error(f"✗ Error extracting drive stats: {e}", exc_info=True)
+        return None
+
+
+def get_route_drive_stats(route_base, segments):
+    """Get drive statistics for a route with caching
+
+    Args:
+        route_base: Base route name
+        segments: List of segment dictionaries with 'path' key
+
+    Returns:
+        dict with drive statistics or None if not found
+    """
+    logger.info(f"get_route_drive_stats called for {route_base} ({len(segments)} segments)")
+
+    # Check cache first
+    cache_file = os.path.join(DRIVE_STATS_CACHE, f"{route_base}.json")
+
+    # Check if cache exists and is newer than first segment
+    if os.path.exists(cache_file) and segments:
+        try:
+            cache_mtime = os.path.getmtime(cache_file)
+            segment_mtime = os.path.getmtime(segments[0]['path'])
+
+            # Use cache if it's newer than first segment
+            if cache_mtime >= segment_mtime:
+                with open(cache_file) as f:
+                    cached_data = json.load(f)
+                    logger.info(f"✓ Using cached drive stats for {route_base}")
+                    return cached_data
+        except Exception as e:
+            logger.warning(f"Error reading drive stats cache for {route_base}: {e}")
+
+    # Extract from all segments
+    if not segments:
+        logger.warning(f"No segments provided for {route_base}")
+        return None
+
+    logger.info(f"Extracting drive stats from {len(segments)} segments for {route_base}...")
+    drive_stats = extract_drive_stats_from_segments(segments)
+
+    # Save to cache atomically
+    if drive_stats:
+        if atomic_json_write(cache_file, drive_stats):
+            logger.info(f"✓ Cached drive stats for {route_base}")
+        else:
+            logger.warning(f"✗ Error caching drive stats for {route_base}")
+    else:
+        logger.warning(f"✗ Failed to extract drive stats for {route_base}")
+
+    return drive_stats
+
+
+def get_route_drive_stats_cached_only(route_base):
+    """Get drive statistics from cache only (no extraction)
+
+    This is used for fast route listing where we don't want to block
+    on log extraction. Returns None if not cached.
+
+    Args:
+        route_base: Base route name
+
+    Returns:
+        dict with drive statistics or None if not cached
+    """
+    cache_file = os.path.join(DRIVE_STATS_CACHE, f"{route_base}.json")
+
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file) as f:
+                cached_data = json.load(f)
+                # logger.debug(f"Using cached drive stats for {route_base}")
+                return cached_data
+        except Exception as e:
+            logger.debug(f"Error reading drive stats cache for {route_base}: {e}")
+
+    return None
+
+
 def check_processing_status(route_base):
     """Check what has already been processed for this route
 
@@ -679,13 +1089,15 @@ def check_processing_status(route_base):
         - geocoding_checked: Geocoding was attempted (even if failed)
         - thumbnail: Thumbnail generated
         - fingerprint: Vehicle fingerprint extracted and cached
+        - drive_stats: Drive statistics extracted and cached
     """
     status = {
         'gps_metrics': False,
         'coordinates': False,
         'geocoding_checked': False,
         'thumbnail': False,
-        'fingerprint': False
+        'fingerprint': False,
+        'drive_stats': False
     }
 
     # Check for GPS metrics cache
@@ -713,6 +1125,11 @@ def check_processing_status(route_base):
     fingerprint_cache = os.path.join(FINGERPRINT_CACHE, f"{route_base}.json")
     if os.path.exists(fingerprint_cache):
         status['fingerprint'] = True
+
+    # Check for drive stats cache
+    drive_stats_cache = os.path.join(DRIVE_STATS_CACHE, f"{route_base}.json")
+    if os.path.exists(drive_stats_cache):
+        status['drive_stats'] = True
 
     return status
 
@@ -828,6 +1245,21 @@ def process_route(route_base, segments, check_idle_fn=None):
                     logger.debug(f"    VIN: {fingerprint_data.get('carVin')}")
         else:
             logger.debug("  Fingerprint already cached, skipping")
+
+        # Step 5: Extract drive statistics
+        if not status['drive_stats']:
+            # Check for interruption before drive stats extraction
+            if check_idle_fn and not check_idle_fn():
+                logger.info("  Interrupted before drive stats extraction (no longer idle)")
+                return False
+
+            logger.debug("  Extracting drive statistics...")
+            drive_stats = get_route_drive_stats(route_base, segments)
+            if drive_stats:
+                logger.debug(f"    Distance: {drive_stats.get('distance', 0)} mi, Duration: {drive_stats.get('durationStr', 'N/A')}")
+                logger.debug(f"    OP Engaged: {drive_stats.get('opEngagedPercent', 0)}%, Disengagements: {drive_stats.get('disengagementCount', 0)}")
+        else:
+            logger.debug("  Drive stats already cached, skipping")
 
         logger.info(f"✓ Fully processed {route_base}")
         return True

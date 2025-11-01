@@ -44,7 +44,7 @@ from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(levelname)s [%(name)s]: %(message)s',
     force=True  # Force reconfiguration if already configured
 )
@@ -229,6 +229,13 @@ def preprocess_routes_batch(max_routes=5, max_time_seconds=300):
 def main():
     """Main background processing loop"""
     global broadcaster
+
+    # Add venv site-packages to sys.path so we can import pycapnp and other venv packages
+    # This only affects the preprocessor process, not other openpilot processes
+    venv_site_packages = "/usr/local/venv/lib/python3.12/site-packages"
+    if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
+        sys.path.insert(0, venv_site_packages)
+        logger.info(f"Added venv site-packages to sys.path for LogReader support")
 
     logger.info("BluePilot Route Preprocessor starting...")
     logger.info(f"Routes directory: {ROUTES_DIR}")

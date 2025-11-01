@@ -344,6 +344,11 @@
                 class="disk-gauge-segment disk-gauge-routes"
                 style="width: 0%"
               ></div>
+              <div
+                id="disk-cache-bar"
+                class="disk-gauge-segment disk-gauge-cache"
+                style="width: 0%"
+              ></div>
             </div>
             <div
               id="disk-threshold-marker"
@@ -366,6 +371,13 @@
               <div class="legend-meta">
                 <span class="legend-label">Routes</span>
                 <span id="disk-routes-legend" class="legend-value">--</span>
+              </div>
+            </div>
+            <div class="disk-legend-item">
+              <span class="legend-dot legend-dot-cache"></span>
+              <div class="legend-meta">
+                <span class="legend-label">Cache</span>
+                <span id="disk-cache-legend" class="legend-value">--</span>
               </div>
             </div>
           </div>
@@ -453,6 +465,14 @@
               </div>
             </div>
 
+            <!-- Timeline -->
+            <div id="route-timeline" class="route-timeline hidden">
+              <canvas id="timeline-canvas" class="timeline-canvas"></canvas>
+              <div id="timeline-tooltip" class="timeline-tooltip hidden">
+                <div class="tooltip-content"></div>
+              </div>
+            </div>
+
             <!-- Camera + Segment Controls -->
             <div class="player-footer">
               <div class="player-footer-content">
@@ -536,45 +556,25 @@
                   <span class="stat-label">Top Speed</span>
                   <span class="stat-value" id="stat-top-speed">--</span>
                 </div>
+                <div class="player-route-stat">
+                  <span class="stat-label">OP Engaged</span>
+                  <span class="stat-value" id="stat-op-engaged">--</span>
+                </div>
+                <div class="player-route-stat">
+                  <span class="stat-label">Disengagements</span>
+                  <span class="stat-value" id="stat-disengagements">--</span>
+                </div>
+                <div class="player-route-stat">
+                  <span class="stat-label">Alerts</span>
+                  <span class="stat-value" id="stat-alerts">--</span>
+                </div>
+                <div class="player-route-stat">
+                  <span class="stat-label">Lane Changes</span>
+                  <span class="stat-value" id="stat-lane-changes">--</span>
+                </div>
               </div>
             </div>
 
-            <!-- Vehicle Information Group -->
-            <div class="sidebar-group" id="vehicle-info-group" style="display: none;">
-              <h3 class="sidebar-group-title">Vehicle Information</h3>
-              <div class="vehicle-info-content">
-                <div class="vehicle-info-row">
-                  <span class="info-label">Platform</span>
-                  <span class="info-value" id="vehicle-platform">--</span>
-                </div>
-                <div class="vehicle-info-row">
-                  <span class="info-label">VIN</span>
-                  <span class="info-value" id="vehicle-vin">--</span>
-                </div>
-                <div class="vehicle-info-row">
-                  <span class="info-label">Brand</span>
-                  <span class="info-value" id="vehicle-brand">--</span>
-                </div>
-                <div class="vehicle-info-row">
-                  <span class="info-label">Source</span>
-                  <span class="info-value" id="vehicle-source">--</span>
-                </div>
-                <div id="firmware-table-container" style="display: none;">
-                  <h4 class="firmware-table-title">Firmware Versions</h4>
-                  <table class="firmware-table">
-                    <thead>
-                      <tr>
-                        <th>ECU</th>
-                        <th>Version</th>
-                      </tr>
-                    </thead>
-                    <tbody id="firmware-table-body">
-                      <!-- Populated by JavaScript -->
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
 
             <!-- Route Actions Group -->
             <div class="sidebar-group">
@@ -707,6 +707,78 @@
             </div>
             <div class="panel-content" id="ffmpeg-debug-content">
               <div id="ffmpeg-debug-messages" class="debug-messages"></div>
+            </div>
+          </div>
+
+          <!-- Vehicle Information Panel -->
+          <div class="bottom-panel" id="vehicle-panel" style="display: none;">
+            <div class="panel-header" id="vehicle-panel-header">
+              <div class="panel-title">
+                <svg
+                  class="panel-icon"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M18 6H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h13l4-3.5L18 6Z"/>
+                  <path d="M5 11V6"/>
+                  <circle cx="7" cy="15" r="2"/>
+                  <circle cx="17" cy="15" r="2"/>
+                </svg>
+                <div class="panel-title-text">
+                  <span class="panel-title-label">Vehicle Information</span>
+                  <span class="panel-title-subtitle" id="vehicle-subtitle">Platform details & firmware</span>
+                </div>
+              </div>
+              <div class="panel-header-actions">
+                <span class="panel-collapse-indicator">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </span>
+              </div>
+            </div>
+            <div class="panel-content" id="vehicle-panel-content">
+              <!-- Vehicle Info Grid -->
+              <div class="vehicle-info-grid">
+                <div class="vehicle-info-card">
+                  <div class="vehicle-info-label">Platform</div>
+                  <div class="vehicle-info-value" id="vehicle-platform">--</div>
+                </div>
+                <div class="vehicle-info-card">
+                  <div class="vehicle-info-label">VIN</div>
+                  <div class="vehicle-info-value" id="vehicle-vin">--</div>
+                </div>
+                <div class="vehicle-info-card">
+                  <div class="vehicle-info-label">Brand</div>
+                  <div class="vehicle-info-value" id="vehicle-brand">--</div>
+                </div>
+                <div class="vehicle-info-card">
+                  <div class="vehicle-info-label">Fingerprint Source</div>
+                  <div class="vehicle-info-value" id="vehicle-source">--</div>
+                </div>
+              </div>
+
+              <!-- Firmware Table -->
+              <div class="firmware-section">
+                <h4 class="firmware-section-title">ECU Firmware Versions</h4>
+                <div class="firmware-table-wrapper">
+                  <table class="firmware-table">
+                    <thead>
+                      <tr>
+                        <th>ECU</th>
+                        <th>Firmware Version</th>
+                      </tr>
+                    </thead>
+                    <tbody id="firmware-table-body">
+                      <!-- Populated by JavaScript -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -976,6 +1048,7 @@
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
