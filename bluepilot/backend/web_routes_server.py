@@ -555,6 +555,9 @@ async def start_websocket_server():
         logger.warning("WebSocket server not started - websockets library not available")
         return
 
+    # Note: We don't need a process_request callback at all for a local device server
+    # Safari compatibility is handled by setting origins=None below
+
     try:
         logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT}")
 
@@ -570,9 +573,10 @@ async def start_websocket_server():
                     ping_interval=30,
                     ping_timeout=10,
                     close_timeout=5,
-                    compression=None  # Disable permessage-deflate for Safari compatibility
+                    compression=None,  # Disable permessage-deflate for Safari compatibility
+                    origins=None  # Accept all origins (safe for local device server)
                 )
-                logger.info("WebSocket server started successfully")
+                logger.info("WebSocket server started successfully with Safari-compatible origin handling")
                 break
             except OSError as e:
                 if e.errno == 98 and retry_count < max_retries - 1:  # Address already in use

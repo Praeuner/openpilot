@@ -2,9 +2,10 @@
 // Complete rewrite matching old Qt panel behavior
 
 class BluePilotRoutes {
-constructor() {
+  constructor() {
     this.API_BASE = window.location.origin;
     this.routes = [];
+    this.routesHash = null; // Track routes state to prevent unnecessary re-renders
     this.currentRoute = null;
     this.currentSegment = 0;
     this.currentCamera = "front"; // Prefer front camera by default
@@ -75,17 +76,21 @@ constructor() {
       typeof Player.prototype.init === "function";
 
     console.log("=== Browser Capabilities Detected ===");
-    console.log("HLS.js loaded:", typeof Hls !== 'undefined');
-    if (typeof Hls !== 'undefined') {
-      console.log("HLS.js version:", Hls.version || 'unknown');
+    console.log("HLS.js loaded:", typeof Hls !== "undefined");
+    if (typeof Hls !== "undefined") {
+      console.log("HLS.js version:", Hls.version || "unknown");
       console.log("HLS.js supported:", Hls.isSupported());
       if (!Hls.isSupported()) {
         console.warn("⚠️ HLS.js is loaded but not supported on this browser");
-        console.warn("MediaSource API supported:", 'MediaSource' in window);
-        console.warn("This may happen on older Safari versions or HTTP (non-HTTPS) contexts");
+        console.warn("MediaSource API supported:", "MediaSource" in window);
+        console.warn(
+          "This may happen on older Safari versions or HTTP (non-HTTPS) contexts"
+        );
       }
     } else {
-      console.error("❌ HLS.js NOT loaded! Check CDN connection or browser console for script loading errors");
+      console.error(
+        "❌ HLS.js NOT loaded! Check CDN connection or browser console for script loading errors"
+      );
     }
     console.log("Native HEVC support:", this.hevcSupported);
     console.log("WebGL support:", this.webglSupported);
@@ -409,7 +414,9 @@ constructor() {
     this.$diskVizStatsText = document.getElementById("disk-viz-stats-text");
     this.$diskPreservedBar = document.getElementById("disk-preserved-bar");
     this.$diskRoutesBar = document.getElementById("disk-routes-bar");
-    this.$diskThresholdMarker = document.getElementById("disk-threshold-marker");
+    this.$diskThresholdMarker = document.getElementById(
+      "disk-threshold-marker"
+    );
     this.$diskWarning = document.getElementById("disk-warning");
     this.$diskWarningText = document.getElementById("disk-warning-text");
     this.$diskPreservedValue = document.getElementById("disk-preserved-legend");
@@ -497,7 +504,9 @@ constructor() {
     this.$vehicleVin = document.getElementById("vehicle-vin");
     this.$vehicleBrand = document.getElementById("vehicle-brand");
     this.$vehicleSource = document.getElementById("vehicle-source");
-    this.$firmwareTableContainer = document.getElementById("firmware-table-container");
+    this.$firmwareTableContainer = document.getElementById(
+      "firmware-table-container"
+    );
     this.$firmwareTableBody = document.getElementById("firmware-table-body");
 
     // Debug canvas element
@@ -641,9 +650,15 @@ constructor() {
     });
 
     // Download buttons
-    this.$playerDownloadRouteBtn = document.getElementById("player-download-route-btn");
-    this.$routeDownloadStatus = document.getElementById("route-download-status");
-    this.$routeDownloadHistory = document.getElementById("route-download-history");
+    this.$playerDownloadRouteBtn = document.getElementById(
+      "player-download-route-btn"
+    );
+    this.$routeDownloadStatus = document.getElementById(
+      "route-download-status"
+    );
+    this.$routeDownloadHistory = document.getElementById(
+      "route-download-history"
+    );
     this.renderRouteDownloadHistory();
 
     this.$playerDownloadRouteBtn.addEventListener("click", () => {
@@ -808,6 +823,23 @@ constructor() {
     }
   }
 
+  // Compute a simple hash of routes to detect changes
+  computeRoutesHash(routes) {
+    // Create a string representation of key route data
+    const routeKeys = routes
+      .map((r) => `${r.baseName}:${r.timestamp}:${r.isStarred}:${r.duration}`)
+      .join("|");
+
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < routeKeys.length; i++) {
+      const char = routeKeys.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash;
+  }
+
   async loadRoutes() {
     try {
       this.showLoading();
@@ -839,14 +871,20 @@ constructor() {
         throw new Error(data.error || "Failed to load routes");
       }
 
-      this.routes = data.routes.map((route) => ({
+      const newRoutes = data.routes.map((route) => ({
         ...route,
         isStarred:
-          route.isStarred ??
-          route.isPreserved ??
-          route.is_preserved ??
-          false,
+          route.isStarred ?? route.isPreserved ?? route.is_preserved ?? false,
       }));
+
+      // Compute hash of new routes
+      const newHash = this.computeRoutesHash(newRoutes);
+
+      // Only update and re-render if routes have actually changed
+      const routesChanged = this.routesHash !== newHash;
+
+      this.routes = newRoutes;
+      this.routesHash = newHash;
       this.hideLoading();
 
       if (this.routes.length === 0) {
@@ -854,12 +892,21 @@ constructor() {
         return;
       }
 
-      this.renderRoutes();
+      // Only re-render DOM if routes actually changed
+      if (routesChanged) {
+        console.log("Routes changed, re-rendering...");
+        this.renderRoutes();
+      } else {
+        console.log("Routes unchanged, skipping re-render");
+      }
+
       this.updateStats();
       this.updateDeviceStatus();
 
-      // Trigger background geocoding for routes with GPS data
-      setTimeout(() => this.startBackgroundGeocoding(), 1000);
+      // Trigger background geocoding for routes with GPS data (only if routes changed)
+      if (routesChanged) {
+        setTimeout(() => this.startBackgroundGeocoding(), 1000);
+      }
     } catch (error) {
       console.error("Error loading routes:", error);
 
@@ -1137,7 +1184,8 @@ constructor() {
       this.$diskRoutesBar.style.width = `${routesPercent}%`;
 
       // Position threshold marker (shows critical point where deletion starts)
-      const thresholdPercent = (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
+      const thresholdPercent =
+        (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
       const thresholdPosition = 100 - thresholdPercent;
       this.$diskThresholdMarker.style.left = `${thresholdPosition}%`;
 
@@ -1147,13 +1195,15 @@ constructor() {
       if (disk.warning_level === "critical") {
         this.$diskWarning.classList.add("critical");
         this.$diskWarningText.textContent = `Low space: ${disk.formatted.free} free`;
-      } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
+      } else if (
+        disk.warning_level === "low" ||
+        disk.warning_level === "medium"
+      ) {
         this.$diskWarning.classList.add("warning");
         this.$diskWarningText.textContent = `${disk.formatted.free} free`;
       } else {
         this.$diskWarning.classList.add("hidden");
       }
-
     } catch (error) {
       console.error("Error updating disk info:", error);
       // Hide disk info on error
@@ -1348,14 +1398,16 @@ constructor() {
       : displayTime;
 
     // Preserved badge
-    const preservedBadge = route.isStarred ? `
+    const preservedBadge = route.isStarred
+      ? `
       <div class="preserved-badge">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
         Preserved
       </div>
-    ` : "";
+    `
+      : "";
 
     // Format location subtitle (start -> end)
     let locationHTML = "";
@@ -1447,9 +1499,11 @@ constructor() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
-            ${route.mileage || route.distance || '--'}
+            ${route.mileage || route.distance || "--"}
           </div>
-          ${route.avgSpeed ? `
+          ${
+            route.avgSpeed
+              ? `
             <div class="route-stat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 2v4"/><path d="m6.8 15-3.5 2"/><path d="m20.7 7-3.5 2"/>
@@ -1457,15 +1511,21 @@ constructor() {
               </svg>
               ${route.avgSpeed} avg
             </div>
-          ` : ''}
-          ${route.topSpeed ? `
+          `
+              : ""
+          }
+          ${
+            route.topSpeed
+              ? `
             <div class="route-stat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
               </svg>
               ${route.topSpeed} top
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           <div class="route-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -1511,7 +1571,7 @@ constructor() {
       low: { icon: "🟡", text: "Low Risk" },
       medium: { icon: "🟠", text: "Medium Risk" },
       high: { icon: "🔴", text: "High Risk" },
-      critical: { icon: "🚨", text: "Critical Risk" }
+      critical: { icon: "🚨", text: "Critical Risk" },
     };
 
     const config = riskConfig[level] || riskConfig.safe;
@@ -1531,7 +1591,9 @@ constructor() {
     let incompleteWarning = "";
     if (risk.isIncomplete) {
       const missing = risk.firstSegmentNumber;
-      incompleteWarning = `<span class="route-incomplete-badge">⚠️ Incomplete: missing segments 0-${missing - 1}</span>`;
+      incompleteWarning = `<span class="route-incomplete-badge">⚠️ Incomplete: missing segments 0-${
+        missing - 1
+      }</span>`;
     }
 
     return `
@@ -1539,7 +1601,11 @@ constructor() {
         <span class="risk-icon"></span>
         <span>${config.text}</span>
       </div>
-      ${details ? `<div class="route-risk-details">${details} ${incompleteWarning}</div>` : ""}
+      ${
+        details
+          ? `<div class="route-risk-details">${details} ${incompleteWarning}</div>`
+          : ""
+      }
     `;
   }
 
@@ -1707,30 +1773,35 @@ constructor() {
     this.$statLocationEnd.textContent = this.currentRoute.endLocation || "--";
 
     // Vehicle fingerprint information
-    if (this.currentRoute.fingerprint && this.currentRoute.fingerprint.carFingerprint) {
+    if (
+      this.currentRoute.fingerprint &&
+      this.currentRoute.fingerprint.carFingerprint
+    ) {
       const fp = this.currentRoute.fingerprint;
 
       // Show vehicle info group
-      this.$vehicleInfoGroup.style.display = '';
+      this.$vehicleInfoGroup.style.display = "";
 
       // Populate basic vehicle info
-      this.$vehiclePlatform.textContent = fp.carFingerprint || '--';
-      this.$vehicleVin.textContent = fp.carVin || '--';
-      this.$vehicleBrand.textContent = fp.brand || '--';
-      this.$vehicleSource.textContent = fp.fingerprintSource ? fp.fingerprintSource.toUpperCase() : '--';
+      this.$vehiclePlatform.textContent = fp.carFingerprint || "--";
+      this.$vehicleVin.textContent = fp.carVin || "--";
+      this.$vehicleBrand.textContent = fp.brand || "--";
+      this.$vehicleSource.textContent = fp.fingerprintSource
+        ? fp.fingerprintSource.toUpperCase()
+        : "--";
 
       // Populate firmware table if firmware versions exist
       if (fp.firmwareVersions && fp.firmwareVersions.length > 0) {
-        this.$firmwareTableContainer.style.display = '';
-        this.$firmwareTableBody.innerHTML = '';
+        this.$firmwareTableContainer.style.display = "";
+        this.$firmwareTableBody.innerHTML = "";
 
         // Deduplicate firmware versions based on ECU+version combination
         const seenFirmware = new Set();
-        fp.firmwareVersions.forEach(fw => {
+        fp.firmwareVersions.forEach((fw) => {
           const key = `${fw.ecu}:${fw.version}`;
           if (!seenFirmware.has(key)) {
             seenFirmware.add(key);
-            const row = document.createElement('tr');
+            const row = document.createElement("tr");
             row.innerHTML = `
               <td>${fw.ecu}</td>
               <td class="firmware-version">${fw.version}</td>
@@ -1739,11 +1810,11 @@ constructor() {
           }
         });
       } else {
-        this.$firmwareTableContainer.style.display = 'none';
+        this.$firmwareTableContainer.style.display = "none";
       }
     } else {
       // Hide vehicle info group if no fingerprint data
-      this.$vehicleInfoGroup.style.display = 'none';
+      this.$vehicleInfoGroup.style.display = "none";
     }
   }
 
@@ -1959,11 +2030,16 @@ constructor() {
     console.log("Is HEVC:", isHEVC);
     console.log("Native HEVC support:", this.hevcSupported);
     console.log("Native HLS support:", this.canUseNativeHLS());
-    console.log("HLS.js support:", typeof Hls !== 'undefined' && Hls.isSupported());
+    console.log(
+      "HLS.js support:",
+      typeof Hls !== "undefined" && Hls.isSupported()
+    );
     console.log("WebGL support:", this.webglSupported);
     this.addDebugLog(
       "info",
-      `[Playback Strategy] Camera: ${videoCamera}, HEVC: ${isHEVC}, HLS.js: ${typeof Hls !== 'undefined' && Hls.isSupported()}, Native HLS: ${this.canUseNativeHLS()}`
+      `[Playback Strategy] Camera: ${videoCamera}, HEVC: ${isHEVC}, HLS.js: ${
+        typeof Hls !== "undefined" && Hls.isSupported()
+      }, Native HLS: ${this.canUseNativeHLS()}`
     );
 
     const preferNativeHLS = this.isSafari && this.canUseNativeHLS();
@@ -1988,14 +2064,17 @@ constructor() {
 
     if (isHEVC) {
       // Try HLS.js first for HEVC (works on most modern browsers)
-      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      if (typeof Hls !== "undefined" && Hls.isSupported()) {
         console.log("Using HLS.js for HEVC route playback (cross-browser)");
         this.addDebugLog("info", "[Playback Path] HLS.js for HEVC selected.");
         this.fallbackToStandardVideo();
       } else if (this.canUseNativeHLS()) {
         // Fallback to native HLS for Safari if HLS.js not available
         console.log("Using native Safari HLS for HEVC route playback");
-        this.addDebugLog("info", "[Playback Path] Native Safari HLS for HEVC selected.");
+        this.addDebugLog(
+          "info",
+          "[Playback Path] Native Safari HLS for HEVC selected."
+        );
         this.startNativeHLSRoutePlayback(this.currentRoute);
       } else if (this.hevcSupported) {
         console.log("Using native browser HEVC playback (direct video)");
@@ -2041,7 +2120,7 @@ constructor() {
       }
     } else {
       // LQ camera (H.264) - prefer HLS.js for consistent behavior
-      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      if (typeof Hls !== "undefined" && Hls.isSupported()) {
         console.log("Using HLS.js for LQ camera route playback");
         this.addDebugLog("info", "[Playback Path] HLS.js for LQ selected.");
         this.fallbackToStandardVideo();
@@ -2522,7 +2601,9 @@ constructor() {
     if (!this.currentRoute) return;
 
     if (this.isSafari && this.canUseNativeHLS()) {
-      console.log("Safari detected during direct video fallback - switching to native HLS");
+      console.log(
+        "Safari detected during direct video fallback - switching to native HLS"
+      );
       this.startNativeHLSRoutePlayback(this.currentRoute);
       return;
     }
@@ -2675,7 +2756,9 @@ constructor() {
   fallbackToStandardVideo() {
     try {
       if (this.isSafari && this.canUseNativeHLS()) {
-        console.log("Safari detected in fallbackToStandardVideo - using native HLS");
+        console.log(
+          "Safari detected in fallbackToStandardVideo - using native HLS"
+        );
         this.startNativeHLSRoutePlayback(this.currentRoute);
         return;
       }
@@ -2792,16 +2875,16 @@ constructor() {
       // Debug HLS.js availability
       console.log("=== HLS.js Check in fallbackToStandardVideo ===");
       console.log("typeof Hls:", typeof Hls);
-      console.log("Hls defined:", typeof Hls !== 'undefined');
-      if (typeof Hls !== 'undefined') {
+      console.log("Hls defined:", typeof Hls !== "undefined");
+      if (typeof Hls !== "undefined") {
         console.log("Hls.isSupported():", Hls.isSupported());
-        console.log("Hls.version:", Hls.version || 'unknown');
+        console.log("Hls.version:", Hls.version || "unknown");
       }
       console.log("===========================================");
 
       // Always prefer HLS.js for consistent cross-browser behavior
       // Native Safari HLS has issues with on-demand remuxed segments
-      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      if (typeof Hls !== "undefined" && Hls.isSupported()) {
         console.log("Using HLS.js for full route streaming");
         console.log("HLS playlist URL:", hlsUrl);
 
@@ -2954,20 +3037,25 @@ constructor() {
         this.$videoElement.canPlayType("application/vnd.apple.mpegurl")
       ) {
         // Fallback to Safari native HLS (only if HLS.js not available)
-        console.warn("⚠️ HLS.js not supported, using native Safari HLS (may have issues with on-demand remuxing)");
+        console.warn(
+          "⚠️ HLS.js not supported, using native Safari HLS (may have issues with on-demand remuxing)"
+        );
         console.log("HLS playlist URL:", hlsUrl);
 
         // Add event listeners for better debugging
-        this.$videoElement.addEventListener('loadedmetadata', () => {
-          console.log("Native HLS: Metadata loaded, duration:", this.$videoElement.duration);
+        this.$videoElement.addEventListener("loadedmetadata", () => {
+          console.log(
+            "Native HLS: Metadata loaded, duration:",
+            this.$videoElement.duration
+          );
         });
 
-        this.$videoElement.addEventListener('ended', () => {
+        this.$videoElement.addEventListener("ended", () => {
           console.log("Native HLS: Playback ended");
           this.showReplayOverlay();
         });
 
-        this.$videoElement.addEventListener('error', (e) => {
+        this.$videoElement.addEventListener("error", (e) => {
           console.error("Native HLS: Video error", e);
           const error = this.$videoElement.error;
           if (error) {
@@ -3065,13 +3153,32 @@ constructor() {
     const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}`;
 
     try {
-      console.log("Attempting to connect to WebSocket:", wsUrl);
+      console.log(`[WebSocket] Attempting connection to: ${wsUrl}`);
+      console.log(`[WebSocket] Browser: ${this.isSafari ? "Safari" : "Other"}`);
+      console.log(`[WebSocket] Page protocol: ${window.location.protocol}`);
+      console.log(`[WebSocket] Page origin: ${window.location.origin}`);
+
       this.isRetrying = true;
 
       this.websocket = new WebSocket(wsUrl);
 
+      // Safari-specific: Add connection timeout to prevent infinite hang
+      // If WebSocket doesn't connect within 5 seconds, fall back to HTTP polling
+      const connectionTimeout = setTimeout(() => {
+        if (!this.websocketConnected && this.websocket) {
+          console.warn(
+            "[WebSocket] Connection timeout after 5 seconds - falling back to HTTP polling"
+          );
+          this.websocket.close();
+          this.websocketConnected = false;
+          this.isRetrying = false;
+          this.enableFallbackPolling();
+        }
+      }, 5000);
+
       this.websocket.onopen = (event) => {
-        console.log("WebSocket connected successfully");
+        console.log("[WebSocket] ✓ Connected successfully");
+        clearTimeout(connectionTimeout);
         this.websocketConnected = true;
         this.useWebSocket = true;
         this.isRetrying = false;
@@ -3266,6 +3373,9 @@ constructor() {
       // Add new route to the beginning of the list (most recent first)
       this.routes.unshift(data);
 
+      // Update hash to reflect the new state
+      this.routesHash = this.computeRoutesHash(this.routes);
+
       // Re-render routes and update stats
       this.renderRoutes();
       this.updateStats();
@@ -3324,6 +3434,9 @@ constructor() {
     // Remove from local routes array
     this.routes = this.routes.filter((r) => r.baseName !== data.route_base);
 
+    // Update hash to reflect the new state
+    this.routesHash = this.computeRoutesHash(this.routes);
+
     // Re-render routes and update stats
     this.renderRoutes();
     this.updateStats();
@@ -3349,10 +3462,7 @@ constructor() {
       data?.isStarred;
 
     if (typeof isStarred !== "boolean") {
-      console.warn(
-        "WebSocket preserve event missing boolean status:",
-        data
-      );
+      console.warn("WebSocket preserve event missing boolean status:", data);
       return;
     }
 
@@ -3360,6 +3470,9 @@ constructor() {
     const routeInList = this.routes.find((r) => r.baseName === data.route_base);
     if (routeInList) {
       routeInList.isStarred = isStarred;
+
+      // Update hash to reflect the new state
+      this.routesHash = this.computeRoutesHash(this.routes);
     }
 
     // Update current route if it's the same
@@ -3477,6 +3590,9 @@ constructor() {
             processingProgress: oldRoute.processingProgress,
           };
 
+          // Update hash to reflect the new state
+          this.routesHash = this.computeRoutesHash(this.routes);
+
           // Re-render to show updated data
           this.renderRoutes();
 
@@ -3553,13 +3669,15 @@ constructor() {
       // Show WebSocket icon and enhance badge styling
       this.$websocketIcon.classList.remove("hidden");
       this.$deviceStatus.classList.add("websocket-active");
-      this.$deviceStatus.title = "Device online (WebSocket - real-time updates)";
+      this.$deviceStatus.title =
+        "Device online (WebSocket - real-time updates)";
     } else {
       // Hide WebSocket icon for HTTP polling or offline
       this.$websocketIcon.classList.add("hidden");
       this.$deviceStatus.classList.remove("websocket-active");
       if (type === "http") {
-        this.$deviceStatus.title = "Device online (HTTP polling - fallback mode)";
+        this.$deviceStatus.title =
+          "Device online (HTTP polling - fallback mode)";
       } else {
         this.$deviceStatus.title = "Device status";
       }
@@ -3758,6 +3876,9 @@ constructor() {
       );
       if (routeInList) {
         routeInList.isStarred = isStarred;
+
+        // Update hash to reflect the new state
+        this.routesHash = this.computeRoutesHash(this.routes);
       }
 
       // Refresh display without full reload
@@ -3785,6 +3906,9 @@ constructor() {
       );
       if (routeInList) {
         routeInList.isStarred = isStarred;
+
+        // Update hash to reflect the new state
+        this.routesHash = this.computeRoutesHash(this.routes);
       }
 
       // Update player UI
@@ -3798,12 +3922,9 @@ constructor() {
   }
 
   async sendPreserveToggle(routeBase, source = "route") {
-    const response = await fetch(
-      `${this.API_BASE}/api/preserve/${routeBase}`,
-      {
-        method: "POST",
-      }
-    );
+    const response = await fetch(`${this.API_BASE}/api/preserve/${routeBase}`, {
+      method: "POST",
+    });
 
     const rawText = await response.text();
     let data = null;
@@ -4018,6 +4139,9 @@ constructor() {
       // Remove from local routes array
       this.routes = this.routes.filter((r) => r.baseName !== route.baseName);
 
+      // Update hash to reflect the new state
+      this.routesHash = this.computeRoutesHash(this.routes);
+
       // Re-render without full reload
       this.renderRoutes();
       this.updateStats();
@@ -4038,7 +4162,9 @@ constructor() {
     );
     const exportUrl = `${this.API_BASE}/api/route-export/${routeBase}/${camera}`;
 
-    console.log(`Preparing full route download: ${routeBase} camera: ${camera}`);
+    console.log(
+      `Preparing full route download: ${routeBase} camera: ${camera}`
+    );
 
     this.setDownloadButtonState({ loading: true, text: "Preparing…" });
     this.updateRouteDownloadStatus("Preparing full-route video…", "active");
@@ -4051,9 +4177,13 @@ constructor() {
         throw new Error(statusData.error || "Failed to start video export");
       }
 
-      await this.handleRouteExportStatus(routeBase, camera, statusData, defaultFilename);
-
-  } catch (error) {
+      await this.handleRouteExportStatus(
+        routeBase,
+        camera,
+        statusData,
+        defaultFilename
+      );
+    } catch (error) {
       console.error("Error downloading route:", error);
       const message = error.message || "Failed to generate video";
       this.updateRouteDownloadStatus(message, "error");
@@ -4104,7 +4234,7 @@ constructor() {
     const state = status.status || "processing";
     const percent = Number.isFinite(status.progressPercent)
       ? Math.round(status.progressPercent)
-      : Math.round(((status.progress || 0) * 100));
+      : Math.round((status.progress || 0) * 100);
 
     let buttonText = "Preparing…";
     if (state === "idle") {
@@ -4136,19 +4266,27 @@ constructor() {
     this.updateRouteDownloadStatus(message, isError ? "error" : "active");
   }
 
-  async handleRouteExportStatus(routeBase, camera, statusData, defaultFilename) {
+  async handleRouteExportStatus(
+    routeBase,
+    camera,
+    statusData,
+    defaultFilename
+  ) {
     this.updateRouteDownloadUIFromStatus(statusData);
 
     if (statusData.status === "ready") {
       this.enqueueRouteDownload(
         statusData,
-        defaultFilename || this.buildRouteExportFilename(this.currentRoute, camera)
+        defaultFilename ||
+          this.buildRouteExportFilename(this.currentRoute, camera)
       );
       return;
     }
 
     if (statusData.status === "error") {
-      throw new Error(statusData.error || statusData.message || "Video generation failed");
+      throw new Error(
+        statusData.error || statusData.message || "Video generation failed"
+      );
     }
 
     await this.pollRouteExport(routeBase, camera, defaultFilename);
@@ -4254,9 +4392,7 @@ constructor() {
       .map((entry) => {
         const timeLabel = this.formatDownloadHistoryTimestamp(entry.timestamp);
         const locationLabel =
-          entry.route && entry.camera
-            ? `${entry.route} · ${entry.camera}`
-            : "";
+          entry.route && entry.camera ? `${entry.route} · ${entry.camera}` : "";
         const subtitle = locationLabel
           ? `<div class="download-history-meta">${locationLabel}</div>`
           : "";
@@ -4313,11 +4449,7 @@ constructor() {
       const dt = new Date(timestamp);
       if (!Number.isNaN(dt.getTime())) {
         components.push(
-          dt
-            .toISOString()
-            .slice(0, 16)
-            .replace(/[-:]/g, "")
-            .replace("T", "_")
+          dt.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "_")
         );
       }
     }
@@ -4384,13 +4516,16 @@ constructor() {
       if (statusData.status === "ready") {
         this.enqueueRouteDownload(
           statusData,
-          defaultFilename || this.buildRouteExportFilename(this.currentRoute, camera)
+          defaultFilename ||
+            this.buildRouteExportFilename(this.currentRoute, camera)
         );
         return;
       }
 
       if (statusData.status === "error") {
-        throw new Error(statusData.error || statusData.message || "Video generation failed");
+        throw new Error(
+          statusData.error || statusData.message || "Video generation failed"
+        );
       }
 
       if (Date.now() - start > timeoutMs) {
