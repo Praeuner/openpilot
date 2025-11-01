@@ -546,6 +546,15 @@ async def websocket_handler(websocket):
         logger.info(f"WebSocket client disconnected. Remaining clients: {client_count}")
 
 
+async def no_origin_check(path, request):
+    """
+    Allow all WebSocket connections, bypassing origin checks.
+    This is required for compatibility with Safari, which can be strict
+    about cross-origin policies even for local connections.
+    """
+    return None  # Allow the connection
+
+
 async def start_websocket_server():
     """Start the WebSocket server"""
     try:
@@ -574,9 +583,9 @@ async def start_websocket_server():
                     ping_timeout=10,
                     close_timeout=5,
                     compression=None,  # Disable permessage-deflate for Safari compatibility
-                    origins=None  # Accept all origins (safe for local device server)
+                    process_request=no_origin_check  # Custom handler for Safari
                 )
-                logger.info("WebSocket server started successfully with Safari-compatible origin handling")
+                logger.info("WebSocket server started with custom origin handling for Safari")
                 break
             except OSError as e:
                 if e.errno == 98 and retry_count < max_retries - 1:  # Address already in use
