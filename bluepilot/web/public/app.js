@@ -1724,13 +1724,19 @@ constructor() {
         this.$firmwareTableContainer.style.display = '';
         this.$firmwareTableBody.innerHTML = '';
 
+        // Deduplicate firmware versions based on ECU+version combination
+        const seenFirmware = new Set();
         fp.firmwareVersions.forEach(fw => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${fw.ecu}</td>
-            <td class="firmware-version">${fw.version}</td>
-          `;
-          this.$firmwareTableBody.appendChild(row);
+          const key = `${fw.ecu}:${fw.version}`;
+          if (!seenFirmware.has(key)) {
+            seenFirmware.add(key);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${fw.ecu}</td>
+              <td class="firmware-version">${fw.version}</td>
+            `;
+            this.$firmwareTableBody.appendChild(row);
+          }
         });
       } else {
         this.$firmwareTableContainer.style.display = 'none';

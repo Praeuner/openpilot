@@ -1093,14 +1093,14 @@ body {
 .vehicle-info-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
 .vehicle-info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: 4px 0;
   border-bottom: 1px solid var(--bp-border);
 }
 
@@ -1109,13 +1109,13 @@ body {
 }
 
 .vehicle-info-row .info-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--bp-text-secondary);
   font-weight: 500;
 }
 
 .vehicle-info-row .info-value {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--bp-text-primary);
   font-weight: 600;
   font-family: 'Courier New', monospace;
@@ -1123,10 +1123,10 @@ body {
 }
 
 .firmware-table-title {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--bp-text-secondary);
   font-weight: 600;
-  margin: 16px 0 8px 0;
+  margin: 8px 0 4px 0;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -1134,19 +1134,19 @@ body {
 .firmware-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
-  margin-top: 8px;
+  font-size: 11px;
+  margin-top: 4px;
 }
 
 .firmware-table thead th {
   text-align: left;
-  padding: 8px 6px;
+  padding: 4px 6px;
   background: rgba(33, 150, 243, 0.08);
   color: var(--bp-text-secondary);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  font-size: 11px;
+  font-size: 10px;
   border-bottom: 2px solid var(--bp-blue);
 }
 
@@ -1159,7 +1159,7 @@ body {
 }
 
 .firmware-table tbody td {
-  padding: 8px 6px;
+  padding: 4px 6px;
   color: var(--bp-text-primary);
 }
 
@@ -1171,7 +1171,7 @@ body {
 
 .firmware-table tbody td.firmware-version {
   font-family: 'Courier New', monospace;
-  font-size: 11px;
+  font-size: 10px;
   word-break: break-all;
 }
 
