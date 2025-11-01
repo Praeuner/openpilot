@@ -276,6 +276,9 @@ class BluePilotRoutes {
     });
 
     v.addEventListener("timeupdate", () => {
+      // Update timeline position indicator
+      this.updateTimelinePosition();
+
       // Track which segment we're in during HLS playback for auto-reloading logs/cereal
       if (this.hls && v) {
         const currentTime = v.currentTime;
@@ -521,6 +524,9 @@ class BluePilotRoutes {
     this.$routeTimeline = document.getElementById("route-timeline");
     this.$timelineCanvas = document.getElementById("timeline-canvas");
     this.$timelineTooltip = document.getElementById("timeline-tooltip");
+    this.$timelinePositionIndicator = document.getElementById("timeline-position-indicator");
+    this.$timelinePositionTime = document.getElementById("timeline-position-time");
+    this.$timelineHoverIndicator = document.getElementById("timeline-hover-indicator");
 
     // Debug canvas element
     console.log("Canvas element found:", !!this.$videoCanvas);
@@ -2080,6 +2086,62 @@ class BluePilotRoutes {
     }
   }
 
+  updateTimelinePosition() {
+    if (!this.currentRoute || !this.currentRoute.driveStats || !this.$timelinePositionIndicator) {
+      return;
+    }
+
+    // Get current video time
+    let currentTime = 0;
+    if (this.$videoElement) {
+      currentTime = this.$videoElement.currentTime;
+    } else if (this.player && typeof this.player.getCurrentTime === "function") {
+      currentTime = this.player.getCurrentTime() || 0;
+    }
+
+    const duration = this.currentRoute.driveStats.duration;
+    if (duration > 0) {
+      const percentage = (currentTime / duration) * 100;
+      this.$timelinePositionIndicator.style.left = `${percentage}%`;
+
+      // Update timestamp display
+      if (this.$timelinePositionTime) {
+        const hours = Math.floor(currentTime / 3600);
+        const minutes = Math.floor((currentTime % 3600) / 60);
+        const seconds = Math.floor(currentTime % 60);
+        const timeStr = hours > 0
+          ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+          : `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        this.$timelinePositionTime.textContent = timeStr;
+      }
+    }
+  }
+
+  getStateAtTime(time) {
+    if (!this.currentRoute || !this.currentRoute.driveStats) {
+      return null;
+    }
+
+    const stats = this.currentRoute.driveStats;
+    if (!stats.opStateTimes) {
+      return 'disabled';
+    }
+
+    // Build timeline of state changes
+    let currentStart = 0;
+    for (const [state, timeInState] of Object.entries(stats.opStateTimes)) {
+      if (timeInState > 0) {
+        const segmentEnd = currentStart + timeInState;
+        if (time >= currentStart && time < segmentEnd) {
+          return state;
+        }
+        currentStart = segmentEnd;
+      }
+    }
+
+    return 'disabled';
+  }
+
   setupTimelineListeners() {
     if (!this.$timelineCanvas) return;
 
@@ -2093,6 +2155,13 @@ class BluePilotRoutes {
       const duration = this.currentRoute.driveStats.duration;
       const time = (x / width) * duration;
 
+      // Show hover indicator at mouse position
+      if (this.$timelineHoverIndicator) {
+        const percentage = (x / width) * 100;
+        this.$timelineHoverIndicator.style.left = `${percentage}%`;
+        this.$timelineHoverIndicator.style.display = 'block';
+      }
+
       // Format time
       const hours = Math.floor(time / 3600);
       const minutes = Math.floor((time % 3600) / 60);
@@ -2101,6 +2170,23 @@ class BluePilotRoutes {
         hours > 0
           ? `${hours}h ${minutes}m ${seconds}s`
           : `${minutes}m ${seconds}s`;
+
+      // Get engagement state at this time
+      const state = this.getStateAtTime(time);
+      const stateNames = {
+        'disabled': 'Disabled',
+        'preEnabled': 'Pre-Enabled',
+        'enabled': 'Engaged',
+        'softDisabling': 'Soft Disabling',
+        'overriding': 'Overriding'
+      };
+      const stateColors = {
+        'disabled': '#3a5a7f',
+        'preEnabled': '#5a7fa3',
+        'enabled': '#4caf50',
+        'softDisabling': '#ff9800',
+        'overriding': '#9e9e9e'
+      };
 
       // Find relevant events at this time
       const events = [];
@@ -2130,9 +2216,20 @@ class BluePilotRoutes {
         });
       }
 
-      // Show tooltip
+      // Build tooltip with time and state
       let tooltipHTML = `<div class="tooltip-time">${timeStr}</div>`;
 
+      // Add engagement state
+      if (state) {
+        tooltipHTML += `
+          <div class="tooltip-event">
+            <div class="event-icon" style="background: ${stateColors[state]}"></div>
+            <span>${stateNames[state]}</span>
+          </div>
+        `;
+      }
+
+      // Add events
       if (events.length > 0) {
         events.forEach((event) => {
           tooltipHTML += `
@@ -2163,9 +2260,12 @@ class BluePilotRoutes {
       this.$timelineTooltip.style.top = top + "px";
     });
 
-    // Mouse leave to hide tooltip
+    // Mouse leave to hide tooltip and hover indicator
     this.$timelineCanvas.addEventListener("mouseleave", () => {
       this.$timelineTooltip.classList.add("hidden");
+      if (this.$timelineHoverIndicator) {
+        this.$timelineHoverIndicator.style.display = 'none';
+      }
     });
 
     // Click to scrub video
@@ -3187,6 +3287,9 @@ class BluePilotRoutes {
           this.showReplayOverlay();
         });
         this.$videoElement.addEventListener("timeupdate", () => {
+          // Update timeline position indicator
+          this.updateTimelinePosition();
+
           // Track which segment we're in during HLS playback for auto-reloading logs/cereal
           if (this.hls && this.$videoElement) {
             const currentTime = this.$videoElement.currentTime;
