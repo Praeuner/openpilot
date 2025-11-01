@@ -2837,7 +2837,19 @@ void OtherDebugPanel::updateFirmwareTable() {
     // Define Ford firmware pattern
     static const QRegularExpression fordPattern("^[A-Za-z0-9]{4}-[A-Za-z0-9]{5,6}-[A-Za-z0-9]{2,4}$");
 
+    // Track seen firmware entries to prevent duplicates
+    // Key: (ecu, address, subAddress)
+    QSet<QString> seenFirmware;
+
     for (const auto &fw : m_cache->paramValues.carFw) {
+      // Create unique key for deduplication
+      QString uniqueKey = QString("%1_%2_%3").arg(fw.ecu).arg(fw.address).arg(fw.subAddress);
+
+      // Skip if we've already seen this firmware entry
+      if (seenFirmware.contains(uniqueKey)) {
+        continue;
+      }
+      seenFirmware.insert(uniqueKey);
       // Clean and validate the version string
       QString cleanVersion;
       for (QChar c : fw.fwVersion) {
