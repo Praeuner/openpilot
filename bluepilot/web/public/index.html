@@ -539,6 +539,43 @@
               </div>
             </div>
 
+            <!-- Vehicle Information Group -->
+            <div class="sidebar-group" id="vehicle-info-group" style="display: none;">
+              <h3 class="sidebar-group-title">Vehicle Information</h3>
+              <div class="vehicle-info-content">
+                <div class="vehicle-info-row">
+                  <span class="info-label">Platform</span>
+                  <span class="info-value" id="vehicle-platform">--</span>
+                </div>
+                <div class="vehicle-info-row">
+                  <span class="info-label">VIN</span>
+                  <span class="info-value" id="vehicle-vin">--</span>
+                </div>
+                <div class="vehicle-info-row">
+                  <span class="info-label">Brand</span>
+                  <span class="info-value" id="vehicle-brand">--</span>
+                </div>
+                <div class="vehicle-info-row">
+                  <span class="info-label">Source</span>
+                  <span class="info-value" id="vehicle-source">--</span>
+                </div>
+                <div id="firmware-table-container" style="display: none;">
+                  <h4 class="firmware-table-title">Firmware Versions</h4>
+                  <table class="firmware-table">
+                    <thead>
+                      <tr>
+                        <th>ECU</th>
+                        <th>Version</th>
+                      </tr>
+                    </thead>
+                    <tbody id="firmware-table-body">
+                      <!-- Populated by JavaScript -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
             <!-- Route Actions Group -->
             <div class="sidebar-group">
               <h3 class="sidebar-group-title">Actions</h3>

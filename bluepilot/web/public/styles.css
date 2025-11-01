@@ -703,6 +703,20 @@ body {
   line-height: 1.4;
 }
 
+.route-fingerprint {
+  font-size: 13px;
+  color: var(--bp-text-secondary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.route-fingerprint svg {
+  flex-shrink: 0;
+}
+
 .route-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1073,6 +1087,92 @@ body {
   margin: 0 0 16px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Vehicle Information */
+.vehicle-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vehicle-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bp-border);
+}
+
+.vehicle-info-row:last-of-type {
+  border-bottom: none;
+}
+
+.vehicle-info-row .info-label {
+  font-size: 12px;
+  color: var(--bp-text-secondary);
+  font-weight: 500;
+}
+
+.vehicle-info-row .info-value {
+  font-size: 13px;
+  color: var(--bp-text-primary);
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  text-align: right;
+}
+
+.firmware-table-title {
+  font-size: 12px;
+  color: var(--bp-text-secondary);
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.firmware-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.firmware-table thead th {
+  text-align: left;
+  padding: 8px 6px;
+  background: rgba(33, 150, 243, 0.08);
+  color: var(--bp-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 11px;
+  border-bottom: 2px solid var(--bp-blue);
+}
+
+.firmware-table tbody tr {
+  border-bottom: 1px solid var(--bp-border);
+}
+
+.firmware-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.firmware-table tbody td {
+  padding: 8px 6px;
+  color: var(--bp-text-primary);
+}
+
+.firmware-table tbody td:first-child {
+  font-weight: 600;
+  color: var(--bp-text-secondary);
+  width: 30%;
+}
+
+.firmware-table tbody td.firmware-version {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  word-break: break-all;
 }
 
 /* Camera Buttons */

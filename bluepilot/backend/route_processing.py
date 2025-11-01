@@ -61,10 +61,12 @@ def atomic_json_write(filepath, data):
 ROUTES_DIR = "/data/media/0/realdata" if os.path.exists("/data/media/0/realdata") else os.path.expanduser("~/comma_data/media/0/realdata")
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
 THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/thumbs_cache")
+FINGERPRINT_CACHE = "/data/bluepilot/routes/fingerprint_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/fingerprint_cache")
 
 # Ensure cache directories exist
 os.makedirs(METRICS_CACHE, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE, exist_ok=True)
+os.makedirs(FINGERPRINT_CACHE, exist_ok=True)
 
 # Geocoding cache (in-memory)
 _geocoding_cache = {}
@@ -443,6 +445,228 @@ def generate_thumbnail(route_base):
         return None
 
 
+def extract_fingerprint_from_segment(segment_path):
+    """Extract vehicle fingerprint data from a single segment's log
+
+    Args:
+        segment_path: Path to segment directory
+
+    Returns:
+        dict with fingerprint data or None if not found:
+        - carFingerprint: Platform string (e.g., "FORD_ESCAPE_MK4")
+        - carVin: Vehicle VIN
+        - brand: Brand name (e.g., "ford")
+        - fingerprintSource: Source of fingerprint (can/fw/fixed)
+        - fuzzyFingerprint: True if not exact match
+        - firmwareVersions: List of all ECU firmware versions
+    """
+    # Try method 1: Use runtime messaging module (works on device without pycapnp dependency)
+    try:
+        from cereal import car
+        import cereal.messaging as messaging
+        from openpilot.common.params import Params
+
+        # Check if this is the current route by checking Params
+        params = Params()
+        current_route = params.get("CurrentRoute", encoding='utf-8')
+
+        # If this segment is part of the current route, we can use cached CarParams
+        if current_route and current_route in segment_path:
+            car_params_bytes = params.get("CarParams", block=False)
+            if car_params_bytes:
+                logger.debug("Using cached CarParams from Params")
+                cp = messaging.log_from_bytes(car_params_bytes, car.CarParams)
+
+                # Extract basic fingerprint info
+                car_fingerprint = str(cp.carFingerprint) if hasattr(cp, 'carFingerprint') else None
+                car_vin = str(cp.carVin) if hasattr(cp, 'carVin') else None
+                brand = str(cp.brand) if hasattr(cp, 'brand') else None
+                fuzzy = bool(cp.fuzzyFingerprint) if hasattr(cp, 'fuzzyFingerprint') else False
+
+                # Get fingerprint source as string
+                fingerprint_source = None
+                if hasattr(cp, 'fingerprintSource'):
+                    source_enum = cp.fingerprintSource
+                    # Convert enum to string (can/fw/fixed)
+                    if str(source_enum) == 'can':
+                        fingerprint_source = 'can'
+                    elif str(source_enum) == 'fw':
+                        fingerprint_source = 'fw'
+                    elif str(source_enum) == 'fixed':
+                        fingerprint_source = 'fixed'
+
+                # Extract all firmware versions
+                fw_versions = []
+                if hasattr(cp, 'carFw'):
+                    for fw in cp.carFw:
+                        ecu_name = str(fw.ecu) if hasattr(fw, 'ecu') else 'unknown'
+                        fw_bytes = bytes(fw.fwVersion) if hasattr(fw, 'fwVersion') else b''
+
+                        # Convert firmware bytes to hex string (more compact than full bytes)
+                        # Only show first 16 bytes to keep it readable
+                        fw_hex = fw_bytes[:16].hex() if fw_bytes else ''
+
+                        # Try to decode as ASCII for more readable Ford firmware strings
+                        try:
+                            fw_str = fw_bytes.decode('ascii').strip('\x00')
+                            if fw_str and all(c.isprintable() for c in fw_str):
+                                fw_display = fw_str[:32]  # Limit length
+                            else:
+                                fw_display = fw_hex
+                        except (UnicodeDecodeError, AttributeError):
+                            fw_display = fw_hex
+
+                        fw_versions.append({
+                            'ecu': ecu_name,
+                            'version': fw_display
+                        })
+
+                return {
+                    'carFingerprint': car_fingerprint,
+                    'carVin': car_vin,
+                    'brand': brand,
+                    'fingerprintSource': fingerprint_source,
+                    'fuzzyFingerprint': fuzzy,
+                    'firmwareVersions': fw_versions
+                }
+    except Exception as e:
+        logger.debug(f"Could not use Params method: {e}")
+
+    # Method 2: Use LogReader (requires pycapnp, typically only on dev machines)
+    try:
+        from openpilot.tools.lib.logreader import LogReader
+    except ImportError:
+        logger.debug("LogReader not available - fingerprint extraction disabled")
+        return None
+
+    # Try rlog first (has carParams), fallback to qlog
+    log_path = None
+    for filename in ['rlog.zst', 'rlog.bz2', 'qlog.zst', 'qlog.bz2']:
+        candidate = os.path.join(segment_path, filename)
+        if os.path.exists(candidate):
+            log_path = candidate
+            break
+
+    if not log_path:
+        return None
+
+    try:
+        lr = LogReader(log_path)
+
+        # Look for carParams message (sent once per drive)
+        for msg in lr:
+            if msg.which() == 'carParams':
+                cp = msg.carParams
+
+                # Extract basic fingerprint info
+                car_fingerprint = str(cp.carFingerprint) if hasattr(cp, 'carFingerprint') else None
+                car_vin = str(cp.carVin) if hasattr(cp, 'carVin') else None
+                brand = str(cp.brand) if hasattr(cp, 'brand') else None
+                fuzzy = bool(cp.fuzzyFingerprint) if hasattr(cp, 'fuzzyFingerprint') else False
+
+                # Get fingerprint source as string
+                fingerprint_source = None
+                if hasattr(cp, 'fingerprintSource'):
+                    source_enum = cp.fingerprintSource
+                    # Convert enum to string (can/fw/fixed)
+                    if str(source_enum) == 'can':
+                        fingerprint_source = 'can'
+                    elif str(source_enum) == 'fw':
+                        fingerprint_source = 'fw'
+                    elif str(source_enum) == 'fixed':
+                        fingerprint_source = 'fixed'
+
+                # Extract all firmware versions
+                fw_versions = []
+                if hasattr(cp, 'carFw'):
+                    for fw in cp.carFw:
+                        ecu_name = str(fw.ecu) if hasattr(fw, 'ecu') else 'unknown'
+                        fw_bytes = bytes(fw.fwVersion) if hasattr(fw, 'fwVersion') else b''
+
+                        # Convert firmware bytes to hex string (more compact than full bytes)
+                        # Only show first 16 bytes to keep it readable
+                        fw_hex = fw_bytes[:16].hex() if fw_bytes else ''
+
+                        # Try to decode as ASCII for more readable Ford firmware strings
+                        try:
+                            fw_str = fw_bytes.decode('ascii').strip('\x00')
+                            if fw_str and all(c.isprintable() for c in fw_str):
+                                fw_display = fw_str[:32]  # Limit length
+                            else:
+                                fw_display = fw_hex
+                        except (UnicodeDecodeError, AttributeError):
+                            fw_display = fw_hex
+
+                        fw_versions.append({
+                            'ecu': ecu_name,
+                            'version': fw_display
+                        })
+
+                return {
+                    'carFingerprint': car_fingerprint,
+                    'carVin': car_vin,
+                    'brand': brand,
+                    'fingerprintSource': fingerprint_source,
+                    'fuzzyFingerprint': fuzzy,
+                    'firmwareVersions': fw_versions
+                }
+
+        # No carParams message found
+        return None
+
+    except Exception as e:
+        logger.debug(f"Error extracting fingerprint from {segment_path}: {e}")
+        return None
+
+
+def get_route_fingerprint(route_base, segments):
+    """Get vehicle fingerprint for a route with caching
+
+    Args:
+        route_base: Base route name
+        segments: List of segment dictionaries with 'path' key
+
+    Returns:
+        dict with fingerprint data or None if not found
+    """
+    # Check cache first
+    cache_file = os.path.join(FINGERPRINT_CACHE, f"{route_base}.json")
+
+    # Check if cache exists and is newer than first segment
+    if os.path.exists(cache_file) and segments:
+        try:
+            cache_mtime = os.path.getmtime(cache_file)
+            segment_mtime = os.path.getmtime(segments[0]['path'])
+
+            # Use cache if it's newer than first segment
+            if cache_mtime >= segment_mtime:
+                with open(cache_file) as f:
+                    cached_data = json.load(f)
+                    logger.debug(f"Using cached fingerprint for {route_base}")
+                    return cached_data
+        except Exception as e:
+            logger.debug(f"Error reading fingerprint cache for {route_base}: {e}")
+
+    # Extract from first segment (carParams is in all segments, but usually segment 0)
+    if not segments:
+        return None
+
+    fingerprint_data = extract_fingerprint_from_segment(segments[0]['path'])
+
+    # If not found in first segment, try second segment
+    if not fingerprint_data and len(segments) > 1:
+        fingerprint_data = extract_fingerprint_from_segment(segments[1]['path'])
+
+    # Save to cache atomically
+    if fingerprint_data:
+        if atomic_json_write(cache_file, fingerprint_data):
+            logger.debug(f"Cached fingerprint for {route_base}")
+        else:
+            logger.debug(f"Error caching fingerprint for {route_base}")
+
+    return fingerprint_data
+
+
 def check_processing_status(route_base):
     """Check what has already been processed for this route
 
@@ -454,12 +678,14 @@ def check_processing_status(route_base):
         - coordinates: GPS coordinates extracted and cached
         - geocoding_checked: Geocoding was attempted (even if failed)
         - thumbnail: Thumbnail generated
+        - fingerprint: Vehicle fingerprint extracted and cached
     """
     status = {
         'gps_metrics': False,
         'coordinates': False,
         'geocoding_checked': False,
-        'thumbnail': False
+        'thumbnail': False,
+        'fingerprint': False
     }
 
     # Check for GPS metrics cache
@@ -482,6 +708,11 @@ def check_processing_status(route_base):
     thumbnail_path = os.path.join(THUMBNAIL_CACHE, f"{route_base}.jpg")
     if os.path.exists(thumbnail_path):
         status['thumbnail'] = True
+
+    # Check for fingerprint cache
+    fingerprint_cache = os.path.join(FINGERPRINT_CACHE, f"{route_base}.json")
+    if os.path.exists(fingerprint_cache):
+        status['fingerprint'] = True
 
     return status
 
@@ -581,6 +812,22 @@ def process_route(route_base, segments, check_idle_fn=None):
                 logger.debug(f"    Thumbnail: {os.path.basename(thumbnail_path)}")
         else:
             logger.debug("  Thumbnail already cached, skipping")
+
+        # Step 4: Extract fingerprint data
+        if not status['fingerprint']:
+            # Check for interruption before fingerprint extraction
+            if check_idle_fn and not check_idle_fn():
+                logger.info("  Interrupted before fingerprint extraction (no longer idle)")
+                return False
+
+            logger.debug("  Extracting fingerprint data...")
+            fingerprint_data = get_route_fingerprint(route_base, segments)
+            if fingerprint_data:
+                logger.debug(f"    Platform: {fingerprint_data.get('carFingerprint', 'Unknown')}")
+                if fingerprint_data.get('carVin'):
+                    logger.debug(f"    VIN: {fingerprint_data.get('carVin')}")
+        else:
+            logger.debug("  Fingerprint already cached, skipping")
 
         logger.info(f"✓ Fully processed {route_base}")
         return True

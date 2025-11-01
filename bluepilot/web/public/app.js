@@ -491,6 +491,15 @@ constructor() {
     this.$statLocationStart = document.getElementById("stat-location-start");
     this.$statLocationEnd = document.getElementById("stat-location-end");
 
+    // Vehicle info elements
+    this.$vehicleInfoGroup = document.getElementById("vehicle-info-group");
+    this.$vehiclePlatform = document.getElementById("vehicle-platform");
+    this.$vehicleVin = document.getElementById("vehicle-vin");
+    this.$vehicleBrand = document.getElementById("vehicle-brand");
+    this.$vehicleSource = document.getElementById("vehicle-source");
+    this.$firmwareTableContainer = document.getElementById("firmware-table-container");
+    this.$firmwareTableBody = document.getElementById("firmware-table-body");
+
     // Debug canvas element
     console.log("Canvas element found:", !!this.$videoCanvas);
     console.log("Canvas element:", this.$videoCanvas);
@@ -1374,6 +1383,19 @@ constructor() {
       }
     }
 
+    // Format fingerprint information (simple display for route card)
+    let fingerprintHTML = "";
+    if (route.fingerprint && route.fingerprint.carFingerprint) {
+      fingerprintHTML = `
+        <div class="route-fingerprint">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+          </svg>
+          ${route.fingerprint.carFingerprint}
+        </div>`;
+    }
+
     const preserveButtonClass = route.isStarred
       ? "route-preserve-btn active"
       : "route-preserve-btn";
@@ -1413,6 +1435,7 @@ constructor() {
           </button>
         </div>
         ${locationHTML}
+        ${fingerprintHTML}
         <div class="route-stats-grid">
           <div class="route-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1682,6 +1705,40 @@ constructor() {
     this.$statLocationStart.textContent =
       this.currentRoute.startLocation || "--";
     this.$statLocationEnd.textContent = this.currentRoute.endLocation || "--";
+
+    // Vehicle fingerprint information
+    if (this.currentRoute.fingerprint && this.currentRoute.fingerprint.carFingerprint) {
+      const fp = this.currentRoute.fingerprint;
+
+      // Show vehicle info group
+      this.$vehicleInfoGroup.style.display = '';
+
+      // Populate basic vehicle info
+      this.$vehiclePlatform.textContent = fp.carFingerprint || '--';
+      this.$vehicleVin.textContent = fp.carVin || '--';
+      this.$vehicleBrand.textContent = fp.brand || '--';
+      this.$vehicleSource.textContent = fp.fingerprintSource ? fp.fingerprintSource.toUpperCase() : '--';
+
+      // Populate firmware table if firmware versions exist
+      if (fp.firmwareVersions && fp.firmwareVersions.length > 0) {
+        this.$firmwareTableContainer.style.display = '';
+        this.$firmwareTableBody.innerHTML = '';
+
+        fp.firmwareVersions.forEach(fw => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${fw.ecu}</td>
+            <td class="firmware-version">${fw.version}</td>
+          `;
+          this.$firmwareTableBody.appendChild(row);
+        });
+      } else {
+        this.$firmwareTableContainer.style.display = 'none';
+      }
+    } else {
+      // Hide vehicle info group if no fingerprint data
+      this.$vehicleInfoGroup.style.display = 'none';
+    }
   }
 
   updatePlayerStarButton() {

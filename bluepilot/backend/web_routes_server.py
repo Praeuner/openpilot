@@ -89,6 +89,7 @@ from bluepilot.backend.route_processing import (
     extract_gps_metrics_from_segment,
     get_route_gps_metrics,
     generate_thumbnail,
+    get_route_fingerprint,
     check_processing_status,
     process_route,
     kill_existing_process,
@@ -3144,6 +3145,9 @@ def scan_routes():
         # Calculate deletion risk for this route
         deletion_risk = calculate_route_deletion_risk(base_name, segments, deletion_data, disk_info)
 
+        # Get fingerprint data if cached (don't process logs during scan)
+        fingerprint_data = get_route_fingerprint(base_name, segments)
+
         # Build route info matching old panel structure
         routes_dict[base_name] = {
             'baseName': base_name,
@@ -3170,6 +3174,8 @@ def scan_routes():
             'endLocation': end_location,
             # Deletion risk info
             'deletionRisk': deletion_risk,
+            # Fingerprint data
+            'fingerprint': fingerprint_data if fingerprint_data else None,
         }
 
     # Convert to list and sort by datetime (newest first)
