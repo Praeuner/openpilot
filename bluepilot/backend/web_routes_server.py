@@ -547,6 +547,20 @@ class ServerState:
         with self._lock:
             self._route_exports.pop(key, None)
 
+    def cancel_videos_zip(self, route_base):
+        """Cancel videos ZIP operation and cleanup"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'cancelled',
+                    'message': 'Operation cancelled by user'
+                })
+                zip_path = self._route_exports[key].get('path')
+                self._route_exports.pop(key, None)
+                return zip_path
+            return None
+
     # Route Backup operations
     def get_backup_status(self, route_base):
         """Get status of route backup operation"""
@@ -606,6 +620,20 @@ class ServerState:
         key = f"backup:{route_base}"
         with self._lock:
             self._route_exports.pop(key, None)
+
+    def cancel_backup(self, route_base):
+        """Cancel backup operation and cleanup"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'cancelled',
+                    'message': 'Operation cancelled by user'
+                })
+                backup_path = self._route_exports[key].get('path')
+                self._route_exports.pop(key, None)
+                return backup_path
+            return None
 
     # Route Import operations
     def get_import_status(self, import_id):
@@ -1553,6 +1581,135 @@ def generate_route_export(route_base, camera, progress_callback=None):
                     os.remove(temp_output)
                 except OSError:
                     pass
+
+
+def stream_route_export(route_base, camera, response_handler):
+    """
+    Stream a full-route export directly to HTTP response without caching.
+
+    Args:
+        route_base: Route identifier
+        camera: Camera type
+        response_handler: HTTP handler instance with wfile for output
+
+    Raises:
+        RuntimeError, FileNotFoundError, ValueError on failure
+    """
+    if camera not in CAMERA_FILES:
+        raise ValueError("Invalid camera type")
+
+    if FFMPEG_BINARY is None:
+        raise RuntimeError("FFmpeg is not available on this device")
+
+    segments = get_route_segments(route_base)
+    if not segments:
+        raise FileNotFoundError("Route not found")
+
+    camera_file = CAMERA_FILES[camera]
+
+    video_paths = []
+    missing_segments = []
+    for seg in sorted(segments, key=lambda s: s['segment']):
+        source_path = os.path.join(seg['path'], camera_file)
+        if os.path.exists(source_path):
+            video_paths.append((seg['segment'], source_path))
+        else:
+            missing_segments.append(seg['segment'])
+
+    if missing_segments:
+        missing_str = ', '.join(f"{seg:03d}" for seg in missing_segments[:10])
+        raise FileNotFoundError(f"Missing {camera} video for segments: {missing_str}")
+
+    if not video_paths:
+        raise FileNotFoundError(f"No {camera} video segments available")
+
+    # Set HTTP headers
+    suggested_filename = generate_route_export_filename(route_base, camera, segments)
+    response_handler.send_response(200)
+    response_handler.send_header('Content-Type', 'video/mp4')
+    response_handler.send_header('Content-Disposition', f'attachment; filename="{suggested_filename}"')
+    response_handler.send_header('Transfer-Encoding', 'chunked')
+    response_handler.end_headers()
+
+    concat_file = None
+
+    try:
+        enable_performance_mode()
+
+        # Build FFmpeg command to output to stdout
+        if camera in HEVC_CAMERAS:
+            concat_protocol = 'concat:' + '|'.join(path for _, path in video_paths)
+            ffmpeg_cmd = [
+                FFMPEG_BINARY,
+                '-loglevel', 'error',
+                '-f', 'hevc',
+                '-r', '20',
+                '-i', concat_protocol,
+                '-c', 'copy',
+                '-movflags', '+faststart+frag_keyframe+empty_moov',  # Enable streaming
+                '-f', 'mp4',
+                'pipe:1'  # Output to stdout
+            ]
+        else:
+            fd, concat_file = tempfile.mkstemp(prefix='route_concat_', suffix='.txt')
+            with os.fdopen(fd, 'w') as concat_handle:
+                for _, path in video_paths:
+                    safe_path = path.replace("'", "\\'")
+                    concat_handle.write(f"file '{safe_path}'\n")
+
+            ffmpeg_cmd = [
+                FFMPEG_BINARY,
+                '-loglevel', 'error',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c', 'copy',
+                '-movflags', '+faststart+frag_keyframe+empty_moov',  # Enable streaming
+                '-f', 'mp4',
+                'pipe:1'  # Output to stdout
+            ]
+
+        route_info = f"stream-export:{route_base}:{camera}"
+
+        with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG) as ffmpeg_mgr:
+            process = ffmpeg_mgr.start(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            # Stream FFmpeg output to HTTP response
+            chunk_size = 64 * 1024  # 64KB chunks
+            while True:
+                chunk = process.stdout.read(chunk_size)
+                if not chunk:
+                    break
+                try:
+                    # Send chunk size in hex followed by chunk data (chunked transfer encoding)
+                    response_handler.wfile.write(f"{len(chunk):X}\r\n".encode())
+                    response_handler.wfile.write(chunk)
+                    response_handler.wfile.write(b"\r\n")
+                    response_handler.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    # Client disconnected
+                    logger.warning(f"Client disconnected during stream: {route_base}/{camera}")
+                    process.kill()
+                    break
+
+            # Send final chunk
+            response_handler.wfile.write(b"0\r\n\r\n")
+            response_handler.wfile.flush()
+
+            # Wait for process to finish and check for errors
+            process.wait()
+            if process.returncode != 0:
+                stderr = process.stderr.read().decode('utf-8', errors='ignore') if process.stderr else ''
+                logger.error(f"FFmpeg streaming failed (exit {process.returncode}): {stderr[:400]}")
+                # Can't send error to client at this point, connection already started
+
+    finally:
+        if concat_file and os.path.exists(concat_file):
+            try:
+                os.remove(concat_file)
+            except OSError:
+                pass
+
 
 def get_directory_size(directory_path):
     """Get total size of a directory in bytes
@@ -4551,6 +4708,30 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_file_response(video_path)
 
+            elif path.startswith('/api/route-export-stream/'):
+                # Streaming endpoint: /api/route-export-stream/{route_base}/{camera}
+                parts = path.split('/')[3:]
+                if len(parts) < 2:
+                    self.send_json_response({'error': 'Invalid route export stream path'}, 400)
+                    return
+
+                route_base = parts[0]
+                camera = parts[1]
+
+                if camera not in CAMERA_FILES:
+                    self.send_json_response({'error': 'Invalid camera type'}, 400)
+                    return
+
+                try:
+                    stream_route_export(route_base, camera, self)
+                except FileNotFoundError as e:
+                    self.send_json_response({'error': str(e)}, 404)
+                except ValueError as e:
+                    self.send_json_response({'error': str(e)}, 400)
+                except Exception as e:
+                    logger.error(f"Error streaming route export: {e}", exc_info=True)
+                    self.send_json_response({'error': f'Stream failed: {str(e)}'}, 500)
+
             elif path.startswith('/api/route-export/'):
                 # Status endpoint for route exports: /api/route-export/{route_base}/{camera}
                 parts = path.split('/')[3:]
@@ -4626,6 +4807,50 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'success': False,
                         'error': 'No GPS data available for this route'
                     }, 404)
+
+            elif path.startswith('/api/route/') and '/camera-sizes' in path:
+                # Camera sizes endpoint: /api/route/{route_base}/camera-sizes
+                route_base = path.split('/api/route/')[1].replace('/camera-sizes', '').strip('/')
+                segments = get_route_segments(route_base)
+
+                if not segments:
+                    self.send_json_response({'error': 'Route not found'}, 404)
+                    return
+
+                # Camera file mappings
+                camera_files = {
+                    'front': 'fcamera.hevc',
+                    'wide': 'ecamera.hevc',
+                    'driver': 'dcamera.hevc',
+                    'lq': 'qcamera.ts'
+                }
+
+                # Calculate total size for each camera across all segments
+                camera_sizes = {
+                    'front': 0,
+                    'wide': 0,
+                    'driver': 0,
+                    'lq': 0
+                }
+
+                for segment in segments:
+                    segment_path = segment['path']
+                    for camera, filename in camera_files.items():
+                        file_path = os.path.join(segment_path, filename)
+                        if os.path.exists(file_path):
+                            try:
+                                camera_sizes[camera] += os.path.getsize(file_path)
+                            except Exception as e:
+                                logger.debug(f"Error getting size for {file_path}: {e}")
+
+                self.send_json_response({
+                    'success': True,
+                    'baseName': route_base,
+                    'front': camera_sizes['front'],
+                    'wide': camera_sizes['wide'],
+                    'driver': camera_sizes['driver'],
+                    'lq': camera_sizes['lq']
+                })
 
             elif path.startswith('/api/logs/'):
                 # Log messages endpoint: /api/logs/{route_base}/{segment}/{log_type}
@@ -4913,7 +5138,34 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 503)
                 return
 
-            if path.startswith('/api/route-export/'):
+            # Cancel export operations
+            if path.startswith('/api/route-export/') and path.endswith('/cancel'):
+                parts = path.split('/')[3:]
+                if len(parts) < 3:
+                    self.send_json_response({'error': 'Invalid cancel path'}, 400)
+                    return
+
+                route_base = parts[0]
+                camera = parts[1]
+                key = route_export_key(route_base, camera)
+
+                # Cancel the operation
+                server_state.fail_route_export(key, "Cancelled by user")
+                server_state.clear_route_export_thread(key)
+
+                # Clean up export file
+                export_path = os.path.join(ROUTE_EXPORT_CACHE, f"{route_base}_{camera}.mp4")
+                if os.path.exists(export_path):
+                    try:
+                        os.remove(export_path)
+                        logger.info(f"Cleaned up cancelled export: {export_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to clean up export file: {e}")
+
+                self.send_json_response({'status': 'cancelled', 'message': 'Export cancelled'})
+                return
+
+            elif path.startswith('/api/route-export/'):
                 parts = path.split('/')[3:]
                 if len(parts) < 2:
                     self.send_json_response({'error': 'Invalid route export path'}, 400)
@@ -4986,6 +5238,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 self.send_json_response(payload)
                 return
 
+            elif path.startswith('/api/videos-zip/') and path.endswith('/cancel'):
+                parts = path.split('/')[3:]
+                if len(parts) < 2:
+                    self.send_json_response({'error': 'Invalid cancel path'}, 400)
+                    return
+
+                route_base = parts[0]
+                zip_path = server_state.cancel_videos_zip(route_base)
+
+                # Clean up ZIP file
+                if zip_path and os.path.exists(zip_path):
+                    try:
+                        os.remove(zip_path)
+                        logger.info(f"Cleaned up cancelled videos ZIP: {zip_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to clean up videos ZIP: {e}")
+
+                self.send_json_response({'status': 'cancelled', 'message': 'Videos ZIP cancelled'})
+                return
+
             elif path.startswith('/api/videos-zip/'):
                 # Delegate to modular handler
                 handle_videos_zip_post(
@@ -4995,6 +5267,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     ROUTE_EXPORT_CACHE, get_disk_space_info,
                     broadcast_websocket_event, WebSocketEvent
                 )
+                return
+
+            elif path.startswith('/api/route-backup/') and path.endswith('/cancel'):
+                parts = path.split('/')[3:]
+                if len(parts) < 2:
+                    self.send_json_response({'error': 'Invalid cancel path'}, 400)
+                    return
+
+                route_base = parts[0]
+                backup_path = server_state.cancel_backup(route_base)
+
+                # Clean up backup file
+                if backup_path and os.path.exists(backup_path):
+                    try:
+                        os.remove(backup_path)
+                        logger.info(f"Cleaned up cancelled backup: {backup_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to clean up backup file: {e}")
+
+                self.send_json_response({'status': 'cancelled', 'message': 'Backup cancelled'})
                 return
 
             elif path.startswith('/api/route-backup/'):

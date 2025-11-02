@@ -290,11 +290,39 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.btn:hover,
-.btn:active {
+.btn:hover:not(:disabled),
+.btn:active:not(:disabled) {
   background: var(--bp-accent-blue-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-text {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.btn-subtext {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .icon-btn {
@@ -323,8 +351,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 2rem;
+  padding-top: 3rem;
   text-align: center;
 }
 
@@ -826,11 +855,13 @@ body {
 }
 
 .btn-secondary {
-  background: var(--bp-bg-tertiary);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--bp-border);
 }
 
-.btn-secondary:hover {
-  background: var(--bp-bg-primary);
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--bp-accent-blue);
 }
 
 .btn-danger {
@@ -1769,7 +1800,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.5rem;
   opacity: 1;
   visibility: visible;
   transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -1784,7 +1815,7 @@ body {
 .modal-content {
   background: var(--bp-bg-secondary);
   border-radius: 16px;
-  padding: 2rem;
+  padding: 1.5rem;
   max-width: 90vw;
   max-height: 90vh;
   overflow-y: auto;
@@ -1991,7 +2022,7 @@ body {
 .export-route-info {
   background: var(--bp-bg-tertiary);
   border-radius: 12px;
-  padding: 1.25rem;
+  padding: 1rem;
   border: 1px solid var(--bp-border);
 }
 
@@ -2012,7 +2043,7 @@ body {
 .export-section {
   background: var(--bp-bg-tertiary);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1rem;
   border: 1px solid var(--bp-border);
 }
 
@@ -2113,6 +2144,33 @@ body {
 .camera-details {
   font-size: 0.8125rem;
   color: var(--bp-text-secondary);
+}
+
+.camera-size {
+  font-size: 0.75rem;
+  color: var(--bp-accent-blue);
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+/* Disabled checkbox state */
+.camera-checkbox:disabled + .checkbox-custom {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.camera-checkbox:disabled ~ .camera-label {
+  opacity: 0.5;
+}
+
+.camera-checkbox-label:has(.camera-checkbox:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.camera-checkbox-label:has(.camera-checkbox:disabled):hover {
+  border-color: var(--bp-border);
+  background: var(--bp-bg-secondary);
 }
 
 /* Export Actions */
@@ -2260,6 +2318,57 @@ body {
 @media (max-width: 768px) {
   .export-modal {
     max-width: 95vw;
+    max-height: 95vh;
+  }
+
+  .export-modal .modal-content {
+    padding: 0.875rem;
+  }
+
+  .export-modal-body {
+    gap: 1rem;
+  }
+
+  .export-route-info {
+    padding: 0.875rem;
+  }
+
+  .export-modal .modal-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .export-modal .modal-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .export-route-info h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .export-route-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .export-section {
+    padding: 0.875rem;
+  }
+
+  .export-section-title {
+    font-size: 1rem;
+    gap: 0.5rem;
+  }
+
+  .export-section-title svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .export-section-description {
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
   }
 
   .export-actions {
@@ -2282,6 +2391,346 @@ body {
 
   .camera-checkbox-label {
     padding: 0.75rem;
+  }
+
+  .backup-info-box {
+    padding: 0.875rem;
+  }
+
+  .backup-includes li {
+    padding-left: 1.25rem;
+  }
+
+  .backup-estimate {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .estimate-value {
+    font-size: 1rem;
+  }
+
+  .export-status {
+    padding: 0.875rem;
+  }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 480px) {
+  .export-modal .modal-content {
+    padding: 0.75rem;
+    border-radius: 12px;
+  }
+
+  .export-modal-body {
+    gap: 0.75rem;
+  }
+
+  .export-modal .modal-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .export-modal .modal-header h2 {
+    font-size: 1rem;
+  }
+
+  .export-route-info {
+    padding: 0.75rem;
+  }
+
+  .export-route-info h3 {
+    font-size: 0.9375rem;
+  }
+
+  .export-route-meta {
+    font-size: 0.8125rem;
+  }
+
+  .export-section {
+    padding: 0.75rem;
+  }
+
+  .export-section-title {
+    font-size: 0.9375rem;
+    gap: 0.5rem;
+  }
+
+  .export-section-title svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .export-section-description {
+    font-size: 0.75rem;
+  }
+
+  .camera-checkbox-label {
+    padding: 0.625rem;
+  }
+
+  .camera-label strong {
+    font-size: 0.875rem;
+  }
+
+  .camera-details {
+    font-size: 0.75rem;
+  }
+
+  .checkbox-custom {
+    width: 18px;
+    height: 18px;
+  }
+
+  .export-actions .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  .export-actions .btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .backup-info-box {
+    padding: 0.75rem;
+  }
+
+  .backup-includes li {
+    font-size: 0.75rem;
+    padding-left: 1rem;
+  }
+
+  .estimate-label {
+    font-size: 0.8125rem;
+  }
+
+  .export-status {
+    padding: 0.75rem;
+  }
+
+  .export-status-message {
+    font-size: 0.8125rem;
+  }
+}
+
+/* =================================================================
+   IMPORT BACKUP MODAL
+   ================================================================= */
+
+.import-modal {
+  max-width: 550px;
+}
+
+.import-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.import-modal .import-description {
+  margin: 0 0 1.5rem 0;
+  color: var(--bp-text-secondary);
+  line-height: 1.6;
+}
+
+.import-modal .import-info-box {
+  background: var(--bp-bg-tertiary);
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.import-modal .import-info-box strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--bp-text-primary);
+}
+
+.import-modal .import-info-box ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: var(--bp-text-secondary);
+}
+
+.import-modal .import-info-box li {
+  margin: 0.25rem 0;
+}
+
+.import-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem 0 1.5rem;
+}
+
+.import-modal .modal-footer .btn {
+  min-width: 140px;
+}
+
+/* =================================================================
+   CONFIRMATION MODAL
+   ================================================================= */
+
+.confirm-modal {
+  max-width: 500px;
+}
+
+.confirm-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.confirm-modal .modal-body p {
+  margin: 0;
+  color: var(--bp-text-primary);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.confirm-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--bp-border);
+  background: var(--bp-bg-secondary);
+}
+
+.confirm-modal .modal-footer .btn {
+  min-width: 100px;
+}
+
+/* Responsive Import & Confirmation Modals */
+@media (max-width: 768px) {
+  .import-modal,
+  .confirm-modal {
+    max-width: 95vw;
+  }
+
+  .import-modal .modal-content,
+  .confirm-modal .modal-content {
+    padding: 1rem;
+  }
+
+  .import-modal .modal-header,
+  .confirm-modal .modal-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .import-modal .modal-header h2,
+  .confirm-modal .modal-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .import-modal .modal-body,
+  .confirm-modal .modal-body {
+    padding: 1rem;
+  }
+
+  .import-modal .import-description {
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .import-modal .import-info-box {
+    padding: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .import-modal .import-info-box ul {
+    padding-left: 1.25rem;
+  }
+
+  .import-modal .modal-footer {
+    padding: 1rem 1rem 0 1rem;
+  }
+
+  .confirm-modal .modal-footer {
+    padding: 0.75rem 1rem;
+  }
+
+  .confirm-modal .modal-footer .btn {
+    min-width: 80px;
+    font-size: 0.9375rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .import-modal .modal-content,
+  .confirm-modal .modal-content {
+    padding: 0.75rem;
+    border-radius: 12px;
+  }
+
+  .import-modal .modal-header,
+  .confirm-modal .modal-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .import-modal .modal-header h2,
+  .confirm-modal .modal-header h2 {
+    font-size: 1rem;
+  }
+
+  .import-modal .modal-body,
+  .confirm-modal .modal-body {
+    padding: 0.75rem;
+  }
+
+  .import-modal .import-description {
+    font-size: 0.8125rem;
+  }
+
+  .import-modal .import-info-box {
+    padding: 0.75rem;
+  }
+
+  .import-modal .import-info-box ul {
+    font-size: 0.8125rem;
+  }
+
+  .import-file-area .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  .import-file-area .btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .import-file-name {
+    font-size: 0.8125rem;
+  }
+
+  .import-modal .modal-footer {
+    padding: 0.75rem;
+  }
+
+  .import-modal .modal-footer .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  .import-modal .modal-footer .btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .confirm-modal .modal-body p {
+    font-size: 0.9375rem;
+  }
+
+  .confirm-modal .modal-footer {
+    padding: 0.625rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .confirm-modal .modal-footer .btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    min-width: 70px;
   }
 }
 
@@ -3057,7 +3506,7 @@ body {
     rgba(20, 20, 20, 0.92)
   );
   border-radius: 16px;
-  margin: 0 16px 24px 16px;
+  margin: 16px 16px 24px 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
   display: flex;

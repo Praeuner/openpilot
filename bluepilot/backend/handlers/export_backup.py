@@ -407,7 +407,7 @@ def create_videos_zip(route_base, cameras, segments, camera_files_dict,
 
     # Check available disk space
     disk_info = get_disk_space_info()
-    available_bytes = disk_info.get('free_bytes', 0)
+    available_bytes = disk_info.get('available_bytes', 0)
 
     if required_space > available_bytes:
         required_gb = required_space / (1024**3)
@@ -450,23 +450,28 @@ def create_videos_zip(route_base, cameras, segments, camera_files_dict,
 
     # Create ZIP file with compression
     total_files = len(camera_files)
-    files_processed = 0
+    logger.info(f"Creating videos ZIP with {total_files} camera files")
 
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zipf:
-        for camera, video_path in camera_files.items():
+        for idx, (camera, video_path) in enumerate(camera_files.items()):
             if os.path.exists(video_path):
                 # Use descriptive filename in ZIP
                 filename = generate_route_export_filename(route_base, camera, segments)
+                file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
 
+                # Show progress before writing (especially important for large files)
                 if progress_callback:
-                    files_processed += 1
-                    progress_pct = 0.80 + (0.18 * files_processed / total_files)
-                    progress_callback(progress_pct, f"Compressing {camera}... ({files_processed}/{total_files})")
+                    progress_pct = 0.80 + (0.18 * idx / total_files)
+                    progress_callback(progress_pct, f"Compressing {camera} ({file_size_mb:.1f}MB)... {idx + 1}/{total_files}")
 
+                logger.debug(f"Adding to ZIP: {camera} camera ({file_size_mb:.1f}MB)")
                 zipf.write(video_path, filename)
 
     if progress_callback:
         progress_callback(1.0, "ZIP archive ready")
+
+    final_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+    logger.info(f"Videos ZIP created successfully: {zip_path} ({final_size_mb:.1f}MB)")
 
     return zip_path
 
@@ -508,7 +513,7 @@ def create_route_backup(route_base, segments, backup_cache, metrics_cache,
 
     # Check available disk space
     disk_info = get_disk_space_info()
-    available_bytes = disk_info.get('free_bytes', 0)
+    available_bytes = disk_info.get('available_bytes', 0)
 
     if required_space > available_bytes:
         required_gb = required_space / (1024**3)
@@ -599,18 +604,40 @@ def create_route_backup(route_base, segments, backup_cache, metrics_cache,
 
         # Add segment files with progress
         total_files = len(files_to_backup)
+        logger.info(f"Starting backup archive creation with {total_files} files")
+
         for idx, (abs_path, rel_path) in enumerate(files_to_backup):
             try:
+                # Show progress before writing (especially important for large files)
+                if progress_callback:
+                    progress_pct = 0.4 + (0.6 * idx / total_files)
+                    filename = os.path.basename(rel_path)
+                    file_size_mb = os.path.getsize(abs_path) / (1024 * 1024) if os.path.exists(abs_path) else 0
+
+                    # Extract segment number from path for better progress messages
+                    # Path format: segments/{route_base}--{segment_num}/{filename}
+                    segment_info = ""
+                    if '--' in rel_path:
+                        try:
+                            segment_part = rel_path.split('/')[-2]  # Get the directory name
+                            segment_num = segment_part.split('--')[-1]
+                            segment_info = f"Segment {segment_num}/{total_segments - 1} - "
+                        except:
+                            pass
+
+                    progress_callback(progress_pct, f"{segment_info}{filename} ({file_size_mb:.1f}MB) - {idx + 1}/{total_files}")
+
+                logger.debug(f"Adding to backup: {rel_path} ({file_size_mb:.1f}MB)")
                 zipf.write(abs_path, rel_path)
 
-                if progress_callback and idx % 10 == 0:  # Update every 10 files
-                    progress_pct = 0.4 + (0.6 * idx / total_files)
-                    progress_callback(progress_pct, f"Archiving files... {idx}/{total_files}")
             except Exception as e:
-                logger.warning(f"Failed to add file to backup: {rel_path}: {e}")
+                logger.error(f"Failed to add file to backup: {rel_path}: {e}", exc_info=True)
 
     if progress_callback:
         progress_callback(1.0, "Backup complete")
+
+    final_size_mb = os.path.getsize(backup_path) / (1024 * 1024)
+    logger.info(f"Route backup created successfully: {backup_path} ({final_size_mb:.1f}MB, {total_files} files)")
 
     return backup_path
 
@@ -678,6 +705,19 @@ def import_route_backup(backup_file_path, import_id, import_temp_dir, routes_dir
                 if not os.path.isdir(segment_dir):
                     continue
 
+                # Extract segment number for progress message
+                segment_num = "?"
+                if '--' in segment_dir_name:
+                    try:
+                        segment_num = segment_dir_name.split('--')[-1]
+                    except:
+                        pass
+
+                # Show progress before copying
+                if progress_callback and segment_count > 0:
+                    progress_pct = 0.1 + (0.8 * processed / segment_count)
+                    progress_callback(progress_pct, f"Restoring segment {segment_num}/{segment_count - 1}... ({processed + 1}/{segment_count})")
+
                 # Copy to routes directory
                 dest_dir = os.path.join(routes_dir, segment_dir_name)
                 if os.path.exists(dest_dir):
@@ -687,10 +727,6 @@ def import_route_backup(backup_file_path, import_id, import_temp_dir, routes_dir
 
                 shutil.copytree(segment_dir, dest_dir)
                 processed += 1
-
-                if progress_callback and segment_count > 0:
-                    progress_pct = 0.1 + (0.8 * processed / segment_count)
-                    progress_callback(progress_pct, f"Restoring segments... {processed}/{segment_count}")
 
         # Restore cached metadata
         cache_dir = os.path.join(extract_dir, 'cache')

@@ -405,12 +405,14 @@ def generate_thumbnail(route_base):
 
     logger.info(f"Generating thumbnail for route: {route_base}")
 
-    # Extract first frame using FFmpeg
+    # Extract frame 5-10 frames into the video using FFmpeg
+    # At 20fps, 0.33 seconds = ~6-7 frames
     # Size: 480x270 (16:9 ratio) to match old Qt panel
     cmd = [
         'ffmpeg',
         '-y',  # Overwrite output file
         '-nostdin',  # Disable interaction
+        '-ss', '0.33',  # Seek to 0.33 seconds (5-10 frames at 20fps)
         '-f', 'hevc',  # Input format
         '-i', video_path,  # Input file
         '-vframes', '1',  # Extract one frame
