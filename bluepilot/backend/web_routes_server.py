@@ -100,6 +100,18 @@ from bluepilot.backend.route_processing import (
 # Import WebSocket broadcaster
 from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster, WebSocketEvent
 
+# Import export/backup handlers (modular)
+from bluepilot.backend.handlers.export_backup import (
+    handle_videos_zip_post,
+    handle_route_backup_post,
+    handle_route_import_post,
+    handle_videos_zip_status_get,
+    handle_videos_zip_download_get,
+    handle_route_backup_status_get,
+    handle_route_backup_download_get,
+    handle_route_import_status_get,
+)
+
 # Import xattr for preserve marker support
 try:
     from openpilot.system.loggerd.xattr_cache import getxattr, setxattr
@@ -191,6 +203,9 @@ THUMBNAIL_CACHE = "/data/bluepilot/routes/thumbs_cache" if os.path.exists("/data
 REMUX_CACHE = "/data/bluepilot/routes/remux_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/remux_cache")
 METRICS_CACHE = "/data/bluepilot/routes/metrics_cache" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/metrics_cache")
 ROUTE_EXPORT_CACHE = "/data/bluepilot/routes/exports" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/exports")
+VIDEOS_ZIP_CACHE = "/data/bluepilot/routes/videos_zip" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/videos_zip")
+BACKUP_CACHE = "/data/bluepilot/routes/backups" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/backups")
+IMPORT_TEMP_DIR = "/data/bluepilot/routes/import_temp" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot/routes/import_temp")
 
 CAMERA_FILES = {
     'front': 'fcamera.hevc',
@@ -471,6 +486,186 @@ class ServerState:
         """Remove export thread tracking"""
         with self._lock:
             self._export_threads.pop(key, None)
+
+    # Videos ZIP operations (similar pattern to route export)
+    def get_videos_zip_status(self, route_base):
+        """Get status of videos ZIP operation"""
+        with self._lock:
+            return self._route_exports.get(f"videos_zip:{route_base}", {}).copy()
+
+    def start_videos_zip(self, route_base, message="Creating ZIP"):
+        """Start videos ZIP operation"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                return False
+            self._route_exports[key] = {
+                'status': 'processing',
+                'progress': 0.0,
+                'message': message,
+                'started_at': time.time()
+            }
+            return True
+
+    def update_videos_zip(self, route_base, **updates):
+        """Update videos ZIP operation status"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update(updates)
+                return self._route_exports[key].copy()
+            return {}
+
+    def complete_videos_zip(self, route_base, path, message="ZIP ready"):
+        """Mark videos ZIP as complete"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'ready',
+                    'progress': 1.0,
+                    'message': message,
+                    'path': path,
+                    'completed_at': time.time()
+                })
+                return self._route_exports[key].copy()
+            return {}
+
+    def fail_videos_zip(self, route_base, message):
+        """Mark videos ZIP as failed"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'error',
+                    'message': message
+                })
+
+    def clear_videos_zip(self, route_base):
+        """Clear videos ZIP status"""
+        key = f"videos_zip:{route_base}"
+        with self._lock:
+            self._route_exports.pop(key, None)
+
+    # Route Backup operations
+    def get_backup_status(self, route_base):
+        """Get status of route backup operation"""
+        with self._lock:
+            return self._route_exports.get(f"backup:{route_base}", {}).copy()
+
+    def start_backup(self, route_base, message="Creating backup"):
+        """Start backup operation"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                return False
+            self._route_exports[key] = {
+                'status': 'processing',
+                'progress': 0.0,
+                'message': message,
+                'started_at': time.time()
+            }
+            return True
+
+    def update_backup(self, route_base, **updates):
+        """Update backup operation status"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update(updates)
+                return self._route_exports[key].copy()
+            return {}
+
+    def complete_backup(self, route_base, path, message="Backup ready"):
+        """Mark backup as complete"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'ready',
+                    'progress': 1.0,
+                    'message': message,
+                    'path': path,
+                    'completed_at': time.time()
+                })
+                return self._route_exports[key].copy()
+            return {}
+
+    def fail_backup(self, route_base, message):
+        """Mark backup as failed"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'error',
+                    'message': message
+                })
+
+    def clear_backup(self, route_base):
+        """Clear backup status"""
+        key = f"backup:{route_base}"
+        with self._lock:
+            self._route_exports.pop(key, None)
+
+    # Route Import operations
+    def get_import_status(self, import_id):
+        """Get status of route import operation"""
+        with self._lock:
+            return self._route_exports.get(f"import:{import_id}", {}).copy()
+
+    def start_import(self, import_id, message="Importing route"):
+        """Start import operation"""
+        key = f"import:{import_id}"
+        with self._lock:
+            if key in self._route_exports:
+                return False
+            self._route_exports[key] = {
+                'status': 'processing',
+                'progress': 0.0,
+                'message': message,
+                'started_at': time.time()
+            }
+            return True
+
+    def update_import(self, import_id, **updates):
+        """Update import operation status"""
+        key = f"import:{import_id}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update(updates)
+                return self._route_exports[key].copy()
+            return {}
+
+    def complete_import(self, import_id, route_name, message="Import complete"):
+        """Mark import as complete"""
+        key = f"import:{import_id}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'completed',
+                    'progress': 1.0,
+                    'message': message,
+                    'routeName': route_name,
+                    'completed_at': time.time()
+                })
+                return self._route_exports[key].copy()
+            return {}
+
+    def fail_import(self, import_id, message):
+        """Mark import as failed"""
+        key = f"import:{import_id}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'error',
+                    'message': message
+                })
+
+    def clear_import(self, import_id):
+        """Clear import status"""
+        key = f"import:{import_id}"
+        with self._lock:
+            self._route_exports.pop(key, None)
 
 # Global server state instance
 server_state = ServerState()
@@ -1048,6 +1243,9 @@ os.makedirs(THUMBNAIL_CACHE, exist_ok=True)
 os.makedirs(REMUX_CACHE, exist_ok=True)
 os.makedirs(METRICS_CACHE, exist_ok=True)
 os.makedirs(ROUTE_EXPORT_CACHE, exist_ok=True)
+os.makedirs(VIDEOS_ZIP_CACHE, exist_ok=True)
+os.makedirs(BACKUP_CACHE, exist_ok=True)
+os.makedirs(IMPORT_TEMP_DIR, exist_ok=True)
 
 
 def route_export_key(route_base, camera):
@@ -4366,6 +4564,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 payload, status_code = self.build_route_export_status(route_base, camera)
                 self.send_json_response(payload, status_code)
 
+            elif path.startswith('/api/videos-zip/') and '/status' in path:
+                handle_videos_zip_status_get(self, path, server_state)
+                return
+
+            elif path.startswith('/api/videos-zip/') and '/download' in path:
+                handle_videos_zip_download_get(self, path, server_state)
+                return
+
+            elif path.startswith('/api/route-backup/') and '/status' in path:
+                handle_route_backup_status_get(self, path, server_state)
+                return
+
+            elif path.startswith('/api/route-backup/') and '/download' in path:
+                handle_route_backup_download_get(self, path, server_state)
+                return
+
+            elif path.startswith('/api/route-import/') and '/status' in path:
+                handle_route_import_status_get(self, path, server_state)
+                return
+
             elif path.startswith('/api/download/route/'):
                 # Download full route: /api/download/route/{route_base}/{camera}
                 parts = path.split('/')[4:]  # Skip '', 'api', 'download', 'route'
@@ -4766,6 +4984,37 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 payload, _ = self.build_route_export_status(route_base, camera)
                 self.send_json_response(payload)
+                return
+
+            elif path.startswith('/api/videos-zip/'):
+                # Delegate to modular handler
+                handle_videos_zip_post(
+                    self, path, server_state, get_route_segments,
+                    CAMERA_FILES, generate_route_export,
+                    generate_route_export_filename, VIDEOS_ZIP_CACHE,
+                    ROUTE_EXPORT_CACHE, get_disk_space_info,
+                    broadcast_websocket_event, WebSocketEvent
+                )
+                return
+
+            elif path.startswith('/api/route-backup/'):
+                # Delegate to modular handler
+                handle_route_backup_post(
+                    self, path, server_state, get_route_segments,
+                    BACKUP_CACHE, METRICS_CACHE, THUMBNAIL_CACHE,
+                    get_disk_space_info, broadcast_websocket_event,
+                    WebSocketEvent
+                )
+                return
+
+            elif path == '/api/route-import':
+                # Delegate to modular handler
+                handle_route_import_post(
+                    self, path, server_state, IMPORT_TEMP_DIR,
+                    ROUTES_DIR, METRICS_CACHE, THUMBNAIL_CACHE,
+                    set_route_preserve, broadcast_websocket_event,
+                    WebSocketEvent
+                )
                 return
 
             elif path.startswith('/api/preserve/'):

@@ -476,6 +476,26 @@ class BluePilotRoutes {
     this.$closeMetricsBtn = document.getElementById("close-metrics-btn");
     this.$refreshMetricsBtn = document.getElementById("refresh-metrics-btn");
 
+    // Export & Backup modal
+    this.$exportBackupModal = document.getElementById("export-backup-modal");
+    this.$closeExportModalBtn = document.getElementById("close-export-modal-btn");
+    this.$exportRouteName = document.getElementById("export-route-name");
+    this.$exportRouteSegments = document.getElementById("export-route-segments");
+    this.$exportRouteSize = document.getElementById("export-route-size");
+    this.$exportRouteDuration = document.getElementById("export-route-duration");
+    this.$cameraCheckboxes = document.querySelectorAll(".camera-checkbox");
+    this.$downloadSelectedVideosBtn = document.getElementById("download-selected-videos-btn");
+    this.$downloadAllVideosBtn = document.getElementById("download-all-videos-btn");
+    this.$videoExportStatus = document.getElementById("video-export-status");
+    this.$backupRouteBtn = document.getElementById("backup-route-btn");
+    this.$backupSizeEstimate = document.getElementById("backup-size-estimate");
+    this.$backupStatus = document.getElementById("backup-status");
+    this.$selectImportFileBtn = document.getElementById("select-import-file-btn");
+    this.$importFileInput = document.getElementById("import-file-input");
+    this.$importFileName = document.getElementById("import-file-name");
+    this.$importRouteBtn = document.getElementById("import-route-btn");
+    this.$importStatus = document.getElementById("import-status");
+
     // Video player
     this.$videoPlayer = document.getElementById("video-player");
     this.$videoTitle = document.getElementById("video-title");
@@ -614,6 +634,31 @@ class BluePilotRoutes {
       }
     });
 
+    // Export & Backup modal handlers
+    this.$closeExportModalBtn.addEventListener("click", () => this.closeExportBackupModal());
+    this.$exportBackupModal.addEventListener("click", (e) => {
+      if (e.target === this.$exportBackupModal) {
+        this.closeExportBackupModal();
+      }
+    });
+
+    // Camera checkbox handlers
+    this.$cameraCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener("change", () => this.updateSelectedVideosButton());
+    });
+
+    // Video download handlers
+    this.$downloadSelectedVideosBtn.addEventListener("click", () => this.downloadSelectedVideos());
+    this.$downloadAllVideosBtn.addEventListener("click", () => this.downloadAllVideos());
+
+    // Backup handlers
+    this.$backupRouteBtn.addEventListener("click", () => this.backupCurrentRoute());
+
+    // Import handlers
+    this.$selectImportFileBtn.addEventListener("click", () => this.$importFileInput.click());
+    this.$importFileInput.addEventListener("change", (e) => this.handleImportFileSelected(e));
+    this.$importRouteBtn.addEventListener("click", () => this.importRouteBackup());
+
     // Cellular warning close
     this.$cellularWarningClose.addEventListener("click", () => {
       this.$cellularWarning.classList.add("hidden");
@@ -682,7 +727,7 @@ class BluePilotRoutes {
 
     this.$playerDownloadRouteBtn.addEventListener("click", () => {
       if (this.currentRoute) {
-        this.downloadCurrentRoute();
+        this.openExportBackupModal();
       }
     });
 
@@ -5071,6 +5116,408 @@ class BluePilotRoutes {
 
   closeMetrics() {
     this.$metricsModal.classList.add("hidden");
+  }
+
+  // Export & Backup Modal Methods
+  openExportBackupModal() {
+    if (!this.currentRoute) return;
+
+    // Populate route info
+    this.$exportRouteName.textContent = `Route: ${this.currentRoute.baseName}`;
+    this.$exportRouteSegments.textContent = `${this.currentRoute.segments || 0} segments`;
+    this.$exportRouteSize.textContent = this.currentRoute.size || '-- GB';
+    this.$exportRouteDuration.textContent = this.currentRoute.duration || '--';
+
+    // Calculate backup size estimate
+    const sizeMatch = this.currentRoute.size?.match(/[\d.]+/);
+    const sizeGB = sizeMatch ? parseFloat(sizeMatch[0]) : 0;
+    this.$backupSizeEstimate.textContent = sizeGB > 0 ? `~${sizeGB.toFixed(2)} GB` : '--';
+
+    // Reset checkboxes and statuses
+    this.$cameraCheckboxes.forEach(cb => {
+      if (cb.value === 'front') {
+        cb.checked = true;
+      } else {
+        cb.checked = false;
+      }
+    });
+    this.updateSelectedVideosButton();
+
+    // Hide all status messages
+    this.$videoExportStatus.classList.add('hidden');
+    this.$backupStatus.classList.add('hidden');
+    this.$importStatus.classList.add('hidden');
+
+    // Reset import
+    this.$importFileInput.value = '';
+    this.$importFileName.textContent = 'No file selected';
+    this.$importRouteBtn.disabled = true;
+
+    // Show modal
+    this.$exportBackupModal.classList.remove('hidden');
+  }
+
+  closeExportBackupModal() {
+    this.$exportBackupModal.classList.add('hidden');
+  }
+
+  updateSelectedVideosButton() {
+    const selectedCameras = Array.from(this.$cameraCheckboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+    const count = selectedCameras.length;
+    this.$downloadSelectedVideosBtn.disabled = count === 0;
+
+    if (count === 0) {
+      this.$downloadSelectedVideosBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download Selected`;
+    } else if (count === 1) {
+      this.$downloadSelectedVideosBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download ${selectedCameras[0].toUpperCase()} Video`;
+    } else {
+      this.$downloadSelectedVideosBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download ${count} Videos (ZIP)`;
+    }
+  }
+
+  async downloadSelectedVideos() {
+    if (!this.currentRoute) return;
+
+    const selectedCameras = Array.from(this.$cameraCheckboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+    if (selectedCameras.length === 0) return;
+
+    const routeBase = this.currentRoute.baseName;
+
+    // If only one camera selected, download single video
+    if (selectedCameras.length === 1) {
+      await this.downloadSingleVideo(routeBase, selectedCameras[0]);
+    } else {
+      // Multiple cameras - download as ZIP
+      await this.downloadVideosAsZip(routeBase, selectedCameras);
+    }
+  }
+
+  async downloadSingleVideo(routeBase, camera) {
+    const defaultFilename = this.buildRouteExportFilename(this.currentRoute, camera);
+    const exportUrl = `${this.API_BASE}/api/route-export/${routeBase}/${camera}`;
+
+    this.showExportStatus('video', `Preparing ${camera} video...`, 0);
+
+    try {
+      const response = await fetch(exportUrl, { method: 'POST' });
+      const statusData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(statusData.error || 'Failed to start video export');
+      }
+
+      await this.pollVideoExport(routeBase, camera, defaultFilename);
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      this.showExportStatus('video', `Error: ${error.message}`, 0, 'error');
+    }
+  }
+
+  async downloadVideosAsZip(routeBase, cameras) {
+    this.showExportStatus('video', 'Preparing videos archive...', 0);
+
+    try {
+      const response = await fetch(`${this.API_BASE}/api/videos-zip/${routeBase}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cameras })
+      });
+
+      const statusData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(statusData.error || 'Failed to create videos archive');
+      }
+
+      await this.pollVideosZip(routeBase, cameras);
+    } catch (error) {
+      console.error('Error creating videos archive:', error);
+      this.showExportStatus('video', `Error: ${error.message}`, 0, 'error');
+    }
+  }
+
+  async downloadAllVideos() {
+    if (!this.currentRoute) return;
+    const routeBase = this.currentRoute.baseName;
+    const allCameras = ['front', 'wide', 'driver', 'lq'];
+
+    await this.downloadVideosAsZip(routeBase, allCameras);
+  }
+
+  async pollVideoExport(routeBase, camera, filename) {
+    const pollUrl = `${this.API_BASE}/api/route-export/${routeBase}/${camera}`;
+    const maxAttempts = 120; // 10 minutes max
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5s
+      attempts++;
+
+      try {
+        const response = await fetch(pollUrl);
+        const status = await response.json();
+
+        if (status.status === 'ready') {
+          this.showExportStatus('video', 'Download ready!', 100, 'success');
+          const downloadUrl = this.resolveRouteDownloadUrl(status.downloadUrl, routeBase, camera);
+          this.triggerRouteDownload(downloadUrl, filename);
+          setTimeout(() => this.$videoExportStatus.classList.add('hidden'), 3000);
+          return;
+        } else if (status.status === 'error') {
+          throw new Error(status.message || 'Export failed');
+        } else {
+          const progress = Math.round((status.progressPercent || status.progress * 100 || 0));
+          this.showExportStatus('video', `Preparing video... ${progress}%`, progress);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+        this.showExportStatus('video', `Error: ${error.message}`, 0, 'error');
+        return;
+      }
+    }
+
+    this.showExportStatus('video', 'Export timed out', 0, 'error');
+  }
+
+  async pollVideosZip(routeBase, cameras) {
+    const pollUrl = `${this.API_BASE}/api/videos-zip/${routeBase}/status`;
+    const maxAttempts = 240; // 20 minutes for multiple videos
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
+
+      try {
+        const response = await fetch(pollUrl);
+        const status = await response.json();
+
+        if (status.status === 'ready') {
+          this.showExportStatus('video', 'Archive ready!', 100, 'success');
+          const filename = `${routeBase}_videos.zip`;
+          const downloadUrl = `${this.API_BASE}/api/videos-zip/${routeBase}/download`;
+          this.triggerRouteDownload(downloadUrl, filename);
+          setTimeout(() => this.$videoExportStatus.classList.add('hidden'), 3000);
+          return;
+        } else if (status.status === 'error') {
+          throw new Error(status.message || 'Archive creation failed');
+        } else {
+          const progress = Math.round(status.progress * 100 || 0);
+          this.showExportStatus('video', `Creating archive... ${progress}%`, progress);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+        this.showExportStatus('video', `Error: ${error.message}`, 0, 'error');
+        return;
+      }
+    }
+
+    this.showExportStatus('video', 'Archive creation timed out', 0, 'error');
+  }
+
+  async backupCurrentRoute() {
+    if (!this.currentRoute) return;
+    const routeBase = this.currentRoute.baseName;
+
+    this.showExportStatus('backup', 'Creating backup archive...', 0);
+    this.$backupRouteBtn.disabled = true;
+
+    try {
+      const response = await fetch(`${this.API_BASE}/api/route-backup/${routeBase}`, {
+        method: 'POST'
+      });
+
+      const statusData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(statusData.error || 'Failed to start backup');
+      }
+
+      await this.pollBackup(routeBase);
+    } catch (error) {
+      console.error('Error creating backup:', error);
+      this.showExportStatus('backup', `Error: ${error.message}`, 0, 'error');
+    } finally {
+      this.$backupRouteBtn.disabled = false;
+    }
+  }
+
+  async pollBackup(routeBase) {
+    const pollUrl = `${this.API_BASE}/api/route-backup/${routeBase}/status`;
+    const maxAttempts = 360; // 30 minutes for full backup
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
+
+      try {
+        const response = await fetch(pollUrl);
+        const status = await response.json();
+
+        if (status.status === 'ready') {
+          this.showExportStatus('backup', 'Backup ready!', 100, 'success');
+          const filename = `${routeBase}.bpbackup.zip`;
+          const downloadUrl = `${this.API_BASE}/api/route-backup/${routeBase}/download`;
+          this.triggerRouteDownload(downloadUrl, filename);
+          setTimeout(() => this.$backupStatus.classList.add('hidden'), 3000);
+          return;
+        } else if (status.status === 'error') {
+          throw new Error(status.message || 'Backup failed');
+        } else {
+          const progress = Math.round(status.progress * 100 || 0);
+          this.showExportStatus('backup', `Creating backup... ${progress}%`, progress);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+        this.showExportStatus('backup', `Error: ${error.message}`, 0, 'error');
+        return;
+      }
+    }
+
+    this.showExportStatus('backup', 'Backup creation timed out', 0, 'error');
+  }
+
+  handleImportFileSelected(event) {
+    const file = event.target.files[0];
+    if (file) {
+      this.$importFileName.textContent = file.name;
+      this.$importRouteBtn.disabled = false;
+      this.selectedBackupFile = file;
+    } else {
+      this.$importFileName.textContent = 'No file selected';
+      this.$importRouteBtn.disabled = true;
+      this.selectedBackupFile = null;
+    }
+  }
+
+  async importRouteBackup() {
+    if (!this.selectedBackupFile) return;
+
+    this.showExportStatus('import', 'Uploading backup file...', 0);
+    this.$importRouteBtn.disabled = true;
+    this.$selectImportFileBtn.disabled = true;
+
+    try {
+      const formData = new FormData();
+      formData.append('backup', this.selectedBackupFile);
+
+      const response = await fetch(`${this.API_BASE}/api/route-import`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to import backup');
+      }
+
+      // Poll for import completion
+      await this.pollImport(result.importId);
+
+    } catch (error) {
+      console.error('Error importing backup:', error);
+      this.showExportStatus('import', `Error: ${error.message}`, 0, 'error');
+      this.$importRouteBtn.disabled = false;
+      this.$selectImportFileBtn.disabled = false;
+    }
+  }
+
+  async pollImport(importId) {
+    const pollUrl = `${this.API_BASE}/api/route-import/${importId}/status`;
+    const maxAttempts = 360; // 30 minutes
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
+
+      try {
+        const response = await fetch(pollUrl);
+        const status = await response.json();
+
+        if (status.status === 'completed') {
+          this.showExportStatus('import', `Import successful! Route restored: ${status.routeName}`, 100, 'success');
+          this.$importRouteBtn.disabled = false;
+          this.$selectImportFileBtn.disabled = false;
+
+          // Reload routes to show the newly imported route
+          setTimeout(() => {
+            this.closeExportBackupModal();
+            this.loadRoutes();
+          }, 2000);
+          return;
+        } else if (status.status === 'error') {
+          throw new Error(status.message || 'Import failed');
+        } else {
+          const progress = Math.round(status.progress * 100 || 0);
+          this.showExportStatus('import', `Importing... ${progress}%`, progress);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+        this.showExportStatus('import', `Error: ${error.message}`, 0, 'error');
+        this.$importRouteBtn.disabled = false;
+        this.$selectImportFileBtn.disabled = false;
+        return;
+      }
+    }
+
+    this.showExportStatus('import', 'Import timed out', 0, 'error');
+    this.$importRouteBtn.disabled = false;
+    this.$selectImportFileBtn.disabled = false;
+  }
+
+  showExportStatus(type, message, progress, status = 'active') {
+    let statusElement, progressFill, messageElement;
+
+    if (type === 'video') {
+      statusElement = this.$videoExportStatus;
+      progressFill = statusElement.querySelector('.export-progress-fill');
+      messageElement = statusElement.querySelector('.export-status-message');
+    } else if (type === 'backup') {
+      statusElement = this.$backupStatus;
+      progressFill = statusElement.querySelector('.export-progress-fill');
+      messageElement = statusElement.querySelector('.export-status-message');
+    } else if (type === 'import') {
+      statusElement = this.$importStatus;
+      progressFill = statusElement.querySelector('.export-progress-fill');
+      messageElement = statusElement.querySelector('.export-status-message');
+    }
+
+    if (!statusElement) return;
+
+    statusElement.classList.remove('hidden', 'success', 'error');
+    if (status === 'success' || status === 'error') {
+      statusElement.classList.add(status);
+    }
+
+    messageElement.textContent = message;
+    progressFill.style.width = `${progress}%`;
   }
 
   async loadMetrics() {
