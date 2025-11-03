@@ -153,27 +153,19 @@ from bluepilot.backend.handlers.export_backup import (
     handle_route_import_status_get,
 )
 
-# Params
+# Params - import from params_manager to get fallback support
+from bluepilot.backend.params_manager import Params
+params = Params()
+
+# Disk space deletion thresholds
 try:
-    from openpilot.common.params import Params
-    params = Params()
+    from openpilot.system.loggerd.deleter import MIN_BYTES, MIN_PERCENT
 except ImportError:
-    # Mock for testing
-    class Params:
-        def __init__(self):
-            self._params = {"IsOnRoad": False, "BPWebServerPort": "8088", "BPWebServerEnabled": True}
-        def get_bool(self, key):
-            return self._params.get(key, False)
-        def get(self, key, encoding=None):
-            value = self._params.get(key, "")
-            if encoding and isinstance(value, str):
-                return value.encode(encoding)
-            return value if isinstance(value, str) else str(value)
-        def put(self, key, value):
-            self._params[key] = value
-        def put_bool(self, key, value):
-            self._params[key] = value
-    params = Params()
+    MIN_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
+    MIN_PERCENT = 10
+
+# WebSocket availability - checked dynamically to handle runtime installation
+WEBSOCKETS_AVAILABLE = False
 
 # ============================================================================
 # Global Server State
@@ -181,6 +173,152 @@ except ImportError:
 
 # Initialize global server state
 server_state = ServerState()
+
+
+def broadcast_websocket_event(event_type, data=None):
+    """Broadcast event to all connected WebSocket clients (thread-safe)"""
+    broadcaster = server_state.get_broadcaster()
+    if broadcaster:
+        try:
+            broadcaster.broadcast(event_type, data)
+        except Exception as e:
+            logger.error(f"Error broadcasting WebSocket event {event_type}: {e}")
+
+
+async def websocket_handler(websocket):
+    """Handle WebSocket connections (thread-safe)"""
+    try:
+        import websockets
+    except ImportError:
+        logger.error("websockets not available in handler")
+        return
+
+    try:
+        # Thread-safe: Add client to active connections
+        client_count = server_state.add_websocket_client(websocket)
+        logger.info(f"WebSocket client connected. Total clients: {client_count}")
+
+        # Send initial status
+        try:
+            initial_status = {
+                'type': 'connection_established',
+                'timestamp': datetime.now().isoformat(),
+                'data': {
+                    'status': 'online',
+                    'routes_count': 0
+                }
+            }
+            await websocket.send(json.dumps(initial_status))
+        except Exception as e:
+            logger.warning(f"Failed to send initial status: {e}")
+
+        # Keep connection alive with heartbeat
+        while True:
+            try:
+                await asyncio.sleep(10.0)
+                heartbeat = {
+                    'type': 'heartbeat',
+                    'timestamp': datetime.now().isoformat(),
+                    'data': {}
+                }
+                await websocket.send(json.dumps(heartbeat))
+            except Exception as e:
+                logger.debug(f"WebSocket connection closed: {e}")
+                break
+
+    except Exception as e:
+        logger.error(f"WebSocket handler error: {e}", exc_info=True)
+    finally:
+        # Thread-safe: Remove client from active connections
+        client_count = server_state.remove_websocket_client(websocket)
+        logger.info(f"WebSocket client disconnected. Remaining clients: {client_count}")
+
+
+async def no_origin_check(path, request):
+    """
+    Allow all WebSocket connections, bypassing origin checks.
+    This is required for compatibility with Safari, which can be strict
+    about cross-origin policies even for local connections.
+    """
+    return None  # Allow the connection
+
+
+async def start_websocket_server():
+    """Start the WebSocket server"""
+    try:
+        # Import websockets directly for the serve function
+        import websockets
+    except ImportError:
+        logger.warning("WebSocket server not started - websockets library not available")
+        return
+
+    try:
+        logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT}")
+
+        # Try to bind, retry once on port conflict
+        retry_count = 0
+        max_retries = 2
+        while retry_count < max_retries:
+            try:
+                server = await websockets.serve(
+                    websocket_handler,
+                    WEBSOCKET_HOST,
+                    WEBSOCKET_PORT,
+                    ping_interval=30,
+                    ping_timeout=10,
+                    close_timeout=5,
+                    compression=None,  # Disable permessage-deflate for Safari compatibility
+                    process_request=no_origin_check  # Custom handler for Safari
+                )
+                logger.info("WebSocket server started with custom origin handling for Safari")
+                break
+            except OSError as e:
+                if e.errno == 98:  # Address already in use
+                    logger.warning(f"Port {WEBSOCKET_PORT} in use, attempting to kill existing process...")
+                    if process_manager.kill_port_process(WEBSOCKET_PORT):
+                        logger.info(f"Killed process on port {WEBSOCKET_PORT}, retrying...")
+                        retry_count += 1
+                        await asyncio.sleep(1)
+                    else:
+                        logger.error(f"Failed to free port {WEBSOCKET_PORT}")
+                        raise
+                else:
+                    raise
+
+        # Keep server running
+        await asyncio.Future()  # Run forever
+    except Exception as e:
+        logger.error(f"WebSocket server error: {e}", exc_info=True)
+
+
+def start_websocket_server_thread():
+    """Start WebSocket server in a separate thread (thread-safe)"""
+    try:
+        import websockets
+    except ImportError:
+        logger.warning("WebSocket server thread not started - websockets library not available")
+        return
+
+    try:
+        # Create new event loop for this thread
+        ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(ws_loop)
+
+        # Register loop with server state (thread-safe)
+        server_state.set_websocket_loop(ws_loop)
+        logger.info("WebSocket event loop registered")
+
+        # Start the WebSocket server
+        ws_loop.run_until_complete(start_websocket_server())
+    except Exception as e:
+        logger.error(f"WebSocket server thread error: {e}", exc_info=True)
+    finally:
+        try:
+            ws_loop = server_state.get_websocket_loop()
+            if ws_loop:
+                ws_loop.close()
+        except Exception as e:
+            logger.debug(f"Error closing WebSocket loop: {e}")
 
 
 class ReuseAddressHTTPServer(ThreadingHTTPServer):
@@ -565,7 +703,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             # Rate limiting check
             client_ip = self.client_address[0]
-            is_allowed, retry_after = check_rate_limit(client_ip)
+            is_allowed, retry_after = process_manager.check_rate_limit(
+                client_ip,
+                is_onroad_func=is_onroad,
+                max_offroad=RATE_LIMIT_MAX_REQUESTS,
+                max_onroad=20,
+                window_seconds=RATE_LIMIT_WINDOW_SECONDS
+            )
             if not is_allowed:
                 onroad = is_onroad()
                 limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
@@ -827,7 +971,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             elif path.startswith('/api/params/search'):
                 # Search parameters
                 try:
-                    query = parse_qs(urlparse(path).query).get('q', [''])[0]
+                    query = parse_qs(parsed.query).get('q', [''])[0]
                     if not query:
                         self.send_json_response({
                             'success': False,
@@ -1692,7 +1836,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             # Rate limiting check (skip for internal endpoints)
             if not path.startswith('/_internal/'):
                 client_ip = self.client_address[0]
-                is_allowed, retry_after = check_rate_limit(client_ip)
+                is_allowed, retry_after = process_manager.check_rate_limit(
+                client_ip,
+                is_onroad_func=is_onroad,
+                max_offroad=RATE_LIMIT_MAX_REQUESTS,
+                max_onroad=20,
+                window_seconds=RATE_LIMIT_WINDOW_SECONDS
+            )
                 if not is_allowed:
                     self.send_response(429)
                     self.send_header('Retry-After', str(retry_after))
@@ -1719,13 +1869,21 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         if broadcaster_instance:
                             broadcaster_instance.broadcast(event_data.get('type'), event_data.get('data'))
 
-                    self.send_json_response({'success': True})
+                    try:
+                        self.send_json_response({'success': True})
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Client disconnected before reading response (fire-and-forget request)
+                        # This is expected behavior for internal broadcasts, not an error
+                        pass
                 except Exception as e:
                     logger.exception("Error handling internal broadcast")
-                    self.send_json_response({
-                        'error': 'Broadcast failed',
-                        'details': str(e)
-                    }, 500)
+                    try:
+                        self.send_json_response({
+                            'error': 'Broadcast failed',
+                            'details': str(e)
+                        }, 500)
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass  # Client already disconnected
                 return
 
             # Check if server should be running
@@ -2127,7 +2285,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             # Rate limiting check
             client_ip = self.client_address[0]
-            is_allowed, retry_after = check_rate_limit(client_ip)
+            is_allowed, retry_after = process_manager.check_rate_limit(
+                client_ip,
+                is_onroad_func=is_onroad,
+                max_offroad=RATE_LIMIT_MAX_REQUESTS,
+                max_onroad=20,
+                window_seconds=RATE_LIMIT_WINDOW_SECONDS
+            )
             if not is_allowed:
                 self.send_response(429)
                 self.send_header('Retry-After', str(retry_after))
@@ -2207,90 +2371,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 pass
 
 
-def record_crash():
-    """Record a server crash for monitoring (but don't disable server)"""
-    import time
-
-    try:
-        current_time = int(time.monotonic())
-
-        # Get crash count - handle both real and mock params
-        try:
-            crash_count_str = params.get("BPWebServerCrashCount")
-            crash_count = int(crash_count_str) if crash_count_str else 0
-        except (AttributeError, TypeError):
-            # Mock params or other error
-            crash_count = 0
-
-        # Get last crash time - handle both real and mock params
-        try:
-            last_crash_str = params.get("BPWebServerLastCrash")
-            last_crash = int(last_crash_str) if last_crash_str else 0
-        except (AttributeError, TypeError):
-            # Mock params or other error
-            last_crash = 0
-
-        # Check if this is a recent consecutive crash
-        if current_time - last_crash <= 30:  # Within 30 seconds
-            crash_count += 1
-        else:
-            # Reset crash count if more than 30 seconds have passed
-            crash_count = 1
-
-        # Update crash tracking parameters for monitoring only
-        try:
-            params.put("BPWebServerCrashCount", min(crash_count, 10))  # Cap at 10
-            params.put("BPWebServerLastCrash", current_time)
-        except AttributeError:
-            # Mock params object doesn't have put methods, skip
-            pass
-
-        logger.warning(f"Server error occurred ({crash_count} recent errors) - continuing operation")
-
-    except Exception as e:
-        logger.error(f"Error recording crash: {e}")
-
-def check_and_handle_crashes():
-    """Check server status but never disable it automatically"""
-    import time
-
-    try:
-        # Get crash count for monitoring only - don't disable server
-        try:
-            crash_count_str = params.get("BPWebServerCrashCount")
-            crash_count = int(crash_count_str) if crash_count_str else 0
-        except (AttributeError, TypeError):
-            crash_count = 0
-
-        # Get last crash time for monitoring only
-        try:
-            last_crash_str = params.get("BPWebServerLastCrash")
-            last_crash = int(last_crash_str) if last_crash_str else 0
-        except (AttributeError, TypeError):
-            last_crash = 0
-
-        current_time = int(time.monotonic())
-
-        # Log crash statistics for monitoring but don't disable server
-        if crash_count > 0:
-            logger.info(f"Server has experienced {crash_count} errors recently - continuing operation")
-
-        # Reset crash count if server has been running stably for 10 minutes
-        if crash_count > 0 and current_time - last_crash > 600:  # 10 minutes
-            logger.info("Server running stably for 10 minutes, resetting error count")
-            try:
-                params.put("BPWebServerCrashCount", 0)
-                params.put("BPWebServerLastCrash", 0)
-            except AttributeError:
-                # Mock params object doesn't have put methods, skip
-                pass
-
-        return True  # Always allow server to start
-
-    except Exception as e:
-        logger.error(f"Error checking crash status: {e}")
-        return True  # Default to allowing server start
-
 def ensure_dependencies():
     """Check if all required dependencies are available, install if missing, and restart server"""
     global WEBSOCKETS_AVAILABLE
@@ -2349,6 +2429,60 @@ def ensure_dependencies():
         return False
 
 
+def cleanup_on_shutdown():
+    """Critical cleanup on server shutdown - thread-safe"""
+    logger.info("Server shutting down - performing cleanup...")
+
+    # IMPORTANT: Do NOT disable CPU cores on shutdown!
+    # The web server shuts down when:
+    # 1. Going onroad (cores MUST stay enabled for openpilot processes)
+    # 2. User disabled the server (cores should stay as-is)
+    # 3. Device shutdown (doesn't matter, system is shutting down anyway)
+
+    logger.info("Leaving CPU cores in current state (not disabling on shutdown)")
+
+    # Kill any remaining FFmpeg processes tracked by server state
+    ffmpeg_count = server_state.get_ffmpeg_count()
+    if ffmpeg_count > 0:
+        logger.warning(f"Killing {ffmpeg_count} remaining FFmpeg processes")
+        ffmpeg_processes = server_state.get_ffmpeg_processes()
+
+        # Try to kill specific tracked processes first
+        for pid, info in ffmpeg_processes.items():
+            try:
+                import psutil
+                proc = psutil.Process(pid)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                logger.info(f"Killed FFmpeg process {pid} ({info['route']})")
+            except (psutil.NoSuchProcess, ImportError):
+                pass
+            except Exception as e:
+                logger.debug(f"Error killing process {pid}: {e}")
+
+        # Fallback: pkill any remaining ffmpeg processes (only as last resort)
+        # NOTE: This kills ALL ffmpeg processes, which might include user processes
+        # Only use this during actual server shutdown, not during regular cleanup
+        try:
+            logger.warning("Using pkill -9 as last resort - this kills ALL ffmpeg processes")
+            subprocess.run(['pkill', '-9', 'ffmpeg'], timeout=2, capture_output=True)
+        except Exception as e:
+            logger.debug(f"Error running pkill: {e}")
+
+    logger.info("Cleanup completed")
+
+
+def signal_handler(signum, frame):
+    """Handle termination signals gracefully"""
+    signal_name = signal.Signals(signum).name
+    logger.info(f"Received signal {signal_name} - initiating graceful shutdown")
+    cleanup_on_shutdown()
+    sys.exit(0)
+
+
 def main():
     """Start the server"""
     # Add venv site-packages to sys.path so we can import pycapnp and other venv packages
@@ -2375,7 +2509,7 @@ def main():
     logger.info("Registered graceful shutdown handlers")
 
     # Ensure dependencies are available, install if missing
-    needs_restart = ensure_dependencies()
+    needs_restart = lifecycle.ensure_dependencies()
 
     if needs_restart:
         # Dependencies were just installed, restart the server process
@@ -2391,7 +2525,7 @@ def main():
     enable_performance_mode()
 
     # Check if server should be disabled due to crashes
-    # if not check_and_handle_crashes():
+    # if not lifecycle.check_and_handle_crashes():
     #     logger.error("Server startup aborted due to excessive crashes")
     #     return
 
@@ -2493,7 +2627,7 @@ def main():
     # Create HTTP server with socket reuse to prevent "Address already in use" errors
     # Kill any existing process using the port first
     try:
-        killed = kill_port_process(port)
+        killed = process_manager.kill_port_process(port)
         if killed:
             logger.info(f"Cleared port {port}, waiting 1 second for socket cleanup...")
             time.sleep(1)
@@ -2512,7 +2646,7 @@ def main():
             if e.errno == 98:  # Address already in use
                 if attempt < max_retries - 1:
                     logger.warning(f"Port {port} still in use, retrying...")
-                    kill_port_process(port)
+                    process_manager.kill_port_process(port)
                     time.sleep(2)
                     continue
                 else:
@@ -2578,7 +2712,7 @@ def main():
     except Exception as e:
         logger.error(f"Server error: {e}")
         # Record this error for monitoring but don't stop the server
-        # record_crash()
+        # lifecycle.record_crash()
         logger.info("Server continuing despite error...")
         # Don't shutdown or re-raise - keep server running
 

@@ -10,33 +10,65 @@ from typing import Dict, List, Optional, Any, Union
 
 logger = logging.getLogger(__name__)
 
-# Import Params with fallback for testing
+# Import Params with fallback for direct file reading
+PARAMS_DIR = "/data/params/d"
+USE_DIRECT_FILE_READING = False
+
 try:
     from openpilot.common.params import Params
-except ImportError:
-    # Mock for testing
+    logger.info("Successfully imported openpilot.common.params.Params")
+except ImportError as e:
+    logger.warning(f"Failed to import openpilot Params: {e}. Using direct file reading fallback.")
+    USE_DIRECT_FILE_READING = True
+
+    # Fallback Params class that reads directly from filesystem
     class Params:
-        def __init__(self):
-            self._params = {
-                "IsOnRoad": False,
-                "BPWebServerPort": "8088",
-                "BPWebServerEnabled": True,
-            }
+        def __init__(self, params_dir=PARAMS_DIR):
+            self.params_dir = params_dir
+
+        def _read_file(self, key):
+            """Read param file directly"""
+            try:
+                param_path = os.path.join(self.params_dir, key)
+                if not os.path.exists(param_path):
+                    return None
+                with open(param_path, 'rb') as f:
+                    return f.read()
+            except Exception as e:
+                logger.debug(f"Error reading param file {key}: {e}")
+                return None
 
         def get_bool(self, key):
-            return self._params.get(key, False)
+            """Get boolean param"""
+            value = self._read_file(key)
+            if value is None:
+                return False
+            # openpilot stores bools as "1" or "0"
+            return value == b"1"
 
-        def get(self, key, encoding=None):
-            value = self._params.get(key, "")
-            if encoding and isinstance(value, str):
-                return value.encode(encoding)
-            return value if isinstance(value, str) else str(value)
+        def get(self, key):
+            """Get param as bytes"""
+            value = self._read_file(key)
+            if value is None:
+                return b""
+            return value
 
         def put(self, key, value):
-            self._params[key] = value
+            """Write param to file"""
+            try:
+                param_path = os.path.join(self.params_dir, key)
+                if isinstance(value, str):
+                    value = value.encode('utf-8')
+                with open(param_path, 'wb') as f:
+                    f.write(value)
+                return 0
+            except Exception as e:
+                logger.error(f"Error writing param {key}: {e}")
+                return -1
 
         def put_bool(self, key, value):
-            self._params[key] = value
+            """Write boolean param"""
+            return self.put(key, "1" if value else "0")
 
 
 # Critical params that should not be modified through the web interface
@@ -155,13 +187,25 @@ def get_all_params(params: Optional[Params] = None) -> Dict[str, Any]:
     for key in param_keys:
         try:
             value = get_param_value(key, params)
+
+            # Get file modification time (last change time)
+            last_modified = None
+            try:
+                param_path = os.path.join(params_dir if params_dir else PARAMS_DIR, key)
+                if os.path.exists(param_path):
+                    mtime = os.path.getmtime(param_path)
+                    last_modified = mtime
+            except Exception as e:
+                logger.debug(f"Error getting mtime for param {key}: {e}")
+
             result[key] = {
                 "key": key,
                 "value": value,
                 "category": categorize_param(key),
                 "readonly": key in READONLY_PARAMS,
                 "critical": key in CRITICAL_PARAMS,
-                "type": determine_param_type(value)
+                "type": determine_param_type(value),
+                "last_modified": last_modified
             }
         except Exception as e:
             logger.debug(f"Error reading param {key}: {e}")
@@ -173,7 +217,8 @@ def get_all_params(params: Optional[Params] = None) -> Dict[str, Any]:
                 "readonly": True,
                 "critical": False,
                 "type": "unknown",
-                "error": str(e)
+                "error": str(e),
+                "last_modified": None
             }
 
     return result
@@ -197,22 +242,34 @@ def get_param_value(key: str, params: Optional[Params] = None) -> Union[str, boo
         if key.endswith("Enabled") or key.endswith("Toggle") or key in ["IsOnRoad", "IsOffroad", "Passive"]:
             return params.get_bool(key)
 
-        # Try getting as string
-        value = params.get(key, encoding='utf-8')
+        # Try getting as bytes/string
+        value = params.get(key)
 
-        if value is None or value == b'':
+        # Handle None and empty values
+        if value is None or value == b'' or value == '':
             return None
 
+        # Decode bytes to string if needed
         if isinstance(value, bytes):
-            value = value.decode('utf-8', errors='replace')
+            try:
+                value = value.decode('utf-8', errors='replace').strip()
+            except Exception as e:
+                logger.debug(f"Failed to decode param {key}: {e}")
+                return None
+        elif isinstance(value, str):
+            value = value.strip()
+
+        # Handle empty strings
+        if not value or value == '':
+            return None
 
         # Try to parse as number
-        if value.isdigit():
-            return int(value)
-
         try:
-            return float(value)
-        except ValueError:
+            if '.' in str(value):
+                return float(value)
+            elif str(value).lstrip('-').isdigit():
+                return int(value)
+        except (ValueError, AttributeError):
             pass
 
         return value

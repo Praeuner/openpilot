@@ -41,14 +41,26 @@ class BluePilotRoutes {
     this.routeDownloadTokenQueue = [];
 
     // View navigation
-    this.currentView = 'landing'; // 'landing', 'routes', 'system', 'params'
+    this.currentView = "landing"; // 'landing', 'routes', 'system', 'params'
     this.paramsEditMode = false;
     this.allParams = {};
+
+    // Params sorting state
+    this.paramsSortColumn = "key"; // Default sort by parameter name
+    this.paramsSortDirection = "asc"; // 'asc' or 'desc'
 
     this.init();
   }
 
   async init() {
+    console.log("=".repeat(60));
+    console.log("BluePilot Web App - Version: 2025-11-03-v2");
+    console.log("Looking for parameter Type and Last Modified columns?");
+    console.log(
+      'Check for "Code version: 2025-11-03-v2" when viewing Parameters'
+    );
+    console.log("=".repeat(60));
+
     this.cacheElements();
     this.attachEventListeners();
     this.setupTimelineListeners();
@@ -59,10 +71,29 @@ class BluePilotRoutes {
     // Initialize WebSocket support
     await this.initWebSocket();
 
+    // Load initial data for landing page
     this.loadRoutes();
+    this.loadInitialLandingPageData();
 
     // Setup fallback polling (will be disabled if WebSocket works)
     this.setupFallbackPolling();
+  }
+
+  async loadInitialLandingPageData() {
+    // Load params count for landing page
+    try {
+      const response = await fetch(`${this.API_BASE}/api/params`);
+      const data = await response.json();
+      if (data.success) {
+        this.allParams = data.params;
+        this.$landingParamsCount.textContent = `${
+          Object.keys(this.allParams).length
+        } parameters`;
+      }
+    } catch (error) {
+      console.error("Error loading initial params count:", error);
+      this.$landingParamsCount.textContent = "Error loading";
+    }
   }
 
   async detectBrowserCapabilities() {
@@ -417,22 +448,30 @@ class BluePilotRoutes {
     this.$error = document.getElementById("error");
     this.$empty = document.getElementById("empty");
     this.$routesContainer = document.getElementById("routes-container");
+    this.$routesContent = document.getElementById("routes-content");
 
     // Storage Bar (New tethered design)
     this.$storageBar = document.getElementById("storage-bar");
     this.$storageText = document.getElementById("storage-text");
     this.$storageWarning = document.getElementById("storage-warning");
-    this.$storagePreservedBar = document.getElementById("storage-preserved-bar");
+    this.$storagePreservedBar = document.getElementById(
+      "storage-preserved-bar"
+    );
     this.$storageRoutesBar = document.getElementById("storage-routes-bar");
     this.$storageCacheBar = document.getElementById("storage-cache-bar");
-    this.$storageThresholdMarker = document.getElementById("storage-threshold-marker");
-    this.$storagePreservedText = document.getElementById("storage-preserved-text");
+    this.$storageThresholdMarker = document.getElementById(
+      "storage-threshold-marker"
+    );
+    this.$storagePreservedText = document.getElementById(
+      "storage-preserved-text"
+    );
     this.$storageRoutesText = document.getElementById("storage-routes-text");
     this.$storageCacheText = document.getElementById("storage-cache-text");
 
     // Storage Bar Buttons
-    this.$storageMetricsBtn = document.getElementById("storage-metrics-btn");
-    this.$storageClearCacheBtn = document.getElementById("storage-clear-cache-btn");
+    this.$storageClearCacheBtn = document.getElementById(
+      "storage-clear-cache-btn"
+    );
     this.$storageRefreshBtn = document.getElementById("storage-refresh-btn");
 
     // Legacy disk viz container (for backward compatibility)
@@ -487,7 +526,9 @@ class BluePilotRoutes {
 
     // Header action buttons
     this.$headerMetricsBtn = document.getElementById("header-metrics-btn");
-    this.$headerClearCacheBtn = document.getElementById("header-clear-cache-btn");
+    this.$headerClearCacheBtn = document.getElementById(
+      "header-clear-cache-btn"
+    );
     this.$headerRefreshBtn = document.getElementById("header-refresh-btn");
 
     // Legacy header elements (removed from UI, kept for backwards compatibility)
@@ -503,6 +544,15 @@ class BluePilotRoutes {
     this.$metricsModal = document.getElementById("metrics-modal");
     this.$closeMetricsBtn = document.getElementById("close-metrics-btn");
     this.$refreshMetricsBtn = document.getElementById("refresh-metrics-btn");
+
+    // Parameter Value Viewer modal
+    this.$paramValueModal = document.getElementById("param-value-modal");
+    this.$closeParamValueBtn = document.getElementById("close-param-value-btn");
+    this.$copyParamValueBtn = document.getElementById("copy-param-value-btn");
+    this.$paramValueKey = document.getElementById("param-value-key");
+    this.$paramValueType = document.getElementById("param-value-type");
+    this.$paramValueCategory = document.getElementById("param-value-category");
+    this.$paramValueText = document.getElementById("param-value-text");
 
     // Export & Backup modal
     this.$exportBackupModal = document.getElementById("export-backup-modal");
@@ -538,8 +588,12 @@ class BluePilotRoutes {
 
     // Import backup modal
     this.$importBackupModal = document.getElementById("import-backup-modal");
-    this.$closeImportModalBtn = document.getElementById("close-import-modal-btn");
-    this.$selectImportFileBtn = document.getElementById("select-import-file-btn");
+    this.$closeImportModalBtn = document.getElementById(
+      "close-import-modal-btn"
+    );
+    this.$selectImportFileBtn = document.getElementById(
+      "select-import-file-btn"
+    );
     this.$importFileInput = document.getElementById("import-file-input");
     this.$importFileName = document.getElementById("import-file-name");
     this.$importRouteBtn = document.getElementById("import-route-btn");
@@ -691,35 +745,30 @@ class BluePilotRoutes {
 
     // View containers
     this.$landingPage = document.getElementById("landing-page");
-    this.$systemDashboard = document.getElementById("system-dashboard");
     this.$paramsManager = document.getElementById("params-manager");
     this.$headerTitle = document.getElementById("header-title");
 
     // Landing page cards
     this.$homeBtn = document.getElementById("home-btn");
     this.$cardRoutes = document.getElementById("card-routes");
-    this.$cardSystem = document.getElementById("card-system");
     this.$cardParams = document.getElementById("card-params");
     this.$landingRouteCount = document.getElementById("landing-route-count");
     this.$landingTotalSize = document.getElementById("landing-total-size");
-    this.$landingSystemStatus = document.getElementById("landing-system-status");
     this.$landingParamsCount = document.getElementById("landing-params-count");
-
-    // System dashboard
-    this.$dashboardContent = document.querySelector(".dashboard-content");
 
     // Params manager
     this.$paramsSearch = document.getElementById("params-search");
     this.$paramsEditToggle = document.getElementById("params-edit-toggle");
     this.$paramsContent = document.querySelector(".params-content");
 
-    // Routes status bar
+    // Routes status bar (now integrated into storage bar)
     this.$routesRouteCount = document.getElementById("routes-route-count");
     this.$routesTotalSize = document.getElementById("routes-total-size");
     this.$routesDiskCompact = document.getElementById("routes-disk-compact");
-    this.$routesMetricsBtn = document.getElementById("routes-metrics-btn");
     this.$routesImportBtn = document.getElementById("routes-import-btn");
-    this.$routesClearCacheBtn = document.getElementById("routes-clear-cache-btn");
+    this.$routesClearCacheBtn = document.getElementById(
+      "routes-clear-cache-btn"
+    );
     this.$routesRefreshBtn = document.getElementById("routes-refresh-btn");
   }
 
@@ -735,6 +784,17 @@ class BluePilotRoutes {
     this.$metricsModal.addEventListener("click", (e) => {
       if (e.target === this.$metricsModal) {
         this.closeMetrics();
+      }
+    });
+
+    // Parameter Value Viewer modal handlers
+    this.$closeParamValueBtn.addEventListener("click", () => this.closeParamValueModal());
+    this.$copyParamValueBtn.addEventListener("click", () => this.copyParamValue());
+
+    // Close param value modal when clicking backdrop
+    this.$paramValueModal.addEventListener("click", (e) => {
+      if (e.target === this.$paramValueModal) {
+        this.closeParamValueModal();
       }
     });
 
@@ -806,14 +866,21 @@ class BluePilotRoutes {
     }
 
     if (this.$importBackupBtn) {
-      this.$importBackupBtn.addEventListener("click", () => this.openImportBackupModal());
+      this.$importBackupBtn.addEventListener("click", () =>
+        this.openImportBackupModal()
+      );
     }
 
     // View navigation listeners
-    this.$homeBtn.addEventListener("click", () => this.navigateToView('landing'));
-    this.$cardRoutes.addEventListener("click", () => this.navigateToView('routes'));
-    this.$cardSystem.addEventListener("click", () => this.navigateToView('system'));
-    this.$cardParams.addEventListener("click", () => this.navigateToView('params'));
+    this.$homeBtn.addEventListener("click", () =>
+      this.navigateToView("landing")
+    );
+    this.$cardRoutes.addEventListener("click", () =>
+      this.navigateToView("routes")
+    );
+    this.$cardParams.addEventListener("click", () =>
+      this.navigateToView("params")
+    );
 
     // Params manager listeners
     this.$paramsEditToggle.addEventListener("change", (e) => {
@@ -824,36 +891,53 @@ class BluePilotRoutes {
       this.searchParams(e.target.value);
     });
 
-    // Routes status bar button listeners
-    this.$routesMetricsBtn.addEventListener("click", () => this.openMetrics());
-    this.$routesImportBtn.addEventListener("click", () => this.openImportBackupModal());
-    this.$routesClearCacheBtn.addEventListener("click", () => this.clearCache());
-    this.$routesRefreshBtn.addEventListener("click", () => this.loadRoutes());
+    // Routes status bar button listeners (now in storage bar)
+    if (this.$routesImportBtn) {
+      this.$routesImportBtn.addEventListener("click", () =>
+        this.openImportBackupModal()
+      );
+    }
+    if (this.$routesClearCacheBtn) {
+      this.$routesClearCacheBtn.addEventListener("click", () =>
+        this.clearCache()
+      );
+    }
+    if (this.$routesRefreshBtn) {
+      this.$routesRefreshBtn.addEventListener("click", () => this.loadRoutes());
+    }
 
     // Header button listeners
     if (this.$headerMetricsBtn) {
-      this.$headerMetricsBtn.addEventListener("click", () => this.openMetrics());
+      this.$headerMetricsBtn.addEventListener("click", () =>
+        this.openMetrics()
+      );
     }
     if (this.$headerClearCacheBtn) {
-      this.$headerClearCacheBtn.addEventListener("click", () => this.clearCache());
+      this.$headerClearCacheBtn.addEventListener("click", () =>
+        this.clearCache()
+      );
     }
     if (this.$headerRefreshBtn) {
       this.$headerRefreshBtn.addEventListener("click", () => this.loadRoutes());
     }
 
     // Storage bar button listeners
-    if (this.$storageMetricsBtn) {
-      this.$storageMetricsBtn.addEventListener("click", () => this.openMetrics());
-    }
     if (this.$storageClearCacheBtn) {
-      this.$storageClearCacheBtn.addEventListener("click", () => this.clearCache());
+      this.$storageClearCacheBtn.addEventListener("click", () =>
+        this.clearCache()
+      );
     }
     if (this.$storageRefreshBtn) {
-      this.$storageRefreshBtn.addEventListener("click", () => this.loadRoutes());
+      this.$storageRefreshBtn.addEventListener("click", () =>
+        this.loadRoutes()
+      );
     }
 
     // Keep old button references for backwards compatibility (if they exist)
-    if (this.$clearCacheBtn && this.$clearCacheBtn !== this.$headerClearCacheBtn) {
+    if (
+      this.$clearCacheBtn &&
+      this.$clearCacheBtn !== this.$headerClearCacheBtn
+    ) {
       this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
     }
     if (this.$refreshBtn) {
@@ -993,10 +1077,18 @@ class BluePilotRoutes {
   }
 
   showLoading() {
+    // Only show loading if we're on the routes view
+    if (this.currentView !== "routes") {
+      return;
+    }
     this.$loading.classList.remove("hidden");
     this.$error.classList.add("hidden");
     this.$empty.classList.add("hidden");
-    this.$routesContainer.innerHTML = "";
+    // Clear only the routes content area, not the entire container
+    if (this.$routesContent) {
+      const routeCards = this.$routesContent.querySelectorAll(".route-card");
+      routeCards.forEach((card) => card.remove());
+    }
   }
 
   hideLoading() {
@@ -1004,6 +1096,11 @@ class BluePilotRoutes {
   }
 
   showError(message) {
+    // Only show error if we're on the routes view
+    if (this.currentView !== "routes") {
+      console.error("Routes error (not on routes view):", message);
+      return;
+    }
     this.$error.classList.remove("hidden");
     this.$error.querySelector(".error-message").textContent = message;
     this.$loading.classList.add("hidden");
@@ -1011,6 +1108,10 @@ class BluePilotRoutes {
   }
 
   showEmpty() {
+    // Only show empty state if we're on the routes view
+    if (this.currentView !== "routes") {
+      return;
+    }
     this.$empty.classList.remove("hidden");
     this.$loading.classList.add("hidden");
     this.$error.classList.add("hidden");
@@ -1148,13 +1249,13 @@ class BluePilotRoutes {
         );
 
         // Sample a few routes
-        console.log("=== Sample of first 3 routes ===");
-        data.routes.slice(0, 3).forEach((route, idx) => {
-          console.log(`Route ${idx + 1}: ${route.baseName}`);
-          console.log(`  - driveStats:`, route.driveStats);
-          console.log(`  - hasGpsData:`, route.hasGpsData);
-          console.log(`  - mileage:`, route.mileage);
-        });
+        // console.log("=== Sample of first 3 routes ===");
+        // data.routes.slice(0, 3).forEach((route, idx) => {
+        //   console.log(`Route ${idx + 1}: ${route.baseName}`);
+        //   console.log(`  - driveStats:`, route.driveStats);
+        //   console.log(`  - hasGpsData:`, route.hasGpsData);
+        //   console.log(`  - mileage:`, route.mileage);
+        // });
       }
 
       const newRoutes = data.routes.map((route) => ({
@@ -1473,7 +1574,7 @@ class BluePilotRoutes {
       const { disk, cache } = data;
 
       // Show the disk info container only if on routes view
-      if (this.currentView === 'routes') {
+      if (this.currentView === "routes") {
         this.$diskVizContainer.classList.remove("hidden");
       }
 
@@ -1506,17 +1607,22 @@ class BluePilotRoutes {
 
       // Update compact disk bar in routes status bar
       if (this.$routesDiskCompact) {
-        const totalUsedPercent = preservedPercent + routesPercent + cachePercent;
-        const diskBarFill = this.$routesDiskCompact.querySelector('.disk-bar-fill');
+        const totalUsedPercent =
+          preservedPercent + routesPercent + cachePercent;
+        const diskBarFill =
+          this.$routesDiskCompact.querySelector(".disk-bar-fill");
         if (diskBarFill) {
           diskBarFill.style.width = `${totalUsedPercent.toFixed(1)}%`;
 
           // Update color based on warning level
-          diskBarFill.classList.remove('warning', 'critical');
-          if (disk.warning_level === 'critical') {
-            diskBarFill.classList.add('critical');
-          } else if (disk.warning_level === 'low' || disk.warning_level === 'medium') {
-            diskBarFill.classList.add('warning');
+          diskBarFill.classList.remove("warning", "critical");
+          if (disk.warning_level === "critical") {
+            diskBarFill.classList.add("critical");
+          } else if (
+            disk.warning_level === "low" ||
+            disk.warning_level === "medium"
+          ) {
+            diskBarFill.classList.add("warning");
           }
         }
 
@@ -1534,7 +1640,11 @@ class BluePilotRoutes {
       if (this.$diskWarning) {
         this.$diskWarning.classList.remove("warning", "critical", "hidden");
 
-        if (disk.warning_level === "critical" || disk.warning_level === "low" || disk.warning_level === "medium") {
+        if (
+          disk.warning_level === "critical" ||
+          disk.warning_level === "low" ||
+          disk.warning_level === "medium"
+        ) {
           this.$diskWarning.classList.remove("hidden");
           // Update title for tooltip
           this.$diskWarning.title = `Low storage: ${disk.formatted.free} free`;
@@ -1547,7 +1657,10 @@ class BluePilotRoutes {
       if (this.$diskWarningText) {
         if (disk.warning_level === "critical") {
           this.$diskWarningText.textContent = `Low space: ${disk.formatted.free} free`;
-        } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
+        } else if (
+          disk.warning_level === "low" ||
+          disk.warning_level === "medium"
+        ) {
           this.$diskWarningText.textContent = `${disk.formatted.free} free`;
         }
       }
@@ -1653,7 +1766,12 @@ class BluePilotRoutes {
   }
 
   renderRoutes() {
-    this.$routesContainer.innerHTML = "";
+    // Clear only the route cards, not the loading/error/empty states
+    if (this.$routesContent) {
+      const existingRoutes =
+        this.$routesContent.querySelectorAll(".date-group");
+      existingRoutes.forEach((group) => group.remove());
+    }
 
     // Group routes by date (convert UTC timestamp to local date)
     const grouped = {};
@@ -1671,7 +1789,7 @@ class BluePilotRoutes {
     // Render each date group
     for (const [date, routes] of Object.entries(grouped)) {
       const dateGroup = this.createDateGroup(date, routes);
-      this.$routesContainer.appendChild(dateGroup);
+      this.$routesContent.appendChild(dateGroup);
     }
   }
 
@@ -4353,18 +4471,24 @@ class BluePilotRoutes {
       this.allParams[data.key] = {
         key: data.key,
         value: data.value,
-        category: 'other',
+        category: "other",
         readonly: false,
         critical: false,
-        type: typeof data.value === 'boolean' ? 'bool' :
-              typeof data.value === 'number' ? (Number.isInteger(data.value) ? 'int' : 'float') : 'string'
+        type:
+          typeof data.value === "boolean"
+            ? "bool"
+            : typeof data.value === "number"
+            ? Number.isInteger(data.value)
+              ? "int"
+              : "float"
+            : "string",
       };
     }
 
     // If we're on the params page, re-render the table
-    if (this.currentView === 'params') {
+    if (this.currentView === "params") {
       // If there's a search active, respect it
-      const searchValue = this.$paramsSearch ? this.$paramsSearch.value : '';
+      const searchValue = this.$paramsSearch ? this.$paramsSearch.value : "";
       if (searchValue) {
         this.searchParams(searchValue);
       } else {
@@ -4373,30 +4497,78 @@ class BluePilotRoutes {
     }
 
     // Update landing page params count
-    if (this.currentView === 'landing') {
+    if (this.currentView === "landing") {
       this.updateLandingPage();
     }
 
     // Show notification if param change source is external
-    if (data.source === 'external') {
+    if (data.source === "external") {
       console.log(`External param change: ${data.key} = ${data.value}`);
     }
   }
 
   handleWebSocketSystemMetricsUpdated(data) {
-    // System metrics were updated
-    console.log("System metrics updated via WebSocket");
+    console.log("System metrics updated via WebSocket", data);
 
-    // If we're on the system dashboard, refresh it
-    if (this.currentView === 'system') {
-      this.loadSystemDashboard();
+    // Update metrics modal if it's currently visible
+    if (!this.$metricsModal.classList.contains("hidden")) {
+      this.updateMetricsDisplay(data);
+    }
+  }
+
+  updateMetricsDisplay(data) {
+    // Update CPU metrics
+    if (data.cpu) {
+      const cpuLoad = data.cpu.load_avg[0].toFixed(2);
+      document.getElementById("metric-cpu-load").textContent = cpuLoad;
+      document.getElementById("metric-cpu-1min").textContent = data.cpu.load_avg[0].toFixed(2);
+      document.getElementById("metric-cpu-5min").textContent = data.cpu.load_avg[1].toFixed(2);
+      document.getElementById("metric-cpu-cores").textContent = data.cpu.cpu_count;
     }
 
-    // Update landing page system status
-    if (this.currentView === 'landing' && this.$landingSystemStatus) {
-      // You could update with specific metric info here
-      this.updateLandingPage();
+    // Update Memory metrics
+    if (data.memory) {
+      const memPercent = data.memory.percent.toFixed(1);
+      document.getElementById("metric-memory-percent").textContent = memPercent;
+      document.getElementById("metric-memory-used").textContent = (data.memory.used / (1024 ** 3)).toFixed(2) + " GB";
+      document.getElementById("metric-memory-total").textContent = (data.memory.total / (1024 ** 3)).toFixed(2) + " GB";
     }
+
+    // Update Disk metrics
+    if (data.disk) {
+      const diskPercent = data.disk.percent.toFixed(1);
+      document.getElementById("metric-disk-percent").textContent = diskPercent;
+      document.getElementById("metric-disk-used").textContent = (data.disk.used / (1024 ** 3)).toFixed(2) + " GB";
+      document.getElementById("metric-disk-total").textContent = (data.disk.total / (1024 ** 3)).toFixed(2) + " GB";
+    }
+
+    // Update Temperature metrics
+    if (data.temperature) {
+      const avgTemp = ((data.temperature.cpu + data.temperature.gpu) / 2).toFixed(1);
+      document.getElementById("metric-temp-avg").textContent = avgTemp;
+      document.getElementById("metric-temp-cpu").textContent = data.temperature.cpu.toFixed(1) + "°C";
+      document.getElementById("metric-temp-gpu").textContent = data.temperature.gpu.toFixed(1) + "°C";
+    }
+
+    // Update FFmpeg metrics
+    if (data.ffmpeg) {
+      document.getElementById("metric-ffmpeg-active").textContent = data.ffmpeg.active_count;
+      document.getElementById("metric-ffmpeg-max").textContent = data.ffmpeg.max_workers;
+      const statusText = data.ffmpeg.active_count > 0
+        ? `${data.ffmpeg.active_count} active`
+        : "Idle";
+      document.getElementById("metric-ffmpeg-status").textContent = statusText;
+    }
+
+    // Update Cache metrics
+    if (data.cache) {
+      const cacheSize = (data.cache.size / (1024 ** 3)).toFixed(2);
+      document.getElementById("metric-cache-size").textContent = cacheSize;
+    }
+
+    // Update timestamp
+    const now = new Date();
+    document.getElementById("metrics-timestamp").textContent = now.toLocaleTimeString();
   }
 
   async refreshSingleRoute(routeBase) {
@@ -4861,7 +5033,7 @@ class BluePilotRoutes {
 
     try {
       // Show the disk info container only if on routes view
-      if (this.currentView === 'routes') {
+      if (this.currentView === "routes") {
         this.$diskVizContainer.classList.remove("hidden");
       }
 
@@ -5451,6 +5623,62 @@ class BluePilotRoutes {
     this.$metricsModal.classList.add("hidden");
   }
 
+  // Parameter Value Viewer Methods
+  openParamValueModal(key) {
+    const param = this.allParams[key];
+    if (!param) return;
+
+    // Populate modal with param info
+    this.$paramValueKey.textContent = key;
+    this.$paramValueType.textContent = param.type || 'unknown';
+    this.$paramValueCategory.textContent = param.category || 'other';
+    this.$paramValueText.textContent = String(param.value ?? 'null');
+
+    // Store current param key for copy functionality
+    this.currentParamKey = key;
+
+    this.$paramValueModal.classList.remove("hidden");
+  }
+
+  closeParamValueModal() {
+    this.$paramValueModal.classList.add("hidden");
+    this.currentParamKey = null;
+  }
+
+  async copyParamValue() {
+    const value = this.$paramValueText.textContent;
+
+    try {
+      await navigator.clipboard.writeText(value);
+
+      // Visual feedback
+      const originalText = this.$copyParamValueBtn.innerHTML;
+      this.$copyParamValueBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Copied!
+      `;
+      this.$copyParamValueBtn.disabled = true;
+
+      setTimeout(() => {
+        this.$copyParamValueBtn.innerHTML = originalText;
+        this.$copyParamValueBtn.disabled = false;
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+
+      // Fallback: select the text
+      const range = document.createRange();
+      range.selectNodeContents(this.$paramValueText);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      alert('Please manually copy the selected text (Ctrl+C or Cmd+C)');
+    }
+  }
+
   // Export & Backup Modal Methods
   openExportBackupModal() {
     if (!this.currentRoute) return;
@@ -5498,12 +5726,14 @@ class BluePilotRoutes {
 
   async loadCameraSizes(routeBase) {
     try {
-      const response = await fetch(`${this.API_BASE}/api/route/${routeBase}/camera-sizes`);
+      const response = await fetch(
+        `${this.API_BASE}/api/route/${routeBase}/camera-sizes`
+      );
       if (!response.ok) return;
 
       const data = await response.json();
       const formatSize = (bytes) => {
-        if (!bytes) return '--';
+        if (!bytes) return "--";
         const mb = bytes / (1024 * 1024);
         if (mb < 1024) return `${mb.toFixed(1)} MB`;
         return `${(mb / 1024).toFixed(2)} GB`;
@@ -5514,7 +5744,11 @@ class BluePilotRoutes {
       this.$driverSize.textContent = formatSize(data.driver);
       this.$lqSize.textContent = formatSize(data.lq);
 
-      const totalSize = (data.front || 0) + (data.wide || 0) + (data.driver || 0) + (data.lq || 0);
+      const totalSize =
+        (data.front || 0) +
+        (data.wide || 0) +
+        (data.driver || 0) +
+        (data.lq || 0);
       this.$allVideosSize.textContent = formatSize(totalSize);
     } catch (error) {
       console.error("Error loading camera sizes:", error);
@@ -5523,8 +5757,10 @@ class BluePilotRoutes {
 
   async closeExportBackupModal() {
     // Check if there's an active export operation
-    const videoStatusVisible = !this.$videoExportStatus.classList.contains("hidden");
-    const backupStatusVisible = !this.$backupStatus.classList.contains("hidden");
+    const videoStatusVisible =
+      !this.$videoExportStatus.classList.contains("hidden");
+    const backupStatusVisible =
+      !this.$backupStatus.classList.contains("hidden");
 
     if (videoStatusVisible || backupStatusVisible) {
       // Ask for confirmation before canceling
@@ -5556,20 +5792,23 @@ class BluePilotRoutes {
     try {
       // Try to cancel videos ZIP operation
       await fetch(`${this.API_BASE}/api/videos-zip/${routeBase}/cancel`, {
-        method: 'POST'
+        method: "POST",
       }).catch(() => {}); // Ignore errors if not in progress
 
       // Try to cancel backup operation
       await fetch(`${this.API_BASE}/api/route-backup/${routeBase}/cancel`, {
-        method: 'POST'
+        method: "POST",
       }).catch(() => {}); // Ignore errors if not in progress
 
       // Try to cancel individual video export
-      const cameras = ['front', 'wide', 'driver', 'lq'];
+      const cameras = ["front", "wide", "driver", "lq"];
       for (const camera of cameras) {
-        await fetch(`${this.API_BASE}/api/route-export/${routeBase}/${camera}/cancel`, {
-          method: 'POST'
-        }).catch(() => {}); // Ignore errors if not in progress
+        await fetch(
+          `${this.API_BASE}/api/route-export/${routeBase}/${camera}/cancel`,
+          {
+            method: "POST",
+          }
+        ).catch(() => {}); // Ignore errors if not in progress
       }
     } catch (error) {
       console.error("Error canceling export:", error);
@@ -5600,7 +5839,7 @@ class BluePilotRoutes {
     this.$backupRouteBtn.disabled = true;
 
     // Disable all camera checkboxes
-    this.$cameraCheckboxes.forEach(checkbox => {
+    this.$cameraCheckboxes.forEach((checkbox) => {
       checkbox.disabled = true;
     });
   }
@@ -5611,7 +5850,7 @@ class BluePilotRoutes {
     this.$backupRouteBtn.disabled = false;
 
     // Re-enable all camera checkboxes
-    this.$cameraCheckboxes.forEach(checkbox => {
+    this.$cameraCheckboxes.forEach((checkbox) => {
       checkbox.disabled = false;
     });
 
@@ -5797,7 +6036,9 @@ class BluePilotRoutes {
 
       this.showExportStatus(
         "video",
-        `Preparing ${totalCameras} camera video${totalCameras > 1 ? 's' : ''}...`,
+        `Preparing ${totalCameras} camera video${
+          totalCameras > 1 ? "s" : ""
+        }...`,
         0
       );
 
@@ -5808,7 +6049,9 @@ class BluePilotRoutes {
 
         this.showExportStatus(
           "video",
-          `Streaming ${cameraName}... (${completedCameras + 1}/${totalCameras})`,
+          `Streaming ${cameraName}... (${
+            completedCameras + 1
+          }/${totalCameras})`,
           baseProgress
         );
 
@@ -5818,7 +6061,9 @@ class BluePilotRoutes {
 
         if (!videoResponse.ok) {
           const errorData = await videoResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to stream ${cameraName} video`);
+          throw new Error(
+            errorData.error || `Failed to stream ${cameraName} video`
+          );
         }
 
         // Download the streamed video
@@ -5841,7 +6086,9 @@ class BluePilotRoutes {
       // Generate ZIP file with progress
       this.showExportStatus(
         "video",
-        `Creating ZIP archive with ${completedCameras} video${completedCameras > 1 ? 's' : ''}...`,
+        `Creating ZIP archive with ${completedCameras} video${
+          completedCameras > 1 ? "s" : ""
+        }...`,
         80
       );
 
@@ -5926,11 +6173,7 @@ class BluePilotRoutes {
             status.progressPercent || status.progress * 100 || 0
           );
           const message = status.message || "Preparing video...";
-          this.showExportStatus(
-            "video",
-            `${message} (${progress}%)`,
-            progress
-          );
+          this.showExportStatus("video", `${message} (${progress}%)`, progress);
         }
       } catch (error) {
         console.error("Polling error:", error);
@@ -5973,11 +6216,7 @@ class BluePilotRoutes {
         } else {
           const progress = Math.round(status.progress * 100 || 0);
           const message = status.message || "Creating archive...";
-          this.showExportStatus(
-            "video",
-            `${message} (${progress}%)`,
-            progress
-          );
+          this.showExportStatus("video", `${message} (${progress}%)`, progress);
         }
       } catch (error) {
         console.error("Polling error:", error);
@@ -6938,39 +7177,33 @@ class BluePilotRoutes {
     this.currentView = view;
 
     // Hide all views
-    this.$landingPage.classList.add('hidden');
-    this.$routesContainer.classList.add('hidden');
-    this.$systemDashboard.classList.add('hidden');
-    this.$paramsManager.classList.add('hidden');
+    this.$landingPage.classList.add("hidden");
+    this.$routesContainer.classList.add("hidden");
+    this.$paramsManager.classList.add("hidden");
 
     // Hide/show disk panel based on view (only show on routes view)
     if (this.$diskVizContainer) {
-      if (view === 'routes') {
-        this.$diskVizContainer.classList.remove('hidden');
+      if (view === "routes") {
+        this.$diskVizContainer.classList.remove("hidden");
       } else {
-        this.$diskVizContainer.classList.add('hidden');
+        this.$diskVizContainer.classList.add("hidden");
       }
     }
 
     // Show the requested view
-    switch(view) {
-      case 'landing':
-        this.$landingPage.classList.remove('hidden');
-        this.$headerTitle.textContent = 'BluePilot Web App';
+    switch (view) {
+      case "landing":
+        this.$landingPage.classList.remove("hidden");
+        this.$headerTitle.textContent = "BluePilot Web App";
         this.updateLandingPage();
         break;
-      case 'routes':
-        this.$routesContainer.classList.remove('hidden');
-        this.$headerTitle.textContent = 'Routes';
+      case "routes":
+        this.$routesContainer.classList.remove("hidden");
+        this.$headerTitle.textContent = "Routes";
         break;
-      case 'system':
-        this.$systemDashboard.classList.remove('hidden');
-        this.$headerTitle.textContent = 'System Dashboard';
-        this.loadSystemDashboard();
-        break;
-      case 'params':
-        this.$paramsManager.classList.remove('hidden');
-        this.$headerTitle.textContent = 'Parameters';
+      case "params":
+        this.$paramsManager.classList.remove("hidden");
+        this.$headerTitle.textContent = "Parameters";
         this.loadParams();
         break;
     }
@@ -6978,170 +7211,19 @@ class BluePilotRoutes {
 
   updateLandingPage() {
     // Update route stats
-    this.$landingRouteCount.textContent = this.$routeCount ? this.$routeCount.textContent : '0 routes';
-    this.$landingTotalSize.textContent = this.$totalSize ? this.$totalSize.textContent : '0 GB';
-
-    // Update system status
-    this.$landingSystemStatus.textContent = this.$statusText ? this.$statusText.textContent : 'Checking...';
+    this.$landingRouteCount.textContent = this.$routeCount
+      ? this.$routeCount.textContent
+      : "0 routes";
+    this.$landingTotalSize.textContent = this.$totalSize
+      ? this.$totalSize.textContent
+      : "0 GB";
 
     // Update params count
     if (Object.keys(this.allParams).length > 0) {
-      this.$landingParamsCount.textContent = `${Object.keys(this.allParams).length} parameters`;
+      this.$landingParamsCount.textContent = `${
+        Object.keys(this.allParams).length
+      } parameters`;
     }
-  }
-
-  // =========================================================================
-  // System Dashboard
-  // =========================================================================
-
-  async loadSystemDashboard() {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/system/metrics`);
-      const data = await response.json();
-
-      if (data.success) {
-        this.renderSystemDashboard(data.metrics);
-      } else {
-        this.$dashboardContent.innerHTML = `
-          <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
-            Failed to load system metrics: ${data.error || 'Unknown error'}
-          </div>
-        `;
-      }
-    } catch (error) {
-      console.error('Error loading system metrics:', error);
-      this.$dashboardContent.innerHTML = `
-        <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
-          Error loading system metrics: ${error.message}
-        </div>
-      `;
-    }
-  }
-
-  renderSystemDashboard(metrics) {
-    const html = `
-      ${this.renderCPUCard(metrics.cpu)}
-      ${this.renderMemoryCard(metrics.memory)}
-      ${this.renderDiskCard(metrics.disk)}
-      ${this.renderTemperatureCard(metrics.temperature)}
-      ${this.renderFFmpegCard(metrics.ffmpeg)}
-    `;
-    this.$dashboardContent.innerHTML = html;
-  }
-
-  renderCPUCard(cpu) {
-    if (!cpu || Object.keys(cpu).length === 0) {
-      return '<div class="metric-card"><h3>CPU</h3><p>No data available</p></div>';
-    }
-
-    return `
-      <div class="metric-card">
-        <h3>🖥️ CPU Usage</h3>
-        <div class="metric-value">${cpu.core_count || 'N/A'} cores</div>
-        <div class="metric-label">Load Average</div>
-        <div style="margin-top: 1rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <span style="font-size: 0.9rem;">1 min:</span>
-            <span style="font-weight: 600;">${cpu.load_1min?.toFixed(2) || 'N/A'}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <span style="font-size: 0.9rem;">5 min:</span>
-            <span style="font-weight: 600;">${cpu.load_5min?.toFixed(2) || 'N/A'}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="font-size: 0.9rem;">15 min:</span>
-            <span style="font-weight: 600;">${cpu.load_15min?.toFixed(2) || 'N/A'}</span>
-          </div>
-        </div>
-        ${cpu.online_cores ? `<div style="margin-top: 1rem; font-size: 0.85rem; color: var(--bp-text-secondary);">Online: ${cpu.online_cores.join(', ')}</div>` : ''}
-      </div>
-    `;
-  }
-
-  renderMemoryCard(memory) {
-    if (!memory || Object.keys(memory).length === 0) {
-      return '<div class="metric-card"><h3>Memory</h3><p>No data available</p></div>';
-    }
-
-    const percent = memory.percent_used || 0;
-    const barClass = percent > 90 ? 'danger' : percent > 70 ? 'warning' : '';
-
-    return `
-      <div class="metric-card">
-        <h3>💾 Memory</h3>
-        <div class="metric-value">${percent.toFixed(1)}%</div>
-        <div class="metric-label">${memory.available_gb?.toFixed(1) || 'N/A'} GB available of ${memory.total_gb?.toFixed(1) || 'N/A'} GB</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderDiskCard(disk) {
-    if (!disk || Object.keys(disk).length === 0) {
-      return '<div class="metric-card"><h3>Disk</h3><p>No data available</p></div>';
-    }
-
-    // Show /data if available, otherwise home
-    const diskInfo = disk['/data'] || disk['home'] || {};
-    const percent = diskInfo.percent_used || 0;
-    const barClass = percent > 90 ? 'danger' : percent > 70 ? 'warning' : '';
-    const path = disk['/data'] ? '/data' : 'home';
-
-    return `
-      <div class="metric-card">
-        <h3>💿 Disk (${path})</h3>
-        <div class="metric-value">${percent.toFixed(1)}%</div>
-        <div class="metric-label">${diskInfo.free_gb?.toFixed(1) || 'N/A'} GB free of ${diskInfo.total_gb?.toFixed(1) || 'N/A'} GB</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderTemperatureCard(temperature) {
-    if (!temperature || Object.keys(temperature).length === 0) {
-      return '<div class="metric-card"><h3>Temperature</h3><p>No data available</p></div>';
-    }
-
-    const celsius = temperature.celsius || 0;
-    const fahrenheit = temperature.fahrenheit || 0;
-    const barPercent = Math.min((celsius / 100) * 100, 100);
-    const barClass = celsius > 80 ? 'danger' : celsius > 60 ? 'warning' : '';
-
-    return `
-      <div class="metric-card">
-        <h3>🌡️ Temperature</h3>
-        <div class="metric-value">${celsius}°C</div>
-        <div class="metric-label">${fahrenheit}°F</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill ${barClass}" style="width: ${barPercent}%"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderFFmpegCard(ffmpeg) {
-    if (!ffmpeg) {
-      return '<div class="metric-card"><h3>FFmpeg</h3><p>No data available</p></div>';
-    }
-
-    const active = ffmpeg.active_processes || 0;
-    const max = ffmpeg.max_processes || 3;
-    const percent = (active / max) * 100;
-
-    return `
-      <div class="metric-card">
-        <h3>🎬 FFmpeg Processes</h3>
-        <div class="metric-value">${active} / ${max}</div>
-        <div class="metric-label">${active === 0 ? 'Idle' : `${active} active`}</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill" style="width: ${percent}%"></div>
-        </div>
-      </div>
-    `;
   }
 
   // =========================================================================
@@ -7149,22 +7231,42 @@ class BluePilotRoutes {
   // =========================================================================
 
   async loadParams() {
+    console.log(
+      "[BluePilot DEBUG] Loading params... Code version: 2025-11-03-v2"
+    );
     try {
       const response = await fetch(`${this.API_BASE}/api/params`);
       const data = await response.json();
 
       if (data.success) {
         this.allParams = data.params;
+
+        // Debug: Check if params have type and last_modified
+        const sampleParam = Object.values(data.params)[0];
+        console.log("[BluePilot DEBUG] Sample param:", sampleParam);
+        console.log(
+          "[BluePilot DEBUG] Has type?",
+          sampleParam?.type !== undefined
+        );
+        console.log(
+          "[BluePilot DEBUG] Has last_modified?",
+          sampleParam?.last_modified !== undefined
+        );
+        console.log(
+          "[BluePilot DEBUG] Total params:",
+          Object.keys(data.params).length
+        );
+
         this.renderParamsTable();
       } else {
         this.$paramsContent.innerHTML = `
           <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
-            Failed to load parameters: ${data.error || 'Unknown error'}
+            Failed to load parameters: ${data.error || "Unknown error"}
           </div>
         `;
       }
     } catch (error) {
-      console.error('Error loading params:', error);
+      console.error("Error loading params:", error);
       this.$paramsContent.innerHTML = `
         <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
           Error loading parameters: ${error.message}
@@ -7174,43 +7276,116 @@ class BluePilotRoutes {
   }
 
   renderParamsTable(filteredParams = null) {
+    console.log(
+      "[BluePilot DEBUG] renderParamsTable called - Code version: 2025-11-03-v2"
+    );
     const paramsToRender = filteredParams || this.allParams;
-    const paramsList = Object.values(paramsToRender);
+    let paramsList = Object.values(paramsToRender);
 
     if (paramsList.length === 0) {
-      this.$paramsContent.innerHTML = '<div style="padding: 2rem; text-align: center;">No parameters found</div>';
+      this.$paramsContent.innerHTML =
+        '<div style="padding: 2rem; text-align: center;">No parameters found</div>';
       return;
     }
 
-    const rows = paramsList.map(param => {
-      const editButton = param.readonly
-        ? '<button class="param-edit-btn" disabled>Read-Only</button>'
-        : `<button class="param-edit-btn" data-key="${param.key}" ${!this.paramsEditMode ? 'disabled' : ''}>Edit</button>`;
+    // Sort params based on current sort column and direction
+    paramsList = this.sortParams(
+      paramsList,
+      this.paramsSortColumn,
+      this.paramsSortDirection
+    );
 
-      return `
+    // Debug first param to verify type and last_modified are present
+    if (paramsList.length > 0) {
+      console.log("[BluePilot DEBUG] First param in table:", paramsList[0]);
+      console.log("[BluePilot DEBUG] Type:", paramsList[0].type);
+      console.log(
+        "[BluePilot DEBUG] Last modified:",
+        paramsList[0].last_modified
+      );
+    }
+
+    const rows = paramsList
+      .map((param) => {
+        const editButton = param.readonly
+          ? '<button class="param-edit-btn" disabled>Read-Only</button>'
+          : `<button class="param-edit-btn" data-key="${param.key}" ${
+              !this.paramsEditMode ? "disabled" : ""
+            }>Edit</button>`;
+
+        // Format last modified time
+        let lastModifiedText = "Never";
+        if (param.last_modified) {
+          const date = new Date(param.last_modified * 1000); // Convert Unix timestamp to milliseconds
+          const now = new Date();
+          const diffMs = now - date;
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMs / 3600000);
+          const diffDays = Math.floor(diffMs / 86400000);
+
+          if (diffMins < 1) {
+            lastModifiedText = "Just now";
+          } else if (diffMins < 60) {
+            lastModifiedText = `${diffMins}m ago`;
+          } else if (diffHours < 24) {
+            lastModifiedText = `${diffHours}h ago`;
+          } else if (diffDays < 7) {
+            lastModifiedText = `${diffDays}d ago`;
+          } else {
+            lastModifiedText = date.toLocaleDateString();
+          }
+        }
+
+        const valueStr = String(param.value ?? "null");
+        const valueDisplay = this.escapeHtml(valueStr);
+
+        return `
         <tr>
-          <td><span class="param-key">${this.escapeHtml(param.key)}</span></td>
-          <td><span class="param-value">${this.escapeHtml(String(param.value ?? 'null'))}</span></td>
+          <td><span class="param-key" title="${this.escapeHtml(param.key)}">${this.escapeHtml(param.key)}</span></td>
+          <td><span class="param-value" data-key="${this.escapeHtml(param.key)}" title="Click to view full value">${valueDisplay}</span></td>
           <td>
             <span class="param-badge ${param.type}">${param.type}</span>
-            ${param.readonly ? '<span class="param-badge readonly">readonly</span>' : ''}
-            ${param.critical ? '<span class="param-badge critical">critical</span>' : ''}
+            ${
+              param.readonly
+                ? '<span class="param-badge readonly">readonly</span>'
+                : ""
+            }
+            ${
+              param.critical
+                ? '<span class="param-badge critical">critical</span>'
+                : ""
+            }
           </td>
           <td><span class="param-badge">${param.category}</span></td>
+          <td><span class="param-last-modified">${lastModifiedText}</span></td>
           <td>${editButton}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
+
+    // Helper function to create sortable header
+    const createSortableHeader = (column, label) => {
+      const sortIcon =
+        this.paramsSortColumn === column
+          ? this.paramsSortDirection === "asc"
+            ? "▲"
+            : "▼"
+          : "⇅";
+      const activeClass = this.paramsSortColumn === column ? "active-sort" : "";
+      return `<th class="sortable-header ${activeClass}" data-column="${column}">${label} <span class="sort-icon">${sortIcon}</span></th>`;
+    };
 
     this.$paramsContent.innerHTML = `
       <div class="params-table">
         <table>
           <thead>
             <tr>
-              <th>Parameter</th>
-              <th>Value</th>
-              <th>Type</th>
-              <th>Category</th>
+              ${createSortableHeader("key", "Parameter")}
+              ${createSortableHeader("value", "Value")}
+              ${createSortableHeader("type", "Type")}
+              ${createSortableHeader("category", "Category")}
+              ${createSortableHeader("last_modified", "Last Modified")}
               <th>Actions</th>
             </tr>
           </thead>
@@ -7221,15 +7396,93 @@ class BluePilotRoutes {
       </div>
     `;
 
-    // Attach event listeners to edit buttons
-    if (this.paramsEditMode) {
-      this.$paramsContent.querySelectorAll('.param-edit-btn:not([disabled])').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const key = e.target.getAttribute('data-key');
-          this.editParam(key);
+    // Attach event listeners to sortable headers
+    this.$paramsContent
+      .querySelectorAll(".sortable-header")
+      .forEach((header) => {
+        header.addEventListener("click", (e) => {
+          const column = e.currentTarget.getAttribute("data-column");
+          this.sortParamsBy(column);
         });
       });
+
+    // Attach event listeners to edit buttons
+    if (this.paramsEditMode) {
+      this.$paramsContent
+        .querySelectorAll(".param-edit-btn:not([disabled])")
+        .forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const key = e.target.getAttribute("data-key");
+            this.editParam(key);
+          });
+        });
     }
+
+    // Attach event listeners to parameter values for viewing
+    this.$paramsContent.querySelectorAll(".param-value").forEach((valueSpan) => {
+      valueSpan.addEventListener("click", (e) => {
+        const key = e.target.getAttribute("data-key");
+        this.openParamValueModal(key);
+      });
+    });
+  }
+
+  sortParamsBy(column) {
+    // If clicking the same column, toggle direction
+    if (this.paramsSortColumn === column) {
+      this.paramsSortDirection =
+        this.paramsSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      // New column, default to ascending
+      this.paramsSortColumn = column;
+      this.paramsSortDirection = "asc";
+    }
+
+    // Re-render with new sort
+    const searchValue = this.$paramsSearch ? this.$paramsSearch.value : "";
+    if (searchValue) {
+      this.searchParams(searchValue);
+    } else {
+      this.renderParamsTable();
+    }
+  }
+
+  sortParams(params, column, direction) {
+    const sorted = [...params].sort((a, b) => {
+      let aVal, bVal;
+
+      switch (column) {
+        case "key":
+          aVal = a.key.toLowerCase();
+          bVal = b.key.toLowerCase();
+          break;
+        case "value":
+          aVal = String(a.value ?? "").toLowerCase();
+          bVal = String(b.value ?? "").toLowerCase();
+          break;
+        case "type":
+          aVal = a.type;
+          bVal = b.type;
+          break;
+        case "category":
+          aVal = a.category;
+          bVal = b.category;
+          break;
+        case "last_modified":
+          // Sort by timestamp (most recent first when desc)
+          aVal = a.last_modified || 0;
+          bVal = b.last_modified || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
   }
 
   searchParams(query) {
@@ -7242,9 +7495,11 @@ class BluePilotRoutes {
     const lowerQuery = query.toLowerCase();
 
     for (const [key, param] of Object.entries(this.allParams)) {
-      if (key.toLowerCase().includes(lowerQuery) ||
-          String(param.value).toLowerCase().includes(lowerQuery) ||
-          param.category.toLowerCase().includes(lowerQuery)) {
+      if (
+        key.toLowerCase().includes(lowerQuery) ||
+        String(param.value).toLowerCase().includes(lowerQuery) ||
+        param.category.toLowerCase().includes(lowerQuery)
+      ) {
         filtered[key] = param;
       }
     }
@@ -7259,25 +7514,30 @@ class BluePilotRoutes {
     const currentValue = param.value;
     let newValue;
 
-    if (param.type === 'bool') {
-      newValue = confirm(`Change ${key} from ${currentValue} to ${!currentValue}?`);
+    if (param.type === "bool") {
+      newValue = confirm(
+        `Change ${key} from ${currentValue} to ${!currentValue}?`
+      );
       if (newValue === null) return;
       newValue = !currentValue;
     } else {
-      newValue = prompt(`Edit parameter: ${key}\nCurrent value: ${currentValue}\n\nEnter new value:`, currentValue);
+      newValue = prompt(
+        `Edit parameter: ${key}\nCurrent value: ${currentValue}\n\nEnter new value:`,
+        currentValue
+      );
       if (newValue === null) return; // User cancelled
 
       // Type conversion
-      if (param.type === 'int') {
+      if (param.type === "int") {
         newValue = parseInt(newValue);
         if (isNaN(newValue)) {
-          alert('Invalid integer value');
+          alert("Invalid integer value");
           return;
         }
-      } else if (param.type === 'float') {
+      } else if (param.type === "float") {
         newValue = parseFloat(newValue);
         if (isNaN(newValue)) {
-          alert('Invalid float value');
+          alert("Invalid float value");
           return;
         }
       }
@@ -7287,10 +7547,10 @@ class BluePilotRoutes {
     if (param.critical) {
       const confirmed = confirm(
         `⚠️ WARNING: This is a critical parameter!\n\n` +
-        `Parameter: ${key}\n` +
-        `Current: ${currentValue}\n` +
-        `New: ${newValue}\n\n` +
-        `Changing this may affect vehicle behavior. Are you sure?`
+          `Parameter: ${key}\n` +
+          `Current: ${currentValue}\n` +
+          `New: ${newValue}\n\n` +
+          `Changing this may affect vehicle behavior. Are you sure?`
       );
       if (!confirmed) return;
     }
@@ -7301,11 +7561,11 @@ class BluePilotRoutes {
   async setParam(key, value) {
     try {
       const response = await fetch(`${this.API_BASE}/api/params/set`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ key, value })
+        body: JSON.stringify({ key, value }),
       });
 
       const data = await response.json();
@@ -7318,7 +7578,7 @@ class BluePilotRoutes {
         alert(`Failed to update parameter: ${data.error}`);
       }
     } catch (error) {
-      console.error('Error setting param:', error);
+      console.error("Error setting param:", error);
       alert(`Error setting parameter: ${error.message}`);
     }
   }

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BluePilot Parameters Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        h1 {
+            color: #4285f4;
+        }
+        pre {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success {
+            color: #4caf50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .warning {
+            color: #ff9800;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #357ae8;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+        .badge.bool { background: rgba(76, 175, 80, 0.3); color: #4caf50; }
+        .badge.int { background: rgba(33, 150, 243, 0.3); color: #4285f4; }
+        .badge.float { background: rgba(33, 150, 243, 0.3); color: #4285f4; }
+        .badge.string { background: rgba(158, 158, 158, 0.3); color: #9e9e9e; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background: #2a2a2a;
+            font-weight: bold;
+        }
+        tr:hover {
+            background: #252525;
+        }
+    </style>
+</head>
+<body>
+    <h1>BluePilot Parameters Debug Tool</h1>
+    <p>This page directly tests the /api/params endpoint to verify the backend is returning type and last_modified fields.</p>
+
+    <button onclick="testParams()">Test /api/params Endpoint</button>
+    <button onclick="location.reload()">Refresh Page</button>
+
+    <div id="results"></div>
+
+    <script>
+        async function testParams() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="warning">Loading...</p>';
+
+            try {
+                const response = await fetch('/api/params');
+                const data = await response.json();
+
+                if (!data.success) {
+                    resultsDiv.innerHTML = `<p class="error">API returned error: ${data.error}</p>`;
+                    return;
+                }
+
+                const params = data.params;
+                const paramCount = Object.keys(params).length;
+
+                // Check first 5 params for type and last_modified
+                const sampleParams = Object.values(params).slice(0, 5);
+
+                let hasType = true;
+                let hasLastModified = true;
+
+                sampleParams.forEach(param => {
+                    if (param.type === undefined) hasType = false;
+                    if (param.last_modified === undefined) hasLastModified = false;
+                });
+
+                let html = '<h2 class="success">✓ API Response Successful</h2>';
+                html += `<p><strong>Total Parameters:</strong> ${paramCount}</p>`;
+                html += `<p><strong>Has "type" field:</strong> ${hasType ? '<span class="success">✓ YES</span>' : '<span class="error">✗ NO</span>'}</p>`;
+                html += `<p><strong>Has "last_modified" field:</strong> ${hasLastModified ? '<span class="success">✓ YES</span>' : '<span class="error">✗ NO</span>'}</p>`;
+
+                html += '<h3>First 5 Parameters:</h3>';
+                html += '<table>';
+                html += '<tr><th>Key</th><th>Value</th><th>Type</th><th>Category</th><th>Last Modified</th></tr>';
+
+                sampleParams.forEach(param => {
+                    const lastModText = param.last_modified
+                        ? new Date(param.last_modified * 1000).toLocaleString()
+                        : 'Never';
+
+                    html += `<tr>
+                        <td>${param.key}</td>
+                        <td>${String(param.value).substring(0, 50)}</td>
+                        <td><span class="badge ${param.type}">${param.type || 'missing'}</span></td>
+                        <td>${param.category}</td>
+                        <td>${lastModText}</td>
+                    </tr>`;
+                });
+
+                html += '</table>';
+
+                html += '<h3>Raw JSON (first parameter):</h3>';
+                html += '<pre>' + JSON.stringify(sampleParams[0], null, 2) + '</pre>';
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error('Error testing params:', error);
+            }
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', testParams);
+    </script>
+</body>
+</html>
