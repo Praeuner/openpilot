@@ -40,6 +40,11 @@ class BluePilotRoutes {
     this.routeDownloadTokens = new Set();
     this.routeDownloadTokenQueue = [];
 
+    // View navigation
+    this.currentView = 'landing'; // 'landing', 'routes', 'system', 'params'
+    this.paramsEditMode = false;
+    this.allParams = {};
+
     this.init();
   }
 
@@ -413,20 +418,35 @@ class BluePilotRoutes {
     this.$empty = document.getElementById("empty");
     this.$routesContainer = document.getElementById("routes-container");
 
-    // Disk Space Info (Compact with Gauge)
-    this.$diskVizContainer = document.getElementById("disk-viz-container");
-    this.$diskVizStatsText = document.getElementById("disk-viz-stats-text");
-    this.$diskPreservedBar = document.getElementById("disk-preserved-bar");
-    this.$diskRoutesBar = document.getElementById("disk-routes-bar");
-    this.$diskCacheBar = document.getElementById("disk-cache-bar");
-    this.$diskThresholdMarker = document.getElementById(
-      "disk-threshold-marker"
-    );
-    this.$diskWarning = document.getElementById("disk-warning");
-    this.$diskWarningText = document.getElementById("disk-warning-text");
-    this.$diskPreservedValue = document.getElementById("disk-preserved-legend");
-    this.$diskRoutesValue = document.getElementById("disk-routes-legend");
-    this.$diskCacheValue = document.getElementById("disk-cache-legend");
+    // Storage Bar (New tethered design)
+    this.$storageBar = document.getElementById("storage-bar");
+    this.$storageText = document.getElementById("storage-text");
+    this.$storageWarning = document.getElementById("storage-warning");
+    this.$storagePreservedBar = document.getElementById("storage-preserved-bar");
+    this.$storageRoutesBar = document.getElementById("storage-routes-bar");
+    this.$storageCacheBar = document.getElementById("storage-cache-bar");
+    this.$storageThresholdMarker = document.getElementById("storage-threshold-marker");
+    this.$storagePreservedText = document.getElementById("storage-preserved-text");
+    this.$storageRoutesText = document.getElementById("storage-routes-text");
+    this.$storageCacheText = document.getElementById("storage-cache-text");
+
+    // Storage Bar Buttons
+    this.$storageMetricsBtn = document.getElementById("storage-metrics-btn");
+    this.$storageClearCacheBtn = document.getElementById("storage-clear-cache-btn");
+    this.$storageRefreshBtn = document.getElementById("storage-refresh-btn");
+
+    // Legacy disk viz container (for backward compatibility)
+    this.$diskVizContainer = this.$storageBar; // Point to new storage bar
+    this.$diskVizStatsText = this.$storageText;
+    this.$diskPreservedBar = this.$storagePreservedBar;
+    this.$diskRoutesBar = this.$storageRoutesBar;
+    this.$diskCacheBar = this.$storageCacheBar;
+    this.$diskThresholdMarker = this.$storageThresholdMarker;
+    this.$diskWarning = this.$storageWarning;
+    this.$diskWarningText = null; // No separate warning text element
+    this.$diskPreservedValue = this.$storagePreservedText;
+    this.$diskRoutesValue = this.$storageRoutesText;
+    this.$diskCacheValue = this.$storageCacheText;
 
     // Status overlay
     this.$statusOverlay = document.getElementById("status-overlay");
@@ -461,15 +481,22 @@ class BluePilotRoutes {
     );
 
     // Header
-    this.$routeCount = document.getElementById("route-count");
-    this.$totalSize = document.getElementById("total-size");
     this.$deviceStatus = document.getElementById("device-status");
     this.$statusText = document.getElementById("status-text");
     this.$websocketIcon = document.getElementById("websocket-icon");
-    this.$metricsBtn = document.getElementById("metrics-btn");
+
+    // Header action buttons
+    this.$headerMetricsBtn = document.getElementById("header-metrics-btn");
+    this.$headerClearCacheBtn = document.getElementById("header-clear-cache-btn");
+    this.$headerRefreshBtn = document.getElementById("header-refresh-btn");
+
+    // Legacy header elements (removed from UI, kept for backwards compatibility)
+    this.$routeCount = null; // Removed from header
+    this.$totalSize = null; // Removed from header
+    this.$metricsBtn = this.$headerMetricsBtn; // Point to new button
     this.$importBackupBtn = document.getElementById("import-backup-btn");
-    this.$clearCacheBtn = document.getElementById("clear-cache-btn");
-    this.$refreshBtn = document.getElementById("refresh-btn");
+    this.$clearCacheBtn = this.$headerClearCacheBtn; // Point to new button
+    this.$refreshBtn = this.$headerRefreshBtn; // Point to new button
     this.$retryBtn = document.getElementById("retry-btn");
 
     // Metrics modal
@@ -661,10 +688,46 @@ class BluePilotRoutes {
     );
     this.$clearDebugBtn = document.getElementById("clear-debug-btn");
     this.$debugAutoScroll = document.getElementById("debug-auto-scroll");
+
+    // View containers
+    this.$landingPage = document.getElementById("landing-page");
+    this.$systemDashboard = document.getElementById("system-dashboard");
+    this.$paramsManager = document.getElementById("params-manager");
+    this.$headerTitle = document.getElementById("header-title");
+
+    // Landing page cards
+    this.$homeBtn = document.getElementById("home-btn");
+    this.$cardRoutes = document.getElementById("card-routes");
+    this.$cardSystem = document.getElementById("card-system");
+    this.$cardParams = document.getElementById("card-params");
+    this.$landingRouteCount = document.getElementById("landing-route-count");
+    this.$landingTotalSize = document.getElementById("landing-total-size");
+    this.$landingSystemStatus = document.getElementById("landing-system-status");
+    this.$landingParamsCount = document.getElementById("landing-params-count");
+
+    // System dashboard
+    this.$dashboardContent = document.querySelector(".dashboard-content");
+
+    // Params manager
+    this.$paramsSearch = document.getElementById("params-search");
+    this.$paramsEditToggle = document.getElementById("params-edit-toggle");
+    this.$paramsContent = document.querySelector(".params-content");
+
+    // Routes status bar
+    this.$routesRouteCount = document.getElementById("routes-route-count");
+    this.$routesTotalSize = document.getElementById("routes-total-size");
+    this.$routesDiskCompact = document.getElementById("routes-disk-compact");
+    this.$routesMetricsBtn = document.getElementById("routes-metrics-btn");
+    this.$routesImportBtn = document.getElementById("routes-import-btn");
+    this.$routesClearCacheBtn = document.getElementById("routes-clear-cache-btn");
+    this.$routesRefreshBtn = document.getElementById("routes-refresh-btn");
   }
 
   attachEventListeners() {
-    this.$metricsBtn.addEventListener("click", () => this.openMetrics());
+    // Legacy header buttons (optional, may not exist)
+    if (this.$metricsBtn) {
+      this.$metricsBtn.addEventListener("click", () => this.openMetrics());
+    }
     this.$closeMetricsBtn.addEventListener("click", () => this.closeMetrics());
     this.$refreshMetricsBtn.addEventListener("click", () => this.loadMetrics());
 
@@ -742,9 +805,60 @@ class BluePilotRoutes {
       });
     }
 
-    this.$importBackupBtn.addEventListener("click", () => this.openImportBackupModal());
-    this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
-    this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
+    if (this.$importBackupBtn) {
+      this.$importBackupBtn.addEventListener("click", () => this.openImportBackupModal());
+    }
+
+    // View navigation listeners
+    this.$homeBtn.addEventListener("click", () => this.navigateToView('landing'));
+    this.$cardRoutes.addEventListener("click", () => this.navigateToView('routes'));
+    this.$cardSystem.addEventListener("click", () => this.navigateToView('system'));
+    this.$cardParams.addEventListener("click", () => this.navigateToView('params'));
+
+    // Params manager listeners
+    this.$paramsEditToggle.addEventListener("change", (e) => {
+      this.paramsEditMode = e.target.checked;
+      this.renderParamsTable();
+    });
+    this.$paramsSearch.addEventListener("input", (e) => {
+      this.searchParams(e.target.value);
+    });
+
+    // Routes status bar button listeners
+    this.$routesMetricsBtn.addEventListener("click", () => this.openMetrics());
+    this.$routesImportBtn.addEventListener("click", () => this.openImportBackupModal());
+    this.$routesClearCacheBtn.addEventListener("click", () => this.clearCache());
+    this.$routesRefreshBtn.addEventListener("click", () => this.loadRoutes());
+
+    // Header button listeners
+    if (this.$headerMetricsBtn) {
+      this.$headerMetricsBtn.addEventListener("click", () => this.openMetrics());
+    }
+    if (this.$headerClearCacheBtn) {
+      this.$headerClearCacheBtn.addEventListener("click", () => this.clearCache());
+    }
+    if (this.$headerRefreshBtn) {
+      this.$headerRefreshBtn.addEventListener("click", () => this.loadRoutes());
+    }
+
+    // Storage bar button listeners
+    if (this.$storageMetricsBtn) {
+      this.$storageMetricsBtn.addEventListener("click", () => this.openMetrics());
+    }
+    if (this.$storageClearCacheBtn) {
+      this.$storageClearCacheBtn.addEventListener("click", () => this.clearCache());
+    }
+    if (this.$storageRefreshBtn) {
+      this.$storageRefreshBtn.addEventListener("click", () => this.loadRoutes());
+    }
+
+    // Keep old button references for backwards compatibility (if they exist)
+    if (this.$clearCacheBtn && this.$clearCacheBtn !== this.$headerClearCacheBtn) {
+      this.$clearCacheBtn.addEventListener("click", () => this.clearCache());
+    }
+    if (this.$refreshBtn) {
+      this.$refreshBtn.addEventListener("click", () => this.loadRoutes());
+    }
     this.$retryBtn.addEventListener("click", () => this.loadRoutes());
     if (this.$playerBackBtn) {
       this.$playerBackBtn.addEventListener("click", () => this.closeVideo());
@@ -1306,7 +1420,7 @@ class BluePilotRoutes {
   }
 
   updateStats() {
-    this.$routeCount.textContent = `${this.routes.length} route${
+    const routeCountText = `${this.routes.length} route${
       this.routes.length !== 1 ? "s" : ""
     }`;
 
@@ -1316,7 +1430,31 @@ class BluePilotRoutes {
       0
     );
     const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(1);
-    this.$totalSize.textContent = `${totalGB} GB`;
+    const totalSizeText = `${totalGB} GB`;
+
+    // Update header (if elements exist - legacy)
+    if (this.$routeCount) {
+      this.$routeCount.textContent = routeCountText;
+    }
+    if (this.$totalSize) {
+      this.$totalSize.textContent = totalSizeText;
+    }
+
+    // Update routes status bar with same info
+    if (this.$routesRouteCount) {
+      this.$routesRouteCount.textContent = routeCountText;
+    }
+    if (this.$routesTotalSize) {
+      this.$routesTotalSize.textContent = totalSizeText;
+    }
+
+    // Update landing page routes card
+    if (this.$landingRouteCount) {
+      this.$landingRouteCount.textContent = routeCountText;
+    }
+    if (this.$landingTotalSize) {
+      this.$landingTotalSize.textContent = totalSizeText;
+    }
 
     // Update disk visualization
     this.updateDiskVisualization();
@@ -1334,8 +1472,10 @@ class BluePilotRoutes {
 
       const { disk, cache } = data;
 
-      // Show the disk info container
-      this.$diskVizContainer.classList.remove("hidden");
+      // Show the disk info container only if on routes view
+      if (this.currentView === 'routes') {
+        this.$diskVizContainer.classList.remove("hidden");
+      }
 
       // Update compact disk info text
       this.$diskVizStatsText.textContent = `${disk.formatted.used} / ${disk.formatted.total} (${disk.formatted.free} free)`;
@@ -1364,26 +1504,52 @@ class BluePilotRoutes {
         this.$diskCacheBar.style.width = `${cachePercent}%`;
       }
 
+      // Update compact disk bar in routes status bar
+      if (this.$routesDiskCompact) {
+        const totalUsedPercent = preservedPercent + routesPercent + cachePercent;
+        const diskBarFill = this.$routesDiskCompact.querySelector('.disk-bar-fill');
+        if (diskBarFill) {
+          diskBarFill.style.width = `${totalUsedPercent.toFixed(1)}%`;
+
+          // Update color based on warning level
+          diskBarFill.classList.remove('warning', 'critical');
+          if (disk.warning_level === 'critical') {
+            diskBarFill.classList.add('critical');
+          } else if (disk.warning_level === 'low' || disk.warning_level === 'medium') {
+            diskBarFill.classList.add('warning');
+          }
+        }
+
+        // Update tooltip/title with disk info
+        this.$routesDiskCompact.title = `${disk.formatted.used} / ${disk.formatted.total} (${disk.formatted.free} free)`;
+      }
+
       // Position threshold marker (shows critical point where deletion starts)
       const thresholdPercent =
         (disk.deletion_threshold_bytes / disk.total_bytes) * 100;
       const thresholdPosition = 100 - thresholdPercent;
       this.$diskThresholdMarker.style.left = `${thresholdPosition}%`;
 
-      // Show/hide warning message
-      this.$diskWarning.classList.remove("warning", "critical", "hidden");
+      // Show/hide warning icon
+      if (this.$diskWarning) {
+        this.$diskWarning.classList.remove("warning", "critical", "hidden");
 
-      if (disk.warning_level === "critical") {
-        this.$diskWarning.classList.add("critical");
-        this.$diskWarningText.textContent = `Low space: ${disk.formatted.free} free`;
-      } else if (
-        disk.warning_level === "low" ||
-        disk.warning_level === "medium"
-      ) {
-        this.$diskWarning.classList.add("warning");
-        this.$diskWarningText.textContent = `${disk.formatted.free} free`;
-      } else {
-        this.$diskWarning.classList.add("hidden");
+        if (disk.warning_level === "critical" || disk.warning_level === "low" || disk.warning_level === "medium") {
+          this.$diskWarning.classList.remove("hidden");
+          // Update title for tooltip
+          this.$diskWarning.title = `Low storage: ${disk.formatted.free} free`;
+        } else {
+          this.$diskWarning.classList.add("hidden");
+        }
+      }
+
+      // Legacy warning text element (if exists)
+      if (this.$diskWarningText) {
+        if (disk.warning_level === "critical") {
+          this.$diskWarningText.textContent = `Low space: ${disk.formatted.free} free`;
+        } else if (disk.warning_level === "low" || disk.warning_level === "medium") {
+          this.$diskWarningText.textContent = `${disk.formatted.free} free`;
+        }
       }
     } catch (error) {
       console.error("Error updating disk info:", error);
@@ -3891,6 +4057,14 @@ class BluePilotRoutes {
         this.handleFFmpegLog(message.data);
         break;
 
+      case "param_updated":
+        this.handleWebSocketParamUpdated(message.data);
+        break;
+
+      case "system_metrics_updated":
+        this.handleWebSocketSystemMetricsUpdated(message.data);
+        break;
+
       case "heartbeat":
         // Just a keep-alive message, ignore
         break;
@@ -4164,6 +4338,64 @@ class BluePilotRoutes {
     );
     if (totalCleared > 0) {
       this.showNotification(`Cache cleared: ${totalCleared} items removed`);
+    }
+  }
+
+  handleWebSocketParamUpdated(data) {
+    // Parameter was updated externally (from Qt UI, CLI, etc.)
+    console.log("Parameter updated via WebSocket:", data.key, "=", data.value);
+
+    // Update local params cache
+    if (this.allParams[data.key]) {
+      this.allParams[data.key].value = data.value;
+    } else {
+      // New param we didn't know about
+      this.allParams[data.key] = {
+        key: data.key,
+        value: data.value,
+        category: 'other',
+        readonly: false,
+        critical: false,
+        type: typeof data.value === 'boolean' ? 'bool' :
+              typeof data.value === 'number' ? (Number.isInteger(data.value) ? 'int' : 'float') : 'string'
+      };
+    }
+
+    // If we're on the params page, re-render the table
+    if (this.currentView === 'params') {
+      // If there's a search active, respect it
+      const searchValue = this.$paramsSearch ? this.$paramsSearch.value : '';
+      if (searchValue) {
+        this.searchParams(searchValue);
+      } else {
+        this.renderParamsTable();
+      }
+    }
+
+    // Update landing page params count
+    if (this.currentView === 'landing') {
+      this.updateLandingPage();
+    }
+
+    // Show notification if param change source is external
+    if (data.source === 'external') {
+      console.log(`External param change: ${data.key} = ${data.value}`);
+    }
+  }
+
+  handleWebSocketSystemMetricsUpdated(data) {
+    // System metrics were updated
+    console.log("System metrics updated via WebSocket");
+
+    // If we're on the system dashboard, refresh it
+    if (this.currentView === 'system') {
+      this.loadSystemDashboard();
+    }
+
+    // Update landing page system status
+    if (this.currentView === 'landing' && this.$landingSystemStatus) {
+      // You could update with specific metric info here
+      this.updateLandingPage();
     }
   }
 
@@ -4628,7 +4860,10 @@ class BluePilotRoutes {
     }
 
     try {
-      this.$diskVizContainer.classList.remove("hidden");
+      // Show the disk info container only if on routes view
+      if (this.currentView === 'routes') {
+        this.$diskVizContainer.classList.remove("hidden");
+      }
 
       const usedText = diskData.formatted.used ?? "";
       const totalText = diskData.formatted.total ?? "";
@@ -6692,6 +6927,400 @@ class BluePilotRoutes {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // =========================================================================
+  // View Navigation
+  // =========================================================================
+
+  navigateToView(view) {
+    console.log(`Navigating to view: ${view}`);
+    this.currentView = view;
+
+    // Hide all views
+    this.$landingPage.classList.add('hidden');
+    this.$routesContainer.classList.add('hidden');
+    this.$systemDashboard.classList.add('hidden');
+    this.$paramsManager.classList.add('hidden');
+
+    // Hide/show disk panel based on view (only show on routes view)
+    if (this.$diskVizContainer) {
+      if (view === 'routes') {
+        this.$diskVizContainer.classList.remove('hidden');
+      } else {
+        this.$diskVizContainer.classList.add('hidden');
+      }
+    }
+
+    // Show the requested view
+    switch(view) {
+      case 'landing':
+        this.$landingPage.classList.remove('hidden');
+        this.$headerTitle.textContent = 'BluePilot Web App';
+        this.updateLandingPage();
+        break;
+      case 'routes':
+        this.$routesContainer.classList.remove('hidden');
+        this.$headerTitle.textContent = 'Routes';
+        break;
+      case 'system':
+        this.$systemDashboard.classList.remove('hidden');
+        this.$headerTitle.textContent = 'System Dashboard';
+        this.loadSystemDashboard();
+        break;
+      case 'params':
+        this.$paramsManager.classList.remove('hidden');
+        this.$headerTitle.textContent = 'Parameters';
+        this.loadParams();
+        break;
+    }
+  }
+
+  updateLandingPage() {
+    // Update route stats
+    this.$landingRouteCount.textContent = this.$routeCount ? this.$routeCount.textContent : '0 routes';
+    this.$landingTotalSize.textContent = this.$totalSize ? this.$totalSize.textContent : '0 GB';
+
+    // Update system status
+    this.$landingSystemStatus.textContent = this.$statusText ? this.$statusText.textContent : 'Checking...';
+
+    // Update params count
+    if (Object.keys(this.allParams).length > 0) {
+      this.$landingParamsCount.textContent = `${Object.keys(this.allParams).length} parameters`;
+    }
+  }
+
+  // =========================================================================
+  // System Dashboard
+  // =========================================================================
+
+  async loadSystemDashboard() {
+    try {
+      const response = await fetch(`${this.API_BASE}/api/system/metrics`);
+      const data = await response.json();
+
+      if (data.success) {
+        this.renderSystemDashboard(data.metrics);
+      } else {
+        this.$dashboardContent.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
+            Failed to load system metrics: ${data.error || 'Unknown error'}
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('Error loading system metrics:', error);
+      this.$dashboardContent.innerHTML = `
+        <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
+          Error loading system metrics: ${error.message}
+        </div>
+      `;
+    }
+  }
+
+  renderSystemDashboard(metrics) {
+    const html = `
+      ${this.renderCPUCard(metrics.cpu)}
+      ${this.renderMemoryCard(metrics.memory)}
+      ${this.renderDiskCard(metrics.disk)}
+      ${this.renderTemperatureCard(metrics.temperature)}
+      ${this.renderFFmpegCard(metrics.ffmpeg)}
+    `;
+    this.$dashboardContent.innerHTML = html;
+  }
+
+  renderCPUCard(cpu) {
+    if (!cpu || Object.keys(cpu).length === 0) {
+      return '<div class="metric-card"><h3>CPU</h3><p>No data available</p></div>';
+    }
+
+    return `
+      <div class="metric-card">
+        <h3>🖥️ CPU Usage</h3>
+        <div class="metric-value">${cpu.core_count || 'N/A'} cores</div>
+        <div class="metric-label">Load Average</div>
+        <div style="margin-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.9rem;">1 min:</span>
+            <span style="font-weight: 600;">${cpu.load_1min?.toFixed(2) || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.9rem;">5 min:</span>
+            <span style="font-weight: 600;">${cpu.load_5min?.toFixed(2) || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 0.9rem;">15 min:</span>
+            <span style="font-weight: 600;">${cpu.load_15min?.toFixed(2) || 'N/A'}</span>
+          </div>
+        </div>
+        ${cpu.online_cores ? `<div style="margin-top: 1rem; font-size: 0.85rem; color: var(--bp-text-secondary);">Online: ${cpu.online_cores.join(', ')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  renderMemoryCard(memory) {
+    if (!memory || Object.keys(memory).length === 0) {
+      return '<div class="metric-card"><h3>Memory</h3><p>No data available</p></div>';
+    }
+
+    const percent = memory.percent_used || 0;
+    const barClass = percent > 90 ? 'danger' : percent > 70 ? 'warning' : '';
+
+    return `
+      <div class="metric-card">
+        <h3>💾 Memory</h3>
+        <div class="metric-value">${percent.toFixed(1)}%</div>
+        <div class="metric-label">${memory.available_gb?.toFixed(1) || 'N/A'} GB available of ${memory.total_gb?.toFixed(1) || 'N/A'} GB</div>
+        <div class="metric-bar">
+          <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderDiskCard(disk) {
+    if (!disk || Object.keys(disk).length === 0) {
+      return '<div class="metric-card"><h3>Disk</h3><p>No data available</p></div>';
+    }
+
+    // Show /data if available, otherwise home
+    const diskInfo = disk['/data'] || disk['home'] || {};
+    const percent = diskInfo.percent_used || 0;
+    const barClass = percent > 90 ? 'danger' : percent > 70 ? 'warning' : '';
+    const path = disk['/data'] ? '/data' : 'home';
+
+    return `
+      <div class="metric-card">
+        <h3>💿 Disk (${path})</h3>
+        <div class="metric-value">${percent.toFixed(1)}%</div>
+        <div class="metric-label">${diskInfo.free_gb?.toFixed(1) || 'N/A'} GB free of ${diskInfo.total_gb?.toFixed(1) || 'N/A'} GB</div>
+        <div class="metric-bar">
+          <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderTemperatureCard(temperature) {
+    if (!temperature || Object.keys(temperature).length === 0) {
+      return '<div class="metric-card"><h3>Temperature</h3><p>No data available</p></div>';
+    }
+
+    const celsius = temperature.celsius || 0;
+    const fahrenheit = temperature.fahrenheit || 0;
+    const barPercent = Math.min((celsius / 100) * 100, 100);
+    const barClass = celsius > 80 ? 'danger' : celsius > 60 ? 'warning' : '';
+
+    return `
+      <div class="metric-card">
+        <h3>🌡️ Temperature</h3>
+        <div class="metric-value">${celsius}°C</div>
+        <div class="metric-label">${fahrenheit}°F</div>
+        <div class="metric-bar">
+          <div class="metric-bar-fill ${barClass}" style="width: ${barPercent}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderFFmpegCard(ffmpeg) {
+    if (!ffmpeg) {
+      return '<div class="metric-card"><h3>FFmpeg</h3><p>No data available</p></div>';
+    }
+
+    const active = ffmpeg.active_processes || 0;
+    const max = ffmpeg.max_processes || 3;
+    const percent = (active / max) * 100;
+
+    return `
+      <div class="metric-card">
+        <h3>🎬 FFmpeg Processes</h3>
+        <div class="metric-value">${active} / ${max}</div>
+        <div class="metric-label">${active === 0 ? 'Idle' : `${active} active`}</div>
+        <div class="metric-bar">
+          <div class="metric-bar-fill" style="width: ${percent}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  // =========================================================================
+  // Params Manager
+  // =========================================================================
+
+  async loadParams() {
+    try {
+      const response = await fetch(`${this.API_BASE}/api/params`);
+      const data = await response.json();
+
+      if (data.success) {
+        this.allParams = data.params;
+        this.renderParamsTable();
+      } else {
+        this.$paramsContent.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
+            Failed to load parameters: ${data.error || 'Unknown error'}
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('Error loading params:', error);
+      this.$paramsContent.innerHTML = `
+        <div style="padding: 2rem; text-align: center; color: var(--bp-error);">
+          Error loading parameters: ${error.message}
+        </div>
+      `;
+    }
+  }
+
+  renderParamsTable(filteredParams = null) {
+    const paramsToRender = filteredParams || this.allParams;
+    const paramsList = Object.values(paramsToRender);
+
+    if (paramsList.length === 0) {
+      this.$paramsContent.innerHTML = '<div style="padding: 2rem; text-align: center;">No parameters found</div>';
+      return;
+    }
+
+    const rows = paramsList.map(param => {
+      const editButton = param.readonly
+        ? '<button class="param-edit-btn" disabled>Read-Only</button>'
+        : `<button class="param-edit-btn" data-key="${param.key}" ${!this.paramsEditMode ? 'disabled' : ''}>Edit</button>`;
+
+      return `
+        <tr>
+          <td><span class="param-key">${this.escapeHtml(param.key)}</span></td>
+          <td><span class="param-value">${this.escapeHtml(String(param.value ?? 'null'))}</span></td>
+          <td>
+            <span class="param-badge ${param.type}">${param.type}</span>
+            ${param.readonly ? '<span class="param-badge readonly">readonly</span>' : ''}
+            ${param.critical ? '<span class="param-badge critical">critical</span>' : ''}
+          </td>
+          <td><span class="param-badge">${param.category}</span></td>
+          <td>${editButton}</td>
+        </tr>
+      `;
+    }).join('');
+
+    this.$paramsContent.innerHTML = `
+      <div class="params-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Value</th>
+              <th>Type</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Attach event listeners to edit buttons
+    if (this.paramsEditMode) {
+      this.$paramsContent.querySelectorAll('.param-edit-btn:not([disabled])').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const key = e.target.getAttribute('data-key');
+          this.editParam(key);
+        });
+      });
+    }
+  }
+
+  searchParams(query) {
+    if (!query) {
+      this.renderParamsTable();
+      return;
+    }
+
+    const filtered = {};
+    const lowerQuery = query.toLowerCase();
+
+    for (const [key, param] of Object.entries(this.allParams)) {
+      if (key.toLowerCase().includes(lowerQuery) ||
+          String(param.value).toLowerCase().includes(lowerQuery) ||
+          param.category.toLowerCase().includes(lowerQuery)) {
+        filtered[key] = param;
+      }
+    }
+
+    this.renderParamsTable(filtered);
+  }
+
+  editParam(key) {
+    const param = this.allParams[key];
+    if (!param) return;
+
+    const currentValue = param.value;
+    let newValue;
+
+    if (param.type === 'bool') {
+      newValue = confirm(`Change ${key} from ${currentValue} to ${!currentValue}?`);
+      if (newValue === null) return;
+      newValue = !currentValue;
+    } else {
+      newValue = prompt(`Edit parameter: ${key}\nCurrent value: ${currentValue}\n\nEnter new value:`, currentValue);
+      if (newValue === null) return; // User cancelled
+
+      // Type conversion
+      if (param.type === 'int') {
+        newValue = parseInt(newValue);
+        if (isNaN(newValue)) {
+          alert('Invalid integer value');
+          return;
+        }
+      } else if (param.type === 'float') {
+        newValue = parseFloat(newValue);
+        if (isNaN(newValue)) {
+          alert('Invalid float value');
+          return;
+        }
+      }
+    }
+
+    // Confirmation for critical params
+    if (param.critical) {
+      const confirmed = confirm(
+        `⚠️ WARNING: This is a critical parameter!\n\n` +
+        `Parameter: ${key}\n` +
+        `Current: ${currentValue}\n` +
+        `New: ${newValue}\n\n` +
+        `Changing this may affect vehicle behavior. Are you sure?`
+      );
+      if (!confirmed) return;
+    }
+
+    this.setParam(key, newValue);
+  }
+
+  async setParam(key, value) {
+    try {
+      const response = await fetch(`${this.API_BASE}/api/params/set`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ key, value })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Successfully updated ${key}`);
+        // Reload params to reflect change
+        await this.loadParams();
+      } else {
+        alert(`Failed to update parameter: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error setting param:', error);
+      alert(`Error setting parameter: ${error.message}`);
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-// bp_routes_panel.h - Web-Based Routes Panel with BP Toggle
+// bp_web_manager_panel.h - BluePilot Web Manager Panel
 #pragma once
 
 #include <QWidget>
@@ -14,12 +14,12 @@
 #include "common/params.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 
-class BPRoutesPanel : public QWidget {
+class BPWebManagerPanel : public QWidget {
   Q_OBJECT
 
 public:
-  explicit BPRoutesPanel(QWidget *parent = nullptr);
-  ~BPRoutesPanel();
+  explicit BPWebManagerPanel(QWidget *parent = nullptr);
+  ~BPWebManagerPanel();
 
 protected:
   void showEvent(QShowEvent *event) override;

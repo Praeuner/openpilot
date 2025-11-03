@@ -105,6 +105,13 @@ from bluepilot.backend.video import (
 # System metrics
 from bluepilot.backend.system import get_system_metrics
 
+# Params management
+from bluepilot.backend.params_manager import (
+    get_all_params, get_params_by_category, get_param_value,
+    set_param_value, search_params, READONLY_PARAMS, CRITICAL_PARAMS
+)
+from bluepilot.backend.params_watcher import ParamsWatcher
+
 # Cache management
 from bluepilot.backend.cache import (
     get_all_cache_sizes, cleanup_old_cache, is_route_starred,
@@ -782,6 +789,86 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     })
                 except Exception as e:
                     logger.exception("Error getting system metrics")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path == '/api/params':
+                # Get all parameters
+                try:
+                    all_params = get_all_params(params)
+                    self.send_json_response({
+                        'success': True,
+                        'params': all_params
+                    })
+                except Exception as e:
+                    logger.exception("Error getting params")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path == '/api/params/categories':
+                # Get parameters organized by category
+                try:
+                    categorized = get_params_by_category(params)
+                    self.send_json_response({
+                        'success': True,
+                        'categories': categorized
+                    })
+                except Exception as e:
+                    logger.exception("Error getting params by category")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path.startswith('/api/params/search'):
+                # Search parameters
+                try:
+                    query = parse_qs(urlparse(path).query).get('q', [''])[0]
+                    if not query:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing query parameter "q"'
+                        }, 400)
+                        return
+
+                    results = search_params(query, params)
+                    self.send_json_response({
+                        'success': True,
+                        'query': query,
+                        'results': results
+                    })
+                except Exception as e:
+                    logger.exception("Error searching params")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path.startswith('/api/params/get/'):
+                # Get specific parameter
+                try:
+                    param_key = path.split('/api/params/get/')[1].strip('/')
+                    if not param_key:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Parameter key required'
+                        }, 400)
+                        return
+
+                    value = get_param_value(param_key, params)
+                    self.send_json_response({
+                        'success': True,
+                        'key': param_key,
+                        'value': value,
+                        'readonly': param_key in READONLY_PARAMS,
+                        'critical': param_key in CRITICAL_PARAMS
+                    })
+                except Exception as e:
+                    logger.exception(f"Error getting param {param_key}")
                     self.send_json_response({
                         'success': False,
                         'error': str(e)
@@ -1870,6 +1957,63 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 else:
                     # Return error from set_route_preserve
                     self.send_json_response(result, 400 if 'disk space' in result.get('error', '').lower() else 500)
+
+            elif path == '/api/params/set':
+                # Set parameter value
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length == 0:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing request body'
+                        }, 400)
+                        return
+
+                    body = self.rfile.read(content_length).decode('utf-8')
+                    data = json.loads(body)
+
+                    param_key = data.get('key')
+                    param_value = data.get('value')
+
+                    if not param_key:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing required field: key'
+                        }, 400)
+                        return
+
+                    if param_value is None:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing required field: value'
+                        }, 400)
+                        return
+
+                    # Set the param
+                    result = set_param_value(param_key, param_value, params)
+
+                    if result['success']:
+                        self.send_json_response(result)
+                        # Broadcast param change via WebSocket
+                        broadcast_websocket_event(WebSocketEvent.PARAM_UPDATED, {
+                            'key': param_key,
+                            'value': param_value
+                        })
+                    else:
+                        self.send_json_response(result, 400)
+
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Invalid JSON in request body'
+                    }, 400)
+                except Exception as e:
+                    logger.exception("Error setting param")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
             elif path == '/api/clear-cache':
                 # Clear all cached data (remuxed videos, thumbnails, GPS metrics, drive stats, fingerprints)
                 import shutil
@@ -2290,6 +2434,30 @@ def main():
         broadcaster_instance = WebSocketBroadcaster(http_fallback_port=port)
         server_state.set_broadcaster(broadcaster_instance)
         logger.info("WebSocket broadcaster initialized (HTTP fallback mode)")
+
+    # Initialize params watcher to monitor external param changes
+    def on_param_change(key, value):
+        """Callback when a param changes externally"""
+        try:
+            broadcast_websocket_event(WebSocketEvent.PARAM_UPDATED, {
+                'key': key,
+                'value': value,
+                'source': 'external'  # Indicates change came from outside the web interface
+            })
+            logger.debug(f"Broadcasted external param change: {key} = {value}")
+        except Exception as e:
+            logger.error(f"Error broadcasting param change: {e}")
+
+    params_watcher = ParamsWatcher(params, broadcast_callback=on_param_change)
+    params_watcher.start()
+    logger.info("Params watcher started - monitoring for external parameter changes")
+
+    # Register cleanup for params watcher
+    def cleanup_params_watcher():
+        logger.info("Stopping params watcher...")
+        params_watcher.stop()
+
+    atexit.register(cleanup_params_watcher)
 
     # Determine bind address - always bind to 0.0.0.0 to support WiFi + hotspot
     # Only wlan IPs are advertised to users (cellular IPs are filtered out)

@@ -34,6 +34,8 @@ class WebSocketEvent:
     CACHE_CLEARED = 'cache_cleared'
     DISK_UPDATED = 'disk_updated'  # Disk space changed
     FFMPEG_LOG = 'ffmpeg_log'  # Real-time FFmpeg debug logs
+    PARAM_UPDATED = 'param_updated'  # Parameter value changed
+    SYSTEM_METRICS_UPDATED = 'system_metrics_updated'  # System metrics updated
 
 
 class WebSocketBroadcaster:

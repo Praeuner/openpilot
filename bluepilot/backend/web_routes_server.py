@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """
 BluePilot Web Routes Server
-Lightweight HTTP server using only stdlib (no external dependencies)
-Complete rewrite matching old Qt panel behavior
+
+⚠️ DEPRECATED ⚠️
+This file is deprecated and should not be used.
+Use bp_backend_server.py instead, which provides:
+- Routes management
+- System metrics dashboard
+- Parameters management
+- Modular architecture
+
+This file is kept for reference purposes only.
 """
 
 import os

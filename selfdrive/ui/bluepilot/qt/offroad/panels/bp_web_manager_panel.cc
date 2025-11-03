@@ -1,5 +1,5 @@
-// bp_routes_panel.cc - Web-Based Routes Panel with BP Toggle
-#include "bp_routes_panel.h"
+// bp_web_app_panel.cc - BluePilot Web Manager Panel
+#include "bp_web_manager_panel.h"
 
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -17,7 +17,7 @@
 
 using qrcodegen::QrCode;
 
-BPRoutesPanel::BPRoutesPanel(QWidget *parent)
+BPWebManagerPanel::BPWebManagerPanel(QWidget *parent)
     : QWidget(parent),
       serverEnabled(false),
       routeCount(0),
@@ -30,20 +30,20 @@ BPRoutesPanel::BPRoutesPanel(QWidget *parent)
   // Status update timer - check every 3 seconds
   statusTimer = new QTimer(this);
   statusTimer->setInterval(3000);
-  connect(statusTimer, &QTimer::timeout, this, &BPRoutesPanel::updateServerStatus);
-  connect(statusTimer, &QTimer::timeout, this, &BPRoutesPanel::updateWebSocketStatus);
+  connect(statusTimer, &QTimer::timeout, this, &BPWebManagerPanel::updateServerStatus);
+  connect(statusTimer, &QTimer::timeout, this, &BPWebManagerPanel::updateWebSocketStatus);
 
   // Error check timer - check every 10 seconds
   errorTimer = new QTimer(this);
   errorTimer->setInterval(10000);
-  connect(errorTimer, &QTimer::timeout, this, &BPRoutesPanel::fetchServerErrors);
+  connect(errorTimer, &QTimer::timeout, this, &BPWebManagerPanel::fetchServerErrors);
 
   setupUI();
   updateServerStatus();
   updateWebSocketStatus();
 }
 
-BPRoutesPanel::~BPRoutesPanel() {
+BPWebManagerPanel::~BPWebManagerPanel() {
   if (statusTimer) {
     statusTimer->stop();
   }
@@ -52,17 +52,17 @@ BPRoutesPanel::~BPRoutesPanel() {
   }
 }
 
-void BPRoutesPanel::setupUI() {
+void BPWebManagerPanel::setupUI() {
   mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(30, 30, 30, 30);
   mainLayout->setSpacing(30);
 
-  setStyleSheet("BPRoutesPanel { background-color: #1C1C1C; }");
+  setStyleSheet("BPWebManagerPanel { background-color: #1C1C1C; }");
 
   BPTextSizes sizes = BPTextSizes::getSizes();
 
   // ========== WEB SERVER GROUP ==========
-  QGroupBox *serverGroup = new QGroupBox("Web Server");
+  QGroupBox *serverGroup = new QGroupBox("Web Manager");
   serverGroup->setStyleSheet(R"(
     QGroupBox {
       background-color: #242424;
@@ -100,14 +100,14 @@ void BPRoutesPanel::setupUI() {
 
   // Toggle control
   QHBoxLayout *toggleLayout = new QHBoxLayout();
-  QLabel *enableLabel = new QLabel("Enable Web Server");
+  QLabel *enableLabel = new QLabel("Enable Web Manager");
   enableLabel->setStyleSheet(QString("font-size: %1px; color: #E4E4E4; font-weight: 500;").arg(sizes.titleSize + 5));
   toggleLayout->addWidget(enableLabel);
   toggleLayout->addStretch();
 
   serverToggle = new BPToggle();
   serverToggle->setStateColors("#4CAF50", "#808080");
-  connect(serverToggle, &BPToggle::toggled, this, &BPRoutesPanel::toggleServer);
+  connect(serverToggle, &BPToggle::toggled, this, &BPWebManagerPanel::toggleServer);
   toggleLayout->addWidget(serverToggle);
   serverLayout->addLayout(toggleLayout);
 
@@ -175,9 +175,14 @@ void BPRoutesPanel::setupUI() {
 
   // ========== HELP TEXT - MOVED BELOW SERVER GROUP ==========
   helpLabel = new QLabel(
-    "Open the URL in Safari or Chrome on your phone or tablet to view routes. "
-    "While driving, all interactions are disabled and the web interface shows a safety overlay. Park to access routes.");
-  helpLabel->setStyleSheet(QString("font-size: %1px; color: #808080;").arg(sizes.descSize + 2));
+    "<b>Web Manager Features:</b><br/>"
+    "• <b>Routes:</b> Browse, search, preserve, and export drives with video playback and location data<br/>"
+    "• <b>System:</b> Monitor device health, CPU/memory usage, disk space, and temperature metrics<br/>"
+    "• <b>Parameters:</b> Search and configure all BluePilot settings with live updates<br/>"
+    "• <b>Real-time sync:</b> Changes update instantly across all connected devices via WebSocket<br/><br/>"
+    "Open the URL in Safari or Chrome on your phone or tablet. "
+    "While driving, all interactions are disabled for safety. Park to access the full interface.");
+  helpLabel->setStyleSheet(QString("font-size: %1px; color: #808080; line-height: 1.5;").arg(sizes.descSize + 2));
   helpLabel->setWordWrap(true);
   mainLayout->addWidget(helpLabel);
 
@@ -271,7 +276,7 @@ void BPRoutesPanel::setupUI() {
   refreshStatsButton = new BPButton("Refresh Stats");
   refreshStatsButton->setMinimumHeight(100);
   statsLayout->addWidget(refreshStatsButton);
-  connect(refreshStatsButton, &BPButton::clicked, this, &BPRoutesPanel::refreshStats);
+  connect(refreshStatsButton, &BPButton::clicked, this, &BPWebManagerPanel::refreshStats);
 
   mainLayout->addWidget(statsFrame);
 
@@ -345,7 +350,7 @@ void BPRoutesPanel::setupUI() {
   mainLayout->addStretch();
 }
 
-void BPRoutesPanel::showEvent(QShowEvent *event) {
+void BPWebManagerPanel::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
   statusTimer->start();
   errorTimer->start();
@@ -356,13 +361,13 @@ void BPRoutesPanel::showEvent(QShowEvent *event) {
   }
 }
 
-void BPRoutesPanel::hideEvent(QHideEvent *event) {
+void BPWebManagerPanel::hideEvent(QHideEvent *event) {
   QWidget::hideEvent(event);
   statusTimer->stop();
   errorTimer->stop();
 }
 
-void BPRoutesPanel::updateServerStatus() {
+void BPWebManagerPanel::updateServerStatus() {
   bool running = isServerRunning();
   serverEnabled = running;
 
@@ -434,7 +439,7 @@ void BPRoutesPanel::updateServerStatus() {
   }
 }
 
-void BPRoutesPanel::toggleServer(bool enabled) {
+void BPWebManagerPanel::toggleServer(bool enabled) {
   params.putBool("BPWebServerEnabled", enabled);
 
   if (enabled) {
@@ -448,17 +453,17 @@ void BPRoutesPanel::toggleServer(bool enabled) {
   }
 
   // Update status after a brief delay to allow process manager to react
-  QTimer::singleShot(1000, this, &BPRoutesPanel::updateServerStatus);
+  QTimer::singleShot(1000, this, &BPWebManagerPanel::updateServerStatus);
 
   if (enabled) {
     // Check again after 2 seconds in case dependencies are being installed
-    QTimer::singleShot(2000, this, &BPRoutesPanel::updateServerStatus);
+    QTimer::singleShot(2000, this, &BPWebManagerPanel::updateServerStatus);
     // Fetch stats once server is running
-    QTimer::singleShot(3000, this, &BPRoutesPanel::refreshStats);
+    QTimer::singleShot(3000, this, &BPWebManagerPanel::refreshStats);
   }
 }
 
-bool BPRoutesPanel::isServerRunning() {
+bool BPWebManagerPanel::isServerRunning() {
   // Check if enabled via param
   bool enabled = params.getBool("BPWebServerEnabled");
   if (!enabled) {
@@ -488,7 +493,7 @@ bool BPRoutesPanel::isServerRunning() {
   return running;
 }
 
-QString BPRoutesPanel::getServerUrl() {
+QString BPWebManagerPanel::getServerUrl() {
   QString ip = getWiFiIP();
   int port = QString::fromStdString(params.get("BPWebServerPort")).toInt();
   if (port == 0) port = 8088;
@@ -496,7 +501,7 @@ QString BPRoutesPanel::getServerUrl() {
   return QString("http://%1:%2").arg(ip).arg(port);
 }
 
-QString BPRoutesPanel::getWiFiIP() {
+QString BPWebManagerPanel::getWiFiIP() {
   // First try to get WiFi interface IP (wlan0 on Comma devices)
   QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
 
@@ -532,7 +537,7 @@ QString BPRoutesPanel::getWiFiIP() {
   return "127.0.0.1";
 }
 
-void BPRoutesPanel::fetchRouteStats() {
+void BPWebManagerPanel::fetchRouteStats() {
   if (!isServerRunning()) {
     totalRoutesLabel->setText("Routes: Server not running");
     totalSizeLabel->setText("Size: -");
@@ -590,7 +595,7 @@ void BPRoutesPanel::fetchRouteStats() {
   });
 }
 
-void BPRoutesPanel::refreshStats() {
+void BPWebManagerPanel::refreshStats() {
   totalRoutesLabel->setText("Routes: Loading...");
   totalSizeLabel->setText("Size: Loading...");
   newestRouteLabel->setText("Newest: Loading...");
@@ -598,7 +603,7 @@ void BPRoutesPanel::refreshStats() {
   fetchRouteStats();
 }
 
-void BPRoutesPanel::generateQRCode(const QString &url) {
+void BPWebManagerPanel::generateQRCode(const QString &url) {
   try {
     // Generate QR code from URL
     QrCode qr = QrCode::encodeText(url.toUtf8().data(), QrCode::Ecc::LOW);
@@ -631,7 +636,7 @@ void BPRoutesPanel::generateQRCode(const QString &url) {
   }
 }
 
-void BPRoutesPanel::fetchServerErrors() {
+void BPWebManagerPanel::fetchServerErrors() {
   // For now, just a stub implementation to fix the linker error
   // This can be enhanced later to show errors in the UI
   // The backend /api/logs endpoint is ready when needed
@@ -669,7 +674,7 @@ void BPRoutesPanel::fetchServerErrors() {
   */
 }
 
-void BPRoutesPanel::updateWebSocketStatus() {
+void BPWebManagerPanel::updateWebSocketStatus() {
   if (!isServerRunning()) {
     websocketStatusBadge->setVisible(false);
     return;

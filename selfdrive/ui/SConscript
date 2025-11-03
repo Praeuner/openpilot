@@ -40,8 +40,8 @@ bp_qt_src = [
   "bluepilot/qt/offroad/panels/bp_base_view.cc",
   "bluepilot/qt/offroad/panels/bp_nested_view.cc",
   "bluepilot/qt/offroad/panels/bp_nav_bar_view.cc",
-  # Web-based routes pane
-  "bluepilot/qt/offroad/routes_panel/bp_routes_panel.cc",
+  # BluePilot Web App panel
+  "bluepilot/qt/offroad/panels/bp_web_manager_panel.cc",
   "bluepilot/qt/offroad/panels/bp_managers.cc",
   # BluePilot Statistics Panel
   "bluepilot/qt/offroad/panels/bp_statistics_panel.cc",
