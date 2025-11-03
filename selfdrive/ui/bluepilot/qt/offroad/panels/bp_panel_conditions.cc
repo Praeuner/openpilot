@@ -242,8 +242,25 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     std::string brand = CP.getBrand();
-    // Rivian and Tesla have limited MADS settings
-    return (brand == "rivian" || brand == "tesla");
+
+    // Rivian always has limited MADS settings
+    if (brand == "rivian") {
+      return true;
+    }
+
+    // Tesla only has limited MADS settings if it doesn't have vehicle bus access
+    if (brand == "tesla") {
+      auto cp_sp_bytes = params.get("CarParamsSPPersistent");
+      if (!cp_sp_bytes.empty()) {
+        AlignedBuffer aligned_buf_sp;
+        capnp::FlatArrayMessageReader cmsg_sp(aligned_buf_sp.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
+        cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
+        return !(CP_SP.getFlags() & 1);  // 1 == TeslaFlagsSP.HAS_VEHICLE_BUS
+      }
+      return true;  // Default to limited if we can't check
+    }
+
+    return false;
   } else if (conditionType == "hasBlindSpotMonitoring") {
     auto cp_bytes = params.get("CarParamsPersistent");
     if (cp_bytes.empty()) {
