@@ -83,7 +83,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 # Import shared route processing functions
-from bluepilot.backend.route_processing import (
+from bluepilot.backend.routes import (
     haversine_distance,
     reverse_geocode,
     extract_gps_metrics_from_segment,
@@ -98,7 +98,7 @@ from bluepilot.backend.route_processing import (
 )
 
 # Import WebSocket broadcaster
-from bluepilot.backend.websocket_broadcaster import WebSocketBroadcaster, WebSocketEvent
+from bluepilot.backend.realtime import WebSocketBroadcaster, WebSocketEvent
 
 # Import export/backup handlers (modular)
 from bluepilot.backend.handlers.export_backup import (
@@ -1753,13 +1753,13 @@ def get_metrics_cache_size():
 
 def get_drive_stats_cache_size():
     """Get total size of drive stats cache in bytes"""
-    from bluepilot.backend.route_processing import DRIVE_STATS_CACHE
+    from bluepilot.backend.routes.processing import DRIVE_STATS_CACHE
     return get_directory_size(DRIVE_STATS_CACHE)
 
 
 def get_fingerprint_cache_size():
     """Get total size of fingerprint cache in bytes"""
-    from bluepilot.backend.route_processing import FINGERPRINT_CACHE
+    from bluepilot.backend.routes.processing import FINGERPRINT_CACHE
     return get_directory_size(FINGERPRINT_CACHE)
 
 
@@ -5397,7 +5397,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             logger.warning(f"Error deleting metrics cache file {filename}: {e}")
 
                 # Clear drive stats cache
-                from bluepilot.backend.route_processing import DRIVE_STATS_CACHE
+                from bluepilot.backend.routes.processing import DRIVE_STATS_CACHE
                 if os.path.exists(DRIVE_STATS_CACHE):
                     for filename in os.listdir(DRIVE_STATS_CACHE):
                         if filename.endswith('.json'):
@@ -5408,7 +5408,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                                 logger.warning(f"Error deleting drive stats cache file {filename}: {e}")
 
                 # Clear fingerprint cache
-                from bluepilot.backend.route_processing import FINGERPRINT_CACHE
+                from bluepilot.backend.routes.processing import FINGERPRINT_CACHE
                 if os.path.exists(FINGERPRINT_CACHE):
                     for filename in os.listdir(FINGERPRINT_CACHE):
                         if filename.endswith('.json'):

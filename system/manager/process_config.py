@@ -194,10 +194,10 @@ procs += [
 
 # bluepilot
 procs += [
-  # Web routes server
-  PythonProcess("bp_web_routes_server", "bluepilot.backend.web_routes_server", web_server_enabled),
+  # Backend server (routes, video streaming, exports, system metrics)
+  PythonProcess("bp_backend_server", "bluepilot.backend.bp_backend_server", web_server_enabled),
   # Route preprocessor (runs in background during idle time)
-  PythonProcess("bp_route_preprocessor", "bluepilot.backend.route_preprocessor", route_preprocessor_enabled),
+  PythonProcess("bp_route_preprocessor", "bluepilot.backend.routes.preprocessor", route_preprocessor_enabled),
 ]
 
 if os.path.exists("./github_runner.sh"):
