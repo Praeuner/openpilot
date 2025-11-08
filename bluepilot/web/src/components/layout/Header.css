@@ -1,0 +1,120 @@
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bp-bg-secondary);
+  border-bottom: 2px solid var(--bp-border);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex: 1;
+  margin: 0;
+}
+
+.header-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: var(--bp-text-secondary);
+  align-items: center;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--bp-border);
+  color: var(--bp-text-secondary);
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  background: var(--bp-bg-tertiary);
+  border-color: var(--bp-accent-blue);
+  color: var(--bp-accent-blue);
+}
+
+.home-btn {
+  margin-right: 0.5rem;
+}
+
+/* Device Status Indicator */
+.device-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--bp-bg-tertiary);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  font-size: 0.875rem;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bp-text-secondary);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.device-status.online .status-indicator {
+  background: var(--bp-success);
+}
+
+.device-status.onroad .status-indicator {
+  background: var(--bp-warning);
+}
+
+.device-status.offline .status-indicator {
+  background: var(--bp-error);
+  animation: none;
+}
+
+.device-status.checking .status-indicator {
+  background: var(--bp-text-secondary);
+}
+
+/* WebSocket Active Indicator */
+.websocket-icon {
+  flex-shrink: 0;
+  color: var(--bp-success);
+  filter: drop-shadow(0 0 2px rgba(76, 175, 80, 0.5));
+  animation: pulse-ws 1.5s ease-in-out infinite;
+}
+
+.device-status.websocket-active {
+  background: rgba(76, 175, 80, 0.15);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+@keyframes pulse-ws {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

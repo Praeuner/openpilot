@@ -1,0 +1,319 @@
+import { useState, useRef, useEffect } from 'react'
+import type { RouteDetails } from '@/types'
+import './Panels.css'
+
+interface LogsPanelProps {
+  route: RouteDetails | null
+  currentSegment: number
+  videoCurrentTime?: number
+}
+
+interface LogMessage {
+  timestamp: number
+  level: string
+  message: string
+}
+
+interface LogResponse {
+  success: boolean
+  messages: LogMessage[]
+  total_count: number
+  returned_count: number
+  truncated: boolean
+  start_time: number
+  end_time: number
+  error?: string
+}
+
+export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsPanelProps) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [logType, setLogType] = useState<'qlog' | 'rlog'>('rlog')
+  const [levelFilter, setLevelFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [syncWithVideo, setSyncWithVideo] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [logs, setLogs] = useState<LogMessage[]>([])
+  const [logStats, setLogStats] = useState({ returned: 0, total: 0, truncated: false })
+  const [logTimeRange, setLogTimeRange] = useState({ start: 0, end: 0 })
+  const messagesRef = useRef<HTMLDivElement>(null)
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval>>()
+
+  useEffect(() => {
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current)
+      }
+    }
+  }, [])
+
+  // Video sync effect
+  useEffect(() => {
+    if (syncWithVideo && logs.length > 0 && messagesRef.current) {
+      syncLogsToVideo()
+    }
+  }, [videoCurrentTime, syncWithVideo, logs])
+
+  const syncLogsToVideo = () => {
+    if (!messagesRef.current || logs.length === 0) return
+
+    const currentVideoTime = videoCurrentTime
+    const segmentStartTime = logTimeRange.start
+
+    // Find the log message closest to current video time
+    const targetTimestamp = segmentStartTime + currentVideoTime
+
+    let closestIndex = -1
+    let closestDistance = Infinity
+
+    const messageElements = Array.from(messagesRef.current.querySelectorAll<HTMLElement>('.log-message'))
+    messageElements.forEach((el, index) => {
+      const timestamp = parseFloat(el.dataset.timestamp || '0')
+      const distance = Math.abs(timestamp - targetTimestamp)
+
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closestIndex = index
+      }
+    })
+
+    // Scroll to closest message
+    if (closestIndex >= 0) {
+      const closestElement = messageElements[closestIndex]
+      if (closestElement) {
+        closestElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+        // Highlight current message
+        messageElements.forEach(el => el.classList.remove('log-message-active'))
+        closestElement.classList.add('log-message-active')
+      }
+    }
+  }
+
+  const loadLogs = async () => {
+    if (!route) {
+      console.warn('No route selected')
+      return
+    }
+
+    setLoading(true)
+    setIsOpen(true)
+
+    try {
+      // Build API URL
+      const params = new URLSearchParams()
+      if (levelFilter !== 'all') {
+        params.append('level', levelFilter)
+      }
+      if (searchQuery.trim()) {
+        params.append('search', searchQuery.trim())
+      }
+      params.append('max', '500')
+
+      const url = `${window.location.origin}/api/logs/${route.baseName}/${currentSegment}/${logType}?${params}`
+
+      console.log('Loading logs from:', url)
+
+      const response = await fetch(url)
+      const data: LogResponse = await response.json()
+
+      setLoading(false)
+
+      if (data.success) {
+        setLogs(data.messages)
+        setLogStats({
+          returned: data.returned_count,
+          total: data.total_count,
+          truncated: data.truncated
+        })
+        setLogTimeRange({
+          start: data.start_time,
+          end: data.end_time
+        })
+      } else {
+        alert(`Error loading logs: ${data.error}`)
+        setLogs([])
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error)
+      setLoading(false)
+      alert(`Failed to load logs: ${error}`)
+      setLogs([])
+    }
+  }
+
+  const stopLogs = () => {
+    setSyncWithVideo(false)
+    setLogs([])
+    setLogStats({ returned: 0, total: 0, truncated: false })
+  }
+
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
+  }
+
+  const formatTimestamp = (timestamp: number): string => {
+    const relativeTime = timestamp - logTimeRange.start
+    const minutes = Math.floor(relativeTime / 60)
+    const seconds = (relativeTime % 60).toFixed(3)
+    return `${minutes}:${seconds.padStart(6, '0')}`
+  }
+
+  return (
+    <div className="bottom-panel" id="log-panel">
+      <div
+        className="panel-header"
+        id="log-panel-header"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ cursor: 'pointer' }}
+      >
+        <div className="panel-title">
+          <svg
+            className="panel-icon"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          <div className="panel-title-text">
+            <span className="panel-title-label">Logs</span>
+            <span className="panel-title-subtitle">Cloudlog events & diagnostics</span>
+          </div>
+        </div>
+        <div className="panel-header-actions">
+          {logs.length > 0 ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-danger panel-action-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                stopLogs()
+              }}
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm btn-primary panel-action-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                loadLogs()
+              }}
+            >
+              Load Logs
+            </button>
+          )}
+        </div>
+      </div>
+      {isOpen && (
+        <div className="panel-content" id="log-panel-content">
+          {/* Log Controls */}
+          <div className="log-controls log-controls-sticky">
+            <div className="log-control-row">
+              <div className="log-type-selector">
+                <button
+                  type="button"
+                  className={`log-type-btn ${logType === 'qlog' ? 'active' : ''}`}
+                  onClick={() => setLogType('qlog')}
+                >
+                  qlog
+                </button>
+                <button
+                  type="button"
+                  className={`log-type-btn ${logType === 'rlog' ? 'active' : ''}`}
+                  onClick={() => setLogType('rlog')}
+                >
+                  rlog
+                </button>
+              </div>
+              <select
+                id="log-level-filter"
+                className="log-filter-select"
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+              >
+                <option value="all">All Levels</option>
+                <option value="error">Errors Only</option>
+                <option value="warning">Warnings</option>
+                <option value="info">Info</option>
+              </select>
+              <input
+                type="text"
+                id="log-search-input"
+                className="log-search-input"
+                placeholder="Search logs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    loadLogs()
+                  }
+                }}
+              />
+              <label className="log-sync-label">
+                <input
+                  type="checkbox"
+                  id="log-sync-checkbox"
+                  checked={syncWithVideo}
+                  onChange={(e) => setSyncWithVideo(e.target.checked)}
+                />
+                Sync with video
+              </label>
+              <button type="button" className="btn btn-sm" onClick={loadLogs}>
+                Reload
+              </button>
+            </div>
+          </div>
+
+          {/* Log Display */}
+          <div className="log-viewer-container">
+            {loading ? (
+              <div className="log-loading">
+                <div className="spinner-small"></div>
+                <span>Loading logs...</span>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="log-viewer-empty">
+                <p>Click "Load Logs" to view cloudlog messages</p>
+              </div>
+            ) : (
+              <>
+                <div ref={messagesRef} className="log-messages">
+                  {logs.map((log, index) => (
+                    <div
+                      key={index}
+                      className={`log-message log-${log.level}`}
+                      data-timestamp={log.timestamp}
+                    >
+                      <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
+                      <span className={`log-level ${log.level}`}>{log.level}</span>
+                      <span
+                        className="log-text"
+                        dangerouslySetInnerHTML={{ __html: escapeHtml(log.message) }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="log-status">
+                  <span id="log-count">
+                    {logStats.returned} message{logStats.returned !== 1 ? 's' : ''}
+                    {logStats.truncated && ` (showing first ${logStats.returned} of ${logStats.total})`}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -500,7 +500,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 self.send_file_response(cache_path)
 
                 # Trigger prefetch of next segments (non-blocking)
-                prefetch_next_segments(route_base, segment_num, camera, count=2)
+                prefetch_next_segments(route_base, segment_num, camera, server_state, count=2)
                 return
 
         # Check cache size and cleanup if needed
@@ -547,7 +547,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 500)
                 return
 
-            with FFmpegProcess(route_info, max_concurrent=MAX_CONCURRENT_FFMPEG, stream_logs=debug_mode) as ffmpeg_mgr:
+            with FFmpegProcess(route_info, server_state, max_concurrent=MAX_CONCURRENT_FFMPEG, stream_logs=debug_mode) as ffmpeg_mgr:
                 # Use FFmpeg to remux raw HEVC to MP4 container
                 # Stream to stdout while also writing to cache file
                 # Optimized for Safari HLS compatibility with smaller fragments
@@ -586,7 +586,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 # Trigger prefetch of next segments (non-blocking, before streaming)
                 # This ensures prefetch starts while current segment is being sent
-                prefetch_next_segments(route_base, segment_num, camera, count=2)
+                prefetch_next_segments(route_base, segment_num, camera, server_state, count=2)
 
                 # Stream output while also saving to cache
                 with open(cache_path, 'wb') as cache_file:

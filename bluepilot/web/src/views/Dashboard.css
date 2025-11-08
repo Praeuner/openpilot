@@ -1,0 +1,124 @@
+.landing-page {
+  padding: 3rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.3s ease;
+}
+
+.landing-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.landing-header h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--bp-text-primary);
+}
+
+.landing-header p {
+  font-size: 1.1rem;
+  color: var(--bp-text-secondary);
+}
+
+.landing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .landing-cards {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-cards {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 900px;
+  }
+}
+
+.landing-card {
+  background: var(--bp-bg-secondary);
+  border: 1px solid var(--bp-border);
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.landing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(33, 150, 243, 0.2);
+  border-color: var(--bp-accent-blue);
+}
+
+.card-icon {
+  margin: 0 auto 1.5rem;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.landing-card:hover .card-icon {
+  transform: scale(1.1);
+}
+
+.routes-icon {
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+}
+
+.params-icon {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+}
+
+.landing-card h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--bp-text-primary);
+}
+
+.landing-card p {
+  font-size: 1rem;
+  color: var(--bp-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.card-stats {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: var(--bp-text-secondary);
+  padding-top: 1rem;
+  border-top: 1px solid var(--bp-border);
+}
+
+.card-stats span {
+  padding: 0.4rem 0.8rem;
+  background: var(--bp-bg-tertiary);
+  border-radius: 6px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

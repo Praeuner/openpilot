@@ -1,0 +1,125 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  font-family: inherit;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--bp-accent-blue);
+  outline-offset: 2px;
+}
+
+/* Sizes */
+.btn--small {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.btn--medium {
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.btn--large {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* Variants */
+.btn--primary {
+  background: var(--bp-accent-blue);
+  color: white;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--bp-accent-blue-hover);
+}
+
+.btn--secondary {
+  background: var(--bp-bg-tertiary);
+  color: var(--bp-text-primary);
+  border: 1px solid var(--bp-border);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: #3a3a3a;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn--danger {
+  background: var(--bp-error);
+  color: white;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #d32f2f;
+}
+
+.btn--success {
+  background: var(--bp-success);
+  color: white;
+}
+
+.btn--success:hover:not(:disabled) {
+  background: #388e3c;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--bp-text-primary);
+  border: 1px solid var(--bp-border);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bp-bg-tertiary);
+}
+
+/* Full width */
+.btn--full-width {
+  width: 100%;
+}
+
+/* Loading state */
+.btn--loading {
+  pointer-events: none;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-text {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
