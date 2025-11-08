@@ -1062,6 +1062,18 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     # Fallback: use start time + duration if parsing fails
                     end_dt = route_dt + timedelta(seconds=duration_seconds)
 
+                # Check which cameras have footage across all segments
+                has_video = {
+                    'front': False,
+                    'wide': False,
+                    'driver': False,
+                    'lq': False
+                }
+                for seg in segments:
+                    videos = get_video_files(seg['path'])
+                    for camera in videos.keys():
+                        has_video[camera] = True
+
                 # Check if route is preserved via xattr
                 is_preserved = check_route_preserve_status(route_base)
 
@@ -1119,27 +1131,66 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 # Get drive statistics if cached (for processing banner)
                 drive_stats = get_route_drive_stats_cached_only(route_base)
 
+                # Get fingerprint data if cached (don't process logs during request - too slow)
+                fingerprint_data = get_route_fingerprint(route_base, segments)
+
+                # Calculate deletion risk for this route
+                deletion_data = get_cached_deletion_data()
+                disk_info = get_disk_space_info()
+                deletion_risk = calculate_route_deletion_risk(route_base, segments, deletion_data, disk_info)
+
+                # Check if route is still being processed
+                processing = drive_stats is None if drive_stats is not None else False
+
                 self.send_json_response({
                     'success': True,
+                    # Primary identifiers
                     'baseName': route_base,
+                    'id': route_base,  # Alias for frontend
+                    # Date/time information
                     'displayDate': format_display_date(route_dt),
+                    'date': format_display_date(route_dt),  # Alias for frontend
                     'displayTime': format_time_12hr(route_dt),
                     'displayEndTime': format_time_12hr(end_dt),
                     'timestamp': route_dt.isoformat(),
+                    'dateTime': route_dt.isoformat(),  # For sorting
+                    'elapsedTime': format_elapsed_time(route_dt),
+                    'start_time': route_dt.isoformat(),  # Frontend alias
+                    'end_time': end_dt.isoformat(),  # Frontend alias
+                    # Route metrics
                     'duration': duration_str,
                     'size': format_size(total_size),
                     'sizeBytes': total_size,
+                    'totalSegments': len(segments_detail),
+                    # Camera availability
+                    'hasVideo': has_video,
+                    # GPS metrics (camelCase)
                     'mileage': mileage_str,
+                    'distance': mileage_str,  # Alias for frontend
                     'avgSpeed': avg_speed_str,
                     'topSpeed': max_speed_str,
                     'hasGpsData': gps_metrics['has_gps_data'],
                     'startLocation': start_location,
                     'endLocation': end_location,
+                    # GPS metrics (snake_case aliases for frontend)
+                    'avg_speed': avg_speed_str,
+                    'top_speed': max_speed_str,
+                    'start_location': start_location,
+                    'end_location': end_location,
+                    # Preservation status
                     'isPreserved': is_preserved,
                     'isStarred': is_preserved,
+                    'preserved': is_preserved,  # Alias for frontend
+                    # Deletion risk
+                    'deletionRisk': deletion_risk,
+                    # Processing status
+                    'processing': processing,
+                    # Detailed segments info
                     'segments': segments_detail,
-                    'totalSegments': len(segments_detail),
-                    'driveStats': drive_stats if drive_stats else None
+                    # Drive statistics
+                    'driveStats': drive_stats if drive_stats else None,
+                    # Vehicle fingerprint
+                    'fingerprint': fingerprint_data if fingerprint_data else None
                 })
 
             elif path == '/api/routes':

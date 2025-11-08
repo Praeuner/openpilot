@@ -221,6 +221,79 @@
   font-weight: 500;
 }
 
+/* Import Backup Modal */
+.import-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.import-description {
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  color: var(--bp-text-secondary);
+  line-height: 1.6;
+}
+
+.import-info-box {
+  background: var(--bp-bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--bp-border);
+}
+
+.import-info-box strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--bp-text-primary);
+}
+
+.import-info-box ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: var(--bp-text-secondary);
+  font-size: 0.875rem;
+}
+
+.import-info-box li {
+  margin-bottom: 0.25rem;
+}
+
+.import-file-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: var(--bp-bg-tertiary);
+  border-radius: 8px;
+  border: 2px dashed var(--bp-border);
+  margin-bottom: 1rem;
+}
+
+.import-file-name {
+  font-size: 0.875rem;
+  color: var(--bp-text-secondary);
+  font-style: italic;
+}
+
+.export-status.success {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgb(34, 197, 94);
+}
+
+.export-status.success .export-status-message {
+  color: rgb(34, 197, 94);
+}
+
+.export-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgb(239, 68, 68);
+}
+
+.export-status.error .export-status-message {
+  color: rgb(239, 68, 68);
+}
+
 @media (max-width: 768px) {
   .export-actions {
     flex-direction: column;
@@ -228,5 +301,9 @@
 
   .export-actions button {
     width: 100%;
+  }
+
+  .import-file-area {
+    padding: 1.5rem;
   }
 }
