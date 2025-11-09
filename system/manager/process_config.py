@@ -5,7 +5,7 @@ import platform
 from cereal import car, custom
 from openpilot.common.params import Params
 from openpilot.system.hardware import PC, TICI
-from openpilot.system.manager.process import PythonProcess, NativeProcess, DaemonProcess
+from openpilot.system.manager.process import PythonProcess, NativeProcess, DaemonProcess, CopypartyProcess
 from openpilot.system.hardware.hw import Paths
 
 from openpilot.sunnypilot.mapd.mapd_manager import MAPD_PATH
@@ -172,6 +172,7 @@ procs = [
   # sunnylink <3
   DaemonProcess("manage_sunnylinkd", "sunnypilot.sunnylink.athena.manage_sunnylinkd", "SunnylinkdPid"),
   PythonProcess("sunnylink_registration_manager", "sunnypilot.sunnylink.registration_manager", sunnylink_need_register_shim),
+  PythonProcess("statsd_sp", "sunnypilot.sunnylink.statsd", and_(always_run, sunnylink_ready_shim)),
 ]
 
 # sunnypilot
@@ -207,23 +208,6 @@ if os.path.exists("../../sunnypilot/sunnylink/uploader.py"):
   procs += [PythonProcess("sunnylink_uploader", "sunnypilot.sunnylink.uploader", use_sunnylink_uploader_shim)]
 
 if os.path.exists("../../third_party/copyparty/copyparty-sfx.py"):
-  sunnypilot_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-  # Check if authentication is configured
-  password = Params().get("CopypartyPassword")
-  auth_suffix = ",admin" if password else ""
-
-  # Build volume arguments with conditional authentication
-  copyparty_args = [f"-v{Paths.crash_log_root()}:/swaglogs:r{auth_suffix}"]
-  copyparty_args += [f"-v{Paths.log_root()}:/routes:r{auth_suffix}"]
-  copyparty_args += [f"-v{Paths.model_root()}:/models:rw{auth_suffix}"]
-  copyparty_args += [f"-v{sunnypilot_root}:/sunnypilot:rw{auth_suffix}"]
-  copyparty_args += ["-p8080", "-z", "-q"]
-
-  # Add authentication if password is configured
-  if password:
-    copyparty_args += ["-a", f"admin:{password}"]
-
-  procs += [NativeProcess("copyparty-sfx", "third_party/copyparty", ["./copyparty-sfx.py", *copyparty_args], and_(only_offroad, use_copyparty))]
+  procs += [CopypartyProcess(and_(only_offroad, use_copyparty))]
 
 managed_processes = {p.name: p for p in procs}
