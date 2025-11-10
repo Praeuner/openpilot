@@ -329,7 +329,10 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
                   # when request bit is 0, only allow curvature of 0 since the signal range
                   # is not large enough to enforce it tracking measured
-                  should_tx = should_tx and (controls_allowed if steer_control_enabled else (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0))
+                  # ALSO allow bypass when both curvature and path_angle are 0 (reset/neutral state)
+                  zero_bypass = (curvature == 0 and path_angle == 0)
+                  all_zeros = (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0)
+                  should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
 
                   # Only CAN FD has the max lateral acceleration limit
                   if self.STEER_MESSAGE == MSG_LateralMotionControl2:
@@ -384,7 +387,10 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
     # when request bit is 0, only allow curvature of 0 since the signal range
     # is not large enough to enforce it tracking measured
-    should_tx = should_tx and (controls_allowed if steer_control_enabled else (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0))
+    # ALSO allow bypass when both curvature and path_angle are 0 (reset/neutral state)
+    zero_bypass = (curvature == 0 and path_angle == 0)
+    all_zeros = (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0)
+    should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
 
     # Only CAN FD has the max lateral acceleration limit
     if self.STEER_MESSAGE == MSG_LateralMotionControl2:
