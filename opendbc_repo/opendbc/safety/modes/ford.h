@@ -526,6 +526,12 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     //   violation = false;
     // }
 
+    // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
+    // This is safe because it represents a "do nothing" command to the PSCM
+    if ((desired_curvature == 0) && (desired_path_angle == 0)) {
+      violation = false;
+    }
+
     if (violation) {
       tx = false;
     }
@@ -618,6 +624,12 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     // if (raw_ramp_type == 3) {
     //   violation = false;
     // }
+
+    // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
+    // This is safe because it represents a "do nothing" command to the PSCM
+    if ((desired_curvature == 0) && (desired_path_angle == 0)) {
+      violation = false;
+    }
 
     if (violation) {
       tx = false;
