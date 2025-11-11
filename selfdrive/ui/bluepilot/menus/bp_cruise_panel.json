@@ -1,6 +1,6 @@
 {
   "type": "base",
-  "menuName": "BPCruise",
+  "menuName": "Cruise",
   "menuIcon": "../assets/icons/speed_limit.png",
   "menuDescription": "Longitudinal Control and Cruise Settings",
   "groups": [

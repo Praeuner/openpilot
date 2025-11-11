@@ -1,21 +1,29 @@
+/**
+ * Diagnostics View
+ * Combined view for parameters and live tmux output
+ */
+
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Header } from '@/components/layout/Header'
-import { useParamsStore } from '@/stores/useParamsStore'
 import { LoadingSpinner, Button, Modal } from '@/components/common'
+import { useParamsStore } from '@/stores/useParamsStore'
 import type { Parameter } from '@/types'
-import './ParametersView.css'
-
-interface ParametersViewProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
-}
+import './DiagnosticsView.css'
 
 type SortColumn = 'key' | 'value' | 'type' | 'category' | 'last_modified'
 type SortDirection = 'asc' | 'desc'
 
-export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProps) => {
-  const { params, loading, fetchParams, updateParam, searchQuery, setSearchQuery, getFilteredParams } =
-    useParamsStore()
+interface DiagnosticsViewProps {
+  deviceStatus: 'online' | 'onroad' | 'offline' | 'checking'
+}
+
+export function DiagnosticsView({ deviceStatus }: DiagnosticsViewProps) {
+  const { params, loading, error, fetchParams, updateParam, searchQuery, setSearchQuery, getFilteredParams } = useParamsStore()
+  const [selectedTab, setSelectedTab] = useState<'parameters' | 'tmux'>('parameters')
+  const [tmuxOutput, setTmuxOutput] = useState<string>('')
+  const [tmuxLoading, setTmuxLoading] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
   const [editingParam, setEditingParam] = useState<Parameter | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const [editMode, setEditMode] = useState(false)
@@ -28,6 +36,35 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
   useEffect(() => {
     fetchParams()
   }, [fetchParams])
+
+  useEffect(() => {
+    if (selectedTab === 'tmux' && autoRefresh) {
+      fetchTmuxOutput()
+      const interval = setInterval(fetchTmuxOutput, 2000)
+      return () => clearInterval(interval)
+    }
+  }, [selectedTab, autoRefresh])
+
+  const fetchTmuxOutput = async () => {
+    setTmuxLoading(true)
+    try {
+      const response = await fetch('/api/tmux-output')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setTmuxOutput(data.output || 'No output available')
+        } else {
+          setTmuxOutput(data.error || 'Error fetching tmux output')
+        }
+      } else {
+        setTmuxOutput('Failed to fetch tmux output')
+      }
+    } catch (err) {
+      setTmuxOutput('Error connecting to tmux service')
+    } finally {
+      setTmuxLoading(false)
+    }
+  }
 
   // Format last modified time (relative)
   const formatLastModified = (timestamp?: number): string => {
@@ -116,24 +153,20 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
   // Sort parameters
   const sortedParams = useMemo(() => {
     const filtered = getFilteredParams()
-      // Filter out parameters with null/undefined keys
       .filter(param => param.key && param.key !== 'null' && param.key !== 'undefined')
 
     return filtered.sort((a, b) => {
       let aVal: any = a[sortColumn]
       let bVal: any = b[sortColumn]
 
-      // Handle undefined values
       if (aVal === undefined) aVal = ''
       if (bVal === undefined) bVal = ''
 
-      // Convert to string for comparison
       if (sortColumn === 'value') {
         aVal = String(aVal)
         bVal = String(bVal)
       }
 
-      // Sort
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
       return 0
@@ -144,7 +177,7 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
   const rowVirtualizer = useVirtualizer({
     count: sortedParams.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 45, // Estimated row height
+    estimateSize: () => 45,
     overscan: 10,
   })
 
@@ -167,7 +200,6 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
 
     let value: string | number | boolean = editValue
 
-    // Convert to appropriate type
     if (editingParam.type === 'number') {
       value = Number(editValue)
     } else if (editingParam.type === 'boolean') {
@@ -193,156 +225,224 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
     return <span className="sort-icon">{sortDirection === 'asc' ? '▲' : '▼'}</span>
   }
 
-  if (loading && Object.keys(params).length === 0) {
-    return (
-      <>
-        <Header deviceStatus={deviceStatus} />
-        <div className="loading">
-          <LoadingSpinner size="large" message="Loading parameters..." />
-        </div>
-      </>
-    )
+  const handleManualRefresh = () => {
+    if (selectedTab === 'tmux') {
+      fetchTmuxOutput()
+    } else {
+      fetchParams()
+    }
   }
 
   return (
     <>
       <Header deviceStatus={deviceStatus} />
-      <div className="params-manager">
-        <div className="params-header">
-          <h2>Parameters</h2>
-          <div className="params-controls">
-            <input
-              type="text"
-              id="params-search"
-              placeholder="Search parameters..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <label className="toggle-switch" title="Enable parameter editing (use with caution)">
-              <input
-                type="checkbox"
-                id="params-edit-toggle"
-                checked={editMode}
-                onChange={(e) => setEditMode(e.target.checked)}
-              />
-              <span className="toggle-slider"></span>
-              <span className="toggle-label">Edit Mode</span>
-            </label>
+      <div className="diagnostics-view">
+        <div className="diagnostics-header">
+          <h1>Diagnostics</h1>
+          <p>View parameters and live system output</p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="diagnostics-tabs">
+          <button
+            className={`diagnostics-tab ${selectedTab === 'parameters' ? 'active' : ''}`}
+            onClick={() => setSelectedTab('parameters')}
+          >
+            Parameters ({Object.keys(params).length})
+          </button>
+          <button
+            className={`diagnostics-tab ${selectedTab === 'tmux' ? 'active' : ''}`}
+            onClick={() => setSelectedTab('tmux')}
+          >
+            Live Output
+          </button>
+        </div>
+
+        {/* Search and Controls */}
+        <div className="diagnostics-controls">
+          {selectedTab === 'parameters' && (
+            <>
+              <div className="search-container">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search parameters..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    className="search-clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <label className="toggle-switch" title="Enable parameter editing (use with caution)">
+                <input
+                  type="checkbox"
+                  checked={editMode}
+                  onChange={(e) => setEditMode(e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+                <span className="toggle-label">Edit Mode</span>
+              </label>
+            </>
+          )}
+
+          <div className="control-buttons">
+            {selectedTab === 'tmux' && (
+              <label className="auto-refresh-toggle">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                <span>Auto-refresh</span>
+              </label>
+            )}
+            <button className="refresh-button" onClick={handleManualRefresh}>
+              ↻ Refresh
+            </button>
           </div>
         </div>
-        <div className="params-content" ref={parentRef}>
-          {sortedParams.length === 0 ? (
-            <div className="empty-state">
-              <p>No parameters found</p>
-            </div>
-          ) : (
-            <div className="params-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th
-                      className={`sortable-header ${sortColumn === 'key' ? 'active-sort' : ''}`}
-                      onClick={() => handleSort('key')}
-                    >
-                      Parameter {renderSortIcon('key')}
-                    </th>
-                    <th
-                      className={`sortable-header ${sortColumn === 'value' ? 'active-sort' : ''}`}
-                      onClick={() => handleSort('value')}
-                    >
-                      Value {renderSortIcon('value')}
-                    </th>
-                    <th
-                      className={`sortable-header ${sortColumn === 'type' ? 'active-sort' : ''}`}
-                      onClick={() => handleSort('type')}
-                    >
-                      Type {renderSortIcon('type')}
-                    </th>
-                    <th
-                      className={`sortable-header ${sortColumn === 'category' ? 'active-sort' : ''}`}
-                      onClick={() => handleSort('category')}
-                    >
-                      Category {renderSortIcon('category')}
-                    </th>
-                    <th
-                      className={`sortable-header ${sortColumn === 'last_modified' ? 'active-sort' : ''}`}
-                      onClick={() => handleSort('last_modified')}
-                    >
-                      Last Modified {renderSortIcon('last_modified')}
-                    </th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    position: 'relative',
-                  }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const param = sortedParams[virtualRow.index]
-                    const valueStr = String(param.value ?? 'null')
-                    const valueDisplay = valueStr.length > 50 ? valueStr.substring(0, 50) + '...' : valueStr
 
-                    return (
-                      <tr
-                        key={param.key}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
+        {/* Content Area */}
+        <div className="diagnostics-content" ref={selectedTab === 'parameters' ? parentRef : null}>
+          {selectedTab === 'parameters' ? (
+            loading && Object.keys(params).length === 0 ? (
+              <LoadingSpinner message="Loading parameters..." />
+            ) : error ? (
+              <div className="diagnostics-error">
+                <h2>Error Loading Parameters</h2>
+                <p>{error}</p>
+              </div>
+            ) : sortedParams.length === 0 ? (
+              <div className="no-results">
+                <p>No parameters found</p>
+              </div>
+            ) : (
+              <div className="params-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th
+                        className={`sortable-header ${sortColumn === 'key' ? 'active-sort' : ''}`}
+                        onClick={() => handleSort('key')}
                       >
-                        <td>
-                          <span className="param-key" title={param.key}>
-                            {param.key}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className="param-value"
-                            title="Click to view full value"
-                            onClick={() => handleViewValue(param)}
-                          >
-                            {valueDisplay}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`param-badge ${param.type}`}>{param.type}</span>
-                          {param.readonly && <span className="param-badge readonly">readonly</span>}
-                          {param.critical && <span className="param-badge critical">critical</span>}
-                        </td>
-                        <td>
-                          {param.category && <span className="param-badge">{param.category}</span>}
-                        </td>
-                        <td>
-                          <span className="param-last-modified">
-                            {formatLastModified(param.last_modified)}
-                          </span>
-                        </td>
-                        <td>
-                          {param.readonly ? (
-                            <button className="param-edit-btn" disabled>
-                              Read-Only
-                            </button>
-                          ) : (
-                            <button
-                              className="param-edit-btn"
-                              onClick={() => handleEdit(param)}
-                              disabled={!editMode}
+                        Parameter {renderSortIcon('key')}
+                      </th>
+                      <th
+                        className={`sortable-header ${sortColumn === 'value' ? 'active-sort' : ''}`}
+                        onClick={() => handleSort('value')}
+                      >
+                        Value {renderSortIcon('value')}
+                      </th>
+                      <th
+                        className={`sortable-header ${sortColumn === 'type' ? 'active-sort' : ''}`}
+                        onClick={() => handleSort('type')}
+                      >
+                        Type {renderSortIcon('type')}
+                      </th>
+                      <th
+                        className={`sortable-header ${sortColumn === 'category' ? 'active-sort' : ''}`}
+                        onClick={() => handleSort('category')}
+                      >
+                        Category {renderSortIcon('category')}
+                      </th>
+                      <th
+                        className={`sortable-header ${sortColumn === 'last_modified' ? 'active-sort' : ''}`}
+                        onClick={() => handleSort('last_modified')}
+                      >
+                        Last Modified {renderSortIcon('last_modified')}
+                      </th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    style={{
+                      height: `${rowVirtualizer.getTotalSize()}px`,
+                      position: 'relative',
+                    }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const param = sortedParams[virtualRow.index]
+                      const valueStr = String(param.value ?? 'null')
+                      const valueDisplay = valueStr.length > 50 ? valueStr.substring(0, 50) + '...' : valueStr
+
+                      return (
+                        <tr
+                          key={param.key}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          <td>
+                            <span className="param-key" title={param.key}>
+                              {param.key}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="param-value"
+                              title="Click to view full value"
+                              onClick={() => handleViewValue(param)}
                             >
-                              Edit
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                              {valueDisplay}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`param-badge ${param.type}`}>{param.type}</span>
+                            {param.readonly && <span className="param-badge readonly">readonly</span>}
+                            {param.critical && <span className="param-badge critical">critical</span>}
+                          </td>
+                          <td>
+                            {param.category && <span className="param-badge">{param.category}</span>}
+                          </td>
+                          <td>
+                            <span className="param-last-modified">
+                              {formatLastModified(param.last_modified)}
+                            </span>
+                          </td>
+                          <td>
+                            {param.readonly ? (
+                              <button className="param-edit-btn" disabled>
+                                Read-Only
+                              </button>
+                            ) : (
+                              <button
+                                className="param-edit-btn"
+                                onClick={() => handleEdit(param)}
+                                disabled={!editMode}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : (
+            <div className="tmux-output-container">
+              {tmuxLoading && tmuxOutput === '' ? (
+                <LoadingSpinner message="Loading tmux output..." />
+              ) : (
+                <>
+                  {tmuxLoading && <div className="loading-indicator">Refreshing...</div>}
+                  <pre className="tmux-output">{tmuxOutput || 'Click refresh to load tmux output'}</pre>
+                </>
+              )}
             </div>
           )}
         </div>

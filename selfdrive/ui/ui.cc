@@ -212,7 +212,6 @@ void UIState::update() {
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
-
   emit uiUpdate(*this);
 #endif
 }
@@ -220,8 +219,6 @@ void UIState::update() {
 Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT_TS, BACKLIGHT_DT), QObject(parent) {
   setAwake(true);
   resetInteractiveTimeout();
-
-
 #ifndef SUNNYPILOT
   QObject::connect(uiState(), &UIState::uiUpdate, this, &Device::update);
 #endif

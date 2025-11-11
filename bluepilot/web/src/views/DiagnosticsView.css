@@ -1,54 +1,113 @@
-/* Parameters Manager - Table Layout with Virtual Scrolling */
-
-.params-manager {
-  padding: 1.5rem;
+.diagnostics-view {
+  padding: 1.5rem 1.25rem;
   max-width: 1800px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 60px); /* Account for header */
+  height: calc(100vh - 60px);
 }
 
-.params-header {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
+.diagnostics-header {
+  text-align: center;
   margin-bottom: 1.5rem;
+  flex-shrink: 0;
+}
+
+.diagnostics-header h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  color: var(--bp-text-primary);
+}
+
+.diagnostics-header p {
+  font-size: 0.875rem;
+  color: var(--bp-text-secondary);
+}
+
+/* Tabs */
+.diagnostics-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--bp-border);
+  flex-shrink: 0;
+}
+
+.diagnostics-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--bp-text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -2px;
+}
+
+.diagnostics-tab:hover {
+  color: var(--bp-text-primary);
+  background: var(--bp-bg-tertiary);
+}
+
+.diagnostics-tab.active {
+  color: var(--bp-accent-blue);
+  border-bottom-color: var(--bp-accent-blue);
+}
+
+/* Controls */
+.diagnostics-controls {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
   flex-shrink: 0;
 }
 
-.params-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--bp-text-primary);
-  margin: 0;
+.search-container {
+  position: relative;
+  flex: 1;
+  min-width: 250px;
 }
 
-.params-controls {
-  display: flex;
-  gap: 1.5rem;
-  align-items: center;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-#params-search {
-  padding: 0.7rem 1rem;
+.search-input {
+  width: 100%;
+  padding: 0.7rem 2.5rem 0.7rem 1rem;
   background: var(--bp-bg-tertiary);
   border: 1px solid var(--bp-border);
   border-radius: 8px;
   color: var(--bp-text-primary);
   font-size: 0.95rem;
-  min-width: 250px;
   transition: all 0.2s ease;
 }
 
-#params-search:focus {
+.search-input:focus {
   outline: none;
   border-color: var(--bp-accent-blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--bp-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.search-clear:hover {
+  color: var(--bp-text-primary);
 }
 
 /* Toggle Switch */
@@ -101,8 +160,47 @@
   color: var(--bp-text-secondary);
 }
 
-/* Parameters Content - Virtual Scrolling Container */
-.params-content {
+.control-buttons {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.auto-refresh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--bp-text-secondary);
+  cursor: pointer;
+}
+
+.auto-refresh-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.refresh-button {
+  padding: 0.625rem 1.25rem;
+  background: var(--bp-accent-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.refresh-button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Content Area */
+.diagnostics-content {
   flex: 1;
   overflow: auto;
   background: var(--bp-bg-secondary);
@@ -110,16 +208,17 @@
   border-radius: 8px;
 }
 
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
+.diagnostics-error {
+  text-align: center;
+  padding: 2rem;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
+.diagnostics-error h2 {
+  color: #f44336;
+  margin-bottom: 0.5rem;
+}
+
+.diagnostics-error p {
   color: var(--bp-text-secondary);
 }
 
@@ -333,6 +432,12 @@
   border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
+.param-badge.category {
+  background: rgba(156, 39, 176, 0.15);
+  color: #9C27B0;
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
 .param-last-modified {
   color: var(--bp-text-secondary);
   font-size: 0.8125rem;
@@ -366,6 +471,32 @@
 
 .param-edit-btn:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.no-results {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--bp-text-secondary);
+}
+
+.no-results p {
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.no-results button {
+  padding: 0.5rem 1rem;
+  background: var(--bp-accent-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.no-results button:hover {
+  opacity: 0.9;
 }
 
 /* Modals */
@@ -450,12 +581,6 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-}
-
-.param-badge.category {
-  background: rgba(156, 39, 176, 0.15);
-  color: #9C27B0;
-  border: 1px solid rgba(156, 39, 176, 0.3);
 }
 
 /* Parameter Metadata Section */
@@ -608,23 +733,66 @@
   border-top: 1px solid var(--bp-border);
 }
 
+/* Tmux Output */
+.tmux-output-container {
+  position: relative;
+  padding: 1.25rem;
+  height: 100%;
+}
+
+.loading-indicator {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--bp-accent-blue);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.tmux-output {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 1.5rem;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-  .params-manager {
+  .diagnostics-view {
+    padding: 1.25rem 1rem;
     height: auto;
   }
 
-  .params-controls {
-    width: 100%;
-    justify-content: stretch;
+  .diagnostics-header h1 {
+    font-size: 1.5rem;
   }
 
-  #params-search {
-    min-width: auto;
-    flex: 1;
+  .diagnostics-controls {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .params-content {
+  .search-container {
+    min-width: 100%;
+  }
+
+  .control-buttons {
+    justify-content: space-between;
+  }
+
+  .diagnostics-content {
     max-height: 600px;
   }
 
@@ -674,6 +842,30 @@
 
   .modal-actions button {
     width: 100%;
+  }
+
+  .tmux-output-container {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .diagnostics-view {
+    padding: 1rem 0.75rem;
+  }
+
+  .diagnostics-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .diagnostics-tab {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .tmux-output {
+    font-size: 0.75rem;
+    padding: 0.75rem;
   }
 }
 

@@ -1,0 +1,48 @@
+.dynamic-control-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.dynamic-control-content {
+  width: 100%;
+}
+
+.dynamic-control-favorite {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+}
+
+.dynamic-control-favorite:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(33, 150, 243, 0.12);
+}
+
+.dynamic-control-favorite.favorited {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+  box-shadow: 0 6px 18px rgba(33, 150, 243, 0.35);
+}
+
+@media (max-width: 768px) {
+  .dynamic-control-favorite {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+  }
+}

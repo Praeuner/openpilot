@@ -1,6 +1,6 @@
 {
   "type": "base",
-  "menuName": "BPDisplay",
+  "menuName": "Display",
   "menuIcon": "../../sunnypilot/selfdrive/assets/offroad/icon_display.png",
   "menuDescription": "Display and Screen Settings",
   "groups": [

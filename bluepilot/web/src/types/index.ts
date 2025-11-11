@@ -78,9 +78,9 @@ export interface RouteDetails extends Omit<Route, 'segments'> {
 
 export interface Parameter {
   key: string
-  value: string | number | boolean
+  value: string | number | boolean | null
   description?: string
-  type: 'string' | 'number' | 'boolean'
+  type: 'string' | 'number' | 'boolean' | 'int' | 'float' | 'bool' | 'str' | 'null' | 'bytes' | 'unknown'
   category?: string
   readonly?: boolean
   critical?: boolean
@@ -99,6 +99,7 @@ export interface SystemMetrics {
   temperature?: number
   ffmpeg_processes: number
   cache_size: number
+  uptime_seconds?: number
 }
 
 export interface ExportJob {

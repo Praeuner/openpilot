@@ -18,6 +18,9 @@ void UIStateSP::updateStatus() {
       reset_onroad_sleep_timer();
     } else if (scene.onroadScreenOffTimer > 0) {
       scene.onroadScreenOffTimer--;
+    } else if (scene.onroadScreenOffTimer == 0) {
+      // Initialize timer on first run when going onroad
+      scene.onroadScreenOffTimer = scene.onroadScreenOffTimerParam * UI_FREQ;
     }
   }
 }
@@ -72,7 +75,6 @@ void UIStateSP::update() {
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick(nanos_since_boot());
   }
-
   emit uiUpdate(*this);
 }
 

@@ -1,6 +1,12 @@
 import React, { useEffect } from 'react'
 import './Modal.css'
 
+export interface ModalAction {
+  label: string
+  onClick: () => void
+  variant?: 'primary' | 'secondary' | 'danger'
+}
+
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
@@ -8,6 +14,8 @@ interface ModalProps {
   children: React.ReactNode
   size?: 'small' | 'medium' | 'large' | 'full'
   showCloseButton?: boolean
+  actions?: ModalAction[]
+  maxWidth?: string
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -17,6 +25,8 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'medium',
   showCloseButton = true,
+  actions,
+  maxWidth,
 }) => {
   // Handle escape key
   useEffect(() => {
@@ -50,6 +60,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={`modal-content modal-content--${size}`}
         onClick={(e) => e.stopPropagation()}
+        style={maxWidth ? { maxWidth } : undefined}
       >
         {(title || showCloseButton) && (
           <div className="modal-header">
@@ -67,6 +78,20 @@ export const Modal: React.FC<ModalProps> = ({
         )}
 
         <div className="modal-body">{children}</div>
+
+        {actions && actions.length > 0 && (
+          <div className="modal-footer">
+            {actions.map((action, index) => (
+              <button
+                key={index}
+                className={`modal-action-btn modal-action-btn--${action.variant || 'secondary'}`}
+                onClick={action.onClick}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,0 +1,331 @@
+.settings-view {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 2rem 2.5rem 3rem;
+}
+
+.settings-view-centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.settings-error-card {
+  padding: 2rem;
+  border-radius: 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--error-color);
+  text-align: center;
+  max-width: 520px;
+  box-shadow: var(--panel-card-shadow);
+}
+
+.settings-error-card h2 {
+  margin-bottom: 0.5rem;
+  color: var(--error-color);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.75rem;
+  align-items: flex-start;
+}
+
+.settings-main {
+  background: var(--panel-card-gradient);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: var(--panel-card-shadow);
+  min-height: 70vh;
+}
+
+.settings-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.settings-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.settings-panel-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background: rgba(33, 150, 243, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color);
+}
+
+.settings-panel-icon svg {
+  width: 38px;
+  height: 38px;
+}
+
+.settings-panel-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  margin: 0 0 0.25rem 0;
+  color: var(--text-tertiary);
+}
+
+.settings-panel-heading h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--text-primary);
+}
+
+.settings-panel-heading p {
+  margin: 0.35rem 0 0 0;
+  color: var(--text-secondary);
+  max-width: 620px;
+}
+
+.settings-search {
+  position: relative;
+  width: min(360px, 100%);
+  margin-left: auto;
+}
+
+.settings-search-input {
+  width: 100%;
+  padding: 0.85rem 2.75rem 0.85rem 1.1rem;
+  font-size: 1rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.settings-search-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+}
+
+.settings-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+}
+
+.settings-search-clear:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.settings-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settings-panel-description {
+  padding: 1.1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 4px solid var(--primary-color);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.settings-panel-loading {
+  padding: 3rem 1rem;
+  border-radius: 18px;
+  border: 1px dashed var(--border-color);
+  text-align: center;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.settings-no-results {
+  padding: 3rem 2rem;
+  text-align: center;
+  border-radius: 18px;
+  border: 1px dashed var(--border-color);
+  color: var(--text-secondary);
+  background: rgba(74, 144, 226, 0.06);
+}
+
+.settings-no-results button {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--primary-color);
+  color: white;
+  font-weight: 600;
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 110px;
+  align-self: flex-start;
+  background: var(--card-bg);
+  border-radius: 22px;
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  box-shadow: var(--panel-card-shadow);
+}
+
+.settings-sidebar-header {
+  text-align: right;
+  margin-bottom: 1rem;
+}
+
+.settings-sidebar-header p {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+}
+
+.settings-sidebar-header h2 {
+  margin: 0.15rem 0 0 0;
+  font-size: 1.3rem;
+  color: var(--text-primary);
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.01);
+  color: var(--text-secondary);
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.settings-nav-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--text-primary);
+}
+
+.settings-nav-btn.active {
+  border-color: var(--primary-color);
+  background: rgba(33, 150, 243, 0.12);
+  box-shadow: 0 10px 28px rgba(33, 150, 243, 0.25);
+  color: var(--text-primary);
+}
+
+.settings-nav-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.settings-nav-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.settings-nav-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.settings-nav-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-nav-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.panel-group-inline {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: var(--panel-card-shadow);
+}
+
+@media (max-width: 1200px) {
+  .settings-view {
+    padding: 1.5rem;
+  }
+
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar {
+    position: static;
+  }
+
+  .settings-panel-header {
+    flex-direction: column;
+  }
+
+  .settings-panel-heading {
+    width: 100%;
+  }
+
+  .settings-search {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-view {
+    padding: 1rem;
+  }
+
+  .settings-panel-heading h1 {
+    font-size: 1.5rem;
+  }
+
+  .settings-panel-icon {
+    width: 58px;
+    height: 58px;
+  }
+
+  .settings-nav-btn {
+    padding: 0.75rem;
+  }
+
+  .settings-nav-icon {
+    width: 50px;
+    height: 50px;
+  }
+}

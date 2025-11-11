@@ -1,6 +1,6 @@
 {
   "type": "base",
-  "menuName": "BPVehicle",
+  "menuName": "Vehicle",
   "menuIcon": "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.svg",
   "menuDescription": "Vehicle Settings and Platform Selection",
   "groups": [

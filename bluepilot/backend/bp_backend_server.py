@@ -33,6 +33,8 @@ import re
 import asyncio
 import threading
 from collections import defaultdict
+import requests
+import jwt as pyjwt
 
 # Configure logging
 logging.basicConfig(
@@ -156,6 +158,46 @@ from bluepilot.backend.handlers.export_backup import (
 # Params - import from params_manager to get fallback support
 from bluepilot.backend.params_manager import Params
 params = Params()
+
+# JWT Helper for Comma API authentication
+def create_comma_jwt(dongle_id, expiry_hours=1):
+    """Create JWT token for Comma API authentication using RSA private key"""
+    try:
+        # Try persist root paths
+        persist_paths = [
+            '/persist/comma/id_rsa',
+            '/data/persist/comma/id_rsa',
+            os.path.expanduser('~/.comma/id_rsa'),
+        ]
+
+        private_key = None
+        for key_path in persist_paths:
+            if os.path.exists(key_path):
+                with open(key_path, 'r') as f:
+                    private_key = f.read()
+                logger.debug(f"Found RSA key at {key_path}")
+                break
+
+        if not private_key:
+            logger.warning("No RSA private key found for Comma API authentication")
+            return None
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        payload = {
+            'identity': dongle_id,
+            'nbf': now,
+            'iat': now,
+            'exp': now + timedelta(hours=expiry_hours),
+        }
+
+        token = pyjwt.encode(payload, private_key, algorithm='RS256')
+        if isinstance(token, bytes):
+            token = token.decode('utf8')
+        return token
+
+    except Exception as e:
+        logger.error(f"Error creating JWT token: {e}", exc_info=True)
+        return None
 
 # Disk space deletion thresholds
 try:
@@ -439,9 +481,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             safe_name = download_filename.replace('"', '')
             self.send_header('Content-Disposition', f'attachment; filename="{safe_name}"')
 
-        # Add cache-control headers to prevent stale JS/HTML from being cached
+        # Add cache-control headers to prevent stale JS/HTML/CSS from being cached
         # This ensures clients always get the latest version after updates
-        if filepath.endswith(('.js', '.html', '.htm')):
+        if filepath.endswith(('.js', '.html', '.htm', '.css')):
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Expires', '0')
@@ -803,13 +845,69 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             elif path == '/api/status':
                 # Basic status endpoint (lightweight, always available)
                 onroad = is_onroad()
+                routes = scan_routes()
+
+                # Count params by listing directory
+                params_count = 0
+                try:
+                    params_dir = "/data/params/d" if os.path.exists("/data/params/d") else None
+                    if params_dir:
+                        params_count = len(os.listdir(params_dir))
+                except Exception:
+                    pass
+
                 self.send_json_response({
                     'status': 'onroad' if onroad else 'online',
                     'onroad': onroad,
+                    'routes_count': len(routes),
+                    'params_count': params_count,
                     'routes_dir': ROUTES_DIR,
                     'routes_dir_exists': os.path.exists(ROUTES_DIR),
-                    'isMetric': params.get_bool("IsMetric")
+                    'isMetric': params.get_bool("IsMetric"),
+                    'timestamp': datetime.now().isoformat()
                 })
+
+            elif path == '/api/system/metrics':
+                # System metrics endpoint (CPU, memory, temperature, disk)
+                # Frontend expects: SystemMetrics interface format
+                try:
+                    raw_metrics = get_system_metrics(
+                        cache_sizes_func=get_all_cache_sizes,
+                        ffmpeg_state=server_state,
+                        max_ffmpeg=MAX_CONCURRENT_FFMPEG
+                    )
+
+                    # Get system uptime
+                    uptime_seconds = 0
+                    try:
+                        with open('/proc/uptime', 'r') as f:
+                            uptime_seconds = int(float(f.read().split()[0]))
+                    except Exception as e:
+                        logger.debug(f"Could not read uptime: {e}")
+
+                    # Transform to frontend's expected format
+                    formatted_metrics = {
+                        'cpu_load': raw_metrics.get('cpu', {}).get('load_1min', 0),
+                        'cpu_cores': raw_metrics.get('cpu', {}).get('core_count', 0),
+                        'memory_used': raw_metrics.get('memory', {}).get('used_bytes', 0),
+                        'memory_total': raw_metrics.get('memory', {}).get('total_bytes', 0),
+                        'memory_percent': raw_metrics.get('memory', {}).get('percent_used', 0),
+                        'disk_used': raw_metrics.get('disk', {}).get('/data', {}).get('used_bytes', 0),
+                        'disk_total': raw_metrics.get('disk', {}).get('/data', {}).get('total_bytes', 0),
+                        'disk_percent': raw_metrics.get('disk', {}).get('/data', {}).get('percent_used', 0),
+                        'temperature': raw_metrics.get('temperature', {}).get('celsius'),
+                        'ffmpeg_processes': raw_metrics.get('ffmpeg', {}).get('active_processes', 0),
+                        'cache_size': raw_metrics.get('cache', {}).get('total_bytes', 0),
+                        'uptime_seconds': uptime_seconds,
+                    }
+
+                    self.send_json_response(formatted_metrics)
+                except Exception as e:
+                    logger.error(f"Error getting system metrics: {e}", exc_info=True)
+                    self.send_json_response({
+                        'error': str(e),
+                        'timestamp': datetime.now().isoformat()
+                    }, 500)
 
             elif path == '/api/websocket_status':
                 # WebSocket availability status endpoint
@@ -990,6 +1088,52 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({
                         'success': False,
                         'error': str(e)
+                    }, 500)
+
+            elif path == '/api/tmux-output':
+                # Get live tmux output from openpilot
+                try:
+                    # Try to capture tmux output
+                    result = subprocess.run(
+                        ['tmux', 'capture-pane', '-t', 'comma', '-p'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+
+                    if result.returncode == 0:
+                        output = result.stdout
+                        self.send_json_response({
+                            'success': True,
+                            'output': output,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                    else:
+                        # Tmux session not found or error
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Tmux session not found',
+                            'output': 'No active tmux session named "comma"',
+                            'timestamp': datetime.now().isoformat()
+                        })
+                except subprocess.TimeoutExpired:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Tmux command timed out',
+                        'output': 'Command timed out after 5 seconds'
+                    }, 500)
+                except FileNotFoundError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Tmux not installed',
+                        'output': 'Tmux is not available on this system'
+                    }, 500)
+                except Exception as e:
+                    logger.exception("Error getting tmux output")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e),
+                        'output': f'Error: {str(e)}'
                     }, 500)
 
             elif path.startswith('/api/params/get/'):
@@ -1206,10 +1350,13 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             elif path == '/api/disk-space':
                 # Get current disk space status
+                # Frontend expects: DiskSpace interface format
                 disk_info = get_disk_space_info()
                 self.send_json_response({
-                    'success': True,
-                    'disk_space': disk_info
+                    'total': disk_info.get('total_bytes', 0),
+                    'used': disk_info.get('used_bytes', 0),
+                    'free': disk_info.get('available_bytes', 0),
+                    'percent': 100 - disk_info.get('available_percent', 0)
                 })
 
             elif path == '/api/disk-analysis':
@@ -1760,6 +1907,426 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 result = extract_cereal_messages(log_path, message_type)
                 self.send_json_response(result)
 
+            elif path == '/api/panels':
+                # List all available panel configurations
+                try:
+                    panel_dir = Path(__file__).parent.parent.parent / 'selfdrive' / 'ui' / 'bluepilot' / 'menus'
+                    panel_files = sorted(panel_dir.glob('bp_*_panel.json'))
+
+                    # Exclude network panel as requested
+                    exclude_panels = ['bp_network_panel.json']
+
+                    # Define Qt settings order (matching selfdrive/ui/bluepilot/qt/offroad/settings.cc)
+                    panel_order = [
+                        'bp_device_panel',
+                        'bp_toggles_panel',
+                        'bp_steering_panel',
+                        'bp_cruise_panel',
+                        'bp_visuals_panel',
+                        'bp_display_panel',
+                        'bp_vehicle_panel',
+                        'bp_developer_panel',
+                    ]
+
+                    # Load panel data
+                    panel_data_map = {}
+                    for panel_file in panel_files:
+                        if panel_file.name in exclude_panels:
+                            continue
+
+                        try:
+                            with open(panel_file, 'r') as f:
+                                panel_data = json.load(f)
+                                panel_data_map[panel_file.stem] = {
+                                    'id': panel_file.stem,  # e.g., 'bp_device_panel'
+                                    'name': panel_data.get('menuName', panel_file.stem),
+                                    'description': panel_data.get('menuDescription', ''),
+                                    'icon': panel_data.get('menuIcon', '')
+                                }
+                        except Exception as e:
+                            logger.warning(f"Failed to load panel {panel_file.name}: {e}")
+
+                    # Sort panels according to Qt order
+                    panels = []
+                    for panel_id in panel_order:
+                        if panel_id in panel_data_map:
+                            panels.append(panel_data_map[panel_id])
+
+                    # Add any panels not in the order list (for extensibility)
+                    for panel_id, panel_info in panel_data_map.items():
+                        if panel_id not in panel_order:
+                            panels.append(panel_info)
+
+                    self.send_json_response({
+                        'success': True,
+                        'panels': panels
+                    })
+                except Exception as e:
+                    logger.error(f"Error listing panels: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path.startswith('/api/panels/'):
+                # Get specific panel configuration
+                panel_id = path.split('/api/panels/')[1].strip('/')
+
+                try:
+                    panel_dir = Path(__file__).parent.parent.parent / 'selfdrive' / 'ui' / 'bluepilot' / 'menus'
+                    panel_file = panel_dir / f'{panel_id}.json'
+
+                    if not panel_file.exists():
+                        self.send_json_response({'success': False, 'error': 'Panel not found'}, 404)
+                        return
+
+                    with open(panel_file, 'r') as f:
+                        panel_data = json.load(f)
+
+                    self.send_json_response({
+                        'success': True,
+                        'panel': panel_data
+                    })
+                except Exception as e:
+                    logger.error(f"Error loading panel {panel_id}: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path == '/api/panel-state':
+                # Get current device state for panel conditionals
+                try:
+                    # Helper function to safely get boolean params
+                    def safe_get_bool(key, default=False):
+                        try:
+                            return params.get_bool(key)
+                        except Exception:
+                            return default
+
+                    # Helper function to safely check if param exists and has value
+                    def param_exists(key):
+                        try:
+                            val = params.get(key)
+                            return val is not None and val != b''
+                        except Exception:
+                            return False
+
+                    onroad = is_onroad()
+
+                    # Basic state
+                    state = {
+                        'isOnroad': onroad,
+                        'isOffroad': not onroad,
+                        'hasCarParams': param_exists("CarParams"),
+                    }
+
+                    # Parse CarParams if available
+                    if param_exists("CarParams"):
+                        try:
+                            from cereal import car
+                            car_params_bytes = params.get("CarParams")
+                            car_params = car.CarParams.from_bytes(car_params_bytes)
+
+                            # Add vehicle-specific state
+                            state['hasLongitudinalControl'] = car_params.openpilotLongitudinalControl
+                            state['hasBlindSpotMonitoring'] = len(car_params.enableBsm) > 0
+                            state['isAngleSteering'] = car_params.steerControlType == car.CarParams.SteerControlType.angle
+
+                            # Brand detection
+                            car_name = car_params.carName.lower() if car_params.carName else ''
+                            car_fingerprint = car_params.carFingerprint.lower() if car_params.carFingerprint else ''
+
+                            state['brandEquals'] = {}
+                            for brand in ['ford', 'hyundai', 'toyota', 'gm', 'honda', 'chrysler', 'mazda', 'nissan', 'subaru', 'volkswagen', 'tesla', 'rivian']:
+                                state['brandEquals'][brand] = brand in car_name or brand in car_fingerprint
+
+                            # MADS limited brand check (brands that have limitations with MADS)
+                            # Typically Honda, Acura, and some others
+                            state['isMadsLimitedBrand'] = 'honda' in car_name or 'acura' in car_name
+
+                            # Check for alpha longitudinal availability
+                            state['hasAlphaLongitudinalAvailable'] = not state['hasLongitudinalControl']
+
+                        except Exception as e:
+                            logger.warning(f"Error parsing CarParams: {e}")
+
+                    # Check for specific features from params
+                    state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
+                    state['isPcmCruise'] = safe_get_bool("PcmCruise")
+                    state['isICBMAvailable'] = safe_get_bool("ICBMAvailable")
+
+                    # Branch detection
+                    state['isReleaseBranch'] = param_exists("ReleaseNotes")
+                    state['isTestedBranch'] = safe_get_bool("IsTestedBranch")
+                    state['isDevelopmentBranch'] = not state['isReleaseBranch'] and not state['isTestedBranch']
+
+                    self.send_json_response({
+                        'success': True,
+                        'state': state
+                    })
+                except Exception as e:
+                    logger.error(f"Error getting panel state: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path == '/api/params/backup':
+                # Get only params with BACKUP flag for backup/restore
+                try:
+                    # Parse params_keys.h to find BACKUP-flagged params
+                    params_keys_path = Path(__file__).parent.parent.parent / 'common' / 'params_keys.h'
+
+                    backup_params = set()
+                    if params_keys_path.exists():
+                        with open(params_keys_path, 'r') as f:
+                            content = f.read()
+                            # Find all params with BACKUP flag
+                            import re
+                            # Match pattern: {"ParamName", {... BACKUP ..., TYPE}}
+                            pattern = r'\{"([^"]+)",\s*\{[^}]*BACKUP[^}]*\}\}'
+                            matches = re.findall(pattern, content)
+                            backup_params = set(matches)
+
+                    # Get values for all BACKUP params
+                    backup_data = {}
+                    for param_key in backup_params:
+                        try:
+                            value = params.get(param_key)
+                            if value is not None:
+                                # Try to decode as string
+                                try:
+                                    decoded = value.decode('utf-8')
+                                    backup_data[param_key] = decoded
+                                except (UnicodeDecodeError, AttributeError):
+                                    # Store as base64 for binary data
+                                    import base64
+                                    backup_data[param_key] = {
+                                        '_binary': True,
+                                        'data': base64.b64encode(value).decode('utf-8')
+                                    }
+                        except Exception as e:
+                            logger.warning(f"Error reading backup param {param_key}: {e}")
+
+                    self.send_json_response({
+                        'success': True,
+                        'params': backup_data,
+                        'count': len(backup_data),
+                        'backup_params_list': sorted(backup_params)
+                    })
+
+                except Exception as e:
+                    logger.error(f"Error getting backup params: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path == '/api/drive-stats':
+                # Get aggregate drive statistics from Comma Connect API
+                # This matches the Qt widget behavior which fetches from cloud
+                try:
+                    # Get DongleId from params with defensive handling
+                    dongle_id = None
+                    try:
+                        dongle_id_bytes = params.get("DongleId")
+                        if dongle_id_bytes and isinstance(dongle_id_bytes, bytes):
+                            dongle_id = dongle_id_bytes.decode('utf-8').strip()
+                            if not dongle_id:  # Empty string after strip
+                                dongle_id = None
+                    except Exception as e:
+                        logger.debug(f"Error getting DongleId: {e}")
+                        dongle_id = None
+
+                    if not dongle_id:
+                        # Return zeros if no DongleId
+                        zero_stats = {
+                            'routes': 0,
+                            'distance': 0,
+                            'distanceMiles': 0,
+                            'duration': 0,
+                            'durationMinutes': 0,
+                            'averageSpeed': 0,
+                        }
+                        self.send_json_response({
+                            'success': True,
+                            'all': zero_stats,
+                            'week': zero_stats.copy(),
+                            'error': 'No DongleId configured'
+                        })
+                        return
+
+                    # Check cache first (30s cache like Qt widget)
+                    cache_file = os.path.join(METRICS_CACHE, "drive_stats_cloud.json")
+                    cache_max_age = 30  # seconds
+
+                    if os.path.exists(cache_file):
+                        cache_age = time.time() - os.path.getmtime(cache_file)
+                        if cache_age < cache_max_age:
+                            try:
+                                with open(cache_file, 'r') as f:
+                                    cached_data = json.load(f)
+                                self.send_json_response(cached_data)
+                                return
+                            except Exception as e:
+                                logger.debug(f"Cache read failed: {e}")
+
+                    # Fetch from Comma Connect API with JWT authentication
+                    api_url = f"https://api.commadotai.com/v1.1/devices/{dongle_id}/stats"
+                    logger.info(f"Fetching drive stats from Comma Connect API: {api_url}")
+
+                    # Create JWT token for authentication
+                    jwt_token = create_comma_jwt(dongle_id)
+                    headers = {}
+                    if jwt_token:
+                        headers['Authorization'] = f"JWT {jwt_token}"
+                    else:
+                        logger.warning("No JWT token available, attempting unauthenticated request")
+
+                    response = requests.get(api_url, headers=headers, timeout=10)
+                    response.raise_for_status()
+                    cloud_data = response.json()
+
+                    # Parse response (format: {all: {routes, distance, minutes}, week: {...}})
+                    # Convert both "all" and "week" stats to frontend format
+                    def convert_stats(stats_data):
+                        """Convert API stats to frontend format"""
+                        distance_miles = stats_data.get('distance', 0)
+                        distance_meters = distance_miles * 1609.34
+                        duration_minutes = stats_data.get('minutes', 0)
+                        duration_seconds = duration_minutes * 60
+                        routes = stats_data.get('routes', 0)
+
+                        # Calculate average speed if we have both distance and duration
+                        avg_speed_ms = distance_meters / duration_seconds if duration_seconds > 0 else 0
+
+                        return {
+                            'routes': routes,
+                            'distance': distance_meters,
+                            'distanceMiles': distance_miles,  # Keep original for reference
+                            'duration': duration_seconds,
+                            'durationMinutes': duration_minutes,  # Keep original for reference
+                            'averageSpeed': avg_speed_ms,  # m/s
+                        }
+
+                    all_stats = convert_stats(cloud_data.get('all', {}))
+                    week_stats = convert_stats(cloud_data.get('week', {}))
+
+                    result = {
+                        'success': True,
+                        'all': all_stats,
+                        'week': week_stats,
+                        'timestamp': datetime.now().isoformat()
+                    }
+
+                    # Cache the response
+                    try:
+                        os.makedirs(METRICS_CACHE, exist_ok=True)
+                        with open(cache_file, 'w') as f:
+                            json.dump(result, f)
+                    except Exception as e:
+                        logger.debug(f"Cache write failed: {e}")
+
+                    self.send_json_response(result)
+
+                except (requests.RequestException, json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"Error fetching from Comma Connect API: {e}")
+                    # Return zeros when API fails
+                    zero_stats = {
+                        'routes': 0,
+                        'distance': 0,
+                        'distanceMiles': 0,
+                        'duration': 0,
+                        'durationMinutes': 0,
+                        'averageSpeed': 0,
+                    }
+                    self.send_json_response({
+                        'success': True,
+                        'all': zero_stats,
+                        'week': zero_stats.copy(),
+                        'cloud_error': str(e)
+                    })
+                except Exception as e:
+                    logger.error(f"Error calculating drive stats: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path == '/api/file-content':
+                # Get file content for FileViewer control
+                try:
+                    query_params = parse_qs(parsed.query)
+                    file_path = query_params.get('path', [None])[0]
+
+                    if not file_path:
+                        self.send_json_response({'success': False, 'error': 'Missing path parameter'}, 400)
+                        return
+
+                    # Security: Only allow reading specific file types from specific directories
+                    allowed_extensions = ['.md', '.txt', '.log', '.json', '.yaml', '.yml', '.conf']
+                    allowed_dirs = [
+                        '/data/openpilot',
+                        '/data/logs',
+                        '/data/community/crashes',
+                    ]
+
+                    # Resolve to absolute path and check if it's within allowed directories
+                    if not os.path.isabs(file_path):
+                        # If relative path, assume it's relative to /data/openpilot
+                        file_path = os.path.join('/data/openpilot', file_path)
+
+                    abs_path = os.path.abspath(file_path)
+
+                    # Check if path is in allowed directories
+                    is_allowed = any(abs_path.startswith(allowed_dir) for allowed_dir in allowed_dirs)
+
+                    if not is_allowed:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Access denied: File path not in allowed directories'
+                        }, 403)
+                        return
+
+                    # Check file extension
+                    file_ext = os.path.splitext(abs_path)[1].lower()
+                    if file_ext and file_ext not in allowed_extensions:
+                        self.send_json_response({
+                            'success': False,
+                            'error': f'Access denied: File type {file_ext} not allowed'
+                        }, 403)
+                        return
+
+                    # Read file
+                    if not os.path.exists(abs_path):
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'File not found'
+                        }, 404)
+                        return
+
+                    # Limit file size to 1MB for safety
+                    file_size = os.path.getsize(abs_path)
+                    if file_size > 1024 * 1024:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'File too large (max 1MB)'
+                        }, 413)
+                        return
+
+                    try:
+                        with open(abs_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+
+                        self.send_json_response({
+                            'success': True,
+                            'content': content,
+                            'path': abs_path,
+                            'size': file_size
+                        })
+                    except UnicodeDecodeError:
+                        # Try reading as binary if UTF-8 fails
+                        with open(abs_path, 'r', encoding='latin-1') as f:
+                            content = f.read()
+
+                        self.send_json_response({
+                            'success': True,
+                            'content': content,
+                            'path': abs_path,
+                            'size': file_size,
+                            'encoding': 'latin-1'
+                        })
+
+                except Exception as e:
+                    logger.error(f"Error reading file: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
             elif path.startswith('/api/thumbnail/'):
                 route_base = path.split('/api/thumbnail/')[1].strip('/')
 
@@ -1779,12 +2346,19 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.wfile.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
 
             else:
-                # Serve static files
+                # Serve static files or SPA routes
                 file_path = WEBAPP_DIR / path.lstrip('/')
                 if file_path.exists() and file_path.is_file():
+                    # Serve static file (JS, CSS, images, etc.)
                     self.send_file_response(str(file_path))
                 else:
-                    self.send_json_response({'error': 'Not found'}, 404)
+                    # Serve index.html for SPA routes (e.g., /routes, /parameters, /settings)
+                    # This allows React Router to handle client-side routing
+                    index_path = WEBAPP_DIR / 'index.html'
+                    if index_path.exists():
+                        self.send_file_response(str(index_path), 'text/html')
+                    else:
+                        self.send_json_response({'error': 'Web app not found'}, 404)
 
         except (BrokenPipeError, ConnectionResetError) as e:
             # Client disconnected - don't log as error
@@ -2218,6 +2792,219 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     }, 400)
                 except Exception as e:
                     logger.exception("Error setting param")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path == '/api/params/restore':
+                # Restore BACKUP-flagged params from backup data
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length == 0:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing request body'
+                        }, 400)
+                        return
+
+                    body = self.rfile.read(content_length).decode('utf-8')
+                    data = json.loads(body)
+
+                    params_data = data.get('params', {})
+
+                    if not params_data:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'No params data provided'
+                        }, 400)
+                        return
+
+                    # Parse params_keys.h to get list of valid BACKUP params
+                    params_keys_path = Path(__file__).parent.parent.parent / 'common' / 'params_keys.h'
+                    backup_params = set()
+
+                    if params_keys_path.exists():
+                        with open(params_keys_path, 'r') as f:
+                            content = f.read()
+                            import re
+                            pattern = r'\{"([^"]+)",\s*\{[^}]*BACKUP[^}]*\}\}'
+                            matches = re.findall(pattern, content)
+                            backup_params = set(matches)
+
+                    restored = []
+                    failed = []
+                    skipped = []
+
+                    for param_key, param_value in params_data.items():
+                        # Only restore params that have BACKUP flag
+                        if param_key not in backup_params:
+                            skipped.append(param_key)
+                            logger.warning(f"Skipping {param_key}: not a BACKUP param")
+                            continue
+
+                        try:
+                            # Handle binary data
+                            if isinstance(param_value, dict) and param_value.get('_binary'):
+                                import base64
+                                value = base64.b64decode(param_value['data'])
+                                params.put(param_key, value)
+                            else:
+                                # String value
+                                params.put(param_key, str(param_value))
+
+                            restored.append(param_key)
+
+                            # Broadcast param change
+                            broadcast_websocket_event(WebSocketEvent.PARAM_UPDATED, {
+                                'key': param_key,
+                                'value': param_value
+                            })
+
+                        except Exception as e:
+                            logger.error(f"Failed to restore param {param_key}: {e}")
+                            failed.append({'param': param_key, 'error': str(e)})
+
+                    self.send_json_response({
+                        'success': len(failed) == 0,
+                        'restored': restored,
+                        'failed': failed,
+                        'skipped': skipped,
+                        'count': len(restored)
+                    })
+
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Invalid JSON in request body'
+                    }, 400)
+                except Exception as e:
+                    logger.exception("Error restoring params")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path == '/api/panel-command':
+                # Execute panel command (reboot, shutdown, set param, etc.)
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length == 0:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing request body'
+                        }, 400)
+                        return
+
+                    body = self.rfile.read(content_length).decode('utf-8')
+                    data = json.loads(body)
+
+                    action = data.get('action')
+                    param = data.get('param')
+                    value = data.get('value')
+                    params_list = data.get('params', [])
+
+                    if not action:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing required field: action'
+                        }, 400)
+                        return
+
+                    # Handle different panel actions
+                    if action == 'set_param':
+                        # Set a parameter
+                        if not param:
+                            self.send_json_response({
+                                'success': False,
+                                'error': 'Missing required field: param'
+                            }, 400)
+                            return
+
+                        if value is None:
+                            self.send_json_response({
+                                'success': False,
+                                'error': 'Missing required field: value'
+                            }, 400)
+                            return
+
+                        result = set_param_value(param, value, params)
+                        if result['success']:
+                            self.send_json_response(result)
+                            broadcast_websocket_event(WebSocketEvent.PARAM_UPDATED, {
+                                'key': param,
+                                'value': value
+                            })
+                        else:
+                            self.send_json_response(result, 400)
+
+                    elif action == 'remove_params':
+                        # Remove multiple parameters
+                        if not params_list:
+                            self.send_json_response({
+                                'success': False,
+                                'error': 'Missing required field: params (list)'
+                            }, 400)
+                            return
+
+                        removed = []
+                        failed = []
+                        for param_key in params_list:
+                            try:
+                                params.remove(param_key)
+                                removed.append(param_key)
+                                broadcast_websocket_event(WebSocketEvent.PARAM_UPDATED, {
+                                    'key': param_key,
+                                    'value': None,
+                                    'removed': True
+                                })
+                            except Exception as e:
+                                logger.warning(f"Failed to remove param {param_key}: {e}")
+                                failed.append(param_key)
+
+                        self.send_json_response({
+                            'success': len(failed) == 0,
+                            'removed': removed,
+                            'failed': failed
+                        })
+
+                    elif action == 'reset_settings':
+                        # Reset all sunnypilot/bluepilot settings to default
+                        # This is a placeholder - actual implementation would need to define default values
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Reset settings not yet implemented in web UI',
+                            'hint': 'Use the device settings panel for this operation'
+                        }, 501)
+
+                    else:
+                        # Unsupported actions that require Qt UI
+                        qt_only_actions = [
+                            'show_driver_camera', 'show_training_guide',
+                            'show_language_selector', 'show_regulatory',
+                            'manage_ssh_keys', 'search_platform', 'remove_platform',
+                            'view_error_log', 'set_copyparty_password'
+                        ]
+
+                        if action in qt_only_actions:
+                            self.send_json_response({
+                                'success': False,
+                                'error': f'Action "{action}" requires device UI',
+                                'hint': 'Please use the settings panel on your Comma device for this feature'
+                            }, 501)
+                        else:
+                            self.send_json_response({
+                                'success': False,
+                                'error': f'Unknown action: {action}'
+                            }, 400)
+
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Invalid JSON in request body'
+                    }, 400)
+                except Exception as e:
+                    logger.exception("Error executing panel command")
                     self.send_json_response({
                         'success': False,
                         'error': str(e)

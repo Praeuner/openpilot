@@ -1,0 +1,109 @@
+.backup-restore {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.backup-restore-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.75rem;
+  padding: 1.25rem 1.25rem;
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  box-shadow: var(--panel-card-shadow);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.backup-restore-section:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.backup-restore-content {
+  flex: 1;
+}
+
+.backup-restore-content h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.backup-restore-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.backup-restore-btn {
+  padding: 0.8rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.backup-restore-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.export-btn {
+  background: var(--primary-color);
+  color: white;
+}
+
+.export-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.import-btn {
+  background: var(--success-color);
+  color: white;
+}
+
+.import-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.backup-result-details {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 14px;
+  border-left: 4px solid var(--primary-color);
+}
+
+.backup-result-details p {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.backup-result-details strong {
+  color: var(--text-primary);
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .backup-restore-section {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .backup-restore-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
