@@ -8,6 +8,7 @@ import type { IntegerControl, FloatControl } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
+import { ControlCard } from '@/components/common'
 import './NumberControl.css'
 
 interface NumberControlProps {
@@ -69,43 +70,40 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   // Calculate step based on control type
   const step = control.increment
 
+  const metaDisplay = (
+    <div className="number-control__value-display">
+      <input
+        type="number"
+        className="number-control__input"
+        value={localValue.toFixed(control.type === 'float' ? 2 : 0)}
+        onChange={handleInputChange}
+        onBlur={handleInputBlur}
+        disabled={disabled}
+        min={control.min}
+        max={control.max}
+        step={step}
+      />
+      {unit && <span className="number-control__unit">{unit}</span>}
+    </div>
+  )
+
   return (
-    <div className="number-control">
-      <div className="number-control-header">
-        <div>
-          <h4 className="number-control-title">{control.title}</h4>
-          {disabled && disabledReason && (
-            <span className="number-control-disabled-reason">{disabledReason}</span>
-          )}
-        </div>
-        <div className="number-control-value-display">
-          <input
-            type="number"
-            className="number-control-input"
-            value={localValue.toFixed(control.type === 'float' ? 2 : 0)}
-            onChange={handleInputChange}
-            onBlur={handleInputBlur}
-            disabled={disabled}
-            min={control.min}
-            max={control.max}
-            step={step}
-          />
-          {unit && <span className="number-control-unit">{unit}</span>}
-        </div>
-      </div>
-
-      {description && (
-        <p
-          className="number-control-description"
-          dangerouslySetInnerHTML={{ __html: description }}
-        />
-      )}
-
-      <div className="number-control-slider-container">
-        <span className="number-control-limit">{control.min}{unit}</span>
+    <ControlCard
+      title={control.title}
+      description={description}
+      disabled={disabled}
+      disabledReason={disabledReason}
+      className="number-control"
+      meta={metaDisplay}
+    >
+      <div className="number-control__slider">
+        <span className="number-control__limit">
+          {control.min}
+          {unit}
+        </span>
         <input
           type="range"
-          className="number-control-slider"
+          className="number-control__range"
           min={control.min}
           max={control.max}
           step={step}
@@ -115,8 +113,11 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
           onTouchEnd={handleSliderRelease}
           disabled={disabled}
         />
-        <span className="number-control-limit">{control.max}{unit}</span>
+        <span className="number-control__limit">
+          {control.max}
+          {unit}
+        </span>
       </div>
-    </div>
+    </ControlCard>
   )
 }

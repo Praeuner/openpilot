@@ -17,7 +17,7 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick }: HeaderProp
   const getTitle = () => {
     if (isRoutesPage) return 'BluePilot Routes'
     if (location.pathname.startsWith('/parameters')) return 'Parameters'
-    return 'BluePilot Web App'
+    return 'BluePilot App'
   }
 
   const statusTexts = {

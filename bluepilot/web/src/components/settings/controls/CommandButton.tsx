@@ -8,7 +8,7 @@ import type { CommandButtonControl } from '@/types/panels'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { panelAPI } from '@/services/panelAPI'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
-import { Modal } from '@/components/common'
+import { Button, ControlCard, Modal } from '@/components/common'
 import './CommandButton.css'
 
 interface CommandButtonProps {
@@ -82,33 +82,30 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
 
   return (
     <>
-      <div className="command-button-control">
-        <div className="command-button-content">
-          <h4 className="command-button-title">{control.title}</h4>
-          {disabled && disabledReason && (
-            <span className="command-button-disabled-reason">{disabledReason}</span>
-          )}
-          {description && (
-            <p
-              className="command-button-description"
-              dangerouslySetInnerHTML={{ __html: description }}
-            />
-          )}
-          {result && (
-            <div className={`command-button-result ${result.success ? 'success' : 'error'}`}>
-              {result.message}
-            </div>
-          )}
-        </div>
-        <button
-          className="command-button-btn"
-          onClick={handleClick}
-          disabled={disabled || executing}
-          style={getButtonStyle()}
-        >
-          {executing ? 'Executing...' : control.button_text}
-        </button>
-      </div>
+      <ControlCard
+        title={control.title}
+        description={description}
+        disabled={disabled}
+        disabledReason={disabledReason}
+        className="command-button-control"
+        footer={
+          <Button
+            className="command-button-btn"
+            onClick={handleClick}
+            disabled={disabled}
+            loading={executing}
+            style={getButtonStyle()}
+          >
+            {control.button_text}
+          </Button>
+        }
+      >
+        {result && (
+          <div className={`command-button-result ${result.success ? 'success' : 'error'}`}>
+            {result.message}
+          </div>
+        )}
+      </ControlCard>
 
       {showConfirm && (
         <Modal

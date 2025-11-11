@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import type { FileViewerControl } from '@/types/panels'
-import { Modal } from '@/components/common'
+import { Button, ControlCard, Modal } from '@/components/common'
 import './FileViewer.css'
 
 interface FileViewerProps {
@@ -54,21 +54,22 @@ export function FileViewer({ control, disabled }: FileViewerProps) {
 
   return (
     <>
-      <div className="file-viewer-control">
-        <div className="file-viewer-content">
-          <h4 className="file-viewer-title">{control.title}</h4>
-          {control.desc && (
-            <p className="file-viewer-description">{control.desc}</p>
-          )}
-        </div>
-        <button
-          className="file-viewer-btn"
-          onClick={handleOpen}
-          disabled={disabled}
-        >
-          {control.button_text || 'VIEW'}
-        </button>
-      </div>
+      <ControlCard
+        title={control.title}
+        description={control.desc}
+        className="file-viewer-control"
+        disabled={disabled}
+        footer={
+          <Button
+            variant="secondary"
+            onClick={handleOpen}
+            disabled={disabled}
+            className="file-viewer-btn"
+          >
+            {control.button_text || 'View'}
+          </Button>
+        }
+      />
 
       {showModal && (
         <Modal

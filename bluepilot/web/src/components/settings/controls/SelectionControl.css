@@ -1,52 +1,8 @@
-.selection-control {
-  position: relative;
-  padding: 1.35rem 3.5rem 1.35rem 1.5rem;
-  background: rgba(30, 30, 30, 0.95);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  box-shadow: var(--panel-card-shadow);
-  transition: border-color 0.2s ease, transform 0.2s ease;
+.selection-control .control-card__footer {
+  margin-top: 0.5rem;
 }
 
-.selection-control:hover {
-  border-color: var(--primary-color);
-  transform: translateY(-1px);
-}
-
-.selection-control-content {
-  margin-bottom: 0.85rem;
-}
-
-.selection-control-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.selection-control-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.selection-control-disabled-reason {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  background: var(--warning-bg);
-  padding: 0.15rem 0.65rem;
-  border-radius: 999px;
-}
-
-.selection-control-description {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
-.selection-control-select {
+.selection-control__select {
   width: 100%;
   padding: 0.95rem 1.25rem;
   font-size: 1rem;

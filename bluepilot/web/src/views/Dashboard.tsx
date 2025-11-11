@@ -172,30 +172,40 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
             </div>
 
             {!driveStatsLoading && driveStats && (
-              <div className="drive-stats-pills-container">
-                <div className="drive-stat-pill all-time">
-                  <span className="pill-label">All Time Drives</span>
-                  <span className="pill-value">{driveStats.all.routes}</span>
+              <div className="drive-stats-section">
+                <div className="drive-stats-group">
+                  <h4 className="drive-stats-title">All Time</h4>
+                  <div className="drive-stats-pills-row">
+                    <div className="drive-stat-pill all-time">
+                      <span className="pill-label">Drives</span>
+                      <span className="pill-value">{driveStats.all.routes}</span>
+                    </div>
+                    <div className="drive-stat-pill all-time">
+                      <span className="pill-label">Miles</span>
+                      <span className="pill-value">{Math.round(driveStats.all.distanceMiles)}</span>
+                    </div>
+                    <div className="drive-stat-pill all-time">
+                      <span className="pill-label">Hours</span>
+                      <span className="pill-value">{Math.round(driveStats.all.duration / 3600)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="drive-stat-pill all-time">
-                  <span className="pill-label">All Time Miles</span>
-                  <span className="pill-value">{Math.round(driveStats.all.distanceMiles)}</span>
-                </div>
-                <div className="drive-stat-pill all-time">
-                  <span className="pill-label">All Time Hours</span>
-                  <span className="pill-value">{Math.round(driveStats.all.duration / 3600)}</span>
-                </div>
-                <div className="drive-stat-pill">
-                  <span className="pill-label">Week Drives</span>
-                  <span className="pill-value">{driveStats.week.routes}</span>
-                </div>
-                <div className="drive-stat-pill">
-                  <span className="pill-label">Week Miles</span>
-                  <span className="pill-value">{Math.round(driveStats.week.distanceMiles)}</span>
-                </div>
-                <div className="drive-stat-pill">
-                  <span className="pill-label">Week Hours</span>
-                  <span className="pill-value">{Math.round(driveStats.week.duration / 3600)}</span>
+                <div className="drive-stats-group">
+                  <h4 className="drive-stats-title">This Week</h4>
+                  <div className="drive-stats-pills-row">
+                    <div className="drive-stat-pill">
+                      <span className="pill-label">Drives</span>
+                      <span className="pill-value">{driveStats.week.routes}</span>
+                    </div>
+                    <div className="drive-stat-pill">
+                      <span className="pill-label">Miles</span>
+                      <span className="pill-value">{Math.round(driveStats.week.distanceMiles)}</span>
+                    </div>
+                    <div className="drive-stat-pill">
+                      <span className="pill-label">Hours</span>
+                      <span className="pill-value">{Math.round(driveStats.week.duration / 3600)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -204,7 +214,7 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
           <section className="dashboard-quick-panel">
             <div className="panel-heading">
               <p>Shortcuts</p>
-              <h2>Routes & Diagnostics</h2>
+              <h2>Quick Access</h2>
             </div>
             <div className="quick-links-grid">
               <button className="quick-link-card routes" onClick={() => navigate('/routes')}>
@@ -218,7 +228,7 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
                   <span className="label">Routes</span>
                   <span className="subtext">Review recordings</span>
                 </div>
-                <div className="link-badge">{status?.routes_count || 0}</div>
+                <span className="link-badge">{status?.routes_count || 0}</span>
               </button>
               <button className="quick-link-card diagnostics" onClick={() => navigate('/diagnostics')}>
                 <div className="quick-link-icon">
@@ -228,9 +238,9 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
                 </div>
                 <div className="quick-link-copy">
                   <span className="label">Diagnostics</span>
-                  <span className="subtext">Inspect params & health</span>
+                  <span className="subtext">Inspect params & logs</span>
                 </div>
-                <div className="link-badge">{paramCount}</div>
+                <span className="link-badge">{paramCount}</span>
               </button>
             </div>
           </section>

@@ -14,6 +14,9 @@ import {
   NumberControl,
   CommandButton,
   FileViewer,
+  StaticTextControl,
+  StaticParamDisplayControl,
+  PlatformDisplayControl,
 } from './controls'
 import './DynamicControl.css'
 
@@ -27,6 +30,11 @@ interface DynamicControlProps {
 export function DynamicControl({ control, state, panelId, groupName }: DynamicControlProps) {
   const params = useParamsStore((store) => store.params)
   const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore()
+
+  // Check if control is hidden in web UI
+  if ('webSupported' in control && control.webSupported === false) {
+    return null
+  }
 
   // Check visibility
   if (!isControlVisible(control, state, params)) {
@@ -84,13 +92,22 @@ export function DynamicControl({ control, state, panelId, groupName }: DynamicCo
       controlElement = <FileViewer control={control} disabled={!enabled} />
       break
 
-    // Unsupported control types (mostly Qt-specific)
+    case 'static_text':
+      controlElement = <StaticTextControl control={control} />
+      break
+
     case 'static_param_display':
-    case 'file_param_display':
+      controlElement = <StaticParamDisplayControl control={control} />
+      break
+
     case 'platform_display':
+      controlElement = <PlatformDisplayControl control={control} />
+      break
+
+    // Unsupported control types (mostly Qt-specific)
+    case 'file_param_display':
     case 'param_viewer':
     case 'param_list_viewer':
-    case 'static_text':
     case 'recent_changes':
     case 'restart_ui':
       controlElement = (

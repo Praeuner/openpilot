@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Header } from '@/components/layout/Header'
 import { useParamsStore } from '@/stores/useParamsStore'
-import { LoadingSpinner, Button, Modal } from '@/components/common'
+import { LoadingSpinner, Button, Modal, ToggleSwitch } from '@/components/common'
 import type { Parameter } from '@/types'
 import './ParametersView.css'
 
@@ -218,16 +218,15 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <label className="toggle-switch" title="Enable parameter editing (use with caution)">
-              <input
-                type="checkbox"
-                id="params-edit-toggle"
-                checked={editMode}
-                onChange={(e) => setEditMode(e.target.checked)}
-              />
-              <span className="toggle-slider"></span>
-              <span className="toggle-label">Edit Mode</span>
-            </label>
+            <ToggleSwitch
+              id="params-edit-toggle"
+              checked={editMode}
+              onChange={(checked) => setEditMode(checked)}
+              label="Edit Mode"
+              size="compact"
+              className="params-edit-toggle"
+              title="Enable parameter editing (use with caution)"
+            />
           </div>
         </div>
         <div className="params-content" ref={parentRef}>
@@ -325,17 +324,24 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                         </td>
                         <td>
                           {param.readonly ? (
-                            <button className="param-edit-btn" disabled>
+                            <Button
+                              size="small"
+                              variant="ghost"
+                              className="param-edit-btn"
+                              disabled
+                            >
                               Read-Only
-                            </button>
+                            </Button>
                           ) : (
-                            <button
+                            <Button
+                              size="small"
+                              variant="primary"
                               className="param-edit-btn"
                               onClick={() => handleEdit(param)}
                               disabled={!editMode}
                             >
                               Edit
-                            </button>
+                            </Button>
                           )}
                         </td>
                       </tr>

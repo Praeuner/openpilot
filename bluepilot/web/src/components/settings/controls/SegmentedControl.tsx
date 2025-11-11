@@ -7,6 +7,7 @@ import type { SegmentedControl as SegmentedControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription, evaluateConditions } from '@/utils/conditionalEvaluator'
+import { ControlCard } from '@/components/common'
 import './SegmentedControl.css'
 
 interface SegmentedControlProps {
@@ -41,53 +42,46 @@ export function SegmentedControl({ control, disabled, disabledReason }: Segmente
   const selectedOption = availableOptions.find((opt) => opt.value === currentValue)
   const selectedDesc = selectedOption?.desc
 
+  const topDescription = control.showDescBottom ? null : description
+  const bottomDescription = control.showDescBottom
+    ? (selectedDesc || description)
+    : null
+
   return (
-    <div className="segmented-control">
-      <div className="segmented-control-header">
-        <h4 className="segmented-control-title">{control.title}</h4>
-        {disabled && disabledReason && (
-          <span className="segmented-control-disabled-reason">{disabledReason}</span>
-        )}
-      </div>
-
-      {description && !control.showDescBottom && (
-        <p
-          className="segmented-control-description"
-          dangerouslySetInnerHTML={{ __html: description }}
-        />
-      )}
-
+    <ControlCard
+      title={control.title}
+      description={topDescription}
+      disabled={disabled}
+      disabledReason={disabledReason}
+      className="segmented-control"
+    >
       <div className="segmented-control-buttons">
-        {availableOptions.map((option) => (
-          <button
-            key={option.value}
-            className={`segmented-button ${currentValue === option.value ? 'active' : ''}`}
-            onClick={() => handleSelect(option.value)}
-            disabled={disabled}
-          >
-            {option.name.split('\n').map((line, i) => (
-              <span key={i}>
-                {line}
-                {i < option.name.split('\n').length - 1 && <br />}
-              </span>
-            ))}
-          </button>
-        ))}
+        {availableOptions.map((option) => {
+          const lines = option.name.split('\n')
+          return (
+            <button
+              key={option.value}
+              className={`segmented-button ${currentValue === option.value ? 'active' : ''}`}
+              onClick={() => handleSelect(option.value)}
+              disabled={disabled}
+            >
+              {lines.map((line, i) => (
+                <span key={`${option.value}-${i}`}>
+                  {line}
+                  {i < lines.length - 1 && <br />}
+                </span>
+              ))}
+            </button>
+          )
+        })}
       </div>
 
-      {control.showDescBottom && selectedDesc && (
+      {bottomDescription && (
         <p
-          className="segmented-control-selected-desc"
-          dangerouslySetInnerHTML={{ __html: selectedDesc }}
+          className={`segmented-control-description ${selectedDesc ? 'segmented-control-selected-desc' : ''}`}
+          dangerouslySetInnerHTML={{ __html: bottomDescription }}
         />
       )}
-
-      {control.showDescBottom && description && !selectedDesc && (
-        <p
-          className="segmented-control-description"
-          dangerouslySetInnerHTML={{ __html: description }}
-        />
-      )}
-    </div>
+    </ControlCard>
   )
 }

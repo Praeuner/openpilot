@@ -4,6 +4,7 @@
  */
 
 import type { PanelGroup as PanelGroupType, PanelState } from '@/types/panels'
+import { Button } from '@/components/common'
 import { DynamicControl } from './DynamicControl'
 import './PanelGroup.css'
 
@@ -24,9 +25,15 @@ export function PanelGroup({ group, state, panelId }: PanelGroupProps) {
       <div className="panel-group-header">
         <h3 className="panel-group-title">{group.title}</h3>
         {group.enableResetButton && (
-          <button className="panel-group-reset" title="Reset to defaults">
+          <Button
+            variant="secondary"
+            size="small"
+            className="panel-group-reset"
+            title="Reset to defaults"
+            type="button"
+          >
             Reset
-          </button>
+          </Button>
         )}
       </div>
 

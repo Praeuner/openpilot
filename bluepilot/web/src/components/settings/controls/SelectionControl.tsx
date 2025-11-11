@@ -7,6 +7,7 @@ import type { SelectionControl as SelectionControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription, evaluateConditions } from '@/utils/conditionalEvaluator'
+import { ControlCard } from '@/components/common'
 import './SelectionControl.css'
 
 interface SelectionControlProps {
@@ -40,36 +41,29 @@ export function SelectionControl({ control, disabled, disabledReason }: Selectio
   }
 
   return (
-    <div className="selection-control">
-      <div className="selection-control-content">
-        <div className="selection-control-header">
-          <h4 className="selection-control-title">{control.title}</h4>
-          {disabled && disabledReason && (
-            <span className="selection-control-disabled-reason">{disabledReason}</span>
-          )}
-        </div>
-        {description && (
-          <p
-            className="selection-control-description"
-            dangerouslySetInnerHTML={{ __html: description }}
-          />
-        )}
-      </div>
-      <select
-        className="selection-control-select"
-        value={String(currentValue)}
-        onChange={handleChange}
-        disabled={disabled || availableOptions.length === 0}
-      >
-        {availableOptions.map((option) => {
-          const displayName = unit ? option.name.replace('{unit}', unit) : option.name
-          return (
-            <option key={option.value} value={option.value}>
-              {displayName}
-            </option>
-          )
-        })}
-      </select>
-    </div>
+    <ControlCard
+      title={control.title}
+      description={description}
+      disabled={disabled}
+      disabledReason={disabledReason}
+      className="selection-control"
+      footer={
+        <select
+          className="selection-control__select"
+          value={String(currentValue)}
+          onChange={handleChange}
+          disabled={disabled || availableOptions.length === 0}
+        >
+          {availableOptions.map((option) => {
+            const displayName = unit ? option.name.replace('{unit}', unit) : option.name
+            return (
+              <option key={option.value} value={option.value}>
+                {displayName}
+              </option>
+            )
+          })}
+        </select>
+      }
+    />
   )
 }

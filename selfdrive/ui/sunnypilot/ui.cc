@@ -14,13 +14,10 @@ void UIStateSP::updateStatus() {
 
   if (scene.started && scene.onroadScreenOffControl) {
     auto selfdriveState = (*sm)["selfdriveState"].getSelfdriveState();
-    if (selfdriveState.getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
+    if (selfdriveState.getAlertStatus() != cereal::SelfdriveState::AlertStatus::NORMAL) {
       reset_onroad_sleep_timer();
     } else if (scene.onroadScreenOffTimer > 0) {
       scene.onroadScreenOffTimer--;
-    } else if (scene.onroadScreenOffTimer == 0) {
-      // Initialize timer on first run when going onroad
-      scene.onroadScreenOffTimer = scene.onroadScreenOffTimerParam * UI_FREQ;
     }
   }
 }

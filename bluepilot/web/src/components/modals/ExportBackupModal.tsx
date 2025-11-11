@@ -186,10 +186,13 @@ export const ExportBackupModal = ({ isOpen, onClose, route }: ExportBackupModalP
             clearInterval(pollInterval)
             setExportStatus({
               visible: true,
-              message: 'Backup ready!',
+              message: 'Backup ready! Download starting...',
               progress: 100,
               type: 'backup'
             })
+            // Trigger download
+            const downloadUrl = exportAPI.downloadRouteBackup(route.baseName || route.id || '')
+            window.open(downloadUrl, '_blank')
             setLoading(false)
           } else if (status.status === 'error') {
             clearInterval(pollInterval)

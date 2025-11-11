@@ -68,6 +68,9 @@ interface BaseControl {
   confirm_no_text?: string
   requiresReboot?: boolean
 
+  // Web UI support flag
+  webSupported?: boolean // Set to false to hide control in web UI (defaults to true if omitted)
+
   // Conditional visibility and enabling
   visibleConditions?: Conditions
   enableConditions?: Conditions

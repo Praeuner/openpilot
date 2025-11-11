@@ -3,8 +3,8 @@
  * Export/Import settings that have the BACKUP flag
  */
 
-import { useState } from 'react'
-import { Modal } from '@/components/common'
+import { useRef, useState } from 'react'
+import { Button, ControlCard, Modal } from '@/components/common'
 import './BackupRestore.css'
 
 export function BackupRestore() {
@@ -14,6 +14,7 @@ export function BackupRestore() {
     null
   )
   const [showResult, setShowResult] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = async () => {
     setExporting(true)
@@ -130,42 +131,47 @@ export function BackupRestore() {
   return (
     <>
       <div className="backup-restore">
-        <div className="backup-restore-section">
-          <div className="backup-restore-content">
-            <h4>Export Settings</h4>
-            <p>
-              Download a backup of all settings with the BACKUP flag. This includes user preferences,
-              configuration, and customizations that are safe to backup and restore.
-            </p>
-          </div>
-          <button
-            className="backup-restore-btn export-btn"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export Backup'}
-          </button>
-        </div>
+        <ControlCard
+          title="Export Settings"
+          description="Download a backup of all settings with the BACKUP flag. This includes user preferences, configuration, and customizations that are safe to backup and restore."
+          className="backup-restore-card"
+          footer={
+            <Button
+              variant="primary"
+              onClick={handleExport}
+              loading={exporting}
+              className="backup-restore-btn"
+            >
+              Export Backup
+            </Button>
+          }
+        />
 
-        <div className="backup-restore-section">
-          <div className="backup-restore-content">
-            <h4>Import Settings</h4>
-            <p>
-              Restore settings from a previously exported backup file. Only parameters with the
-              BACKUP flag will be restored for safety.
-            </p>
-          </div>
-          <label className="backup-restore-btn import-btn">
-            {importing ? 'Importing...' : 'Import Backup'}
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImport}
-              disabled={importing}
-              style={{ display: 'none' }}
-            />
-          </label>
-        </div>
+        <ControlCard
+          title="Import Settings"
+          description="Restore settings from a previously exported backup file. Only parameters with the BACKUP flag will be restored for safety."
+          className="backup-restore-card"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                loading={importing}
+                className="backup-restore-btn"
+              >
+                Import Backup
+              </Button>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                disabled={importing}
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+              />
+            </>
+          }
+        />
       </div>
 
       {showResult && result && (
@@ -194,20 +200,10 @@ export function BackupRestore() {
               )}
             </div>
           )}
-          <div style={{ marginTop: '1rem', textAlign: 'right' }}>
-            <button
-              onClick={() => setShowResult(false)}
-              style={{
-                padding: '0.5rem 1.5rem',
-                background: 'var(--primary-color)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-              }}
-            >
+          <div className="backup-restore-modal-actions">
+            <Button variant="primary" onClick={() => setShowResult(false)}>
               OK
-            </button>
+            </Button>
           </div>
         </Modal>
       )}

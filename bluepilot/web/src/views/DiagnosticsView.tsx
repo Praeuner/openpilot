@@ -6,7 +6,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Header } from '@/components/layout/Header'
-import { LoadingSpinner, Button, Modal } from '@/components/common'
+import { LoadingSpinner, Button, Modal, ToggleSwitch } from '@/components/common'
 import { useParamsStore } from '@/stores/useParamsStore'
 import type { Parameter } from '@/types'
 import './DiagnosticsView.css'
@@ -280,32 +280,36 @@ export function DiagnosticsView({ deviceStatus }: DiagnosticsViewProps) {
                   </button>
                 )}
               </div>
-              <label className="toggle-switch" title="Enable parameter editing (use with caution)">
-                <input
-                  type="checkbox"
-                  checked={editMode}
-                  onChange={(e) => setEditMode(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-                <span className="toggle-label">Edit Mode</span>
-              </label>
+              <ToggleSwitch
+                checked={editMode}
+                onChange={(checked) => setEditMode(checked)}
+                label="Edit Mode"
+                size="compact"
+                className="diagnostics-toggle"
+                title="Enable parameter editing (use with caution)"
+              />
             </>
           )}
 
           <div className="control-buttons">
             {selectedTab === 'tmux' && (
-              <label className="auto-refresh-toggle">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                />
-                <span>Auto-refresh</span>
-              </label>
+              <ToggleSwitch
+                checked={autoRefresh}
+                onChange={(checked) => setAutoRefresh(checked)}
+                label="Auto-refresh"
+                size="compact"
+                className="diagnostics-toggle"
+              />
             )}
-            <button className="refresh-button" onClick={handleManualRefresh}>
-              ↻ Refresh
-            </button>
+            <Button
+              variant="primary"
+              size="small"
+              onClick={handleManualRefresh}
+              className="diagnostics-refresh-btn"
+              icon={<span aria-hidden="true">↻</span>}
+            >
+              Refresh
+            </Button>
           </div>
         </div>
 
@@ -413,17 +417,19 @@ export function DiagnosticsView({ deviceStatus }: DiagnosticsViewProps) {
                           </td>
                           <td>
                             {param.readonly ? (
-                              <button className="param-edit-btn" disabled>
+                              <Button className="param-edit-btn" size="small" variant="ghost" disabled>
                                 Read-Only
-                              </button>
+                              </Button>
                             ) : (
-                              <button
+                              <Button
                                 className="param-edit-btn"
+                                size="small"
+                                variant="primary"
                                 onClick={() => handleEdit(param)}
                                 disabled={!editMode}
                               >
                                 Edit
-                              </button>
+                              </Button>
                             )}
                           </td>
                         </tr>

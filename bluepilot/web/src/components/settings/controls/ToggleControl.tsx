@@ -8,7 +8,7 @@ import type { ToggleControl as ToggleControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription, getDynamicTitle, getDynamicStyle } from '@/utils/conditionalEvaluator'
-import { Modal } from '@/components/common'
+import { ControlCard, Modal, ToggleSwitch } from '@/components/common'
 import './ToggleControl.css'
 
 interface ToggleControlProps {
@@ -61,31 +61,23 @@ export function ToggleControl({ control, disabled, disabledReason }: ToggleContr
 
   return (
     <>
-      <div className="toggle-control" style={style}>
-        <div className="toggle-control-content">
-          <div className="toggle-control-header">
-            <h4 className="toggle-control-title">{title}</h4>
-            {disabled && disabledReason && (
-              <span className="toggle-control-disabled-reason">{disabledReason}</span>
-            )}
-          </div>
-          {description && (
-            <p
-              className="toggle-control-description"
-              dangerouslySetInnerHTML={{ __html: description }}
-            />
-          )}
-        </div>
-        <label className="toggle-switch">
-          <input
-            type="checkbox"
+      <ControlCard
+        title={title}
+        description={description}
+        disabled={disabled}
+        disabledReason={disabledReason}
+        layout="inline"
+        className="toggle-control-card"
+        style={style}
+        aside={
+          <ToggleSwitch
             checked={isEnabled}
-            onChange={handleToggle}
+            onChange={() => handleToggle()}
             disabled={disabled}
+            aria-label={title}
           />
-          <span className="toggle-slider"></span>
-        </label>
-      </div>
+        }
+      />
 
       {showConfirm && (
         <Modal

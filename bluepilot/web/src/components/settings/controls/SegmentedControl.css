@@ -1,54 +1,17 @@
-.segmented-control {
-  position: relative;
-  padding: 1.35rem 3.5rem 1.35rem 1.5rem;
-  background: rgba(30, 30, 30, 0.95);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  box-shadow: var(--panel-card-shadow);
-  transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.segmented-control:hover {
-  border-color: var(--primary-color);
-  transform: translateY(-1px);
-}
-
-.segmented-control-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.segmented-control-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.segmented-control-disabled-reason {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  background: var(--warning-bg);
-  padding: 0.15rem 0.65rem;
-  border-radius: 999px;
-}
-
-.segmented-control-description {
+.segmented-control .segmented-control-description {
   margin: 0 0 0.85rem 0;
   font-size: 0.9rem;
   line-height: 1.6;
   color: var(--text-secondary);
 }
 
-.segmented-control-buttons {
+.segmented-control .segmented-control-buttons {
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
 }
 
-.segmented-button {
+.segmented-control .segmented-button {
   flex: 1;
   min-width: 140px;
   padding: 0.9rem 1rem;
@@ -62,25 +25,24 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
-.segmented-button:hover:not(:disabled) {
+.segmented-control .segmented-button:hover:not(:disabled) {
   border-color: var(--primary-color);
   color: var(--text-primary);
 }
 
-.segmented-button.active {
+.segmented-control .segmented-button.active {
   background: var(--primary-color);
   color: #fff;
   border-color: var(--primary-color);
   box-shadow: 0 10px 25px rgba(33, 150, 243, 0.35);
 }
 
-.segmented-button:disabled {
+.segmented-control .segmented-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.segmented-control-selected-desc {
+.segmented-control .segmented-control-selected-desc {
   margin: 0.9rem 0 0;
   padding: 0.85rem 1rem;
   font-size: 0.9rem;
@@ -88,4 +50,12 @@
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.03);
   border-radius: 14px;
+}
+
+@media (max-width: 768px) {
+  .segmented-control .segmented-button {
+    min-width: 100px;
+    padding: 0.75rem 0.75rem;
+    font-size: 0.85rem;
+  }
 }

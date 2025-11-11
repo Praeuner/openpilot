@@ -1,6 +1,6 @@
 .panel-group {
   margin-bottom: 1.75rem;
-  padding: 1.75rem;
+  padding: 1.25rem;
   border-radius: 22px;
   border: 1px solid var(--border-color);
   background: rgba(24, 24, 24, 0.9);
@@ -23,26 +23,18 @@
   color: var(--text-primary);
 }
 
-.panel-group-reset {
-  padding: 0.55rem 1.25rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: transparent;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.panel-group-reset:hover {
-  background: var(--primary-color);
-  color: white;
-  box-shadow: 0 10px 25px rgba(33, 150, 243, 0.35);
-}
-
 .panel-group-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.panel-group-reset {
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .panel-group-controls {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { systemAPI } from '@/services/api'
+import { Button } from './Button'
 import './StatusOverlay.css'
 
 interface StatusOverlayProps {
@@ -94,18 +95,16 @@ export const StatusOverlay = ({ type, onRetry }: StatusOverlayProps) => {
         )}
 
         {type === 'offline' && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleRetry}
-            disabled={loading}
-          >
-            {loading ? (
-              <div className="spinner-small" />
-            ) : (
-              'Retry Connection'
-            )}
-          </button>
+          <div className="status-actions">
+            <Button
+              variant="primary"
+              size="large"
+              onClick={handleRetry}
+              loading={loading}
+            >
+              Retry Connection
+            </Button>
+          </div>
         )}
       </div>
     </div>

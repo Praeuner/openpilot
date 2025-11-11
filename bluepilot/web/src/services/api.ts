@@ -101,6 +101,10 @@ export const exportAPI = {
     return data
   },
 
+  downloadRouteBackup: (routeId: string): string => {
+    return `/api/route-backup/${routeId}/download`
+  },
+
   importRouteBackup: async (file: File): Promise<void> => {
     const formData = new FormData()
     formData.append('backup', file)
@@ -125,7 +129,7 @@ export const paramsAPI = {
   },
 
   update: async (key: string, value: string | number | boolean): Promise<void> => {
-    await api.post('/api/params', { key, value })
+    await api.post('/api/params/set', { key, value })
   },
 }
 
