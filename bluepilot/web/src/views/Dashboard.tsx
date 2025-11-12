@@ -251,17 +251,33 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
                 </div>
                 <span className="link-badge">{status?.routes_count || 0}</span>
               </button>
-              <button className="quick-link-card diagnostics" onClick={() => navigate('/diagnostics')}>
+              <button className="quick-link-card parameters" onClick={() => navigate('/parameters')}>
                 <div className="quick-link-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v6M12 16v6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M16 12h6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 1v6m0 6v6m8.66-7.5l-5.2 3M8.54 14l-5.2 3m10.4-15l-5.2 9m5.2 3l-5.2 9" />
                   </svg>
                 </div>
                 <div className="quick-link-copy">
-                  <span className="label">Diagnostics</span>
-                  <span className="subtext">Inspect params & logs</span>
+                  <span className="label">Parameters</span>
+                  <span className="subtext">Manage system params</span>
                 </div>
                 <span className="link-badge">{paramCount}</span>
+              </button>
+              <button className="quick-link-card logs" onClick={() => navigate('/logs')}>
+                <div className="quick-link-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                </div>
+                <div className="quick-link-copy">
+                  <span className="label">System Logs</span>
+                  <span className="subtext">View live system logs</span>
+                </div>
               </button>
             </div>
           </section>

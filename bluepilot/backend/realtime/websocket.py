@@ -36,6 +36,8 @@ class WebSocketEvent:
     FFMPEG_LOG = 'ffmpeg_log'  # Real-time FFmpeg debug logs
     PARAM_UPDATED = 'param_updated'  # Parameter value changed
     SYSTEM_METRICS_UPDATED = 'system_metrics_updated'  # System metrics updated
+    LOG_LINE = 'log_line'  # Manager log line
+    LOG_STREAM_STATUS = 'log_stream_status'  # Log stream status changed
 
 
 class WebSocketBroadcaster:

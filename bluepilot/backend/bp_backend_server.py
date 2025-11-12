@@ -134,6 +134,7 @@ from bluepilot.backend.storage import (
 # Log extraction
 from bluepilot.backend.logs import (
     extract_log_messages, extract_cereal_messages,
+    read_recent_manager_logs,
 )
 
 # File operations
@@ -1270,69 +1271,46 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'error': str(e)
                     }, 500)
 
-            elif path == '/api/tmux-output':
-                # Get live logs from tmux (if running) or fall back to manager journal output
-                def get_tmux_output():
-                    try:
-                        result = subprocess.run(
-                            ['tmux', 'capture-pane', '-t', 'comma', '-p'],
-                            capture_output=True,
-                            text=True,
-                            timeout=5
-                        )
-                        if result.returncode == 0 and result.stdout.strip():
-                            return True, result.stdout, 'tmux'
-                        return False, result.stderr or 'Tmux session "comma" not found', 'tmux'
-                    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-                        return False, str(exc), 'tmux'
-                    except Exception as exc:  # pragma: no cover - defensive
-                        logger.debug(f"Tmux capture failed: {exc}")
-                        return False, str(exc), 'tmux'
+            elif path == '/api/manager-logs':
+                # Get recent manager logs from swaglog files (non-streaming)
+                try:
+                    manager_ok, manager_output = read_recent_manager_logs()
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("Error reading manager logs")
+                    manager_ok = False
+                    manager_output = str(exc)
 
-                def get_manager_journal(lines: int = 400):
-                    try:
-                        result = subprocess.run(
-                            ['journalctl', '-u', 'manager', '--no-pager', '-n', str(lines)],
-                            capture_output=True,
-                            text=True,
-                            timeout=8
-                        )
-                        if result.returncode == 0:
-                            return True, result.stdout or 'manager journal is empty'
-                        return False, result.stderr or 'Unable to read manager journal'
-                    except FileNotFoundError:
-                        return False, 'journalctl not available on this system'
-                    except subprocess.TimeoutExpired:
-                        return False, 'journalctl command timed out'
-                    except Exception as exc:  # pragma: no cover - defensive
-                        logger.debug(f"manager journal read failed: {exc}")
-                        return False, str(exc)
+                payload = {
+                    'timestamp': datetime.now().isoformat(),
+                    'output': manager_output,
+                    'source': 'swaglog',
+                    'success': manager_ok,
+                }
 
-                tmux_ok, tmux_output, source = get_tmux_output()
-                if tmux_ok:
+                if manager_ok:
+                    self.send_json_response(payload)
+                else:
+                    payload['error'] = manager_output
+                    self.send_json_response(payload, 500)
+
+            elif path == '/api/manager-logs/stream/status':
+                # Get log streaming status
+                try:
+                    from bluepilot.backend.realtime.log_streamer import get_log_streamer
+
+                    streamer = get_log_streamer()
+                    is_running = streamer.is_running() if streamer else False
+
                     self.send_json_response({
                         'success': True,
-                        'output': tmux_output,
-                        'source': source,
-                        'timestamp': datetime.now().isoformat()
+                        'running': is_running
                     })
-                else:
-                    manager_ok, manager_output = get_manager_journal()
-                    if manager_ok:
-                        self.send_json_response({
-                            'success': True,
-                            'output': manager_output,
-                            'source': 'manager_journal',
-                            'timestamp': datetime.now().isoformat(),
-                            'fallback_reason': tmux_output
-                        })
-                    else:
-                        self.send_json_response({
-                            'success': False,
-                            'error': manager_output,
-                            'output': manager_output,
-                            'timestamp': datetime.now().isoformat()
-                        }, 500)
+                except Exception as e:
+                    logger.exception("Error getting log stream status")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
 
             elif path.startswith('/api/params/get/'):
                 # Get specific parameter
@@ -2718,6 +2696,67 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 503)
                 return
 
+            # Manager log streaming control endpoints (allowed even when onroad)
+            if path == '/api/manager-logs/stream/start':
+                # Start streaming manager logs via WebSocket
+                try:
+                    from bluepilot.backend.realtime.log_streamer import get_log_streamer
+
+                    # Get broadcaster from server state (has direct WebSocket access)
+                    broadcaster = server_state.get_broadcaster()
+                    if not broadcaster:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'WebSocket broadcaster not available'
+                        }, 503)
+                        return
+
+                    # Get or create log streamer
+                    streamer = get_log_streamer(broadcaster)
+
+                    if streamer.start():
+                        self.send_json_response({
+                            'success': True,
+                            'message': 'Log streaming started'
+                        })
+                    else:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Log streaming already running or failed to start'
+                        })
+                except Exception as e:
+                    logger.exception("Error starting log stream")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+                return
+
+            elif path == '/api/manager-logs/stream/stop':
+                # Stop streaming manager logs
+                try:
+                    from bluepilot.backend.realtime.log_streamer import get_log_streamer
+
+                    streamer = get_log_streamer()
+                    if streamer and streamer.stop():
+                        self.send_json_response({
+                            'success': True,
+                            'message': 'Log streaming stopped'
+                        })
+                    else:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Log streaming not running'
+                        })
+                except Exception as e:
+                    logger.exception("Error stopping log stream")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+                return
+
+            # Check if onroad for write operations
             if is_onroad():
                 self.send_json_response({
                     'error': 'Operation not allowed while driving',

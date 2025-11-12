@@ -84,6 +84,11 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
           useSystemStore.getState().fetchMetrics()
           break
 
+        case 'log_line':
+        case 'log_stream_status':
+          // Diagnostics panel manages its own WebSocket feed; ignore to avoid noise
+          break
+
         case 'heartbeat':
           // Respond to heartbeat with pong to keep connection alive
           const ws = getWebSocketService()

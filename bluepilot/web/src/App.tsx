@@ -9,7 +9,7 @@ import { Dashboard } from '@/views/Dashboard'
 import { RoutesView } from '@/views/RoutesView'
 import { ParametersView } from '@/views/ParametersView'
 import { SettingsView } from '@/views/SettingsView'
-import { DiagnosticsView } from '@/views/DiagnosticsView'
+import { LogsView } from '@/views/LogsView'
 
 // Styles
 import '@/styles/variables.css'
@@ -75,7 +75,7 @@ function App() {
         <Route path="/settings" element={<SettingsView deviceStatus={deviceStatus} />} />
         <Route path="/routes" element={<RoutesView deviceStatus={deviceStatus} />} />
         <Route path="/parameters" element={<ParametersView deviceStatus={deviceStatus} />} />
-        <Route path="/diagnostics" element={<DiagnosticsView deviceStatus={deviceStatus} />} />
+        <Route path="/logs" element={<LogsView deviceStatus={deviceStatus} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

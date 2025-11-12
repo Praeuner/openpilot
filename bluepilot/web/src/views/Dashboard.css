@@ -280,8 +280,12 @@
   line-height: 1;
 }
 
-.quick-link-card.diagnostics .link-badge {
-  background: #ff9800;
+.quick-link-card.parameters .link-badge {
+  background: #8b5cf6;
+}
+
+.quick-link-card.logs .link-badge {
+  background: #10b981;
 }
 
 .quick-link-card:hover {
@@ -289,8 +293,12 @@
   transform: translateY(-1px);
 }
 
-.quick-link-card.diagnostics:hover {
-  border-color: #ff9800;
+.quick-link-card.parameters:hover {
+  border-color: #8b5cf6;
+}
+
+.quick-link-card.logs:hover {
+  border-color: #10b981;
 }
 
 @media (max-width: 480px) {
