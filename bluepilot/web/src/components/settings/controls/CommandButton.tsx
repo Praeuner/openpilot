@@ -3,13 +3,20 @@
  * Renders a button that executes commands or actions
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { CommandButtonControl } from '@/types/panels'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { panelAPI } from '@/services/panelAPI'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
 import { Button, ControlCard, Modal } from '@/components/common'
 import './CommandButton.css'
+
+const DEVICE_UI_ACTIONS = new Set([
+  'show_driver_camera',
+  'show_training_guide',
+  'show_language_selector',
+  'show_regulatory',
+])
 
 interface CommandButtonProps {
   control: CommandButtonControl
@@ -25,8 +32,17 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
 
   // Get dynamic description - pass empty params since buttons don't depend on param values
   const description = getDynamicDescription(control, panelState, {})
+  const requiresDeviceUI = useMemo(() => control.action !== undefined && DEVICE_UI_ACTIONS.has(control.action), [control.action])
+  const deviceOnlyMessage = requiresDeviceUI
+    ? control.device_only_message ||
+      'This action requires the device UI. Please make this change directly on your comma device.'
+    : null
 
   const handleClick = () => {
+    if (requiresDeviceUI) {
+      return
+    }
+
     if (control.confirm) {
       setShowConfirm(true)
     } else {
@@ -85,14 +101,14 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
       <ControlCard
         title={control.title}
         description={description}
-        disabled={disabled}
-        disabledReason={disabledReason}
+        disabled={disabled || requiresDeviceUI}
+        disabledReason={requiresDeviceUI ? 'Use device UI' : disabledReason}
         className="command-button-control"
         footer={
           <Button
             className="command-button-btn"
             onClick={handleClick}
-            disabled={disabled}
+            disabled={disabled || requiresDeviceUI}
             loading={executing}
             style={getButtonStyle()}
           >
@@ -100,6 +116,7 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
           </Button>
         }
       >
+        {deviceOnlyMessage && <div className="command-button-device-notice">{deviceOnlyMessage}</div>}
         {result && (
           <div className={`command-button-result ${result.success ? 'success' : 'error'}`}>
             {result.message}

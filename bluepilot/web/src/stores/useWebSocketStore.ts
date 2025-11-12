@@ -84,6 +84,12 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
           useSystemStore.getState().fetchMetrics()
           break
 
+        case 'heartbeat':
+          // Respond to heartbeat with pong to keep connection alive
+          const ws = getWebSocketService()
+          ws.send({ type: 'pong', data: { timestamp: new Date().toISOString() } })
+          break
+
         default:
           console.log('Unhandled WebSocket message:', type, data)
       }

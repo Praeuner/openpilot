@@ -17,6 +17,8 @@ import {
   StaticTextControl,
   StaticParamDisplayControl,
   PlatformDisplayControl,
+  RecentChangesControl,
+  RestartUIControl,
 } from './controls'
 import './DynamicControl.css'
 
@@ -92,6 +94,10 @@ export function DynamicControl({ control, state, panelId, groupName }: DynamicCo
       controlElement = <FileViewer control={control} disabled={!enabled} />
       break
 
+    case 'recent_changes':
+      controlElement = <RecentChangesControl control={control} disabled={!enabled} disabledReason={disabledReason} />
+      break
+
     case 'static_text':
       controlElement = <StaticTextControl control={control} />
       break
@@ -104,12 +110,14 @@ export function DynamicControl({ control, state, panelId, groupName }: DynamicCo
       controlElement = <PlatformDisplayControl control={control} />
       break
 
+    case 'restart_ui':
+      controlElement = <RestartUIControl control={control} disabled={!enabled} disabledReason={disabledReason} />
+      break
+
     // Unsupported control types (mostly Qt-specific)
     case 'file_param_display':
     case 'param_viewer':
     case 'param_list_viewer':
-    case 'recent_changes':
-    case 'restart_ui':
       controlElement = (
         <div style={{
           padding: '1rem',

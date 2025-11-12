@@ -7,6 +7,7 @@ import type {
   ServerStatus,
   DiskSpace,
   VehicleInfo,
+  DeviceInfo,
 } from '@/types'
 
 // Create axios instance
@@ -166,6 +167,11 @@ export const systemAPI = {
 
   getVehicleInfo: async (): Promise<VehicleInfo> => {
     const { data } = await api.get('/api/vehicle-info')
+    return data
+  },
+
+  getDeviceInfo: async (): Promise<DeviceInfo> => {
+    const { data } = await api.get('/api/system/device-info')
     return data
   },
 }

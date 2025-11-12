@@ -79,11 +79,41 @@ export const useParamsStore = create<ParamsState>((set, get) => ({
     }
 
     const query = searchQuery.toLowerCase()
-    return Object.values(params).filter(
-      (param) =>
-        param.key.toLowerCase().includes(query) ||
-        String(param.value).toLowerCase().includes(query) ||
-        param.description?.toLowerCase().includes(query)
-    )
+    return Object.values(params).filter((param) => {
+      if (param.key.toLowerCase().includes(query)) {
+        return true
+      }
+
+      const valueString = (() => {
+        if (typeof param.value === 'string') return param.value
+        if (param.value === null || param.value === undefined) return ''
+        try {
+          return JSON.stringify(param.value)
+        } catch {
+          return String(param.value)
+        }
+      })().toLowerCase()
+
+      if (valueString.includes(query)) {
+        return true
+      }
+
+      if (param.description?.toLowerCase().includes(query)) {
+        return true
+      }
+
+      if (param.decoded) {
+        try {
+          const decodedStr = JSON.stringify(param.decoded).toLowerCase()
+          if (decodedStr.includes(query)) {
+            return true
+          }
+        } catch {
+          // ignore JSON stringify issues
+        }
+      }
+
+      return false
+    })
   },
 }))

@@ -37,7 +37,7 @@ interface DriveStatsResponse {
 
 export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
   const navigate = useNavigate()
-  const { metrics, status, diskSpace, fetchStatus, fetchMetrics, fetchDiskSpace, startPolling, stopPolling } = useSystemStore()
+  const { metrics, status, diskSpace, deviceInfo, fetchStatus, fetchMetrics, fetchDiskSpace, fetchDeviceInfo, startPolling, stopPolling } = useSystemStore()
   const { fetchRoutes } = useRoutesStore()
   const { params, fetchParams } = useParamsStore()
   const { panels, loadedPanels, loading: panelsLoading, fetchPanels, fetchPanel } = usePanelsStore()
@@ -52,6 +52,7 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
     fetchStatus()
     fetchMetrics()
     fetchDiskSpace()
+    fetchDeviceInfo()
     fetchRoutes(1)
     fetchParams()
     fetchPanels()
@@ -65,7 +66,7 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
     return () => {
       stopPolling()
     }
-  }, [fetchStatus, fetchMetrics, fetchDiskSpace, fetchRoutes, fetchParams, fetchPanels, fetchState, startPolling, stopPolling])
+  }, [fetchStatus, fetchMetrics, fetchDiskSpace, fetchDeviceInfo, fetchRoutes, fetchParams, fetchPanels, fetchState, startPolling, stopPolling])
 
   // Auto-select Favorites panel on mount
   useEffect(() => {
@@ -168,6 +169,26 @@ export const Dashboard = ({ deviceStatus = 'checking' }: DashboardProps) => {
                 <span className="pill-value">
                   {metrics?.memory_percent ? `${metrics.memory_percent.toFixed(1)}%` : 'N/A'}
                 </span>
+              </div>
+              <div className="status-pill">
+                <span className="pill-label">Dongle ID</span>
+                <span className="pill-value">{deviceInfo?.dongle_id || 'N/A'}</span>
+              </div>
+              <div className="status-pill">
+                <span className="pill-label">Serial</span>
+                <span className="pill-value">{deviceInfo?.serial || 'N/A'}</span>
+              </div>
+              <div className="status-pill">
+                <span className="pill-label">BP Version</span>
+                <span className="pill-value">{deviceInfo?.bp_version ? `v${deviceInfo.bp_version}` : 'N/A'}</span>
+              </div>
+              <div className="status-pill">
+                <span className="pill-label">SP Version</span>
+                <span className="pill-value">{deviceInfo?.sp_version || 'N/A'}</span>
+              </div>
+              <div className="status-pill">
+                <span className="pill-label">OP Version</span>
+                <span className="pill-value">{deviceInfo?.op_version || 'N/A'}</span>
               </div>
             </div>
 

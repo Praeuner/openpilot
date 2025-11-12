@@ -4,18 +4,29 @@ BluePilot Backend Params Manager
 Safe operations for reading and writing openpilot parameters
 """
 
-import os
+import base64
+import json
 import logging
-from typing import Dict, List, Optional, Any, Union
+import os
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Union, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Import Params with fallback for direct file reading
 PARAMS_DIR = "/data/params/d"
 USE_DIRECT_FILE_READING = False
+_PARAM_TYPE_CACHE: Optional[Dict[str, str]] = None
+
+CAR_PARAM_KEYS = {
+    "CarParams", "CarParamsCache", "CarParamsPersistent", "CarParamsPrevRoute",
+    "CarParamsSP", "CarParamsSPCache", "CarParamsSPPersistent"
+}
 
 try:
-    from openpilot.common.params import Params
+    from openpilot.common.params import Params, UnknownKeyName
     logger.info("Successfully imported openpilot.common.params.Params")
 except ImportError as e:
     logger.warning(f"Failed to import openpilot Params: {e}. Using direct file reading fallback.")
@@ -46,6 +57,24 @@ except ImportError as e:
             # openpilot stores bools as "1" or "0"
             return value == b"1"
 
+        def get_int(self, key):
+            value = self._read_file(key)
+            if value is None:
+                return 0
+            try:
+                return int(value.decode('utf-8').strip())
+            except Exception:
+                return 0
+
+        def get_float(self, key):
+            value = self._read_file(key)
+            if value is None:
+                return 0.0
+            try:
+                return float(value.decode('utf-8').strip())
+            except Exception:
+                return 0.0
+
         def get(self, key):
             """Get param as bytes"""
             value = self._read_file(key)
@@ -69,6 +98,18 @@ except ImportError as e:
         def put_bool(self, key, value):
             """Write boolean param"""
             return self.put(key, "1" if value else "0")
+
+        def all_keys(self, flag=None):
+            try:
+                return os.listdir(self.params_dir)
+            except Exception:
+                return []
+
+        def get_type(self, key):
+            return _load_param_type_cache().get(key)
+
+    class UnknownKeyName(Exception):
+        pass
 
 
 # Critical params that should not be modified through the web interface
@@ -139,6 +180,51 @@ PARAM_CATEGORIES = {
 }
 
 
+def _load_param_type_cache() -> Dict[str, str]:
+    """Parse common/params_keys.h to know declared types."""
+    global _PARAM_TYPE_CACHE
+    if _PARAM_TYPE_CACHE is not None:
+        return _PARAM_TYPE_CACHE
+
+    cache: Dict[str, str] = {}
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        header_path = repo_root / "common" / "params_keys.h"
+        if header_path.exists():
+            contents = header_path.read_text()
+            pattern = re.compile(r'\{"([^"]+)",\s*\{[^,]+,\s*(STRING|BOOL|INT|FLOAT|TIME|JSON|BYTES)')
+            for match in pattern.finditer(contents):
+                key, type_name = match.groups()
+                cache[key] = type_name.lower()
+    except Exception as e:
+        logger.debug(f"Failed to parse params_keys.h for param types: {e}")
+
+    _PARAM_TYPE_CACHE = cache
+    return cache
+
+
+def write_param_direct(key: str, value: Any) -> Tuple[bool, Optional[str]]:
+    """Directly write a parameter file when Params API rejects the key."""
+    try:
+        os.makedirs(PARAMS_DIR, exist_ok=True)
+
+        if isinstance(value, bool):
+            data = b"1" if value else b"0"
+        else:
+            data = str(value).encode('utf-8')
+
+        param_path = os.path.join(PARAMS_DIR, key)
+        with open(param_path, 'wb') as f:
+            f.write(data)
+
+        logger.info(f"Directly wrote param {key} to {param_path}")
+        return True, None
+
+    except Exception as e:
+        logger.error(f"Direct param write failed for {key}: {e}")
+        return False, str(e)
+
+
 def categorize_param(key: str) -> str:
     """Determine which category a param belongs to
 
@@ -185,119 +271,77 @@ def get_all_params(params: Optional[Params] = None) -> Dict[str, Any]:
             param_keys.extend(category_info["params"])
 
     for key in param_keys:
-        try:
-            value = get_param_value(key, params)
-
-            # Get file modification time (last change time)
-            last_modified = None
-            try:
-                param_path = os.path.join(params_dir if params_dir else PARAMS_DIR, key)
-                if os.path.exists(param_path):
-                    mtime = os.path.getmtime(param_path)
-                    last_modified = mtime
-            except Exception as e:
-                logger.debug(f"Error getting mtime for param {key}: {e}")
-
-            result[key] = {
-                "key": key,
-                "value": value,
-                "category": categorize_param(key),
-                "readonly": key in READONLY_PARAMS,
-                "critical": key in CRITICAL_PARAMS,
-                "type": determine_param_type(value),
-                "last_modified": last_modified
-            }
-        except Exception as e:
-            logger.debug(f"Error reading param {key}: {e}")
-            # Include params that failed to read with error info
-            result[key] = {
-                "key": key,
-                "value": None,
-                "category": categorize_param(key),
-                "readonly": True,
-                "critical": False,
-                "type": "unknown",
-                "error": str(e),
-                "last_modified": None
-            }
+        result[key] = _build_param_entry(key, params, params_dir)
 
     return result
 
 
 def get_param_value(key: str, params: Optional[Params] = None) -> Union[str, bool, int, float, None]:
-    """Get a single parameter value with type detection
-
-    Args:
-        key: Parameter key
-        params: Params instance (creates new one if None)
-
-    Returns:
-        Parameter value with appropriate type
-    """
-    if params is None:
-        params = Params()
-
-    try:
-        # Try boolean first
-        if key.endswith("Enabled") or key.endswith("Toggle") or key in ["IsOnRoad", "IsOffroad", "Passive"]:
-            return params.get_bool(key)
-
-        # Try getting as bytes/string
-        value = params.get(key)
-
-        # Handle None and empty values
-        if value is None or value == b'' or value == '':
-            return None
-
-        # Decode bytes to string if needed
-        if isinstance(value, bytes):
-            try:
-                value = value.decode('utf-8', errors='replace').strip()
-            except Exception as e:
-                logger.debug(f"Failed to decode param {key}: {e}")
-                return None
-        elif isinstance(value, str):
-            value = value.strip()
-
-        # Handle empty strings
-        if not value or value == '':
-            return None
-
-        # Try to parse as number
-        try:
-            if '.' in str(value):
-                return float(value)
-            elif str(value).lstrip('-').isdigit():
-                return int(value)
-        except (ValueError, AttributeError):
-            pass
-
-        return value
-
-    except Exception as e:
-        logger.debug(f"Error getting param {key}: {e}")
-        return None
+    """Get a single parameter value with best-effort decoding."""
+    entry = _build_param_entry(key, params)
+    return entry.get("value")
 
 
 def determine_param_type(value: Any) -> str:
-    """Determine the type of a parameter value
-
-    Args:
-        value: Parameter value
-
-    Returns:
-        Type string (bool, int, float, string, null)
-    """
+    """Determine the type of a parameter value."""
     if value is None:
         return "null"
-    elif isinstance(value, bool):
+    if isinstance(value, bool):
         return "bool"
-    elif isinstance(value, int):
+    if isinstance(value, int) and not isinstance(value, bool):
         return "int"
-    elif isinstance(value, float):
+    if isinstance(value, float):
         return "float"
-    else:
-        return "string"
+    if isinstance(value, (bytes, bytearray)):
+        return "bytes"
+    if isinstance(value, (dict, list)):
+        return "json"
+    if isinstance(value, datetime):
+        return "time"
+    return "string"
+
+
+def _get_param_type_name(params: Params, key: str) -> Optional[str]:
+    getter = getattr(params, 'get_type', None)
+    if callable(getter):
+        try:
+            param_type = getter(key)
+            if hasattr(param_type, 'name'):
+                return param_type.name.lower()
+            if isinstance(param_type, str):
+                return param_type.lower()
+            if isinstance(param_type, int):
+                return str(param_type).lower()
+        except Exception:
+            pass
+    return _load_param_type_cache().get(key)
+
+
+def _normalize_param_value(value: Any, target_type: Optional[str] = None) -> Any:
+    """Attempt to coerce common string representations into bool or numeric values."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        lowered = stripped.lower()
+
+        if lowered in ("true", "false"):
+            return lowered == "true"
+
+        if target_type == 'bool' and stripped in ("1", "0"):
+            return stripped == "1"
+
+        # Try integer conversion
+        try:
+            if stripped.startswith(('0x', '-0x')):
+                return int(stripped, 16)
+            if stripped.isdigit() or (stripped.startswith('-') and stripped[1:].isdigit()):
+                return int(stripped)
+            # Attempt float for strings containing decimal/exponent markers
+            if any(ch in stripped for ch in ['.', 'e', 'E']):
+                return float(stripped)
+        except ValueError:
+            pass
+
+    return value
 
 
 def set_param_value(key: str, value: Any, params: Optional[Params] = None) -> Dict[str, Any]:
@@ -321,20 +365,34 @@ def set_param_value(key: str, value: Any, params: Optional[Params] = None) -> Di
             "error": f"Parameter '{key}' is read-only and cannot be modified"
         }
 
-    try:
-        # Handle different types
-        if isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
-            bool_value = value if isinstance(value, bool) else value.lower() == "true"
-            params.put_bool(key, bool_value)
-        else:
-            # Convert to string for storage
-            params.put(key, str(value))
-
+    def success_response():
         return {
             "success": True,
             "message": f"Successfully updated parameter '{key}'",
             "key": key,
             "value": value
+        }
+
+    target_type = _get_param_type_name(params, key)
+    value = _normalize_param_value(value, target_type)
+
+    try:
+        if isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
+            bool_value = value if isinstance(value, bool) else value.lower() == "true"
+            params.put_bool(key, bool_value)
+        else:
+            params.put(key, str(value))
+
+        return success_response()
+
+    except UnknownKeyName:
+        logger.warning(f"Param '{key}' not recognized by Params API. Falling back to direct write.")
+        success, error_message = write_param_direct(key, value)
+        if success:
+            return success_response()
+        return {
+            "success": False,
+            "error": f"Failed to update parameter: {error_message or 'Unknown error'}"
         }
 
     except Exception as e:
@@ -343,6 +401,200 @@ def set_param_value(key: str, value: Any, params: Optional[Params] = None) -> Di
             "success": False,
             "error": f"Failed to update parameter: {str(e)}"
         }
+
+
+def _build_param_entry(key: str, params: Optional[Params], params_dir: Optional[str] = None) -> Dict[str, Any]:
+    if params is None:
+        params = Params()
+
+    if params_dir is None:
+        params_dir = PARAMS_DIR if os.path.exists(PARAMS_DIR) else None
+
+    entry: Dict[str, Any] = {
+        "key": key,
+        "category": categorize_param(key),
+        "readonly": key in READONLY_PARAMS,
+        "critical": key in CRITICAL_PARAMS,
+        "type": "unknown",
+        "last_modified": _get_param_mtime(params_dir, key)
+    }
+
+    try:
+        param_type = _get_param_type_name(params, key)
+        raw_value = _read_param_value(params, key, param_type)
+        value, metadata = _format_value_for_response(key, raw_value, param_type)
+        entry["value"] = value
+        entry["type"] = param_type or determine_param_type(raw_value)
+        entry.update(metadata)
+    except Exception as e:
+        logger.debug(f"Error reading param {key}: {e}")
+        entry.update({
+            "value": None,
+            "type": "unknown",
+            "error": str(e)
+        })
+
+    return entry
+
+
+def _read_param_value(params: Params, key: str, param_type: Optional[str]) -> Any:
+    """Read a parameter using the most appropriate getter based on its declared type."""
+    if param_type == "bool":
+        return params.get_bool(key)
+    if param_type == "int":
+        value = params.get(key)
+        if isinstance(value, bytes):
+            value = value.decode('utf-8', errors='replace').strip()
+        try:
+            return int(value) if value else 0
+        except (ValueError, TypeError):
+            logger.debug(f"Failed to parse param {key} as int from value '{value}'")
+            return 0
+    if param_type == "float":
+        value = params.get(key)
+        if isinstance(value, bytes):
+            value = value.decode('utf-8', errors='replace').strip()
+        try:
+            return float(value) if value else 0.0
+        except (ValueError, TypeError):
+            logger.debug(f"Failed to parse param {key} as float from value '{value}'")
+            return 0.0
+    value = params.get(key)
+    if isinstance(value, (bytes, bytearray)) and param_type in {"string", "json", "time"}:
+        value = value.decode('utf-8', errors='replace')
+    if param_type == "string" and isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    if param_type == "json":
+        if isinstance(value, (dict, list)):
+            return value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value
+    if param_type == "time" and isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return value
+    return value
+
+
+def _format_value_for_response(key: str, value: Any, param_type: Optional[str]) -> Tuple[Any, Dict[str, Any]]:
+    """Prepare a JSON-serializable value plus extra metadata for UI consumption."""
+    metadata: Dict[str, Any] = {}
+
+    if value is None:
+        return None, metadata
+
+    if param_type == "bytes" or isinstance(value, (bytes, bytearray)):
+        raw_bytes = value if isinstance(value, (bytes, bytearray)) else bytes(str(value), 'utf-8')
+        byte_length = len(raw_bytes)
+        encoded = base64.b64encode(raw_bytes).decode('ascii') if byte_length else None
+        decoded = decode_bytes_param(key, raw_bytes)
+        preview = decoded.get("preview") if decoded else None
+        metadata.update({
+            "byte_length": byte_length,
+            "raw_value": encoded,
+            "raw_format": "base64" if encoded else None,
+            "decoded": decoded,
+            "value_is_binary": True,
+        })
+        readable = preview or (f"{byte_length} bytes" if byte_length else "empty bytes")
+        return readable, metadata
+
+    if param_type == "json":
+        if isinstance(value, (dict, list)):
+            metadata["decoded"] = {
+                "format": "json",
+                "data": value
+            }
+            return json.dumps(value, ensure_ascii=False), metadata
+        return value, metadata
+
+    if param_type == "time" and isinstance(value, datetime):
+        metadata["timestamp"] = int(value.timestamp())
+        return value.isoformat(), metadata
+
+    return value, metadata
+
+
+def decode_bytes_param(key: str, raw_bytes: bytes) -> Optional[Dict[str, Any]]:
+    """Decode known byte-encoded params into structured data for UI consumption."""
+    if not raw_bytes:
+        return None
+
+    if key in CAR_PARAM_KEYS:
+        try:
+            from cereal import car
+            with car.CarParams.from_bytes(raw_bytes) as car_params:
+                cp_dict = car_params.to_dict()
+                summary = {
+                    "carName": car_params.carName or "",
+                    "carFingerprint": car_params.carFingerprint or "",
+                    "carVin": car_params.carVin or "",
+                    "openpilotLongitudinalControl": bool(car_params.openpilotLongitudinalControl),
+                }
+                preview_parts = [part for part in [
+                    summary["carName"],
+                    summary["carFingerprint"],
+                    summary["carVin"]
+                ] if part]
+                preview = " • ".join(preview_parts) if preview_parts else "CarParams blob"
+                return {
+                    "format": "carParams",
+                    "preview": preview,
+                    "summary": summary,
+                    "data": cp_dict
+                }
+        except Exception as e:
+            logger.debug(f"Failed to decode CarParams for {key}: {e}")
+
+    try:
+        text_value = raw_bytes.decode('utf-8')
+        stripped = text_value.strip('\x00').strip()
+    except UnicodeDecodeError:
+        stripped = None
+
+    if stripped:
+        if stripped.startswith('{') or stripped.startswith('['):
+            try:
+                parsed = json.loads(stripped)
+                preview = "JSON object" if isinstance(parsed, dict) else "JSON array"
+                return {
+                    "format": "json",
+                    "preview": preview,
+                    "data": parsed
+                }
+            except json.JSONDecodeError:
+                pass
+        preview_text = stripped if len(stripped) <= 200 else stripped[:200] + "…"
+        return {
+            "format": "text",
+            "preview": preview_text,
+            "data": stripped
+        }
+
+    hex_preview = " ".join(f"{byte:02X}" for byte in raw_bytes[:64])
+    if hex_preview:
+        return {
+            "format": "hex",
+            "preview": hex_preview
+        }
+
+    return None
+
+
+def _get_param_mtime(params_dir: Optional[str], key: str) -> Optional[float]:
+    if not params_dir:
+        return None
+    try:
+        param_path = os.path.join(params_dir, key)
+        if os.path.exists(param_path):
+            return os.path.getmtime(param_path)
+    except Exception as e:
+        logger.debug(f"Error getting mtime for param {key}: {e}")
+    return None
 
 
 def get_params_by_category(params: Optional[Params] = None) -> Dict[str, Any]:
@@ -400,5 +652,16 @@ def search_params(query: str, params: Optional[Params] = None) -> List[Dict[str,
         value_str = str(param_data.get("value", "")).lower()
         if query_lower in value_str:
             results.append(param_data)
+            continue
+
+        decoded = param_data.get("decoded")
+        if decoded:
+            try:
+                decoded_str = json.dumps(decoded).lower()
+                if query_lower in decoded_str:
+                    results.append(param_data)
+                    continue
+            except (TypeError, ValueError):
+                pass
 
     return results

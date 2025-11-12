@@ -95,6 +95,7 @@
           "title": "BluePilot Changelog",
           "desc": "View the latest changes and updates for BluePilot",
           "header": "BluePilot Changelog",
+          "webSupported": false,
           "conditions": {
             "git_remote": ["ford-op/sp-dev-c3"],
             "git_branch": []
@@ -181,26 +182,30 @@
           "type": "static_param_display",
           "param": "DongleId",
           "title": "Dongle ID",
-          "desc": ""
+          "desc": "",
+          "webSupported": false
         },
         {
           "type": "static_param_display",
           "param": "HardwareSerial",
           "title": "Serial",
-          "desc": ""
+          "desc": "",
+          "webSupported": false
         },
         {
           "type": "file_param_display",
           "file": "../../BPVERSION",
           "title": "BluePilot Version",
           "desc": "",
-          "prefix": "v"
+          "prefix": "v",
+          "webSupported": false
         },
         {
           "type": "file_param_display",
           "file": "COMMA_VERSION",
           "title": "Openpilot Version",
-          "desc": ""
+          "desc": "",
+          "webSupported": false
         }
       ]
     },

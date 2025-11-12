@@ -1,14 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Header } from '@/components/layout/Header'
+import { useEffect, useMemo, useState } from 'react'
+import { Button, LoadingSpinner, Modal, ToggleSwitch } from '@/components/common'
 import { useParamsStore } from '@/stores/useParamsStore'
-import { LoadingSpinner, Button, Modal, ToggleSwitch } from '@/components/common'
 import type { Parameter } from '@/types'
 import { formatParamValueForDisplay } from '@/utils/params'
-import './ParametersView.css'
-
-interface ParametersViewProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
-}
 
 type SortColumn = 'key' | 'value' | 'type' | 'category' | 'last_modified'
 type SortDirection = 'asc' | 'desc'
@@ -41,11 +35,19 @@ const getSortValue = (param: Parameter, column: SortColumn): string | number | b
   }
 }
 
-export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProps) => {
-  const { params, loading, fetchParams, updateParam, searchQuery, setSearchQuery, getFilteredParams } =
-    useParamsStore()
+export function DiagnosticsParameters() {
+  const {
+    params,
+    loading,
+    error,
+    fetchParams,
+    updateParam,
+    searchQuery,
+    setSearchQuery,
+    getFilteredParams,
+  } = useParamsStore()
   const [editingParam, setEditingParam] = useState<Parameter | null>(null)
-  const [editValue, setEditValue] = useState<string>('')
+  const [editValue, setEditValue] = useState('')
   const [editMode, setEditMode] = useState(false)
   const [sortColumn, setSortColumn] = useState<SortColumn>('key')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -98,12 +100,8 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
       if (aVal === undefined || aVal === null) aVal = ''
       if (bVal === undefined || bVal === null) bVal = ''
 
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase()
-      }
-      if (typeof bVal === 'string') {
-        bVal = bVal.toLowerCase()
-      }
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase()
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase()
 
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
@@ -145,73 +143,88 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
     navigator.clipboard.writeText(text)
   }
 
-  const formattedModalValue = viewValueModal ? formatParamValueForDisplay(viewValueModal) : null
-
-  if (loading && Object.keys(params).length === 0) {
-    return (
-      <>
-        <Header deviceStatus={deviceStatus} />
-        <div className="loading">
-          <LoadingSpinner size="large" message="Loading parameters..." />
-        </div>
-      </>
-    )
+  const handleManualRefresh = () => {
+    fetchParams()
   }
+
+  const formattedModalValue = viewValueModal ? formatParamValueForDisplay(viewValueModal) : null
 
   return (
     <>
-      <Header deviceStatus={deviceStatus} />
-      <div className="params-manager">
-        <div className="params-header">
-          <h2>Parameters</h2>
-          <div className="params-controls">
+      <div className="diagnostics-controls">
+        <div className="diagnostics-params-controls">
+          <div className="search-container">
             <input
               type="text"
-              id="params-search"
+              className="search-input"
               placeholder="Search parameters..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <ToggleSwitch
-              id="params-edit-toggle"
-              checked={editMode}
-              onChange={(checked) => setEditMode(checked)}
-              label="Edit Mode"
-              size="compact"
-              className="params-edit-toggle"
-              title="Enable parameter editing (use with caution)"
-            />
-            <div className="params-sort-controls">
-              <label htmlFor="params-sort">Sort</label>
-              <select
-                id="params-sort"
-                value={sortColumn}
-                onChange={(e) => setSortColumn(e.target.value as SortColumn)}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="sort-direction-btn"
-                onClick={toggleSortDirection}
-                title={`Switch to ${sortDirection === 'asc' ? 'descending' : 'ascending'} order`}
-              >
-                {sortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
+            {searchQuery && (
+              <button className="search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                ✕
               </button>
-            </div>
+            )}
+          </div>
+          <ToggleSwitch
+            checked={editMode}
+            onChange={(checked) => setEditMode(checked)}
+            label="Edit Mode"
+            size="compact"
+            className="diagnostics-toggle"
+            title="Enable parameter editing (use with caution)"
+          />
+          <div className="params-sort-controls">
+            <label htmlFor="diagnostics-sort">Sort</label>
+            <select
+              id="diagnostics-sort"
+              value={sortColumn}
+              onChange={(e) => setSortColumn(e.target.value as SortColumn)}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="sort-direction-btn"
+              onClick={toggleSortDirection}
+              title={`Switch to ${sortDirection === 'asc' ? 'descending' : 'ascending'} order`}
+            >
+              {sortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
+            </button>
           </div>
         </div>
-        <div className="params-content">
-          {sortedParams.length === 0 ? (
-            <div className="empty-state">
-              <p>No parameters found</p>
-            </div>
-          ) : (
-            <div className="params-list">
+        <div className="control-buttons">
+          <Button
+            variant="primary"
+            size="small"
+            onClick={handleManualRefresh}
+            className="diagnostics-refresh-btn"
+            icon={<span aria-hidden="true">↻</span>}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="diagnostics-content">
+        {loading && Object.keys(params).length === 0 ? (
+          <LoadingSpinner message="Loading parameters..." />
+        ) : error ? (
+          <div className="diagnostics-error">
+            <h2>Error Loading Parameters</h2>
+            <p>{error}</p>
+          </div>
+        ) : sortedParams.length === 0 ? (
+          <div className="no-results">
+            <p>No parameters found</p>
+          </div>
+        ) : (
+          <div className="params-list">
             {sortedParams.map((param) => {
               const formattedValue = formatParamValueForDisplay(param)
               const condensedValue = (() => {
@@ -227,72 +240,63 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
 
               return (
                 <div className="param-row" key={param.key}>
-                    <div className="param-row__header">
-                      <div className="param-row__title-block">
-                        <div className="param-row__title-line">
-                          <span className="param-key" title={param.key}>
-                            {param.key}
-                          </span>
-                          <div className="param-row__status-chips">
-                            {param.readonly && <span className="param-badge readonly">readonly</span>}
-                            {param.critical && <span className="param-badge critical">critical</span>}
-                          </div>
+                  <div className="param-row__header">
+                    <div className="param-row__title-block">
+                      <div className="param-row__title-line">
+                        <span className="param-key" title={param.key}>
+                          {param.key}
+                        </span>
+                        <div className="param-row__status-chips">
+                          {param.readonly && <span className="param-badge readonly">readonly</span>}
+                          {param.critical && <span className="param-badge critical">critical</span>}
                         </div>
-                        <div className="param-last-modified">Last modified: {formatLastModified(param.last_modified)}</div>
                       </div>
-                      <div className="param-row__actions">
-                        {param.readonly ? (
-                          <Button size="small" variant="ghost" className="param-edit-btn" disabled>
-                            Read-Only
-                          </Button>
-                        ) : (
-                          <Button
-                            size="small"
-                            variant="primary"
-                            className="param-edit-btn"
-                            onClick={() => handleEdit(param)}
-                            disabled={!editMode || param.type === 'bytes'}
-                            title={param.type === 'bytes' ? 'Binary parameters are view-only' : undefined}
-                          >
-                            Edit
-                          </Button>
-                        )}
-                      </div>
+                      <div className="param-last-modified">Last modified: {formatLastModified(param.last_modified)}</div>
                     </div>
-                    <div
-                      className="param-row__value"
-                      title="Click to view full value"
-                      onClick={() => handleViewValue(param)}
-                    >
-                      <span className="value-label">Value</span>
-                      <span className="value-content">{condensedValue}</span>
-                      {formattedValue.formatLabel && (
-                        <span className="value-format-badge">{formattedValue.formatLabel}</span>
+                    <div className="param-row__actions">
+                      {param.readonly ? (
+                        <Button size="small" variant="ghost" className="param-edit-btn" disabled>
+                          Read-Only
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="primary"
+                          className="param-edit-btn"
+                          onClick={() => handleEdit(param)}
+                          disabled={!editMode || param.type === 'bytes'}
+                          title={param.type === 'bytes' ? 'Binary parameters are view-only' : undefined}
+                        >
+                          Edit
+                        </Button>
                       )}
-                      {param.type === 'bytes' && param.byte_length !== undefined && (
-                        <span className="value-format-badge">{param.byte_length} bytes</span>
-                      )}
-                    </div>
-                    <div className="param-row__meta">
-                      <div className="meta-block">
-                        <span className="meta-label">Type</span>
-                        <span className={`param-badge ${param.type}`}>{param.type}</span>
-                      </div>
-                      <div className="meta-block">
-                        <span className="meta-label">Category</span>
-                        {param.category ? (
-                          <span className="param-badge category">{param.category}</span>
-                        ) : (
-                          <span className="meta-placeholder">—</span>
-                        )}
-                      </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                  <div className="param-row__value" title="Click to view full value" onClick={() => handleViewValue(param)}>
+                    <span className="value-label">Value</span>
+                    <span className="value-content">{condensedValue}</span>
+                    {formattedValue.formatLabel && (
+                      <span className="value-format-badge">{formattedValue.formatLabel}</span>
+                    )}
+                    {param.type === 'bytes' && param.byte_length !== undefined && (
+                      <span className="value-format-badge">{param.byte_length} bytes</span>
+                    )}
+                  </div>
+                  <div className="param-row__meta">
+                    <div className="meta-block">
+                      <span className="meta-label">Type</span>
+                      <span className={`param-badge ${param.type}`}>{param.type}</span>
+                    </div>
+                    <div className="meta-block">
+                      <span className="meta-label">Category</span>
+                      {param.category ? <span className="param-badge category">{param.category}</span> : <span className="meta-placeholder">—</span>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <Modal
@@ -307,11 +311,7 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
             {editingParam?.description && <p><strong>Description:</strong> {editingParam.description}</p>}
           </div>
           {editingParam?.type && BOOLEAN_TYPES.has(editingParam.type.toLowerCase()) ? (
-            <select
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              className="edit-input"
-            >
+            <select value={editValue} onChange={(e) => setEditValue(e.target.value)} className="edit-input">
               <option value="true">true</option>
               <option value="false">false</option>
             </select>
@@ -351,9 +351,7 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                 <span className={`param-badge ${viewValueModal.type}`}>{viewValueModal.type}</span>
                 {viewValueModal.readonly && <span className="param-badge readonly">readonly</span>}
                 {viewValueModal.critical && <span className="param-badge critical">critical</span>}
-                {viewValueModal.category && (
-                  <span className="param-badge category">{viewValueModal.category}</span>
-                )}
+                {viewValueModal.category && <span className="param-badge category">{viewValueModal.category}</span>}
               </div>
             </div>
 

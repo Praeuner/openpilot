@@ -19,7 +19,7 @@
           "title": "Vehicle Model",
           "desc": "This will force the FINGERPRINT for the vehicle so it exits the Dashcam Mode and allows the vehicle to drive.",
           "requiresReboot": true,
-          "hidden": false,
+          "hidden": true,
           "options": [
             {
               "name": "Auto Detect",

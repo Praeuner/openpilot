@@ -36,6 +36,11 @@ from collections import defaultdict
 import requests
 import jwt as pyjwt
 
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -159,6 +164,53 @@ from bluepilot.backend.handlers.export_backup import (
 from bluepilot.backend.params_manager import Params
 params = Params()
 
+
+def restart_ui_process():
+    """Attempt to restart the UI process by signaling the running binary."""
+    process_names = {'ui', 'bluepilot-ui', 'bp-ui'}
+
+    if psutil:
+        try:
+            targets = []
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                name = (proc.info.get('name') or '').lower()
+                cmdline = ' '.join(proc.info.get('cmdline') or [])
+                if name in process_names or 'selfdrive/ui' in cmdline or 'bluepilot-ui' in cmdline:
+                    targets.append(proc)
+
+            if targets:
+                for proc in targets:
+                    try:
+                        logger.info(f"Sending SIGINT to UI process {proc.pid} ({proc.info.get('name')})")
+                        proc.send_signal(signal.SIGINT)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                        logger.warning(f"Failed to signal UI process {proc.pid}: {exc}")
+                return True, 'Restart signal sent to UI process'
+        except Exception as exc:
+            logger.warning(f"psutil UI restart attempt failed: {exc}")
+
+    # Fallback to pkill if psutil is unavailable or no process matched
+    try:
+        result = subprocess.run(
+            ['pkill', '-2', '-f', 'selfdrive/ui'],
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+        if result.returncode == 0:
+            logger.info('pkill successfully signaled UI process')
+            return True, 'Restart signal sent via pkill'
+        if result.returncode == 1:
+            logger.warning('pkill could not find a UI process to signal')
+            return False, 'UI process not found'
+        logger.warning(f"pkill returned unexpected code {result.returncode}: {result.stderr.strip()}")
+    except FileNotFoundError:
+        logger.warning('pkill not available for UI restart fallback')
+    except Exception as exc:
+        logger.error(f"Failed to invoke pkill for UI restart: {exc}")
+
+    return False, 'Unable to signal UI process'
+
 # JWT Helper for Comma API authentication
 def create_comma_jwt(dongle_id, expiry_hours=1):
     """Create JWT token for Comma API authentication using RSA private key"""
@@ -254,19 +306,44 @@ async def websocket_handler(websocket):
         except Exception as e:
             logger.warning(f"Failed to send initial status: {e}")
 
-        # Keep connection alive with heartbeat
-        while True:
+        # Keep connection alive with heartbeat and listen for messages
+        async def send_heartbeats():
+            while True:
+                try:
+                    await asyncio.sleep(10.0)
+                    heartbeat = {
+                        'type': 'heartbeat',
+                        'timestamp': datetime.now().isoformat(),
+                        'data': {}
+                    }
+                    await websocket.send(json.dumps(heartbeat))
+                except Exception as e:
+                    logger.debug(f"WebSocket heartbeat send failed: {e}")
+                    break
+
+        async def receive_messages():
             try:
-                await asyncio.sleep(10.0)
-                heartbeat = {
-                    'type': 'heartbeat',
-                    'timestamp': datetime.now().isoformat(),
-                    'data': {}
-                }
-                await websocket.send(json.dumps(heartbeat))
+                async for message in websocket:
+                    try:
+                        data = json.loads(message)
+                        msg_type = data.get('type')
+
+                        # Handle pong responses to heartbeat
+                        if msg_type == 'pong':
+                            logger.debug("Received pong from client")
+                        else:
+                            logger.debug(f"Received message from client: {msg_type}")
+                    except json.JSONDecodeError:
+                        logger.warning(f"Invalid JSON from client: {message}")
             except Exception as e:
-                logger.debug(f"WebSocket connection closed: {e}")
-                break
+                logger.debug(f"WebSocket receive error: {e}")
+
+        # Run both tasks concurrently
+        await asyncio.gather(
+            send_heartbeats(),
+            receive_messages(),
+            return_exceptions=True
+        )
 
     except Exception as e:
         logger.error(f"WebSocket handler error: {e}", exc_info=True)
@@ -909,6 +986,109 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'timestamp': datetime.now().isoformat()
                     }, 500)
 
+            elif path == '/api/system/device-info':
+                # Device information endpoint (dongle ID, serial, versions)
+                try:
+                    device_info = {}
+
+                    # Get DongleId from params
+                    try:
+                        dongle_id_bytes = params.get("DongleId")
+                        if dongle_id_bytes:
+                            if isinstance(dongle_id_bytes, bytes):
+                                dongle_id = dongle_id_bytes.decode('utf-8').strip()
+                                device_info['dongle_id'] = dongle_id if dongle_id else None
+                            elif isinstance(dongle_id_bytes, str):
+                                dongle_id = dongle_id_bytes.strip()
+                                device_info['dongle_id'] = dongle_id if dongle_id else None
+                            else:
+                                logger.warning(f"DongleId has unexpected type: {type(dongle_id_bytes)}")
+                                device_info['dongle_id'] = None
+                        else:
+                            logger.debug("DongleId not found in params (device not registered?)")
+                            device_info['dongle_id'] = None
+                    except Exception as e:
+                        logger.warning(f"Error getting DongleId: {e}", exc_info=True)
+                        device_info['dongle_id'] = None
+
+                    # Get HardwareSerial from params
+                    try:
+                        serial_bytes = params.get("HardwareSerial")
+                        if serial_bytes:
+                            if isinstance(serial_bytes, bytes):
+                                serial = serial_bytes.decode('utf-8').strip()
+                                device_info['serial'] = serial if serial else None
+                            elif isinstance(serial_bytes, str):
+                                serial = serial_bytes.strip()
+                                device_info['serial'] = serial if serial else None
+                            else:
+                                logger.warning(f"HardwareSerial has unexpected type: {type(serial_bytes)}")
+                                device_info['serial'] = None
+                        else:
+                            logger.debug("HardwareSerial not found in params")
+                            device_info['serial'] = None
+                    except Exception as e:
+                        logger.warning(f"Error getting HardwareSerial: {e}", exc_info=True)
+                        device_info['serial'] = None
+
+                    # Get BluePilot Version from BPVERSION file
+                    try:
+                        bp_version_path = os.path.join(os.path.dirname(__file__), '../../BPVERSION')
+                        if os.path.exists(bp_version_path):
+                            with open(bp_version_path, 'r') as f:
+                                device_info['bp_version'] = f.read().strip()
+                        else:
+                            device_info['bp_version'] = None
+                    except Exception as e:
+                        logger.debug(f"Error reading BPVERSION: {e}")
+                        device_info['bp_version'] = None
+
+                    # Get Openpilot Version from common/version.h file
+                    try:
+                        op_version_path = os.path.join(os.path.dirname(__file__), '../../common/version.h')
+                        if os.path.exists(op_version_path):
+                            with open(op_version_path, 'r') as f:
+                                content = f.read()
+                                # Extract version from #define COMMA_VERSION "0.10.1"
+                                import re
+                                match = re.search(r'#define\s+COMMA_VERSION\s+"([^"]+)"', content)
+                                if match:
+                                    device_info['op_version'] = match.group(1)
+                                else:
+                                    device_info['op_version'] = None
+                        else:
+                            device_info['op_version'] = None
+                    except Exception as e:
+                        logger.debug(f"Error reading openpilot version: {e}")
+                        device_info['op_version'] = None
+
+                    # Get SunnyPilot Version from version.h file
+                    try:
+                        sp_version_path = os.path.join(os.path.dirname(__file__), '../../sunnypilot/common/version.h')
+                        if os.path.exists(sp_version_path):
+                            with open(sp_version_path, 'r') as f:
+                                content = f.read()
+                                # Extract version from #define SUNNYPILOT_VERSION "2025.003.000"
+                                import re
+                                match = re.search(r'#define\s+SUNNYPILOT_VERSION\s+"([^"]+)"', content)
+                                if match:
+                                    device_info['sp_version'] = match.group(1)
+                                else:
+                                    device_info['sp_version'] = None
+                        else:
+                            device_info['sp_version'] = None
+                    except Exception as e:
+                        logger.debug(f"Error reading SunnyPilot version: {e}")
+                        device_info['sp_version'] = None
+
+                    self.send_json_response(device_info)
+                except Exception as e:
+                    logger.error(f"Error getting device info: {e}", exc_info=True)
+                    self.send_json_response({
+                        'error': str(e),
+                        'timestamp': datetime.now().isoformat()
+                    }, 500)
+
             elif path == '/api/websocket_status':
                 # WebSocket availability status endpoint
                 ws_clients = len(server_state.get_websocket_clients())
@@ -1091,50 +1271,68 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     }, 500)
 
             elif path == '/api/tmux-output':
-                # Get live tmux output from openpilot
-                try:
-                    # Try to capture tmux output
-                    result = subprocess.run(
-                        ['tmux', 'capture-pane', '-t', 'comma', '-p'],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
+                # Get live logs from tmux (if running) or fall back to manager journal output
+                def get_tmux_output():
+                    try:
+                        result = subprocess.run(
+                            ['tmux', 'capture-pane', '-t', 'comma', '-p'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if result.returncode == 0 and result.stdout.strip():
+                            return True, result.stdout, 'tmux'
+                        return False, result.stderr or 'Tmux session "comma" not found', 'tmux'
+                    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+                        return False, str(exc), 'tmux'
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.debug(f"Tmux capture failed: {exc}")
+                        return False, str(exc), 'tmux'
 
-                    if result.returncode == 0:
-                        output = result.stdout
+                def get_manager_journal(lines: int = 400):
+                    try:
+                        result = subprocess.run(
+                            ['journalctl', '-u', 'manager', '--no-pager', '-n', str(lines)],
+                            capture_output=True,
+                            text=True,
+                            timeout=8
+                        )
+                        if result.returncode == 0:
+                            return True, result.stdout or 'manager journal is empty'
+                        return False, result.stderr or 'Unable to read manager journal'
+                    except FileNotFoundError:
+                        return False, 'journalctl not available on this system'
+                    except subprocess.TimeoutExpired:
+                        return False, 'journalctl command timed out'
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.debug(f"manager journal read failed: {exc}")
+                        return False, str(exc)
+
+                tmux_ok, tmux_output, source = get_tmux_output()
+                if tmux_ok:
+                    self.send_json_response({
+                        'success': True,
+                        'output': tmux_output,
+                        'source': source,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                else:
+                    manager_ok, manager_output = get_manager_journal()
+                    if manager_ok:
                         self.send_json_response({
                             'success': True,
-                            'output': output,
-                            'timestamp': datetime.now().isoformat()
+                            'output': manager_output,
+                            'source': 'manager_journal',
+                            'timestamp': datetime.now().isoformat(),
+                            'fallback_reason': tmux_output
                         })
                     else:
-                        # Tmux session not found or error
                         self.send_json_response({
                             'success': False,
-                            'error': 'Tmux session not found',
-                            'output': 'No active tmux session named "comma"',
+                            'error': manager_output,
+                            'output': manager_output,
                             'timestamp': datetime.now().isoformat()
-                        })
-                except subprocess.TimeoutExpired:
-                    self.send_json_response({
-                        'success': False,
-                        'error': 'Tmux command timed out',
-                        'output': 'Command timed out after 5 seconds'
-                    }, 500)
-                except FileNotFoundError:
-                    self.send_json_response({
-                        'success': False,
-                        'error': 'Tmux not installed',
-                        'output': 'Tmux is not available on this system'
-                    }, 500)
-                except Exception as e:
-                    logger.exception("Error getting tmux output")
-                    self.send_json_response({
-                        'success': False,
-                        'error': str(e),
-                        'output': f'Error: {str(e)}'
-                    }, 500)
+                        }, 500)
 
             elif path.startswith('/api/params/get/'):
                 # Get specific parameter
@@ -2976,6 +3174,22 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             'error': 'Reset settings not yet implemented in web UI',
                             'hint': 'Use the device settings panel for this operation'
                         }, 501)
+
+                    elif action == 'restart_ui':
+                        success, message = restart_ui_process()
+                        if success:
+                            self.send_json_response({
+                                'success': True,
+                                'message': message
+                            })
+                            broadcast_websocket_event(WebSocketEvent.STATUS_CHANGED, {
+                                'status': 'ui_restart_requested'
+                            })
+                        else:
+                            self.send_json_response({
+                                'success': False,
+                                'error': message
+                            }, 500)
 
                     else:
                         # Unsupported actions that require Qt UI

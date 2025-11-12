@@ -76,15 +76,29 @@ export interface RouteDetails extends Omit<Route, 'segments'> {
   total_segments?: number  // Alternative name from backend
 }
 
+export interface ParameterDecodedValue {
+  format: 'carParams' | 'json' | 'text' | 'hex'
+  preview?: string
+  summary?: Record<string, string | number | boolean | null>
+  data?: unknown
+}
+
 export interface Parameter {
   key: string
   value: string | number | boolean | null
   description?: string
-  type: 'string' | 'number' | 'boolean' | 'int' | 'float' | 'bool' | 'str' | 'null' | 'bytes' | 'unknown'
+  type: 'string' | 'number' | 'boolean' | 'int' | 'float' | 'bool' | 'str' | 'null' | 'bytes' | 'unknown' | 'json' | 'time'
   category?: string
   readonly?: boolean
   critical?: boolean
   last_modified?: number  // Unix timestamp
+  raw_value?: string | null
+  raw_format?: 'base64' | 'utf8' | null
+  byte_length?: number
+  value_is_binary?: boolean
+  decoded?: ParameterDecodedValue | null
+  timestamp?: number
+  error?: string
 }
 
 export interface SystemMetrics {
@@ -152,6 +166,14 @@ export interface VehicleInfo {
   vin?: string
   brand?: string
   firmware_version?: string
+}
+
+export interface DeviceInfo {
+  dongle_id: string | null
+  serial: string | null
+  bp_version: string | null
+  sp_version: string | null
+  op_version: string | null
 }
 
 export interface VideoPlayerState {

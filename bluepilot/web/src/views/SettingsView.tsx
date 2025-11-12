@@ -156,6 +156,11 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
 
     const query = searchQuery.toLowerCase()
     const filteredControls = group.controls.filter((control) => {
+      // Skip controls that are not web-supported
+      if ('webSupported' in control && control.webSupported === false) {
+        return false
+      }
+
       const title = control.title?.toLowerCase() || ''
       const desc = control.desc?.toLowerCase() || ''
       return title.includes(query) || desc.includes(query)

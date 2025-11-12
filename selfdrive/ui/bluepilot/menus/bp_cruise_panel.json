@@ -354,7 +354,7 @@
         },
         {
           "type": "integer",
-          "param": "SpeedLimitPercentOffset",
+          "param": "SpeedLimitValueOffset",
           "title": "Percent Offset Value",
           "desc": "Percent offset value (e.g., 10 = +10%)",
           "min": -50,

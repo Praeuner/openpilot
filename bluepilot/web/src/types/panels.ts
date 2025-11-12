@@ -167,6 +167,7 @@ export interface CommandButtonControl extends BaseControl {
   cancel_button_text?: string
   OnlyOnCommaDevice?: boolean
   connect_signal?: string
+  device_only_message?: string
 }
 
 export interface ActionButton {

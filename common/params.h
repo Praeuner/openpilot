@@ -67,11 +67,25 @@ public:
   }
   inline int getInt(const std::string &key, bool block = false) {
     std::string value = get(key, block);
-    return value.empty() ? 0 : std::stoi(value);
+    if (value.empty()) {
+      return 0;
+    }
+    try {
+      return std::stoi(value);
+    } catch (const std::exception &) {
+      return 0;
+    }
   }
   inline float getFloat(const std::string &key, bool block = false) {
     std::string value = get(key, block);
-    return value.empty() ? 0.0 : std::stof(value);
+    if (value.empty()) {
+      return 0.0;
+    }
+    try {
+      return std::stof(value);
+    } catch (const std::exception &) {
+      return 0.0;
+    }
   }
   std::map<std::string, std::string> readAll();
 

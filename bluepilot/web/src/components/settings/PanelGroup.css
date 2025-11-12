@@ -5,6 +5,7 @@
   border: 1px solid var(--border-color);
   background: rgba(24, 24, 24, 0.9);
   box-shadow: var(--panel-card-shadow);
+  height: fit-content;
 }
 
 .panel-group-header {
@@ -27,6 +28,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 1.25rem;
+  height: fit-content;
 }
 
 .panel-group-reset {

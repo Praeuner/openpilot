@@ -30,6 +30,17 @@
   border-color: rgba(244, 67, 54, 0.35);
 }
 
+.command-button-device-notice {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 @media (max-width: 768px) {
   .command-button-control .control-card__footer {
     width: 100%;

@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { systemAPI } from '@/services/api'
-import type { SystemMetrics, ServerStatus, DiskSpace, VehicleInfo } from '@/types'
+import type { SystemMetrics, ServerStatus, DiskSpace, VehicleInfo, DeviceInfo } from '@/types'
 
 interface SystemState {
   metrics: SystemMetrics | null
   status: ServerStatus | null
   diskSpace: DiskSpace | null
   vehicleInfo: VehicleInfo | null
+  deviceInfo: DeviceInfo | null
   loading: boolean
   error: string | null
 
@@ -15,6 +16,7 @@ interface SystemState {
   fetchStatus: () => Promise<void>
   fetchDiskSpace: () => Promise<void>
   fetchVehicleInfo: () => Promise<void>
+  fetchDeviceInfo: () => Promise<void>
   startPolling: (interval?: number) => void
   stopPolling: () => void
 }
@@ -26,6 +28,7 @@ export const useSystemStore = create<SystemState>((set) => ({
   status: null,
   diskSpace: null,
   vehicleInfo: null,
+  deviceInfo: null,
   loading: false,
   error: null,
 
@@ -72,6 +75,16 @@ export const useSystemStore = create<SystemState>((set) => ({
     }
   },
 
+  fetchDeviceInfo: async () => {
+    try {
+      const deviceInfo = await systemAPI.getDeviceInfo()
+      set({ deviceInfo, error: null })
+    } catch (error) {
+      console.error('Failed to fetch device info:', error)
+      // Don't set error state for device info as it's optional
+    }
+  },
+
   startPolling: (interval = 5000) => {
     if (pollingTimer !== null) {
       return // Already polling
@@ -83,6 +96,7 @@ export const useSystemStore = create<SystemState>((set) => ({
         store.fetchMetrics(),
         store.fetchStatus(),
         store.fetchDiskSpace(),
+        store.fetchDeviceInfo(),
       ])
     }
 
