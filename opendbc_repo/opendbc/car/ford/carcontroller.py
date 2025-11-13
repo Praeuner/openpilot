@@ -17,7 +17,6 @@ from common.pid import PIDController # PID control of lateral
 from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
 from opendbc.car.ford.helpers import compute_dm_msg_values
 from bluepilot.logger.bp_logger import debug, info, warning, error, critical
-from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementInterface
 
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -81,10 +80,9 @@ def apply_creep_compensation(accel: float, v_ego: float) -> float:
   return float(accel)
 
 
-class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterface):
+class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP, CP_SP):
-    CarControllerBase.__init__(self, dbc_names, CP, CP_SP)
-    IntelligentCruiseButtonManagementInterface.__init__(self, CP, CP_SP)
+    super().__init__(dbc_names, CP, CP_SP)
 
     self.params = Params()
 
@@ -389,6 +387,20 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         self.pc_blend_ratio_v = [self.pc_blend_ratio_low_C, self.pc_blend_ratio_high_C] # %-Predicted Curvature
 
+
+        # Determine if a human is making a turn and trap the value
+        # if a human turn is active, reset steering to prevent windup
+        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
+          self.human_turn = True
+        else:
+          self.human_turn = False
+
+        # Determine when to reset steering
+        if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
+          reset_steering = 1
+        else:
+          reset_steering = 0
+
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
         desired_curvature = actuators.curvature  # get desired curvature from model
@@ -438,6 +450,10 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
               requested_curvature = requested_curvature # if we are moving back left to correct for over travel, do not reduce curvature
 
           self.precision_type = 0 # use comfort mode
+
+        # if reset_steering is 1, set requested_curvature to 0
+        if reset_steering == 1:
+          requested_curvature = 0.0
 
         # apply curvature limits
         apply_curvature = apply_ford_curvature_limits(requested_curvature,
@@ -563,33 +579,8 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.LC_path_angle_reset_counter > self.LC_path_angle_reset_duration * 20: #20 scans per second
           self.LC_PID_controller.reset()
 
-        # path_angle is a corrective variable, so subtract out current wheel position (associated with curvature)
-        # calculate how far the steering wheel is from the desired steering wheel angle
-        steering_wheel_delta = (steeringAngleDeg_PV - self.predictedSteeringAngleDeg_SP) * self.path_angle_wheel_angle_conversion
-
-        # calculate path angle for high curvature situations:
-        # interpolate path_angle_factor based on curvature
-        HC_PID_curvature_factor = interp(max_abs_predicted_curvature, self.HC_PID_curvature_bp, self.HC_PID_curvature_v)
-
-        # interpolate path_angle_speed_factor based on speed
-        HC_PID_speed_factor = interp(CS.out.vEgoRaw, self.HC_PID_speed_bp, self.HC_PID_speed_v)
-
-        # choose which path_angle factor to use (curvature or speed)
-        HC_PID_adjust_factor = min(HC_PID_curvature_factor, HC_PID_speed_factor)
-
-        # apply the adjustment factor to the steering_wheel_delta before executing the PID
-        self.steering_wheel_delta_adjusted = steering_wheel_delta * HC_PID_adjust_factor * self.HC_PID_gain_UI
-
-        # if not using high curvature mode, zero out steering_wheel_delta_adjusted
-        if not self.enable_high_curvature_mode:
-          self.steering_wheel_delta_adjusted = 0.0
-
-        # use PID to calcualte path_angle, gain is interpolated based on curvature (default is speed)
-        path_angle_high_c = self.HC_PID_controller.update((self.steering_wheel_delta_adjusted))
-
-        # if not using high curvature mode, zero out path_angle_high_c (should be zeroed out in the PID controller, but just in case)
-        if not self.enable_high_curvature_mode:
-          path_angle_high_c = 0.0
+        # path_angle_high_c is not used in the current implementation
+        path_angle_high_c = 0.0
 
         # sum path_angle_low_c and path_angle_high_c
         path_angle = path_angle_low_c + path_angle_high_c
@@ -598,13 +589,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.lane_change:
           path_angle = 0.0
 
-        # if the path_angle signal is zerod out by the factors, reset the PID controller
-        if HC_PID_adjust_factor < 0.1:
-          self.HC_PID_controller.reset()
-
-        # rate limit path_angle
-        # path_angle_roc = interp(abs(CS.out.vEgoRaw), [5, 25], [0.003, 0.002])
-        # path_angle = clip(path_angle, self.path_angle_last - path_angle_roc, self.path_angle_last + path_angle_roc)
+        # reset path angle if steering reset is active
+        if reset_steering == 1:
+          path_angle = 0.0
 
         # Apply post lane change transition logic
         path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
@@ -620,19 +607,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         # if path_offset and path_angle disagree, it can result in a very uncomortable ride, since path_angle is so strong, zero out path_offset signal before it is sent over canbus
         path_offset = 0.0
-
-        # Determine if a human is making a turn and trap the value
-        # if a human turn is active, reset steering to prevent windup
-        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
-          self.human_turn = True
-        else:
-          self.human_turn = False
-
-        # Determine when to reset steering
-        if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
-          reset_steering = 1
-        else:
-          reset_steering = 0
 
         if self.disable_BP_lat_UI:
           reset_steering = 0
@@ -708,7 +682,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       lka_hud_control = None
       if self.send_lane_depart_can_msg:
         lka_hud_control = hud_control
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control))
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control, CS.lane_assist_stock_values))
 
     ### longitudinal control ###
     # send acc msg at 50Hz
@@ -804,11 +778,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
 
-
-    # ICBM: Intelligent Cruise Button Management
-    can_sends.extend(IntelligentCruiseButtonManagementInterface.update(
-      self, CS, CC_SP, self.packer, self.frame, self.last_button_frame, self.CAN
-    ))
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)
