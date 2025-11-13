@@ -17,6 +17,7 @@ from common.pid import PIDController # PID control of lateral
 from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
 from opendbc.car.ford.helpers import compute_dm_msg_values
 from bluepilot.logger.bp_logger import debug, info, warning, error, critical
+from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementInterface
 
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -80,9 +81,10 @@ def apply_creep_compensation(accel: float, v_ego: float) -> float:
   return float(accel)
 
 
-class CarController(CarControllerBase):
+class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterface):
   def __init__(self, dbc_names, CP, CP_SP):
-    super().__init__(dbc_names, CP, CP_SP)
+    CarControllerBase.__init__(self, dbc_names, CP, CP_SP)
+    IntelligentCruiseButtonManagementInterface.__init__(self, CP, CP_SP)
 
     self.params = Params()
 
@@ -802,6 +804,11 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
 
+
+    # ICBM: Intelligent Cruise Button Management
+    can_sends.extend(IntelligentCruiseButtonManagementInterface.update(
+      self, CS, CC_SP, self.packer, self.frame, self.last_button_frame, self.CAN
+    ))
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)

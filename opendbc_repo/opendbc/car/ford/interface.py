@@ -129,3 +129,11 @@ class CarInterface(CarInterfaceBase):
     ret.autoResumeSng = ret.minEnableSpeed == -1.
     ret.centerToFront = ret.wheelbase * 0.44
     return ret
+
+  @staticmethod
+  def _get_params_sp(stock_cp: structs.CarParams, ret: structs.CarParamsSP, candidate, fingerprint: dict[int, dict[int, int]],
+                     car_fw: list[structs.CarParams.CarFw], alpha_long: bool, is_release_sp: bool, docs: bool) -> structs.CarParamsSP:
+    # Enable ICBM for Ford vehicles
+    ret.intelligentCruiseButtonManagementAvailable = True
+
+    return ret
