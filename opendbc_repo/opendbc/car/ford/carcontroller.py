@@ -17,6 +17,7 @@ from common.pid import PIDController # PID control of lateral
 from bluepilot.params.bp_params import load_custom_params, update_custom_params  # Import custom param functions
 from opendbc.car.ford.helpers import compute_dm_msg_values
 from bluepilot.logger.bp_logger import debug, info, warning, error, critical
+from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementInterface
 
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -80,9 +81,10 @@ def apply_creep_compensation(accel: float, v_ego: float) -> float:
   return float(accel)
 
 
-class CarController(CarControllerBase):
+class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterface):
   def __init__(self, dbc_names, CP, CP_SP):
-    super().__init__(dbc_names, CP, CP_SP)
+    CarControllerBase.__init__(self, dbc_names, CP, CP_SP)
+    IntelligentCruiseButtonManagementInterface.__init__(self, CP, CP_SP)
 
     self.params = Params()
 
@@ -387,20 +389,6 @@ class CarController(CarControllerBase):
 
         self.pc_blend_ratio_v = [self.pc_blend_ratio_low_C, self.pc_blend_ratio_high_C] # %-Predicted Curvature
 
-
-        # Determine if a human is making a turn and trap the value
-        # if a human turn is active, reset steering to prevent windup
-        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
-          self.human_turn = True
-        else:
-          self.human_turn = False
-
-        # Determine when to reset steering
-        if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
-          reset_steering = 1
-        else:
-          reset_steering = 0
-
         # calculate current curvature and model desired curvature
         current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)  # use canbus data to calculate current_curvature
         desired_curvature = actuators.curvature  # get desired curvature from model
@@ -451,7 +439,20 @@ class CarController(CarControllerBase):
 
           self.precision_type = 0 # use comfort mode
 
-        # if reset_steering is 1, set requested_curvature to 0
+        # Determine if a human is making a turn and trap the value
+        # if a human turn is active, reset steering to prevent windup
+        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
+          self.human_turn = True
+        else:
+          self.human_turn = False
+
+        # Determine when to reset steering
+        if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
+          reset_steering = 1
+        else:
+          reset_steering = 0
+
+        #if reset_steering is 1, set requested_curvature to 0
         if reset_steering == 1:
           requested_curvature = 0.0
 
@@ -565,6 +566,10 @@ class CarController(CarControllerBase):
 
         # if not using lane positioning, zero out path_angle_low_c (should be zeroed out in the PID controller, but just in case)
         if not self.enable_lane_positioning:
+          path_angle_low_c = 0.0
+
+        # reset path angle if steering reset is active
+        if reset_steering == 1:
           path_angle_low_c = 0.0
 
         # rate limit path_angle_low_c for comfort
@@ -682,7 +687,7 @@ class CarController(CarControllerBase):
       lka_hud_control = None
       if self.send_lane_depart_can_msg:
         lka_hud_control = hud_control
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control, CS.lane_assist_stock_values))
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control))
 
     ### longitudinal control ###
     # send acc msg at 50Hz
@@ -730,7 +735,7 @@ class CarController(CarControllerBase):
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
     # send lkas ui msg at 1Hz or if ui state changes
     if (self.frame % CarControllerParams.LKAS_UI_STEP) == 0 or send_ui:
-       can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive, lka_hud_control))
+      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, self.hands, hud_control, CS.lkas_status_stock_values))
 
     # send acc ui msg at 5Hz or if ui state changes
     send_bars = False
@@ -778,6 +783,11 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
 
+
+    # ICBM: Intelligent Cruise Button Management
+    can_sends.extend(IntelligentCruiseButtonManagementInterface.update(
+      self, CS, CC_SP, self.packer, self.frame, self.last_button_frame, self.CAN
+    ))
 
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)
