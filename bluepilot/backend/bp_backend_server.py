@@ -78,7 +78,7 @@ from bluepilot.backend.network import (
     get_wifi_ip, get_all_wifi_ips, get_connection_type,
 )
 
-# Route utilities
+# Route utilities  
 from bluepilot.backend.routes import (
     # Processing
     haversine_distance, reverse_geocode,
@@ -2222,24 +2222,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         except Exception as e:
                             logger.warning(f"Error parsing CarParams: {e}")
 
-                    # Parse CarParamsSP if available to check ICBM availability
-                    if param_exists("CarParamsSPPersistent"):
-                        try:
-                            from cereal import custom
-                            car_params_sp_bytes = params.get("CarParamsSPPersistent")
-                            car_params_sp = custom.CarParamsSP.from_bytes(car_params_sp_bytes)
-
-                            # Check if ICBM is available for this vehicle (not if it's enabled)
-                            state['hasIntelligentCruiseButtonManagement'] = car_params_sp.intelligentCruiseButtonManagementAvailable
-                        except Exception as e:
-                            logger.warning(f"Error parsing CarParamsSP: {e}")
-                            # Fallback to parameter check if CarParamsSP parsing fails
-                            state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
-                    else:
-                        # Fallback to parameter check if CarParamsSPPersistent doesn't exist
-                        state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
-
                     # Check for specific features from params
+                    state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
                     state['isPcmCruise'] = safe_get_bool("PcmCruise")
                     state['isICBMAvailable'] = safe_get_bool("ICBMAvailable")
 
