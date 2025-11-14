@@ -309,14 +309,16 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
 
     LOGE("DEBUG MADS: Detected brand = '%s'", brand.c_str());
 
+    // Determine if brand is limited
+    bool is_limited = false;
+
     // Rivian always has limited MADS settings
     if (brand == "rivian") {
-      LOGE("DEBUG MADS: Brand is Rivian - returning TRUE (limited)");
-      return true;
+      LOGE("DEBUG MADS: Brand is Rivian - is limited");
+      is_limited = true;
     }
-
     // Tesla only has limited MADS settings if it doesn't have vehicle bus access
-    if (brand == "tesla") {
+    else if (brand == "tesla") {
       LOGE("DEBUG MADS: Brand is Tesla - checking vehicle bus access...");
       auto cp_sp_bytes = params.get("CarParamsSPPersistent");
       if (!cp_sp_bytes.empty()) {
@@ -324,16 +326,22 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
         capnp::FlatArrayMessageReader cmsg_sp(aligned_buf_sp.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
         cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
         bool has_vehicle_bus = CP_SP.getFlags() & 1;  // 1 == TeslaFlagsSP.HAS_VEHICLE_BUS
-        bool is_limited = !has_vehicle_bus;
+        is_limited = !has_vehicle_bus;
         LOGE("DEBUG MADS: Tesla has_vehicle_bus = %d, is_limited = %d", has_vehicle_bus, is_limited);
-        return is_limited;
+      } else {
+        LOGE("DEBUG MADS: Tesla CarParamsSPPersistent empty - defaulting to limited");
+        is_limited = true;  // Default to limited if we can't check
       }
-      LOGE("DEBUG MADS: Tesla CarParamsSPPersistent empty - returning TRUE (limited by default)");
-      return true;  // Default to limited if we can't check
+    } else {
+      LOGE("DEBUG MADS: Brand '%s' is NOT limited", brand.c_str());
+      is_limited = false;
     }
 
-    LOGE("DEBUG MADS: Brand '%s' is NOT limited - returning FALSE", brand.c_str());
-    return false;
+    // Compare the result with the expected value from JSON
+    bool expected = condition.toBool();
+    bool result = (is_limited == expected);
+    LOGE("DEBUG MADS: is_limited=%d, expected=%d, condition passes=%d", is_limited, expected, result);
+    return result;
   } else if (conditionType == "hasBlindSpotMonitoring") {
     auto cp_bytes = params.get("CarParamsPersistent");
     if (cp_bytes.empty()) {
@@ -611,11 +619,25 @@ bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlCo
     }
   }
 
+  // DEBUG: Log which parameter is being evaluated
+  if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
+    LOGE("DEBUG MADS WIDGET: Evaluating widget for param '%s'", conditions.paramName.toStdString().c_str());
+    LOGE("DEBUG MADS WIDGET: hasEnableConditions=%d, hasVisibleConditions=%d",
+         conditions.hasEnableConditions, conditions.hasVisibleConditions);
+  }
+
   // Determine enabled state
   bool shouldBeEnabled = true;
   if (conditions.hasEnableConditions) {
     // Use new enableConditions
+    if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
+      LOGE("DEBUG MADS WIDGET: Evaluating enableConditions for '%s'", conditions.paramName.toStdString().c_str());
+    }
     shouldBeEnabled = validateCompositeConditions(conditions.enableConditions);
+    if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
+      LOGE("DEBUG MADS WIDGET: enableConditions result for '%s' = %s",
+           conditions.paramName.toStdString().c_str(), shouldBeEnabled ? "TRUE (enabled)" : "FALSE (disabled)");
+    }
   } else if (conditions.hasConditions) {
     // Legacy: use conditions for enabled state
     shouldBeEnabled = validateCompositeConditions(conditions.conditions);
