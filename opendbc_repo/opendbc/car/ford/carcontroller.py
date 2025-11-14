@@ -195,7 +195,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     # max absolute values for all four signals
     self.path_angle_max = 0.5  # from dbc files
     self.path_offset_max = 2.0  # too much path offset causes issues
-    self.curvature_max = 0.02  # from dbc files
+    self.curvature_max = 0.0115  # 0.02 is max from dbc files, but more than 0.012 can cause windup in big curves
     self.curvature_rate_max = 0.001023  # from dbc files
 
     # values from previous frame
