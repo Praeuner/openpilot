@@ -9,10 +9,73 @@
 #include "system/hardware/hw.h"
 
 #include <QCoreApplication>
+#include <QTimer>
 #include <capnp/dynamic.h>
 #include "cereal/messaging/messaging.h"
 
+// DEBUG: Periodic MADS brand check
+static QTimer* mads_debug_timer = nullptr;
+static int mads_debug_call_count = 0;
+
+// DEBUG: Function to check MADS brand status
+static void debugMadsBrandCheck() {
+  mads_debug_call_count++;
+  LOGE("DEBUG MADS: ========== Periodic Check #%d ==========", mads_debug_call_count);
+
+  Params params;
+  auto cp_bytes = params.get("CarParamsPersistent");
+
+  if (cp_bytes.empty()) {
+    LOGE("DEBUG MADS: CarParamsPersistent is EMPTY - no car detected yet");
+    return;
+  }
+
+  AlignedBuffer aligned_buf;
+  capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
+  cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
+  std::string brand = CP.getBrand();
+  std::string fingerprint = CP.getCarFingerprint();
+
+  LOGE("DEBUG MADS: Car Brand = '%s'", brand.c_str());
+  LOGE("DEBUG MADS: Car Fingerprint = '%s'", fingerprint.c_str());
+
+  // Check what isMadsLimitedBrand would return
+  bool is_limited = false;
+  if (brand == "rivian") {
+    is_limited = true;
+    LOGE("DEBUG MADS: Brand is Rivian - WOULD BE LIMITED");
+  } else if (brand == "tesla") {
+    auto cp_sp_bytes = params.get("CarParamsSPPersistent");
+    if (!cp_sp_bytes.empty()) {
+      AlignedBuffer aligned_buf_sp;
+      capnp::FlatArrayMessageReader cmsg_sp(aligned_buf_sp.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
+      cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
+      bool has_vehicle_bus = CP_SP.getFlags() & 1;
+      is_limited = !has_vehicle_bus;
+      LOGE("DEBUG MADS: Brand is Tesla - has_vehicle_bus=%d - WOULD BE LIMITED=%d", has_vehicle_bus, is_limited);
+    } else {
+      is_limited = true;
+      LOGE("DEBUG MADS: Brand is Tesla - CarParamsSPPersistent empty - WOULD BE LIMITED");
+    }
+  } else {
+    LOGE("DEBUG MADS: Brand '%s' - WOULD NOT BE LIMITED", brand.c_str());
+  }
+
+  LOGE("DEBUG MADS: FINAL RESULT: isMadsLimitedBrand would return %s", is_limited ? "TRUE (limited)" : "FALSE (not limited)");
+  LOGE("DEBUG MADS: MadsUnifiedEngagementMode toggle should be %s", is_limited ? "DISABLED (greyed out)" : "ENABLED (user can toggle)");
+  LOGE("DEBUG MADS: ==========================================");
+}
+
 bool PanelConditions::validateSingleCondition(const QString &conditionType, const QJsonValue &condition) {
+  // DEBUG: Start periodic MADS checking on first condition evaluation
+  if (mads_debug_timer == nullptr) {
+    LOGE("DEBUG MADS: Initializing periodic MADS brand checker (every 30 seconds)");
+    mads_debug_timer = new QTimer();
+    QObject::connect(mads_debug_timer, &QTimer::timeout, debugMadsBrandCheck);
+    mads_debug_timer->start(30000);  // 30 seconds
+    // Do an immediate check
+    debugMadsBrandCheck();
+  }
   if (conditionType == "paramValueEquals") {
     QJsonObject equals = condition.toObject();
     for (auto it = equals.begin(); it != equals.end(); ++it) {
@@ -236,6 +299,7 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
   } else if (conditionType == "isMadsLimitedBrand") {
     auto cp_bytes = params.get("CarParamsPersistent");
     if (cp_bytes.empty()) {
+      LOGE("DEBUG MADS: CarParamsPersistent is empty!");
       return false;
     }
     AlignedBuffer aligned_buf;
@@ -243,23 +307,32 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     std::string brand = CP.getBrand();
 
+    LOGE("DEBUG MADS: Detected brand = '%s'", brand.c_str());
+
     // Rivian always has limited MADS settings
     if (brand == "rivian") {
+      LOGE("DEBUG MADS: Brand is Rivian - returning TRUE (limited)");
       return true;
     }
 
     // Tesla only has limited MADS settings if it doesn't have vehicle bus access
     if (brand == "tesla") {
+      LOGE("DEBUG MADS: Brand is Tesla - checking vehicle bus access...");
       auto cp_sp_bytes = params.get("CarParamsSPPersistent");
       if (!cp_sp_bytes.empty()) {
         AlignedBuffer aligned_buf_sp;
         capnp::FlatArrayMessageReader cmsg_sp(aligned_buf_sp.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
         cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
-        return !(CP_SP.getFlags() & 1);  // 1 == TeslaFlagsSP.HAS_VEHICLE_BUS
+        bool has_vehicle_bus = CP_SP.getFlags() & 1;  // 1 == TeslaFlagsSP.HAS_VEHICLE_BUS
+        bool is_limited = !has_vehicle_bus;
+        LOGE("DEBUG MADS: Tesla has_vehicle_bus = %d, is_limited = %d", has_vehicle_bus, is_limited);
+        return is_limited;
       }
+      LOGE("DEBUG MADS: Tesla CarParamsSPPersistent empty - returning TRUE (limited by default)");
       return true;  // Default to limited if we can't check
     }
 
+    LOGE("DEBUG MADS: Brand '%s' is NOT limited - returning FALSE", brand.c_str());
     return false;
   } else if (conditionType == "hasBlindSpotMonitoring") {
     auto cp_bytes = params.get("CarParamsPersistent");
