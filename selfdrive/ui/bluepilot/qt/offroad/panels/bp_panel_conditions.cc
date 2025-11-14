@@ -736,10 +736,21 @@ QString PanelConditions::evaluateDescription(const ControlConditions &conditions
       QString key = it.key();
       QJsonObject conditionObj = it.value();
 
+      // DEBUG: Log MADS-related description evaluation
+      if (key.contains("limited", Qt::CaseInsensitive) || conditions.descriptions[key].contains("limited", Qt::CaseInsensitive)) {
+        LOGE("DEBUG MADS DESC: Evaluating description key '%s'", key.toStdString().c_str());
+      }
+
       if (validateCompositeConditions(conditionObj)) {
         // Found a matching condition, return its description
         if (conditions.descriptions.contains(key)) {
           description = conditions.descriptions[key];
+
+          // DEBUG: Log if "limited" description is selected
+          if (key.contains("limited", Qt::CaseInsensitive) || description.contains("limited", Qt::CaseInsensitive)) {
+            LOGE("DEBUG MADS DESC: Selected description key '%s' - description contains 'limited'", key.toStdString().c_str());
+            LOGE("DEBUG MADS DESC: Description snippet: %.100s...", description.toStdString().c_str());
+          }
           break;
         }
       }
