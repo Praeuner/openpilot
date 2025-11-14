@@ -347,7 +347,7 @@ def create_button_msg(packer, bus: int, stock_values: dict, cancel=False, resume
   Frequency is 10Hz.
 
   Args:
-    icbm_button: Optional ICBM button signal name to press (e.g., "CcAslButtnSetIncPress" or "CcAslButtnSetDecPress")
+    icbm_button: Optional string signal name for ICBM button press (e.g., "CcAslButtnSetIncPress", "CcAslButtnSetDecPress")
   """
 
   values = {s: stock_values[s] for s in [
@@ -390,7 +390,7 @@ def create_button_msg(packer, bus: int, stock_values: dict, cancel=False, resume
     "TjaButtnOnOffPress": 1 if tja_toggle else 0,   # LCA/TJA toggle button
   })
 
-  # ICBM button press support
+  # ICBM button support - set the specified button signal to 1
   if icbm_button is not None:
     values[icbm_button] = 1
 

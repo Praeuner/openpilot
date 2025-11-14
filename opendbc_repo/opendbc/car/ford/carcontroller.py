@@ -110,6 +110,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.distance_bar_frame = 0
     self.accel_pitch_compensated = 0.0
     self.steering_wheel_delta_adjusted = 0.0
+    self.last_button_frame = 0  # Track last ICBM button press frame
 
    ################################## lateral control parameters ##############################################
 
@@ -351,6 +352,12 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     # the stock system checks for steering pressed, and eventually disengages cruise control
     elif CS.acc_tja_status_stock_values["Tja_D_Stat"] != 0 and (self.frame % CarControllerParams.ACC_UI_STEP) == 0:
       can_sends.append(fordcan.create_button_msg(self.packer, self.CAN.camera, CS.buttons_stock_values, tja_toggle=True))
+
+    # Intelligent Cruise Button Management (ICBM)
+    icbm_can_sends, self.last_button_frame = IntelligentCruiseButtonManagementInterface.update(
+      self, CC_SP, CS, self.packer, self.CAN, self.frame, self.last_button_frame
+    )
+    can_sends.extend(icbm_can_sends)
 
     ### lateral control ###
 

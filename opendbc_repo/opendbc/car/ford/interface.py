@@ -133,7 +133,9 @@ class CarInterface(CarInterfaceBase):
   @staticmethod
   def _get_params_sp(stock_cp: structs.CarParams, ret: structs.CarParamsSP, candidate, fingerprint: dict[int, dict[int, int]],
                      car_fw: list[structs.CarParams.CarFw], alpha_long: bool, is_release_sp: bool, docs: bool) -> structs.CarParamsSP:
-    # Enable ICBM for Ford vehicles
+    # Enable ICBM (Intelligent Cruise Button Management) for Ford vehicles
+    # ICBM allows openpilot to control cruise speed by emulating button presses
+    # Only available when openpilotLongitudinalControl is False (using stock ACC)
     ret.intelligentCruiseButtonManagementAvailable = True
 
     return ret
