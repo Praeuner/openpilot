@@ -789,13 +789,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.fcw_alert_last = fcw_alert
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
-
-
-    # ICBM: Intelligent Cruise Button Management
-    can_sends.extend(IntelligentCruiseButtonManagementInterface.update(
-      self, CS, CC_SP, self.packer, self.frame, self.last_button_frame, self.CAN
-    ))
-
     new_actuators = actuators.as_builder()
     new_actuators.torqueOutputCan = float(self.steer_warning)
     new_actuators.curvature = float(apply_curvature)
