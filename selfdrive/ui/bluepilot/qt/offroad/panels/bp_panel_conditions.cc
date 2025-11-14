@@ -9,73 +9,10 @@
 #include "system/hardware/hw.h"
 
 #include <QCoreApplication>
-#include <QTimer>
 #include <capnp/dynamic.h>
 #include "cereal/messaging/messaging.h"
 
-// DEBUG: Periodic MADS brand check
-static QTimer* mads_debug_timer = nullptr;
-static int mads_debug_call_count = 0;
-
-// DEBUG: Function to check MADS brand status
-static void debugMadsBrandCheck() {
-  mads_debug_call_count++;
-  LOGE("DEBUG MADS: ========== Periodic Check #%d ==========", mads_debug_call_count);
-
-  Params params;
-  auto cp_bytes = params.get("CarParamsPersistent");
-
-  if (cp_bytes.empty()) {
-    LOGE("DEBUG MADS: CarParamsPersistent is EMPTY - no car detected yet");
-    return;
-  }
-
-  AlignedBuffer aligned_buf;
-  capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_bytes.data(), cp_bytes.size()));
-  cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
-  std::string brand = CP.getBrand();
-  std::string fingerprint = CP.getCarFingerprint();
-
-  LOGE("DEBUG MADS: Car Brand = '%s'", brand.c_str());
-  LOGE("DEBUG MADS: Car Fingerprint = '%s'", fingerprint.c_str());
-
-  // Check what isMadsLimitedBrand would return
-  bool is_limited = false;
-  if (brand == "rivian") {
-    is_limited = true;
-    LOGE("DEBUG MADS: Brand is Rivian - WOULD BE LIMITED");
-  } else if (brand == "tesla") {
-    auto cp_sp_bytes = params.get("CarParamsSPPersistent");
-    if (!cp_sp_bytes.empty()) {
-      AlignedBuffer aligned_buf_sp;
-      capnp::FlatArrayMessageReader cmsg_sp(aligned_buf_sp.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
-      cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
-      bool has_vehicle_bus = CP_SP.getFlags() & 1;
-      is_limited = !has_vehicle_bus;
-      LOGE("DEBUG MADS: Brand is Tesla - has_vehicle_bus=%d - WOULD BE LIMITED=%d", has_vehicle_bus, is_limited);
-    } else {
-      is_limited = true;
-      LOGE("DEBUG MADS: Brand is Tesla - CarParamsSPPersistent empty - WOULD BE LIMITED");
-    }
-  } else {
-    LOGE("DEBUG MADS: Brand '%s' - WOULD NOT BE LIMITED", brand.c_str());
-  }
-
-  LOGE("DEBUG MADS: FINAL RESULT: isMadsLimitedBrand would return %s", is_limited ? "TRUE (limited)" : "FALSE (not limited)");
-  LOGE("DEBUG MADS: MadsUnifiedEngagementMode toggle should be %s", is_limited ? "DISABLED (greyed out)" : "ENABLED (user can toggle)");
-  LOGE("DEBUG MADS: ==========================================");
-}
-
 bool PanelConditions::validateSingleCondition(const QString &conditionType, const QJsonValue &condition) {
-  // DEBUG: Start periodic MADS checking on first condition evaluation
-  if (mads_debug_timer == nullptr) {
-    LOGE("DEBUG MADS: Initializing periodic MADS brand checker (every 30 seconds)");
-    mads_debug_timer = new QTimer();
-    QObject::connect(mads_debug_timer, &QTimer::timeout, debugMadsBrandCheck);
-    mads_debug_timer->start(30000);  // 30 seconds
-    // Do an immediate check
-    debugMadsBrandCheck();
-  }
   if (conditionType == "paramValueEquals") {
     QJsonObject equals = condition.toObject();
     for (auto it = equals.begin(); it != equals.end(); ++it) {
@@ -305,7 +242,6 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
   } else if (conditionType == "isMadsLimitedBrand") {
     auto cp_bytes = params.get("CarParamsPersistent");
     if (cp_bytes.empty()) {
-      LOGE("DEBUG MADS: CarParamsPersistent is empty!");
       return false;
     }
     AlignedBuffer aligned_buf;
@@ -313,19 +249,15 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     std::string brand = CP.getBrand();
 
-    LOGE("DEBUG MADS: Detected brand = '%s'", brand.c_str());
-
     // Determine if brand is limited
     bool is_limited = false;
 
     // Rivian always has limited MADS settings
     if (brand == "rivian") {
-      LOGE("DEBUG MADS: Brand is Rivian - is limited");
       is_limited = true;
     }
     // Tesla only has limited MADS settings if it doesn't have vehicle bus access
     else if (brand == "tesla") {
-      LOGE("DEBUG MADS: Brand is Tesla - checking vehicle bus access...");
       auto cp_sp_bytes = params.get("CarParamsSPPersistent");
       if (!cp_sp_bytes.empty()) {
         AlignedBuffer aligned_buf_sp;
@@ -333,21 +265,16 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
         cereal::CarParamsSP::Reader CP_SP = cmsg_sp.getRoot<cereal::CarParamsSP>();
         bool has_vehicle_bus = CP_SP.getFlags() & 1;  // 1 == TeslaFlagsSP.HAS_VEHICLE_BUS
         is_limited = !has_vehicle_bus;
-        LOGE("DEBUG MADS: Tesla has_vehicle_bus = %d, is_limited = %d", has_vehicle_bus, is_limited);
       } else {
-        LOGE("DEBUG MADS: Tesla CarParamsSPPersistent empty - defaulting to limited");
         is_limited = true;  // Default to limited if we can't check
       }
     } else {
-      LOGE("DEBUG MADS: Brand '%s' is NOT limited", brand.c_str());
       is_limited = false;
     }
 
     // Compare the result with the expected value from JSON
     bool expected = condition.toBool();
-    bool result = (is_limited == expected);
-    LOGE("DEBUG MADS: is_limited=%d, expected=%d, condition passes=%d", is_limited, expected, result);
-    return result;
+    return (is_limited == expected);
   } else if (conditionType == "hasBlindSpotMonitoring") {
     auto cp_bytes = params.get("CarParamsPersistent");
     if (cp_bytes.empty()) {
@@ -427,29 +354,7 @@ bool PanelConditions::validateConditionObject(const QJsonObject &conditionObj) {
   }
 
   for (auto it = conditionObj.begin(); it != conditionObj.end(); ++it) {
-    QString key = it.key();
-    QJsonValue value = it.value();
-
-    // DEBUG: Log the specific condition being checked
-    if (key == "isMadsLimitedBrand" || key.contains("Mads", Qt::CaseInsensitive)) {
-      QString valueStr;
-      if (value.isBool()) {
-        valueStr = value.toBool() ? "true" : "false";
-      } else if (value.isString()) {
-        valueStr = value.toString();
-      } else {
-        valueStr = "complex value";
-      }
-      LOGE("DEBUG MADS VALIDATION: Checking '%s' must be '%s'", key.toStdString().c_str(), valueStr.toStdString().c_str());
-    }
-
-    bool result = PanelConditions::validateSingleCondition(it.key(), it.value());
-
-    if (key == "isMadsLimitedBrand" || key.contains("Mads", Qt::CaseInsensitive)) {
-      LOGE("DEBUG MADS VALIDATION: '%s' check returned %s", key.toStdString().c_str(), result ? "TRUE (passed)" : "FALSE (failed)");
-    }
-
-    if (!result) {
+    if (!PanelConditions::validateSingleCondition(it.key(), it.value())) {
       return false;
     }
   }
@@ -493,7 +398,6 @@ bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions)
 
   if (conditions.contains("allConditionsTrue")) {
     QJsonArray allConditions = conditions["allConditionsTrue"].toArray();
-    LOGE("DEBUG MADS COMPOSITE: Evaluating allConditionsTrue with %d conditions", allConditions.size());
     for (const auto &condition : allConditions) {
       if (condition.isObject()) {
         QJsonObject condObj = condition.toObject();
@@ -502,24 +406,15 @@ bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions)
         if (condObj.contains("allConditionsTrue") || condObj.contains("anyConditionsTrue")) {
           conditionResult = validateCompositeConditions(condObj);
         } else {
-          // DEBUG: Log what condition is being checked
-          QStringList keys;
-          for (auto it = condObj.begin(); it != condObj.end(); ++it) {
-            keys << it.key();
-          }
-          LOGE("DEBUG MADS COMPOSITE: Checking condition with keys: %s", keys.join(", ").toStdString().c_str());
           conditionResult = validateConditionObject(condObj);
-          LOGE("DEBUG MADS COMPOSITE: Condition result = %s", conditionResult ? "TRUE (condition met)" : "FALSE (condition NOT met)");
         }
 
         if (!conditionResult) {
-          LOGE("DEBUG MADS COMPOSITE: allConditionsTrue FAILED - returning false");
           result = false;
           break;
         }
       }
     }
-    LOGE("DEBUG MADS COMPOSITE: allConditionsTrue final result = %s", result ? "TRUE" : "FALSE");
   }
 
   return result;
@@ -629,25 +524,11 @@ bool PanelConditions::updateConditionsForWidget(QWidget *widget, const ControlCo
     }
   }
 
-  // DEBUG: Log which parameter is being evaluated
-  if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
-    LOGE("DEBUG MADS WIDGET: Evaluating widget for param '%s'", conditions.paramName.toStdString().c_str());
-    LOGE("DEBUG MADS WIDGET: hasEnableConditions=%d, hasVisibleConditions=%d",
-         conditions.hasEnableConditions, conditions.hasVisibleConditions);
-  }
-
   // Determine enabled state
   bool shouldBeEnabled = true;
   if (conditions.hasEnableConditions) {
     // Use new enableConditions
-    if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
-      LOGE("DEBUG MADS WIDGET: Evaluating enableConditions for '%s'", conditions.paramName.toStdString().c_str());
-    }
     shouldBeEnabled = validateCompositeConditions(conditions.enableConditions);
-    if (!conditions.paramName.isEmpty() && conditions.paramName.contains("Mads", Qt::CaseInsensitive)) {
-      LOGE("DEBUG MADS WIDGET: enableConditions result for '%s' = %s",
-           conditions.paramName.toStdString().c_str(), shouldBeEnabled ? "TRUE (enabled)" : "FALSE (disabled)");
-    }
   } else if (conditions.hasConditions) {
     // Legacy: use conditions for enabled state
     shouldBeEnabled = validateCompositeConditions(conditions.conditions);
@@ -768,21 +649,10 @@ QString PanelConditions::evaluateDescription(const ControlConditions &conditions
       QString key = it.key();
       QJsonObject conditionObj = it.value();
 
-      // DEBUG: Log MADS-related description evaluation
-      if (key.contains("limited", Qt::CaseInsensitive) || conditions.descriptions[key].contains("limited", Qt::CaseInsensitive)) {
-        LOGE("DEBUG MADS DESC: Evaluating description key '%s'", key.toStdString().c_str());
-      }
-
       if (validateCompositeConditions(conditionObj)) {
         // Found a matching condition, return its description
         if (conditions.descriptions.contains(key)) {
           description = conditions.descriptions[key];
-
-          // DEBUG: Log if "limited" description is selected
-          if (key.contains("limited", Qt::CaseInsensitive) || description.contains("limited", Qt::CaseInsensitive)) {
-            LOGE("DEBUG MADS DESC: Selected description key '%s' - description contains 'limited'", key.toStdString().c_str());
-            LOGE("DEBUG MADS DESC: Description snippet: %.100s...", description.toStdString().c_str());
-          }
           break;
         }
       }
