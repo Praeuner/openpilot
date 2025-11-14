@@ -640,9 +640,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         # reset steering by setting all values to 0 and ramp_type to immediate
         if reset_steering == 1:
-          apply_curvature = 0
+          # apply_curvature = 0 reset is done above before rate limiting
           path_offset = 0
-          path_angle = 0
+          # path_angle = 0 reset is done above before rate limiting
           desired_curvature_rate = 0
           ramp_type = 3
           self.path_angle_deque.clear()
