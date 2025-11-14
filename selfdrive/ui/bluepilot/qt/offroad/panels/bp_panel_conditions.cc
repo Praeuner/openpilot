@@ -409,7 +409,29 @@ bool PanelConditions::validateConditionObject(const QJsonObject &conditionObj) {
   }
 
   for (auto it = conditionObj.begin(); it != conditionObj.end(); ++it) {
-    if (!PanelConditions::validateSingleCondition(it.key(), it.value())) {
+    QString key = it.key();
+    QJsonValue value = it.value();
+
+    // DEBUG: Log the specific condition being checked
+    if (key == "isMadsLimitedBrand" || key.contains("Mads", Qt::CaseInsensitive)) {
+      QString valueStr;
+      if (value.isBool()) {
+        valueStr = value.toBool() ? "true" : "false";
+      } else if (value.isString()) {
+        valueStr = value.toString();
+      } else {
+        valueStr = "complex value";
+      }
+      LOGE("DEBUG MADS VALIDATION: Checking '%s' must be '%s'", key.toStdString().c_str(), valueStr.toStdString().c_str());
+    }
+
+    bool result = PanelConditions::validateSingleCondition(it.key(), it.value());
+
+    if (key == "isMadsLimitedBrand" || key.contains("Mads", Qt::CaseInsensitive)) {
+      LOGE("DEBUG MADS VALIDATION: '%s' check returned %s", key.toStdString().c_str(), result ? "TRUE (passed)" : "FALSE (failed)");
+    }
+
+    if (!result) {
       return false;
     }
   }
@@ -453,6 +475,7 @@ bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions)
 
   if (conditions.contains("allConditionsTrue")) {
     QJsonArray allConditions = conditions["allConditionsTrue"].toArray();
+    LOGE("DEBUG MADS COMPOSITE: Evaluating allConditionsTrue with %d conditions", allConditions.size());
     for (const auto &condition : allConditions) {
       if (condition.isObject()) {
         QJsonObject condObj = condition.toObject();
@@ -461,15 +484,24 @@ bool PanelConditions::validateCompositeConditions(const QJsonObject &conditions)
         if (condObj.contains("allConditionsTrue") || condObj.contains("anyConditionsTrue")) {
           conditionResult = validateCompositeConditions(condObj);
         } else {
+          // DEBUG: Log what condition is being checked
+          QStringList keys;
+          for (auto it = condObj.begin(); it != condObj.end(); ++it) {
+            keys << it.key();
+          }
+          LOGE("DEBUG MADS COMPOSITE: Checking condition with keys: %s", keys.join(", ").toStdString().c_str());
           conditionResult = validateConditionObject(condObj);
+          LOGE("DEBUG MADS COMPOSITE: Condition result = %s", conditionResult ? "TRUE (condition met)" : "FALSE (condition NOT met)");
         }
 
         if (!conditionResult) {
+          LOGE("DEBUG MADS COMPOSITE: allConditionsTrue FAILED - returning false");
           result = false;
           break;
         }
       }
     }
+    LOGE("DEBUG MADS COMPOSITE: allConditionsTrue final result = %s", result ? "TRUE" : "FALSE");
   }
 
   return result;
