@@ -117,6 +117,8 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     # Variables to initialize (these get updated every scan as part of the control code)
     self.precision_type = 1  # precise or comfort
     self.human_turn = False  # have we detected a human override in a turn
+    self.post_reset_ramp_active = False  # track if we're ramping after a steering reset
+    self.reset_steering_last = False  # track previous reset_steering state
     self.enable_lane_positioning = False # Updated from UI: enable Advanced Lane Positioning
     self.enable_high_curvature_mode = False # Updated from UI: enable High Curvature Mode
     self.custom_profile = 0 # updated from UI
@@ -474,6 +476,32 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         #if reset_steering is 1, set apply_curvature to 0
         if reset_steering == 1:
           apply_curvature = 0.0
+          self.post_reset_ramp_active = False  # Cancel any active ramp when resetting
+        else:
+          # Detect transition from reset to normal (reset_steering goes from 1 to 0)
+          if self.reset_steering_last and not reset_steering:
+            # Just came out of reset, start post-reset ramp
+            self.post_reset_ramp_active = True
+            self.apply_curvature_last = 0.0  # Reset to ensure clean ramp from 0
+
+        # Post-reset ramp logic: gradually ramp from 0 to requested curvature
+        # Keep path_angle = 0 during ramp to maintain bypass in ford.h
+        if self.post_reset_ramp_active:
+          # Use rate limits to gradually ramp up from 0 towards requested_curvature
+          # This prevents blocked messages when transitioning out of reset
+          apply_curvature = apply_std_steer_angle_limits(requested_curvature, self.apply_curvature_last,
+                                                         CS.out.vEgoRaw, 0, CC.latActive, CarControllerParams.ANGLE_LIMITS)
+
+          # Check if we've ramped close enough to requested curvature (within 10% or 0.001, whichever is larger)
+          curvature_error = abs(requested_curvature - apply_curvature)
+          curvature_threshold = max(abs(requested_curvature) * 0.1, 0.001)
+
+          if curvature_error < curvature_threshold:
+            # Ramp complete, exit post-reset mode
+            self.post_reset_ramp_active = False
+
+        # Update reset_steering_last for next frame
+        self.reset_steering_last = (reset_steering == 1)
 
         # detect if steering was limited (lanes changes always trigger, but complete just fine)
         if (requested_curvature != apply_curvature) and (not steeringPressed) and (not self.lane_change):
@@ -572,6 +600,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
           path_angle_low_c = 0.0
 
         # reset path angle if steering reset is active
+        # During post-reset ramp, path_angle can ramp normally (latch in ford.h handles bypass)
         if reset_steering == 1:
           path_angle_low_c = 0.0
 
@@ -599,6 +628,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         )
 
         # reset path angle if steering reset is active
+        # During post-reset ramp, path_angle can ramp normally (latch in ford.h handles bypass)
         if reset_steering == 1:
           path_angle = 0.0
 

@@ -207,6 +207,13 @@ static const AngleSteeringLimits FORD_STEERING_LIMITS = FORD_LIMITS(false);
 
 static int desired_path_angle_last = 0;
 
+// Reset latch: allows bypass for a short period after reset (both curvature and path_angle = 0)
+// This enables smooth ramp-up after human turn detection without blocked messages
+// Latch activates when reset detected, stays active for ~1.5 seconds (30 frames at 20Hz)
+// Prevents exploitation by requiring reset state first and having a timeout
+static uint8_t reset_bypass_latch_counter = 0;
+static const uint8_t RESET_BYPASS_LATCH_DURATION = 30;  // ~1.5 seconds at 20Hz
+
 static bool path_angle_cmd_checks(int desired_path_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
   bool violation = false;
 
@@ -521,9 +528,15 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     //   print("CAN Out: 4. violation:"); puti(violation); print("`\n");
     // }
 
-    // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
-    // This is safe because it represents a "do nothing" command to the PSCM
+    // Reset latch: activate when both curvature and path_angle are zero (reset/neutral state)
+    // This allows smooth ramp-up after human turn detection without blocked messages
     if ((desired_curvature == 0) && (desired_path_angle == 0)) {
+      // Reset detected, activate latch for ramp period
+      reset_bypass_latch_counter = RESET_BYPASS_LATCH_DURATION;
+      violation = false;  // Immediate bypass for reset state
+    } else if (reset_bypass_latch_counter > 0) {
+      // Latch active, allow bypass during ramp-up period
+      reset_bypass_latch_counter--;
       violation = false;
     }
 
@@ -614,9 +627,15 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     //   print("CANFD Out: 4. violation:"); puti(violation); print("`\n");
     // }
 
-    // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
-    // This is safe because it represents a "do nothing" command to the PSCM
+    // Reset latch: activate when both curvature and path_angle are zero (reset/neutral state)
+    // This allows smooth ramp-up after human turn detection without blocked messages
     if ((desired_curvature == 0) && (desired_path_angle == 0)) {
+      // Reset detected, activate latch for ramp period
+      reset_bypass_latch_counter = RESET_BYPASS_LATCH_DURATION;
+      violation = false;  // Immediate bypass for reset state
+    } else if (reset_bypass_latch_counter > 0) {
+      // Latch active, allow bypass during ramp-up period
+      reset_bypass_latch_counter--;
       violation = false;
     }
 
