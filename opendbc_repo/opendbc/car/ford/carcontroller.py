@@ -57,9 +57,19 @@ def anti_overshoot(apply_curvature, apply_curvature_last, v_ego):
 
 def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
-  if v_ego_raw > 9:
-    apply_curvature = np.clip(apply_curvature, current_curvature - CarControllerParams.CURVATURE_ERROR,
-                              current_curvature + CarControllerParams.CURVATURE_ERROR)
+  # When transitioning across the speed threshold, gradually blend towards current_curvature
+  # to prevent safety violations when angle error enforcement activates
+  # The safety code enforces angle error limits above 12.5 m/s (FORD_LIMITS.angle_error_min_speed)
+  # with max_angle_error = 0.003 (150 CAN units). We start blending earlier (8-10 m/s) to provide
+  # a buffer between what we request and what safety enforces
+  if v_ego_raw > 8.0:
+    # Gradually increase blending towards current_curvature as we approach the threshold
+    # Start blending at 8 m/s, full enforcement at 10 m/s (provides buffer before safety's 12.5 m/s threshold)
+    blend_factor = np.clip((v_ego_raw - 8.0) / 2.0, 0.0, 1.0)  # 0 at 8 m/s, 1 at 10 m/s
+    # Use the safety code's max_angle_error (0.003) when fully blended, match Python's CURVATURE_ERROR (0.002) otherwise
+    max_error = interp(blend_factor, [0.0, 1.0], [CarControllerParams.CURVATURE_ERROR, 0.003])
+    apply_curvature = np.clip(apply_curvature, current_curvature - max_error,
+                              current_curvature + max_error)
 
   # Curvature rate limit after driver torque limit
   apply_curvature = apply_std_steer_angle_limits(apply_curvature, apply_curvature_last, v_ego_raw, steering_angle, lat_active, CarControllerParams.ANGLE_LIMITS)
@@ -374,7 +384,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         self.precision_type = 1
         steeringPressed = CS.out.steeringPressed
         steeringAngleDeg_PV = CS.out.steeringAngleDeg
-        steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # determine tuning profile
         if self.custom_profile == 1: # custom tuning profile
@@ -524,12 +533,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.lane_change:
           desired_curvature_rate = 0.0
 
-        # Determine if a human is making a turn and trap the value
-        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
-          self.human_turn = True
-        else:
-          self.human_turn = False
-
         # get path offset from model.position.y
         path_offset_position = interp(self.path_offset_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
 
@@ -597,14 +600,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         # sum path_angle_low_c and path_angle_high_c
         path_angle = path_angle_low_c + path_angle_high_c
 
-        # zero path_angle during lane changes
-        if self.lane_change:
-          path_angle = 0.0
-
-        # reset path angle if steering reset is active
-        if reset_steering == 1:
-          path_angle = 0.0
-
         # Apply post lane change transition logic
         path_angle, path_offset, desired_curvature_rate = self.handle_post_lane_change_transition(
             path_angle, path_offset, desired_curvature_rate
@@ -640,10 +635,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         # reset steering by setting all values to 0 and ramp_type to immediate
         if reset_steering == 1:
-          # apply_curvature = 0 reset is done above before rate limiting
-          path_offset = 0
-          # path_angle = 0 reset is done above before rate limiting
-          desired_curvature_rate = 0
           ramp_type = 3
           self.path_angle_deque.clear()
           self.HC_PID_controller.reset()
