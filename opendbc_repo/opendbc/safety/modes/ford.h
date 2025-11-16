@@ -114,8 +114,8 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *msg) {
   },                                                                                            \
                                                                                                 \
   /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */ \
-  /* Lower threshold slightly to allow gradual enforcement before full activation at 10 m/s */   \
-  .angle_error_min_speed = 9.5,    /* m/s */                                                   \
+  /* Lower threshold slightly to allow gradual enforcement before full activation at 13 m/s */   \
+  .angle_error_min_speed = 12.5,    /* m/s */                                                   \
                                                                                                 \
   .angle_is_curvature = (limit_lateral_acceleration),                                           \
   .enforce_angle_error = true,                                                                  \
@@ -522,10 +522,6 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     //   print("CAN Out: 4. violation:"); puti(violation); print("`\n");
     // }
 
-    // Check ramp type (ramp type 3 means the driver has hands on wheel and overriding the system)
-    // if (raw_ramp_type == 3) {
-    //   violation = false;
-    // }
 
     // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
     // This is safe because it represents a "do nothing" command to the PSCM
@@ -618,12 +614,6 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     violation |= curvature_rate_cmd_checks(desired_curvature_rate, steer_control_enabled, FORD_CURVATURE_RATE_LIMITS_CANFD);
     // if(test){
     //   print("CANFD Out: 4. violation:"); puti(violation); print("`\n");
-    // }
-
-    // Check ramp type (ramp type 3 means the driver has hands on wheel and overriding the system)
-    // to ensure we don't offer a way to bypass panda, let's close this loophole
-    // if (raw_ramp_type == 3) {
-    //   violation = false;
     // }
 
     // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
