@@ -103,7 +103,7 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *msg) {
 #define FORD_LIMITS(limit_lateral_acceleration) {                                               \
   .max_angle = 1000,          /* 0.02 curvature */                                              \
   .angle_deg_to_can = 50000,  /* 1 / (2e-5) rad to can */                                       \
-  .max_angle_error = 150,     /* 0.003 * FORD_STEERING_LIMITS.angle_deg_to_can - increased tolerance for transitions */ \
+  .max_angle_error = 100,     /* 0.002 * FORD_STEERING_LIMITS.angle_deg_to_can */               \
   .angle_rate_up_lookup = {                                                                     \
     {5., 16., 25.},                                                                             \
     {0.0026, 0.0013, 0.0001}                                                                   \
@@ -114,8 +114,7 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *msg) {
   },                                                                                            \
                                                                                                 \
   /* no blending at low speed due to lack of torque wind-up and inaccurate current curvature */ \
-  /* Lower threshold slightly to allow gradual enforcement before full activation at 13 m/s */   \
-  .angle_error_min_speed = 12.5,    /* m/s */                                                   \
+  .angle_error_min_speed = 10.0,    /* m/s */                                                   \
                                                                                                 \
   .angle_is_curvature = (limit_lateral_acceleration),                                           \
   .enforce_angle_error = true,                                                                  \
@@ -521,7 +520,6 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     // if(test){
     //   print("CAN Out: 4. violation:"); puti(violation); print("`\n");
     // }
-
 
     // Allow bypass when both curvature and path_angle are zero (reset/neutral state)
     // This is safe because it represents a "do nothing" command to the PSCM
