@@ -1,36 +1,12 @@
 import { useEffect, useState } from 'react'
 import { systemAPI } from '@/services/api'
 import { Modal } from '@/components/common'
+import type { SystemMetrics } from '@/types'
 import './MetricsModal.css'
 
 interface MetricsModalProps {
   isOpen: boolean
   onClose: () => void
-}
-
-interface SystemMetrics {
-  cpu: {
-    load_avg: number
-    load_1min: number
-    load_5min: number
-    cores_online: number
-  }
-  memory: {
-    percent: number
-    used_gb: number
-    available_gb: number
-    total_gb: number
-  }
-  disk: {
-    percent: number
-    used_gb: number
-    free_gb: number
-    total_gb: number
-  }
-  temperature: {
-    value: number
-    status: 'normal' | 'warning' | 'critical'
-  }
 }
 
 export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
@@ -49,7 +25,7 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
   const loadMetrics = async () => {
     try {
       const data = await systemAPI.getMetrics()
-      setMetrics(data as any)
+      setMetrics(data)
       setLoading(false)
     } catch (error) {
       console.error('Failed to load metrics:', error)
@@ -57,7 +33,20 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
     }
   }
 
+  // Helper to determine temperature status
+  const getTempStatus = (temp?: number): 'normal' | 'warning' | 'critical' => {
+    if (!temp) return 'normal'
+    if (temp >= 80) return 'critical'
+    if (temp >= 70) return 'warning'
+    return 'normal'
+  }
+
+  // Helper to convert bytes to GB
+  const bytesToGB = (bytes: number): number => bytes / (1024 ** 3)
+
   if (!isOpen) return null
+
+  const tempStatus = getTempStatus(metrics?.temperature)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="System Health Metrics">
@@ -69,21 +58,17 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
           <div className="metric-card">
             <h3>CPU</h3>
             <div className="metric-value">
-              <span className="value-large">{metrics?.cpu.load_avg.toFixed(2) || '--'}</span>
+              <span className="value-large">{metrics?.cpu_load?.toFixed(2) ?? '--'}</span>
               <span className="unit">load</span>
             </div>
             <div className="metric-details">
               <div className="metric-row">
-                <span>1min:</span>
-                <span>{metrics?.cpu.load_1min.toFixed(2) || '--'}</span>
+                <span>Cores:</span>
+                <span>{metrics?.cpu_cores ?? '--'}</span>
               </div>
               <div className="metric-row">
-                <span>5min:</span>
-                <span>{metrics?.cpu.load_5min.toFixed(2) || '--'}</span>
-              </div>
-              <div className="metric-row">
-                <span>Cores online:</span>
-                <span>{metrics?.cpu.cores_online || '--'}</span>
+                <span>FFmpeg:</span>
+                <span>{metrics?.ffmpeg_processes ?? 0} processes</span>
               </div>
             </div>
           </div>
@@ -92,23 +77,23 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
           <div className="metric-card">
             <h3>Memory</h3>
             <div className="metric-value">
-              <span className="value-large">{metrics?.memory.percent.toFixed(1) || '--'}</span>
+              <span className="value-large">{metrics?.memory_percent?.toFixed(1) ?? '--'}</span>
               <span className="unit">%</span>
             </div>
             <div className="metric-bar">
               <div
                 className="metric-bar-fill"
-                style={{ width: `${metrics?.memory.percent || 0}%` }}
+                style={{ width: `${metrics?.memory_percent ?? 0}%` }}
               />
             </div>
             <div className="metric-details">
               <div className="metric-row">
                 <span>Used:</span>
-                <span>{metrics?.memory.used_gb.toFixed(1) || '--'} GB</span>
+                <span>{metrics ? bytesToGB(metrics.memory_used).toFixed(1) : '--'} GB</span>
               </div>
               <div className="metric-row">
-                <span>Available:</span>
-                <span>{metrics?.memory.available_gb.toFixed(1) || '--'} GB</span>
+                <span>Total:</span>
+                <span>{metrics ? bytesToGB(metrics.memory_total).toFixed(1) : '--'} GB</span>
               </div>
             </div>
           </div>
@@ -117,23 +102,23 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
           <div className="metric-card">
             <h3>Disk (/data)</h3>
             <div className="metric-value">
-              <span className="value-large">{metrics?.disk.percent.toFixed(1) || '--'}</span>
+              <span className="value-large">{metrics?.disk_percent?.toFixed(1) ?? '--'}</span>
               <span className="unit">%</span>
             </div>
             <div className="metric-bar">
               <div
                 className="metric-bar-fill"
-                style={{ width: `${metrics?.disk.percent || 0}%` }}
+                style={{ width: `${metrics?.disk_percent ?? 0}%` }}
               />
             </div>
             <div className="metric-details">
               <div className="metric-row">
                 <span>Used:</span>
-                <span>{metrics?.disk.used_gb.toFixed(1) || '--'} GB</span>
+                <span>{metrics ? bytesToGB(metrics.disk_used).toFixed(1) : '--'} GB</span>
               </div>
               <div className="metric-row">
-                <span>Free:</span>
-                <span>{metrics?.disk.free_gb.toFixed(1) || '--'} GB</span>
+                <span>Total:</span>
+                <span>{metrics ? bytesToGB(metrics.disk_total).toFixed(1) : '--'} GB</span>
               </div>
             </div>
           </div>
@@ -142,18 +127,24 @@ export const MetricsModal = ({ isOpen, onClose }: MetricsModalProps) => {
           <div className="metric-card">
             <h3>Temperature</h3>
             <div className="metric-value">
-              <span className={`value-large temp-${metrics?.temperature.status || 'normal'}`}>
-                {metrics?.temperature.value || '--'}
+              <span className={`value-large temp-${tempStatus}`}>
+                {metrics?.temperature ?? '--'}
               </span>
               <span className="unit">°C</span>
             </div>
             <div className="metric-details">
               <div className="metric-row">
                 <span>Status:</span>
-                <span className={`status-${metrics?.temperature.status || 'normal'}`}>
-                  {metrics?.temperature.status || '--'}
+                <span className={`status-${tempStatus}`}>
+                  {tempStatus}
                 </span>
               </div>
+              {metrics?.cache_size !== undefined && (
+                <div className="metric-row">
+                  <span>Cache:</span>
+                  <span>{bytesToGB(metrics.cache_size).toFixed(1)} GB</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
