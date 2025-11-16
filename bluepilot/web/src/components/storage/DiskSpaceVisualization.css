@@ -2,7 +2,7 @@
 
 .storage-bar {
   position: sticky;
-  top: 60px;
+  top: var(--header-height, 60px);
   z-index: 99;
   background: var(--bp-bg-secondary);
   border-bottom: 1px solid var(--bp-border);
@@ -35,6 +35,7 @@
   align-items: center;
   gap: 1rem;
   min-width: 0;
+  overflow: visible;
 }
 
 .storage-info {
@@ -44,6 +45,7 @@
   font-size: 0.875rem;
   color: var(--bp-text-secondary);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .storage-text {
@@ -63,7 +65,7 @@
   background: var(--bp-bg-tertiary);
   border-radius: 4px;
   overflow: hidden;
-  min-width: 100px;
+  min-width: 80px;
   max-width: 400px;
 }
 
@@ -186,6 +188,16 @@
 }
 
 /* Responsive storage bar */
+@media (max-width: 900px) {
+  .storage-legend {
+    display: none;
+  }
+
+  .storage-gauge {
+    min-width: 60px;
+  }
+}
+
 @media (max-width: 768px) {
   .storage-bar-content {
     flex-direction: column;
@@ -195,13 +207,92 @@
   .storage-bar-left {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
 
   .storage-gauge {
     max-width: none;
+    width: 100%;
+    min-width: 0 !important;
+    order: 1;
+    flex: revert;
+  }
+
+  .storage-info {
+    order: 0;
+  }
+
+  .storage-legend {
+    display: flex;
+    order: 2;
+  }
+
+  .storage-stats {
+    order: 3;
   }
 
   .storage-bar-right {
     justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .storage-stats {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .storage-badge {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .storage-bar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .storage-bar-left {
+    gap: 0.5rem;
+  }
+
+  .storage-gauge {
+    min-width: 0 !important;
+    height: 6px;
+  }
+
+  .storage-info {
+    font-size: 0.8rem;
+  }
+
+  .storage-text {
+    font-size: 0.75rem;
+  }
+
+  .storage-legend {
+    gap: 0.5rem;
+  }
+
+  .storage-legend-item {
+    font-size: 0.65rem;
+  }
+
+  .storage-stats {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .storage-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .storage-badge svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .storage-bar-right {
+    gap: 0.25rem;
   }
 }

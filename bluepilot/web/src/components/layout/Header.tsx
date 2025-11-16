@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useWebSocketStore } from '@/stores/useWebSocketStore'
 import './Header.css'
@@ -14,6 +15,7 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick, subtitle }: 
   const { connected } = useWebSocketStore()
   const isHome = location.pathname === '/'
   const isRoutesPage = location.pathname.startsWith('/routes')
+  const headerRef = useRef<HTMLElement | null>(null)
 
   const getTitle = () => {
     if (location.pathname === '/') return 'BluePilot'
@@ -34,8 +36,24 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick, subtitle }: 
     checking: 'Checking...',
   }
 
+  useLayoutEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const height = headerRef.current.getBoundingClientRect().height
+        document.documentElement.style.setProperty('--header-height', `${height}px`)
+      }
+    }
+
+    updateHeaderHeight()
+    window.addEventListener('resize', updateHeaderHeight)
+
+    return () => {
+      window.removeEventListener('resize', updateHeaderHeight)
+    }
+  }, [location.pathname, subtitle])
+
   return (
-    <header className="header">
+    <header className="header" ref={headerRef}>
       {!isHome && (
         <button
           className="icon-btn home-btn"

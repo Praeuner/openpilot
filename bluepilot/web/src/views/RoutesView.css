@@ -139,12 +139,7 @@
 }
 
 .route-info-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   margin-bottom: 10px;
-  flex-wrap: wrap;
 }
 
 .route-time-range {
@@ -154,8 +149,6 @@
   align-items: center;
   gap: 6px;
   color: var(--bp-text-primary);
-  flex: 1;
-  min-width: 0;
 }
 
 .route-preserve-btn {
@@ -200,7 +193,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bp-border);
 }
 
 .route-export-btn {
@@ -228,6 +223,29 @@
 .route-export-btn:hover {
   background: rgba(76, 175, 80, 0.25);
   border-color: rgba(76, 175, 80, 0.45);
+}
+
+.route-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(244, 67, 54, 0.16);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: var(--bp-error);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.route-delete-btn svg {
+  flex-shrink: 0;
+}
+
+.route-delete-btn:hover {
+  background: rgba(244, 67, 54, 0.25);
+  border-color: rgba(244, 67, 54, 0.45);
 }
 
 .route-location {

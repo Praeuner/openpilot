@@ -3137,13 +3137,126 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                                 'error': message
                             }, 500)
 
+                    elif action == 'manage_ssh_keys':
+                        # Manage SSH keys (add/remove GitHub SSH keys)
+                        username = data.get('username')
+                        remove = data.get('remove', False)
+
+                        if remove:
+                            # Remove SSH keys
+                            params.remove('GithubUsername')
+                            params.remove('GithubSshKeys')
+                            self.send_json_response({
+                                'success': True,
+                                'message': 'SSH keys have been removed'
+                            })
+                        elif username:
+                            # Fetch and add SSH keys from GitHub
+                            try:
+                                response = requests.get(f'https://github.com/{username}.keys', timeout=10)
+                                if response.status_code == 200:
+                                    keys = response.text.strip()
+                                    if keys:
+                                        params.put('GithubUsername', username)
+                                        params.put('GithubSshKeys', keys)
+                                        self.send_json_response({
+                                            'success': True,
+                                            'message': f'SSH keys have been added for user: {username}'
+                                        })
+                                    else:
+                                        self.send_json_response({
+                                            'success': False,
+                                            'error': f"Username '{username}' has no keys on GitHub"
+                                        }, 400)
+                                else:
+                                    self.send_json_response({
+                                        'success': False,
+                                        'error': f"Username '{username}' doesn't exist on GitHub"
+                                    }, 404)
+                            except requests.Timeout:
+                                self.send_json_response({
+                                    'success': False,
+                                    'error': 'Request timed out'
+                                }, 408)
+                            except Exception as e:
+                                logger.exception(f"Error fetching SSH keys for {username}")
+                                self.send_json_response({
+                                    'success': False,
+                                    'error': f'Failed to fetch SSH keys: {str(e)}'
+                                }, 500)
+                        else:
+                            # Return current state
+                            current_username = params.get('GithubUsername', encoding='utf-8')
+                            current_keys = params.get('GithubSshKeys', encoding='utf-8')
+                            has_keys = bool(current_keys)
+
+                            self.send_json_response({
+                                'success': True,
+                                'has_keys': has_keys,
+                                'username': current_username if has_keys else None
+                            })
+
+                    elif action == 'set_copyparty_password':
+                        # Set Copyparty password
+                        password = data.get('password', '')
+
+                        if password is None:
+                            self.send_json_response({
+                                'success': False,
+                                'error': 'Missing password field'
+                            }, 400)
+                            return
+
+                        # Empty string means remove password
+                        if password == '':
+                            params.remove('CopypartyPassword')
+                        else:
+                            params.put('CopypartyPassword', password)
+
+                        self.send_json_response({
+                            'success': True,
+                            'message': 'Password saved. Reboot required to apply changes.',
+                            'requires_reboot': True
+                        })
+
+                    elif action == 'view_error_log':
+                        # View error log
+                        error_log_path = '/data/community/crashes/error.log'
+
+                        try:
+                            if os.path.exists(error_log_path):
+                                with open(error_log_path, 'r') as f:
+                                    content = f.read()
+
+                                # Get file modification time
+                                mtime = os.path.getmtime(error_log_path)
+                                modified_date = datetime.fromtimestamp(mtime).strftime('%d-%b-%Y %I:%M:%S %p').upper()
+
+                                self.send_json_response({
+                                    'success': True,
+                                    'content': content,
+                                    'modified': modified_date
+                                })
+                            else:
+                                self.send_json_response({
+                                    'success': True,
+                                    'content': '',
+                                    'modified': None,
+                                    'message': 'No error log found'
+                                })
+                        except Exception as e:
+                            logger.exception("Error reading error log")
+                            self.send_json_response({
+                                'success': False,
+                                'error': f'Failed to read error log: {str(e)}'
+                            }, 500)
+
                     else:
                         # Unsupported actions that require Qt UI
                         qt_only_actions = [
                             'show_driver_camera', 'show_training_guide',
                             'show_language_selector', 'show_regulatory',
-                            'manage_ssh_keys', 'search_platform', 'remove_platform',
-                            'view_error_log', 'set_copyparty_password'
+                            'search_platform', 'remove_platform'
                         ]
 
                         if action in qt_only_actions:

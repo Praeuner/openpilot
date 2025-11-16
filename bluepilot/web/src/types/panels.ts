@@ -339,12 +339,26 @@ export interface PanelCommandRequest {
   param?: string
   value?: any
   params?: string[]
+  // manage_ssh_keys action
+  username?: string
+  remove?: boolean
+  // set_copyparty_password action
+  password?: string
 }
 
 export interface PanelCommandResponse {
   success: boolean
   error?: string
   hint?: string
+  message?: string
   removed?: string[]
   failed?: string[]
+  // manage_ssh_keys action
+  has_keys?: boolean
+  username?: string
+  // set_copyparty_password action
+  requires_reboot?: boolean
+  // view_error_log action
+  content?: string
+  modified?: string
 }

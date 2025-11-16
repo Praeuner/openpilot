@@ -3,12 +3,12 @@
  * Renders a button that executes commands or actions
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { CommandButtonControl } from '@/types/panels'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { panelAPI } from '@/services/panelAPI'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
-import { Button, ControlCard, Modal } from '@/components/common'
+import { Button, ControlCard, Modal, InputDialog } from '@/components/common'
 import './CommandButton.css'
 
 const DEVICE_UI_ACTIONS = new Set([
@@ -27,8 +27,19 @@ interface CommandButtonProps {
 export function CommandButton({ control, disabled, disabledReason }: CommandButtonProps) {
   const panelState = usePanelStateStore((state) => state.state)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showInput, setShowInput] = useState(false)
+  const [showContent, setShowContent] = useState(false)
   const [executing, setExecuting] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message?: string } | null>(null)
+  const [sshKeysState, setSshKeysState] = useState<{ has_keys: boolean; username?: string } | null>(null)
+  const [contentData, setContentData] = useState<{ content: string; modified?: string } | null>(null)
+  const [inputConfig, setInputConfig] = useState<{
+    title: string
+    message: string
+    placeholder?: string
+    defaultValue?: string
+    isPassword?: boolean
+  } | null>(null)
 
   // Get dynamic description - pass empty params since buttons don't depend on param values
   const description = getDynamicDescription(control, panelState, {})
@@ -38,15 +49,146 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
       'This action requires the device UI. Please make this change directly on your comma device.'
     : null
 
-  const handleClick = () => {
+  // Load SSH keys state on mount if this is the manage_ssh_keys action
+  useEffect(() => {
+    if (control.action === 'manage_ssh_keys') {
+      loadSshKeysState()
+    }
+  }, [control.action])
+
+  const loadSshKeysState = async () => {
+    try {
+      const response = await panelAPI.executePanelCommand({
+        action: 'manage_ssh_keys',
+      })
+      if (response.success) {
+        setSshKeysState({
+          has_keys: response.has_keys || false,
+          username: response.username,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load SSH keys state:', error)
+    }
+  }
+
+  const handleClick = async () => {
     if (requiresDeviceUI) {
       return
     }
 
-    if (control.confirm) {
+    // Handle special interactive actions
+    if (control.action === 'manage_ssh_keys') {
+      handleManageSshKeys()
+    } else if (control.action === 'set_copyparty_password') {
+      handleSetCopypartyPassword()
+    } else if (control.action === 'view_error_log') {
+      handleViewErrorLog()
+    } else if (control.confirm) {
       setShowConfirm(true)
     } else {
       executeCommand()
+    }
+  }
+
+  const handleManageSshKeys = async () => {
+    if (sshKeysState?.has_keys) {
+      // Show confirmation to remove
+      setInputConfig({
+        title: 'Remove SSH Keys',
+        message: `Current GitHub username: <b>${sshKeysState.username}</b><br><br>Warning: This grants SSH access to all public keys in your GitHub settings. Never enter a GitHub username other than your own. A comma employee will NEVER ask you to add their GitHub username.<br><br>Do you want to remove these SSH keys?`,
+      })
+      setShowConfirm(true)
+    } else {
+      // Show input dialog for GitHub username
+      setInputConfig({
+        title: 'Enter your GitHub username',
+        message: 'Warning: This grants SSH access to all public keys in your GitHub settings. Never enter a GitHub username other than your own. A comma employee will NEVER ask you to add their GitHub username.',
+        placeholder: 'GitHub username',
+      })
+      setShowInput(true)
+    }
+  }
+
+  const handleSetCopypartyPassword = () => {
+    setInputConfig({
+      title: 'Set Copyparty Password',
+      message: 'Enter a password to protect your Copyparty server.<br>Leave empty to disable password protection.',
+      placeholder: 'Password',
+      isPassword: true,
+    })
+    setShowInput(true)
+  }
+
+  const handleViewErrorLog = async () => {
+    setExecuting(true)
+    setResult(null)
+
+    try {
+      const response = await panelAPI.executePanelCommand({
+        action: 'view_error_log',
+      })
+
+      if (response.success) {
+        setContentData({
+          content: response.content || 'No error log found',
+          modified: response.modified,
+        })
+        setShowContent(true)
+      } else {
+        setResult({
+          success: false,
+          message: response.error || 'Failed to load error log',
+        })
+      }
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to load error log',
+      })
+    } finally {
+      setExecuting(false)
+    }
+  }
+
+  const handleInputSubmit = async (value: string) => {
+    setShowInput(false)
+    setExecuting(true)
+    setResult(null)
+
+    try {
+      let response
+
+      if (control.action === 'manage_ssh_keys') {
+        // Add SSH keys with GitHub username
+        response = await panelAPI.executePanelCommand({
+          action: 'manage_ssh_keys',
+          username: value,
+        })
+        if (response.success) {
+          await loadSshKeysState() // Reload state
+        }
+      } else if (control.action === 'set_copyparty_password') {
+        // Set Copyparty password
+        response = await panelAPI.executePanelCommand({
+          action: 'set_copyparty_password',
+          password: value,
+        })
+      } else {
+        response = { success: false, error: 'Unknown action' }
+      }
+
+      setResult({
+        success: response.success,
+        message: response.message || response.error || (response.success ? 'Command executed successfully' : 'Command failed'),
+      })
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Command failed',
+      })
+    } finally {
+      setExecuting(false)
     }
   }
 
@@ -56,26 +198,37 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
     setResult(null)
 
     try {
-      if (control.action) {
+      let response
+
+      if (control.action === 'manage_ssh_keys' && sshKeysState?.has_keys) {
+        // Remove SSH keys
+        response = await panelAPI.executePanelCommand({
+          action: 'manage_ssh_keys',
+          remove: true,
+        })
+        if (response.success) {
+          await loadSshKeysState() // Reload state
+        }
+      } else if (control.action) {
         // Execute panel command
-        const response = await panelAPI.executePanelCommand({
+        response = await panelAPI.executePanelCommand({
           action: control.action,
           param: control.param,
           value: control.value,
           params: control.params,
         })
-
-        setResult({
-          success: response.success,
-          message: response.error || (response.success ? 'Command executed successfully' : 'Command failed'),
-        })
       } else {
         // Unsupported - requires device UI
-        setResult({
+        response = {
           success: false,
-          message: 'This command requires the device UI. Please use the settings panel on your Comma device.',
-        })
+          error: 'This command requires the device UI. Please use the settings panel on your Comma device.',
+        }
       }
+
+      setResult({
+        success: response.success,
+        message: response.message || response.error || (response.success ? 'Command executed successfully' : 'Command failed'),
+      })
     } catch (error) {
       setResult({
         success: false,
@@ -96,6 +249,13 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
     return {}
   }
 
+  const getButtonText = () => {
+    if (control.action === 'manage_ssh_keys' && sshKeysState?.has_keys) {
+      return 'REMOVE'
+    }
+    return control.button_text
+  }
+
   return (
     <>
       <ControlCard
@@ -112,7 +272,7 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
             loading={executing}
             style={getButtonStyle()}
           >
-            {control.button_text}
+            {getButtonText()}
           </Button>
         }
       >
@@ -124,10 +284,11 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
         )}
       </ControlCard>
 
+      {/* Confirmation Modal */}
       {showConfirm && (
         <Modal
           isOpen={showConfirm}
-          title="Confirm Action"
+          title={inputConfig?.title || 'Confirm Action'}
           onClose={() => setShowConfirm(false)}
           actions={[
             {
@@ -136,13 +297,60 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
               variant: 'secondary',
             },
             {
-              label: control.confirm_button_text || control.confirm_yes_text || 'Confirm',
+              label: control.confirm_button_text || control.confirm_yes_text || (sshKeysState?.has_keys ? 'Remove' : 'Confirm'),
               onClick: executeCommand,
-              variant: 'primary',
+              variant: sshKeysState?.has_keys ? 'danger' : 'primary',
             },
           ]}
         >
-          <p>{control.confirm_text || `Are you sure you want to ${control.title}?`}</p>
+          <div dangerouslySetInnerHTML={{ __html: inputConfig?.message || control.confirm_text || `Are you sure you want to ${control.title}?` }} />
+        </Modal>
+      )}
+
+      {/* Input Dialog */}
+      {showInput && inputConfig && (
+        <InputDialog
+          isOpen={showInput}
+          onClose={() => setShowInput(false)}
+          onSubmit={handleInputSubmit}
+          title={inputConfig.title}
+          message={inputConfig.message}
+          placeholder={inputConfig.placeholder}
+          defaultValue={inputConfig.defaultValue}
+          isPassword={inputConfig.isPassword}
+        />
+      )}
+
+      {/* Content Modal (for error log) */}
+      {showContent && contentData && (
+        <Modal
+          isOpen={showContent}
+          title="Error Log"
+          onClose={() => setShowContent(false)}
+          size="large"
+          actions={[
+            {
+              label: 'Close',
+              onClick: () => setShowContent(false),
+              variant: 'secondary',
+            },
+          ]}
+        >
+          {contentData.modified && (
+            <div style={{ marginBottom: '1rem', fontWeight: 'bold' }}>{contentData.modified}</div>
+          )}
+          <pre style={{
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+            maxHeight: '60vh',
+            overflow: 'auto',
+            backgroundColor: '#f5f5f5',
+            padding: '1rem',
+            borderRadius: '4px',
+            fontSize: '0.9rem'
+          }}>
+            {contentData.content}
+          </pre>
         </Modal>
       )}
     </>

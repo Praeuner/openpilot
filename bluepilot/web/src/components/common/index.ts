@@ -2,6 +2,7 @@
 export { Button } from './Button'
 export { LoadingSpinner } from './LoadingSpinner'
 export { Modal } from './Modal'
+export { InputDialog } from './InputDialog'
 export { Tabs } from './Tabs'
 export { Toast, ToastContainer } from './Toast'
 export { WarningBanners } from './WarningBanners'

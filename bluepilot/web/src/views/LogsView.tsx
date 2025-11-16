@@ -24,7 +24,7 @@ interface LogsViewProps {
 
 // ANSI color code parser
 const parseAnsiColors = (text: string): JSX.Element[] => {
-  const ansiRegex = /\x1b\[([0-9;]+)m/g
+  const ansiRegex = /\u001b\[([0-9;]+)m/g
   const parts: JSX.Element[] = []
   let lastIndex = 0
   let currentClasses: string[] = []
