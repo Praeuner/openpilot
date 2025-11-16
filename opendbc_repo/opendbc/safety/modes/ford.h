@@ -209,10 +209,10 @@ static int desired_path_angle_last = 0;
 
 // Reset latch: allows bypass for a short period after reset (both curvature and path_angle = 0)
 // This enables smooth ramp-up after human turn detection without blocked messages
-// Latch activates when reset detected, stays active for ~1.5 seconds (30 frames at 20Hz)
+// Latch activates when reset detected, stays active for ~3 seconds (60 frames at 20Hz)
 // Prevents exploitation by requiring reset state first and having a timeout
 static uint8_t reset_bypass_latch_counter = 0;
-static const uint8_t RESET_BYPASS_LATCH_DURATION = 30;  // ~1.5 seconds at 20Hz
+static const uint8_t RESET_BYPASS_LATCH_DURATION = 60;  // ~3.0 seconds at 20Hz
 
 static bool path_angle_cmd_checks(int desired_path_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
   bool violation = false;
