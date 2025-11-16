@@ -111,6 +111,11 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
   ANGLE_RATE_UP = [0.0026, 0.0013, 0.0001]  # windup limit
   ANGLE_RATE_DOWN = [0.0026, 0.0015, 0.0002]  # unwind limit
 
+  # Reset latch: allows bypass for ~3 seconds (60 frames at 20Hz) after reset
+  # Matches ford.h RESET_BYPASS_LATCH_DURATION
+  RESET_BYPASS_LATCH_DURATION = 60
+  reset_bypass_latch_counter = 0
+
   cnt_speed = 0
   cnt_speed_2 = 0
   cnt_yaw_rate = 0
@@ -306,6 +311,9 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
     curvature_rates = np.arange(-0.001024, 0.00102375, 0.001).round(3)
     curvatures = np.arange(-0.02, 0.02094, 0.01).round(2)
 
+    # Reset latch counter at start of test
+    self.reset_bypass_latch_counter = 0
+
     for speed in (self.CURVATURE_ERROR_MIN_SPEED - 1,
                   self.CURVATURE_ERROR_MIN_SPEED + 1):
       _, curvature_accel_limit_upper = self.get_canfd_curvature_limits(speed)
@@ -330,9 +338,28 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
                   # when request bit is 0, only allow curvature of 0 since the signal range
                   # is not large enough to enforce it tracking measured
                   # ALSO allow bypass when both curvature and path_angle are 0 (reset/neutral state)
+                  # Reset latch: activate when both are 0, stay active for RESET_BYPASS_LATCH_DURATION frames
                   zero_bypass = (curvature == 0 and path_angle == 0)
+                  latch_active = False
+                  if zero_bypass:
+                    # Reset detected, activate latch
+                    self.reset_bypass_latch_counter = self.RESET_BYPASS_LATCH_DURATION
+                    latch_active = True
+                  elif self.reset_bypass_latch_counter > 0:
+                    # Latch active, allow bypass during ramp-up period
+                    self.reset_bypass_latch_counter -= 1
+                    latch_active = True
+                    zero_bypass = True  # Allow bypass during latch period
+
                   all_zeros = (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0)
-                  should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
+
+                  # If latch is active, bypass rate limit violations (but still require basic value limits from apply_limits)
+                  # The latch in ford.h sets violation=false, allowing messages that would normally violate rate limits
+                  if latch_active and steer_control_enabled and controls_allowed:
+                    # Latch bypasses rate limit violations, but basic value limits (apply_limits) must still pass
+                    should_tx = should_tx  # Keep result from apply_limits (basic value checks)
+                  else:
+                    should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
 
                   # Only CAN FD has the max lateral acceleration limit
                   if self.STEER_MESSAGE == MSG_LateralMotionControl2:
@@ -352,6 +379,9 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
     path_angles = np.arange(-0.5, 0.5235, 0.25).round(1)
     curvature_rates = np.arange(-0.001024, 0.00102375, 0.001).round(3)
     curvatures = np.arange(-0.02, 0.02094, 0.01).round(2)
+
+    # Reset latch counter at start of test
+    self.reset_bypass_latch_counter = 0
 
     # for speed in (self.CURVATURE_ERROR_MIN_SPEED - 1,
     #               self.CURVATURE_ERROR_MIN_SPEED + 1):
@@ -388,9 +418,28 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
     # when request bit is 0, only allow curvature of 0 since the signal range
     # is not large enough to enforce it tracking measured
     # ALSO allow bypass when both curvature and path_angle are 0 (reset/neutral state)
+    # Reset latch: activate when both are 0, stay active for RESET_BYPASS_LATCH_DURATION frames
     zero_bypass = (curvature == 0 and path_angle == 0)
+    latch_active = False
+    if zero_bypass:
+      # Reset detected, activate latch
+      self.reset_bypass_latch_counter = self.RESET_BYPASS_LATCH_DURATION
+      latch_active = True
+    elif self.reset_bypass_latch_counter > 0:
+      # Latch active, allow bypass during ramp-up period
+      self.reset_bypass_latch_counter -= 1
+      latch_active = True
+      zero_bypass = True  # Allow bypass during latch period
+
     all_zeros = (curvature == 0 and path_offset == 0 and path_angle == 0 and curvature_rate == 0)
-    should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
+
+    # If latch is active, bypass rate limit violations (but still require basic value limits from apply_limits)
+    # The latch in ford.h sets violation=false, allowing messages that would normally violate rate limits
+    if latch_active and steer_control_enabled and controls_allowed:
+      # Latch bypasses rate limit violations, but basic value limits (apply_limits) must still pass
+      should_tx = should_tx  # Keep result from apply_limits (basic value checks)
+    else:
+      should_tx = should_tx and (controls_allowed if steer_control_enabled else (all_zeros or zero_bypass))
 
     # Only CAN FD has the max lateral acceleration limit
     if self.STEER_MESSAGE == MSG_LateralMotionControl2:
