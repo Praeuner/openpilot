@@ -57,13 +57,14 @@ def anti_overshoot(apply_curvature, apply_curvature_last, v_ego):
 
 def apply_ford_curvature_limits(apply_curvature, apply_curvature_last, current_curvature, v_ego_raw, steering_angle, lat_active, CP):
   # No blending at low speed due to lack of torque wind-up and inaccurate current curvature
-  # When transitioning across the 10 m/s threshold, gradually blend towards current_curvature
+  # When transitioning across the speed threshold, gradually blend towards current_curvature
   # to prevent safety violations when angle error enforcement activates
-  # The safety code enforces angle error limits above 9.5 m/s (FORD_LIMITS.angle_error_min_speed)
-  # with max_angle_error = 0.003 (150 CAN units), so we need to ensure smooth transition
+  # The safety code enforces angle error limits above 12.5 m/s (FORD_LIMITS.angle_error_min_speed)
+  # with max_angle_error = 0.003 (150 CAN units). We start blending earlier (8-10 m/s) to provide
+  # a buffer between what we request and what safety enforces
   if v_ego_raw > 8.0:
     # Gradually increase blending towards current_curvature as we approach the threshold
-    # Start blending at 8 m/s, full enforcement at 10 m/s
+    # Start blending at 8 m/s, full enforcement at 10 m/s (provides buffer before safety's 12.5 m/s threshold)
     blend_factor = np.clip((v_ego_raw - 8.0) / 2.0, 0.0, 1.0)  # 0 at 8 m/s, 1 at 10 m/s
     # Use the safety code's max_angle_error (0.003) when fully blended, match Python's CURVATURE_ERROR (0.002) otherwise
     max_error = interp(blend_factor, [0.0, 1.0], [CarControllerParams.CURVATURE_ERROR, 0.003])

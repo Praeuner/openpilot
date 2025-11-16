@@ -104,8 +104,8 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
   PA_DEG_TO_CAN = 2000  # 1 / (2e-5) rad to can
   PO_DEG_TO_CAN = 100  # 1 / (0.01) meter to can
   MAX_CURVATURE = 0.02
-  MAX_CURVATURE_ERROR = 0.002
-  CURVATURE_ERROR_MIN_SPEED = 10.0  # m/s
+  MAX_CURVATURE_ERROR = 0.003  # Updated to match ford.h max_angle_error = 150 CAN units (0.003 * 50000)
+  CURVATURE_ERROR_MIN_SPEED = 12.5  # m/s - Updated to match ford.h angle_error_min_speed
 
   ANGLE_RATE_BP = [5., 16., 25.]
   ANGLE_RATE_UP = [0.0026, 0.0013, 0.0001]  # windup limit
