@@ -383,7 +383,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         self.precision_type = 1
         steeringPressed = CS.out.steeringPressed
         steeringAngleDeg_PV = CS.out.steeringAngleDeg
-        steeringAngleDeg_SP = actuators.steeringAngleDeg
 
         # determine tuning profile
         if self.custom_profile == 1: # custom tuning profile
@@ -533,12 +532,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.lane_change:
           desired_curvature_rate = 0.0
 
-        # Determine if a human is making a turn and trap the value
-        if steeringPressed and abs(steeringAngleDeg_PV) > 45:
-          self.human_turn = True
-        else:
-          self.human_turn = False
-
         # get path offset from model.position.y
         path_offset_position = interp(self.path_offset_lookup_time, ModelConstants.T_IDXS, self.model.position.y)
 
@@ -641,10 +634,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         # reset steering by setting all values to 0 and ramp_type to immediate
         if reset_steering == 1:
-          # apply_curvature = 0 reset is done above before rate limiting
-          path_offset = 0
-          # path_angle = 0 reset is done above before rate limiting
-          desired_curvature_rate = 0
           ramp_type = 3
           self.path_angle_deque.clear()
           self.HC_PID_controller.reset()
