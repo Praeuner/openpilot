@@ -17,29 +17,6 @@
   }
 }
 
-.dashboard-header {
-  text-align: center;
-  margin-bottom: 1rem;
-}
-
-.dashboard-header h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 0.125rem;
-  color: var(--bp-text-primary);
-}
-
-@media (max-width: 768px) {
-  .dashboard-header h1 {
-    font-size: 1.35rem;
-  }
-}
-
-.dashboard-header p {
-  font-size: 0.8rem;
-  color: var(--bp-text-secondary);
-}
-
 .dashboard-insights-grid {
   display: grid;
   grid-template-columns: 1.5fr 1fr 1fr;

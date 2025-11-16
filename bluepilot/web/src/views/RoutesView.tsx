@@ -204,7 +204,11 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
 
   return (
     <>
-      <Header deviceStatus={deviceStatus} onMetricsClick={() => setShowMetricsModal(true)} />
+      <Header
+        deviceStatus={deviceStatus}
+        onMetricsClick={() => setShowMetricsModal(true)}
+        subtitle="Browse and review your driving recordings"
+      />
       <MetricsModal isOpen={showMetricsModal} onClose={() => setShowMetricsModal(false)} />
       <RouteDownloadModal
         isOpen={showExportModal}

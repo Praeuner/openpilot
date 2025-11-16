@@ -110,7 +110,7 @@
           "type": "selection",
           "param": "InteractivityTimeout",
           "title": "Interactivity Timeout",
-          "desc": "Apply a custom timeout for settings UI.\nThis is the time after which settings UI closes automatically if user is not interacting with the screen.",
+          "desc": "Apply a custom timeout for settings UI.<br>This is the time after which settings UI closes automatically if user is not interacting with the screen.",
           "options": [
             { "name": "Default", "value": "0", "default": true },
             { "name": "10 seconds", "value": "10" },

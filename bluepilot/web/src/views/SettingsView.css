@@ -189,25 +189,6 @@
   box-shadow: var(--panel-card-shadow);
 }
 
-.settings-sidebar-header {
-  text-align: left;
-  margin-bottom: 0.875rem;
-}
-
-.settings-sidebar-header p {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.6rem;
-  color: var(--text-tertiary);
-}
-
-.settings-sidebar-header h2 {
-  margin: 0.125rem 0 0 0;
-  font-size: 1.1rem;
-  color: var(--text-primary);
-}
-
 .settings-nav {
   display: flex;
   flex-direction: column;
@@ -287,7 +268,7 @@
 
 @media (max-width: 1200px) {
   .settings-view {
-    padding: 1.5rem;
+    padding: 1rem;
   }
 
   .settings-layout {
@@ -315,10 +296,6 @@
 }
 
 @media (max-width: 768px) {
-  .settings-sidebar-header {
-    text-align: left;
-  }
-
   .settings-nav {
     gap: 0.5rem;
   }
@@ -340,7 +317,7 @@
 
 @media (max-width: 640px) {
   .settings-view {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .settings-panel-heading h1 {

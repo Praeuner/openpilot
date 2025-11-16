@@ -328,12 +328,8 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
 
   return (
     <>
-      <Header deviceStatus={deviceStatus} />
+      <Header deviceStatus={deviceStatus} subtitle="View real-time system logs" />
       <div className="logs-view">
-        <div className="logs-header">
-          <h2>System Logs</h2>
-        </div>
-
         <div className="logs-controls">
           <div className="search-container">
             <input

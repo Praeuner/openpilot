@@ -48,7 +48,8 @@
           "title": "Driver Camera Preview",
           "desc": "Preview the driver-facing camera.",
           "button_text": "PREVIEW",
-          "action": "show_driver_camera"
+          "action": "show_driver_camera",
+          "webSupported": false
         },
         {
           "type": "command_button",
@@ -60,7 +61,8 @@
           "confirm_text": "Are you sure you want to review the training guide?",
           "confirm_yes_text": "Review",
           "confirm_no_text": "Cancel",
-          "connect_signal": "reviewTrainingGuide"
+          "connect_signal": "reviewTrainingGuide",
+          "webSupported": false
         },
         {
           "type": "command_button",
@@ -68,7 +70,8 @@
           "desc": "Change the language of the device.",
           "button_text": "CHANGE",
           "action": "show_language_selector",
-          "connect_signal": "showLanguageSelector"
+          "connect_signal": "showLanguageSelector",
+          "webSupported": false
         },
         {
           "type": "command_button",
@@ -76,7 +79,8 @@
           "desc": "View regulatory and compliance information.",
           "button_text": "VIEW",
           "action": "show_regulatory",
-          "connect_signal": "showRegulatory"
+          "connect_signal": "showRegulatory",
+          "webSupported": false
         },
         {
           "type": "command_button",
@@ -165,7 +169,7 @@
           "type": "segmented_control",
           "param": "DeviceBootMode",
           "title": "Wake-Up Behavior",
-          "desc": "Controls state of the device after boot/sleep.\n⁍ Default: Device will boot/wake-up normally & will be ready to engage.\n⁍ Offroad: Device will be in Always Offroad mode after boot/wake-up.",
+          "desc": "Controls state of the device after boot/sleep.<br><br>⁍ Default: Device will boot/wake-up normally & will be ready to engage.<br>⁍ Offroad: Device will be in Always Offroad mode after boot/wake-up.",
           "options": [
             { "name": "Default", "value": "0", "default": true },
             { "name": "Offroad", "value": "1" }
@@ -256,7 +260,7 @@
           "desc": "Restart the sunnypilot user interface to apply changes or resolve display issues.",
           "button_text": "RESTART UI",
           "confirm": true,
-          "confirm_text": "Are you sure you want to restart the user interface?\n\nThe interface will be unavailable for a few seconds.",
+          "confirm_text": "Are you sure you want to restart the user interface?<br><br>The interface will be unavailable for a few seconds.",
           "confirm_yes_text": "Restart",
           "confirm_no_text": "Cancel"
         }

@@ -171,11 +171,10 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
 
   return (
     <>
-      <Header deviceStatus={deviceStatus} />
+      <Header deviceStatus={deviceStatus} subtitle="Manage system parameters" />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="params-manager">
         <div className="params-header">
-          <h2>Parameters</h2>
           <div className="params-controls">
             <input
               type="text"

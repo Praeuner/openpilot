@@ -55,6 +55,8 @@ FFMPEG_RESERVED_FOR_PLAYBACK = 1  # Always keep 1 slot free for playback
 DEFAULT_PORT = 8088
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX_REQUESTS = 100
+MAX_REQUESTS_PER_MINUTE_ONROAD = 20  # Stricter limit when driving
+MAX_REQUESTS_PER_MINUTE_OFFROAD = RATE_LIMIT_MAX_REQUESTS  # Normal limit when parked
 
 # Cellular access configuration
 CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes

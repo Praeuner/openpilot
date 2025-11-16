@@ -175,7 +175,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   if (loading && panels.length === 0) {
     return (
       <>
-        <Header deviceStatus={_deviceStatus} />
+        <Header deviceStatus={_deviceStatus} subtitle="Configure BluePilot settings and behavior" />
         <div className="settings-view settings-view-centered">
           <LoadingSpinner message="Loading settings..." />
         </div>
@@ -186,7 +186,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   if (error) {
     return (
       <>
-        <Header deviceStatus={_deviceStatus} />
+        <Header deviceStatus={_deviceStatus} subtitle="Configure BluePilot settings and behavior" />
         <div className="settings-view settings-view-centered">
           <div className="settings-error-card">
             <h2>Error Loading Settings</h2>
@@ -215,14 +215,10 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
 
   return (
     <>
-      <Header deviceStatus={_deviceStatus} />
+      <Header deviceStatus={_deviceStatus} subtitle="Configure BluePilot settings and behavior" />
       <div className="settings-view">
         <div className="settings-layout">
           <aside className="settings-sidebar">
-            <div className="settings-sidebar-header">
-              <h2>Settings</h2>
-            </div>
-
             <div className="settings-nav">
               <button
                 className={`settings-nav-btn ${selectedPanelId === 'favorites' ? 'active' : ''}`}

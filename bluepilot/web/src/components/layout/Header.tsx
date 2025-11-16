@@ -5,9 +5,10 @@ import './Header.css'
 interface HeaderProps {
   deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
   onMetricsClick?: () => void
+  subtitle?: string
 }
 
-export const Header = ({ deviceStatus = 'checking', onMetricsClick }: HeaderProps = {}) => {
+export const Header = ({ deviceStatus = 'checking', onMetricsClick, subtitle }: HeaderProps = {}) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { connected } = useWebSocketStore()
@@ -15,11 +16,11 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick }: HeaderProp
   const isRoutesPage = location.pathname.startsWith('/routes')
 
   const getTitle = () => {
-    if (location.pathname === '/') return 'BluePilot - Home'
-    if (isRoutesPage) return 'BluePilot - Routes'
-    if (location.pathname.startsWith('/parameters')) return 'BluePilot - Parameters'
-    if (location.pathname.startsWith('/logs')) return 'BluePilot - Logs'
-    if (location.pathname.startsWith('/settings')) return 'BluePilot - Settings'
+    if (location.pathname === '/') return 'BluePilot'
+    if (isRoutesPage) return 'Routes'
+    if (location.pathname.startsWith('/parameters')) return 'Parameters'
+    if (location.pathname.startsWith('/logs')) return 'System Logs'
+    if (location.pathname.startsWith('/settings')) return 'Settings'
     return 'BluePilot'
   }
 
@@ -55,7 +56,10 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick }: HeaderProp
           </svg>
         </button>
       )}
-      <h1 className="header-title">{getTitle()}</h1>
+      <div className="header-title-wrapper">
+        <h1 className="header-title">{getTitle()}</h1>
+        {subtitle && <p className="header-subtitle">{subtitle}</p>}
+      </div>
       <div className="header-stats">
         <div className={`device-status ${deviceStatus} ${connected ? 'websocket-active' : ''}`} title="Device status">
           <span className="status-indicator"></span>

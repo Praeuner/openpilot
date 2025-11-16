@@ -111,13 +111,11 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
 
   return (
     <>
-      <Header deviceStatus={deviceStatus} />
+      <Header
+        deviceStatus={deviceStatus}
+        subtitle="Settings, routes, and diagnostics"
+      />
       <div className="dashboard-page">
-        <div className="dashboard-header">
-          <h1>BluePilot Home</h1>
-          <p>Your central hub for monitoring, configuration, and diagnostics</p>
-        </div>
-
         <div className="dashboard-insights-grid">
           <section className="dashboard-status-panel">
             <div className="panel-heading">

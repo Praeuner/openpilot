@@ -18,15 +18,16 @@
 
 .panel-group-title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .panel-group-controls {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-md);
+  align-items: stretch;
 }
 
 .panel-group-reset {
@@ -34,6 +35,10 @@
 }
 
 @media (max-width: 768px) {
+  .panel-group {
+    padding: var(--spacing-md);
+  }
+
   .panel-group-controls {
     grid-template-columns: 1fr;
   }
