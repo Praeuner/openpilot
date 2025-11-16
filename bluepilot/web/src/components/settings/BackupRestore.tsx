@@ -140,7 +140,7 @@ export function BackupRestore() {
               variant="primary"
               onClick={handleExport}
               loading={exporting}
-              className="backup-restore-btn"
+              className="settings-btn"
             >
               Export Backup
             </Button>
@@ -157,7 +157,7 @@ export function BackupRestore() {
                 variant="secondary"
                 onClick={() => fileInputRef.current?.click()}
                 loading={importing}
-                className="backup-restore-btn"
+                className="settings-btn"
               >
                 Import Backup
               </Button>

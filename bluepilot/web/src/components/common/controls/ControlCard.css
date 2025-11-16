@@ -1,15 +1,16 @@
 .control-card {
   position: relative;
   width: 100%;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--border-color);
   background: var(--panel-card-gradient);
   box-shadow: var(--panel-card-shadow);
-  padding: 1.25rem 1.35rem;
+  padding: var(--spacing-md);
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
-  transition: border-color var(--transition-normal), transform var(--transition-normal);
+  gap: var(--spacing-md);
+  transition: border-color var(--transition-normal),
+    transform var(--transition-normal);
   min-height: 0;
 }
 
@@ -63,7 +64,7 @@
   color: var(--text-tertiary);
   background: var(--warning-bg);
   padding: 0.15rem 0.65rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 
 .control-card__meta {

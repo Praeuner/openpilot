@@ -34,6 +34,11 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     console.error('API Error:', error.message)
+    // Log the full error response for debugging
+    if (error.response) {
+      console.error('Response status:', error.response.status)
+      console.error('Response data:', error.response.data)
+    }
     return Promise.reject(error)
   }
 )
@@ -130,6 +135,7 @@ export const paramsAPI = {
   },
 
   update: async (key: string, value: string | number | boolean): Promise<void> => {
+    console.log('[API] Updating param:', { key, value, valueType: typeof value })
     await api.post('/api/params/set', { key, value })
   },
 }

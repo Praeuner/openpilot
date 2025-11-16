@@ -12,8 +12,8 @@
 }
 
 .settings-error-card {
-  padding: 1.5rem;
-  border-radius: 16px;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
   background: var(--card-bg);
   border: 1px solid var(--error-color);
   text-align: center;
@@ -36,8 +36,8 @@
 .settings-main {
   background: var(--panel-card-gradient);
   border: 1px solid var(--border-color);
-  border-radius: 18px;
-  padding: 1.25rem;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
   box-shadow: var(--panel-card-shadow);
 }
 
@@ -60,7 +60,7 @@
 .settings-panel-icon {
   width: 50px;
   height: 50px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(33, 150, 243, 0.12);
   display: flex;
   align-items: center;
@@ -107,8 +107,8 @@
   background: var(--input-bg);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-full);
+  transition: all var(--transition-normal);
 }
 
 .settings-search-input:focus {
@@ -145,14 +145,15 @@
   padding: 1.1rem 1.25rem;
   background: rgba(255, 255, 255, 0.02);
   border-left: 4px solid var(--primary-color);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-size: 0.95rem;
   color: var(--text-secondary);
+  display: none;
 }
 
 .settings-panel-loading {
   padding: 3rem 1rem;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   border: 1px dashed var(--border-color);
   text-align: center;
   background: rgba(255, 255, 255, 0.015);
@@ -161,7 +162,7 @@
 .settings-no-results {
   padding: 3rem 2rem;
   text-align: center;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   border: 1px dashed var(--border-color);
   color: var(--text-secondary);
   background: rgba(74, 144, 226, 0.06);
@@ -170,7 +171,7 @@
 .settings-no-results button {
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: none;
   background: var(--primary-color);
   color: white;
@@ -182,14 +183,14 @@
   top: 80px;
   align-self: flex-start;
   background: var(--card-bg);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
-  padding: 1rem;
+  padding: var(--spacing-md);
   box-shadow: var(--panel-card-shadow);
 }
 
 .settings-sidebar-header {
-  text-align: right;
+  text-align: left;
   margin-bottom: 0.875rem;
 }
 
@@ -219,12 +220,12 @@
   gap: 0.75rem;
   width: 100%;
   padding: 0.625rem 0.75rem;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
   background: rgba(255, 255, 255, 0.01);
   color: var(--text-secondary);
   text-align: left;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
 }
 
 .settings-nav-btn:hover {
@@ -242,7 +243,7 @@
 .settings-nav-icon {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
   display: flex;
   align-items: center;
@@ -279,8 +280,8 @@
 .panel-group-inline {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid var(--border-color);
-  border-radius: 18px;
-  padding: 1.5rem;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
   box-shadow: var(--panel-card-shadow);
 }
 

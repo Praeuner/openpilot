@@ -1,7 +1,7 @@
 .backup-restore {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--spacing-lg);
 }
 
 .backup-restore-card .control-card__footer {
@@ -9,17 +9,11 @@
   justify-content: flex-end;
 }
 
-.backup-restore-btn {
-  min-width: 180px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .backup-result-details {
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
   background: rgba(255, 255, 255, 0.02);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border-left: 4px solid var(--primary-color);
 }
 
@@ -35,17 +29,14 @@
 }
 
 .backup-restore-modal-actions {
-  margin-top: 1rem;
+  margin-top: var(--spacing-lg);
   display: flex;
   justify-content: flex-end;
+  gap: var(--spacing-md);
 }
 
 @media (max-width: 768px) {
   .backup-restore-card .control-card__footer {
-    width: 100%;
-  }
-
-  .backup-restore-btn {
     width: 100%;
   }
 }

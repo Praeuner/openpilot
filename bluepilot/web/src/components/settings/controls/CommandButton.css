@@ -3,17 +3,10 @@
   justify-content: flex-end;
 }
 
-.command-button-btn {
-  min-width: 180px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-}
-
 .command-button-result {
   margin-top: 0.75rem;
   padding: 0.65rem 0.85rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   border: 1px solid transparent;
 }
@@ -32,21 +25,17 @@
 
 .command-button-device-notice {
   margin-top: 0.5rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: 10px;
-  background: rgba(255, 193, 7, 0.1);
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-md);
+  background: #ffc1071a;
   border: 1px solid rgba(255, 193, 7, 0.35);
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   line-height: 1.4;
 }
 
 @media (max-width: 768px) {
   .command-button-control .control-card__footer {
-    width: 100%;
-  }
-
-  .command-button-btn {
     width: 100%;
   }
 }

@@ -1,7 +1,7 @@
 .panel-group {
-  margin-bottom: 1.75rem;
-  padding: 1.25rem;
-  border-radius: 22px;
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--border-color);
   background: rgba(24, 24, 24, 0.9);
   box-shadow: var(--panel-card-shadow);
@@ -11,14 +11,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .panel-group-title {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -26,7 +26,7 @@
 .panel-group-controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 1.25rem;
+  gap: var(--spacing-lg);
 }
 
 .panel-group-reset {

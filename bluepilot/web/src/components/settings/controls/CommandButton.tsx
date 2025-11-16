@@ -106,7 +106,7 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
         className="command-button-control"
         footer={
           <Button
-            className="command-button-btn"
+            className="settings-btn"
             onClick={handleClick}
             disabled={disabled || requiresDeviceUI}
             loading={executing}

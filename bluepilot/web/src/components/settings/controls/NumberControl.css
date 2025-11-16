@@ -19,7 +19,7 @@
   background: var(--input-bg);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 
 .number-control__input:focus {
@@ -59,7 +59,7 @@
   -webkit-appearance: none;
   appearance: none;
   background: #2f2f2f;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   outline: none;
   box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.45);
 }
