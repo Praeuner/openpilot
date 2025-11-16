@@ -73,7 +73,7 @@ if __name__ == '__main__':
     print()
 
     # Import and run the server
-    from bluepilot.backend.web_routes_server import main
+    from bluepilot.backend.bp_backend_server import main
 
     try:
         main()

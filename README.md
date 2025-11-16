@@ -120,6 +120,22 @@ BluePilot 5.0 is a **major update** based on SunnyPilot v2025.001.000 (AGNOS 13.
 * **Models Panel** - Easy switching between different driving models without reinstalling branches
 * **Developer Tools** - Customizable debug panel with adjustable settings, conditional building, crash detection system with better error reporting
 
+### Web Interface & Data Management
+* **Routes Web Interface** - Full-featured web dashboard accessible at `http://<device-ip>:8088`
+  * Browse and search all recorded routes with GPS metadata
+  * Interactive route map with GPS coordinates and path visualization
+  * Real-time metrics: speed, distance, duration, and segment information
+  * Individual camera video exports (front, wide, driver) with progress tracking
+  * Direct qlog/rlog downloads for CAN bus and sensor data analysis
+  * Detailed log descriptions explaining what data each file contains
+  * Automatic multi-segment file concatenation for seamless data access
+* **Enhanced Data Export** - Simplified export system replacing ZIP compression
+  * Individual camera downloads with descriptive filenames
+  * Real-time progress tracking for video generation
+  * No compression overhead - faster exports
+  * qlog: Control commands, steering angles, CAN bus messages, lateral/longitudinal plans
+  * rlog: Camera metadata, model predictions, radar tracks, IMU data, GPS coordinates
+
 ### Vehicle Features
 * **Brake Status Indicator** - Now attempts to use brake light CAN signal when available for more accurate display
 * **Radar Overlay** - Speed display matches system units (mph/kph)
@@ -256,6 +272,84 @@ By becoming a patron/sponsor, you will gain access to exclusive content, early a
 <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="PayPal this" title="PayPal - The safer, easier way to pay online!" border="0" />
 </a>
 <br></br>
+</details>
+
+<details><summary><h3>🔧 Technical Documentation</h3></summary>
+
+---
+
+### Backend Architecture
+
+BluePilot's backend is organized into modular components for maintainability:
+
+```
+bluepilot/backend/
+├── bp_backend_server.py    # Main HTTP server
+├── config.py                # Configuration and constants
+├── handlers/                # Request handlers
+│   ├── log_downloads.py     # qlog/rlog download handlers
+│   └── __init__.py
+├── params/                  # Parameter management
+│   ├── params_manager.py    # Parameter CRUD operations
+│   ├── params_watcher.py    # Real-time parameter watching
+│   └── __init__.py
+├── routes/                  # Route processing
+│   ├── scanner.py           # Route discovery
+│   ├── segments.py          # Segment management
+│   ├── preprocessor.py      # Route data preprocessing
+│   └── processing.py        # GPS and metrics calculation
+├── video/                   # Video export
+│   ├── export.py            # Individual camera export with FFmpeg
+│   └── remux.py             # Video remuxing utilities
+├── core/                    # Core utilities
+├── utils/                   # Helper functions
+├── realtime/                # WebSocket broadcasting
+├── cache/                   # Cache management
+└── network/                 # Network utilities
+```
+
+### API Endpoints
+
+**Route Management:**
+- `GET /api/routes` - List all routes with pagination
+- `GET /api/route/{route_base}` - Get specific route details
+- `GET /api/route/{route_base}/camera-sizes` - Get camera and log file sizes
+
+**Video Export:**
+- `POST /api/video-export/{route_base}/{camera}` - Start video export
+- `GET /api/video-export/{route_base}/{camera}/status` - Check export progress
+- `GET /api/download/route/{route_base}/{camera}` - Download exported video
+
+**Log Downloads:**
+- `GET /api/download/qlog/{route_base}` - Download qlog (concatenated if multi-segment)
+- `GET /api/download/rlog/{route_base}` - Download rlog (concatenated if multi-segment)
+
+### Development
+
+**Testing:**
+```bash
+# Test backend imports
+python3 bluepilot/backend/test_backend_import.py
+
+# Test modular components
+python3 bluepilot/backend/test_modules_only.py
+
+# Run local server for testing
+python3 bluepilot/test_web_routes.py
+```
+
+**Frontend Development:**
+```bash
+cd bluepilot/web
+npm install
+npm run dev      # Development server
+npm run build    # Production build
+```
+
+For detailed cleanup and refactoring notes, see:
+- [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) - Complete cleanup documentation
+- [BACKEND_CLEANUP_CHECKLIST.md](BACKEND_CLEANUP_CHECKLIST.md) - Backend refactoring checklist
+
 </details>
 
 

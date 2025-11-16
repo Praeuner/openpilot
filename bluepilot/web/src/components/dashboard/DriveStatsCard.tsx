@@ -80,7 +80,8 @@ export function DriveStatsCard() {
     <div className="drive-stats-card">
       <div className="stats-header">
         <h3>Drive Statistics</h3>
-        {data.source === 'local' && <span className="stats-badge local">Local</span>}
+        {data.source === 'param_cache' && <span className="stats-badge cached">Cached</span>}
+        {data.source === 'no_cache' && <span className="stats-badge info">No Data</span>}
         {data.cloud_error && <span className="stats-badge warning">Cloud Error</span>}
       </div>
 

@@ -28,7 +28,7 @@
 
 .settings-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 1.25rem;
   align-items: flex-start;
 }
@@ -39,7 +39,6 @@
   border-radius: 18px;
   padding: 1.25rem;
   box-shadow: var(--panel-card-shadow);
-  height: fit-content;
 }
 
 .settings-panel-header {
@@ -139,8 +138,7 @@
 .settings-panel-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  height: fit-content;
+  /* gap: 1.5rem; */
 }
 
 .settings-panel-description {
@@ -293,10 +291,13 @@
 
   .settings-layout {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .settings-sidebar {
     position: static;
+    /* Sidebar appears first on mobile, which is good for navigation */
+    order: -1;
   }
 
   .settings-panel-header {
@@ -309,6 +310,30 @@
 
   .settings-search {
     width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-sidebar-header {
+    text-align: left;
+  }
+
+  .settings-nav {
+    gap: 0.5rem;
+  }
+
+  .settings-nav-btn {
+    padding: 0.5rem 0.625rem;
+  }
+
+  .settings-nav-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .settings-nav-icon svg {
+    width: 20px;
+    height: 20px;
   }
 }
 

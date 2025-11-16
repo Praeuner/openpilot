@@ -218,12 +218,44 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
       <Header deviceStatus={_deviceStatus} />
       <div className="settings-view">
         <div className="settings-layout">
+          <aside className="settings-sidebar">
+            <div className="settings-sidebar-header">
+              <h2>Settings</h2>
+            </div>
+
+            <div className="settings-nav">
+              <button
+                className={`settings-nav-btn ${selectedPanelId === 'favorites' ? 'active' : ''}`}
+                onClick={() => setSelectedPanelId('favorites')}
+              >
+                <div className="settings-nav-icon">{getPanelIcon('favorites')}</div>
+                <div className="settings-nav-copy">
+                  <span className="settings-nav-label">Favorites</span>
+                  <span className="settings-nav-desc">Starred controls</span>
+                </div>
+              </button>
+
+              {panels.map((panel) => (
+                <button
+                  key={panel.id}
+                  className={`settings-nav-btn ${selectedPanelId === panel.id ? 'active' : ''}`}
+                  onClick={() => setSelectedPanelId(panel.id)}
+                >
+                  <div className="settings-nav-icon">{getPanelIcon(panel.id)}</div>
+                  <div className="settings-nav-copy">
+                    <span className="settings-nav-label">{panel.name}</span>
+                    <span className="settings-nav-desc">{panel.description || 'Panel controls'}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
           <section className="settings-main">
             <div className="settings-panel-header">
               <div className="settings-panel-heading">
                 <div className="settings-panel-icon">{getPanelIcon(selectedPanelId || activeMetadata?.id)}</div>
                 <div>
-                  <p className="settings-panel-eyebrow">bp_panels</p>
                   <h1>{activeMetadata?.name || 'Settings'}</h1>
                   <p>{headerDescription}</p>
                 </div>
@@ -289,40 +321,6 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
               )}
             </div>
           </section>
-
-          <aside className="settings-sidebar">
-            <div className="settings-sidebar-header">
-              <p>QT layout</p>
-              <h2>bp_controls</h2>
-            </div>
-
-            <div className="settings-nav">
-              <button
-                className={`settings-nav-btn ${selectedPanelId === 'favorites' ? 'active' : ''}`}
-                onClick={() => setSelectedPanelId('favorites')}
-              >
-                <div className="settings-nav-icon">{getPanelIcon('favorites')}</div>
-                <div className="settings-nav-copy">
-                  <span className="settings-nav-label">Favorites</span>
-                  <span className="settings-nav-desc">Starred controls</span>
-                </div>
-              </button>
-
-              {panels.map((panel) => (
-                <button
-                  key={panel.id}
-                  className={`settings-nav-btn ${selectedPanelId === panel.id ? 'active' : ''}`}
-                  onClick={() => setSelectedPanelId(panel.id)}
-                >
-                  <div className="settings-nav-icon">{getPanelIcon(panel.id)}</div>
-                  <div className="settings-nav-copy">
-                    <span className="settings-nav-label">{panel.name}</span>
-                    <span className="settings-nav-desc">{panel.description || 'Panel controls'}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </aside>
         </div>
       </div>
     </>

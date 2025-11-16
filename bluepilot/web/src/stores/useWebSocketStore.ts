@@ -6,6 +6,7 @@ import { useParamsStore } from './useParamsStore'
 import { useSystemStore } from './useSystemStore'
 import { useExportStore } from './useExportStore'
 import { useToastStore } from './useToastStore'
+import { useFFmpegDebugStore } from './useFFmpegDebugStore'
 
 interface WebSocketState {
   connected: boolean
@@ -64,7 +65,7 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
           useRoutesStore.getState().fetchRoutes(1)
           break
 
-        case 'param_changed':
+        case 'param_updated':
           // Update specific parameter
           if (data && typeof data === 'object' && 'key' in data && 'value' in data) {
             const { key, value } = data as { key: string; value: unknown }
@@ -152,6 +153,25 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
           // Respond to heartbeat with pong to keep connection alive
           const ws = getWebSocketService()
           ws.send({ type: 'pong', data: { timestamp: new Date().toISOString() } })
+          break
+
+        case 'ffmpeg_log':
+          // Handle FFmpeg debug log messages
+          if (data && typeof data === 'object') {
+            const logData = data as {
+              route_info: string
+              log_type: 'start' | 'end' | 'output' | 'error'
+              message: string
+              pid?: number
+            }
+            useFFmpegDebugStore.getState().addMessage({
+              timestamp: new Date().toISOString(),
+              route_info: logData.route_info,
+              log_type: logData.log_type,
+              message: logData.message,
+              pid: logData.pid,
+            })
+          }
           break
 
         default:

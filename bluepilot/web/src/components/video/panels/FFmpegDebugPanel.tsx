@@ -1,21 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import { useWebSocketStore } from '@/stores/useWebSocketStore'
+import { useFFmpegDebugStore } from '@/stores/useFFmpegDebugStore'
 import './Panels.css'
 
 interface FFmpegDebugPanelProps {
   show: boolean
 }
 
-interface DebugMessage {
-  timestamp: string
-  message: string
-}
-
 export const FFmpegDebugPanel = ({ show }: FFmpegDebugPanelProps) => {
   const [autoScroll, setAutoScroll] = useState(true)
-  const [messages, setMessages] = useState<DebugMessage[]>([])
   const messagesRef = useRef<HTMLDivElement>(null)
   const { connected } = useWebSocketStore()
+  const { messages, clearMessages } = useFFmpegDebugStore()
 
   useEffect(() => {
     if (autoScroll && messagesRef.current) {
@@ -23,25 +19,22 @@ export const FFmpegDebugPanel = ({ show }: FFmpegDebugPanelProps) => {
     }
   }, [messages, autoScroll])
 
-  // Listen for FFmpeg debug messages via WebSocket
-  useEffect(() => {
-    if (!connected) return
-
-    // TODO: Subscribe to FFmpeg debug messages when WebSocket has this feature
-    // For now, just show a placeholder message
-    if (messages.length === 0) {
-      addMessage('FFmpeg debug logging will appear here in real-time...')
-      addMessage('This feature requires WebSocket connection to be active.')
+  const getLogTypeClass = (logType: string) => {
+    switch (logType) {
+      case 'start':
+        return 'log-type-start'
+      case 'end':
+        return 'log-type-end'
+      case 'error':
+        return 'log-type-error'
+      case 'output':
+      default:
+        return 'log-type-output'
     }
-  }, [connected])
-
-  const addMessage = (text: string) => {
-    const timestamp = new Date().toLocaleTimeString()
-    setMessages(prev => [...prev, { timestamp, message: text }])
   }
 
-  const clearMessages = () => {
-    setMessages([])
+  const formatTimestamp = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString()
   }
 
   if (!show) return null
@@ -91,11 +84,21 @@ export const FFmpegDebugPanel = ({ show }: FFmpegDebugPanelProps) => {
       <div className="panel-content" id="ffmpeg-debug-content">
         <div ref={messagesRef} className="debug-messages">
           {messages.length === 0 ? (
-            <p className="debug-message">FFmpeg debug logs will appear here...</p>
+            <div className="debug-message-empty">
+              <p>FFmpeg debug logs will appear here...</p>
+              <p className="debug-message-hint">
+                {connected
+                  ? 'Waiting for FFmpeg processes to start...'
+                  : 'WebSocket not connected. Connect to see real-time logs.'}
+              </p>
+            </div>
           ) : (
             messages.map((msg, index) => (
-              <div key={index} className="debug-message">
-                <span className="debug-timestamp">[{msg.timestamp}]</span>
+              <div key={index} className={`debug-message ${getLogTypeClass(msg.log_type)}`}>
+                <span className="debug-timestamp">[{formatTimestamp(msg.timestamp)}]</span>
+                <span className="debug-log-type">[{msg.log_type.toUpperCase()}]</span>
+                {msg.pid && <span className="debug-pid">[PID: {msg.pid}]</span>}
+                <span className="debug-route-info">[{msg.route_info}]</span>
                 <span className="debug-text">{msg.message}</span>
               </div>
             ))

@@ -4,7 +4,7 @@ import { useRoutesStore } from '@/stores/useRoutesStore'
 import { LoadingSpinner } from '@/components/common'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { DiskSpaceVisualization } from '@/components/storage/DiskSpaceVisualization'
-import { MetricsModal, ExportBackupModal } from '@/components/modals'
+import { MetricsModal, RouteDownloadModal } from '@/components/modals'
 import type { Route, RouteDetails } from '@/types'
 import './RoutesView.css'
 
@@ -206,7 +206,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
     <>
       <Header deviceStatus={deviceStatus} onMetricsClick={() => setShowMetricsModal(true)} />
       <MetricsModal isOpen={showMetricsModal} onClose={() => setShowMetricsModal(false)} />
-      <ExportBackupModal
+      <RouteDownloadModal
         isOpen={showExportModal}
         onClose={() => {
           setShowExportModal(false)
@@ -253,14 +253,6 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                     const topSpeed = getField(route, 'top_speed', 'topSpeed')
                     const opEngagedPercent = getField(route, 'op_engaged_percent', 'driveStats.opEngagedPercent')
                     const alertCount = getField(route, 'alert_count', 'driveStats.alertCount', 'alerts')
-
-                    // Debug logging for first route
-                    if (routes.indexOf(route) === 0) {
-                      console.log('First route debug:', {
-                        baseName,
-                        thumbnailUrl: `/api/thumbnail/${baseName}`
-                      })
-                    }
 
                     return (
                       <div
@@ -330,7 +322,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                               <button
                                 type="button"
                                 className="route-export-btn"
-                                title="Export videos and backup route data"
+                                title="Export videos and logs"
                                 onClick={(e) => handleExportClick(e, baseName)}
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -102,7 +102,7 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
         title={control.title}
         description={description}
         disabled={disabled || requiresDeviceUI}
-        disabledReason={requiresDeviceUI ? 'Use device UI' : disabledReason}
+        disabledReason={disabledReason}
         className="command-button-control"
         footer={
           <Button

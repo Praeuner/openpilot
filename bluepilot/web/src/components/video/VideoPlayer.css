@@ -317,6 +317,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  align-items: center;
+  text-align: center;
 }
 
 .stat-label {
@@ -496,8 +498,14 @@
 }
 
 @media (max-width: 1024px) {
+  .player-container {
+    flex-direction: column;
+  }
+
   .player-sidebar {
-    display: none;
+    flex: 1 0 auto;
+    border-left: none;
+    border-top: 2px solid var(--bp-border);
   }
 }
 

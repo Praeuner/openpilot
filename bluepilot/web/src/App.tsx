@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useWebSocketStore } from '@/stores/useWebSocketStore'
+import { useSystemStore } from '@/stores/useSystemStore'
 import { useToastStore } from '@/stores/useToastStore'
 import { WarningBanners, StatusOverlay } from '@/components/common'
 import { ToastContainer } from '@/components/common/Toast'
 import { systemAPI } from '@/services/api'
 
 // Views
-import { Dashboard } from '@/views/Dashboard'
+import { Home } from '@/views/Home'
 import { RoutesView } from '@/views/RoutesView'
 import { ParametersView } from '@/views/ParametersView'
 import { SettingsView } from '@/views/SettingsView'
@@ -21,6 +22,7 @@ type DeviceStatus = 'online' | 'onroad' | 'offline' | 'checking'
 
 function App() {
   const { connect, disconnect } = useWebSocketStore()
+  const { startPolling, stopPolling } = useSystemStore()
   const { toasts, removeToast } = useToastStore()
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatus>('checking')
 
@@ -31,15 +33,19 @@ function App() {
     // Check device status
     checkDeviceStatus()
 
+    // Start polling for system metrics (every 5 seconds)
+    startPolling(5000)
+
     // Poll status every 30 seconds
     const statusInterval = setInterval(checkDeviceStatus, 30000)
 
     // Cleanup on unmount
     return () => {
       disconnect()
+      stopPolling()
       clearInterval(statusInterval)
     }
-  }, [connect, disconnect])
+  }, [connect, disconnect, startPolling, stopPolling])
 
   const checkDeviceStatus = async () => {
     try {
@@ -75,7 +81,7 @@ function App() {
       )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <Routes>
-        <Route path="/" element={<Dashboard deviceStatus={deviceStatus} />} />
+        <Route path="/" element={<Home deviceStatus={deviceStatus} />} />
         <Route path="/settings" element={<SettingsView deviceStatus={deviceStatus} />} />
         <Route path="/routes" element={<RoutesView deviceStatus={deviceStatus} />} />
         <Route path="/parameters" element={<ParametersView deviceStatus={deviceStatus} />} />

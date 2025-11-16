@@ -81,10 +81,10 @@ def test_imports():
         return False
 
     try:
-        from bluepilot.backend.handlers.export_backup import handle_videos_zip_post
-        print("✓ handlers.export_backup imports successful")
+        from bluepilot.backend.handlers.log_downloads import handle_qlog_download, handle_rlog_download
+        print("✓ handlers.log_downloads imports successful")
     except Exception as e:
-        print(f"✗ handlers.export_backup import failed: {e}")
+        print(f"✗ handlers.log_downloads import failed: {e}")
         return False
 
     print("=" * 60)

@@ -66,16 +66,15 @@ def generate_route_export_filename(route_base, camera, segments=None):
     """
     Create a descriptive filename for exported route videos.
 
-    Format example: 20241003_1430_Ypsilanti-MI_front.mp4
+    Format example: 10032024_143000_Ypsilanti-MI_front.mp4
     """
     components = []
 
     # Use parsed route datetime when available
     route_dt = parse_route_datetime(route_base)
     if route_dt:
-        components.append(route_dt.strftime("%Y%m%d_%H%M"))
-    else:
-        components.append(_sanitize_filename_component(route_base) or route_base)
+        # Format: MMDDYYYY_HHMMSS
+        components.append(route_dt.strftime("%m%d%Y_%H%M%S"))
 
     # Attempt to include location from cached metrics
     start_location = None
@@ -101,10 +100,14 @@ def generate_route_export_filename(route_base, camera, segments=None):
         if sanitized:
             components.append(sanitized)
 
-    # Append camera label
+    # Append camera label at the end
     components.append(_sanitize_filename_component(CAMERA_LABELS.get(camera, camera)) or camera)
 
-    filename_base = "_".join(filter(None, components)) or f"{route_base}_{camera}"
+    # Fallback to route_base_camera if no datetime available
+    if not components or len(components) == 1:
+        return f"{route_base}_{camera}.mp4"
+
+    filename_base = "_".join(filter(None, components))
     return f"{filename_base}.mp4"
 
 
@@ -520,9 +523,14 @@ def stream_route_export(route_base, camera, response_handler, server_state=None)
 def parse_route_datetime(route_base):
     """Parse route base name to extract datetime
     Example: 2024-09-18--14-30-00 -> datetime(2024, 9, 18, 14, 30, 0)
-    Returns None for non-standard route names (e.g., dongle IDs)
+    Example: a2a0ccea32023010|2024-09-18--14-30-00 -> datetime(2024, 9, 18, 14, 30, 0)
+    Returns None for non-standard route names
     """
     try:
+        # Remove dongle ID if present (format: dongle_id|date--time)
+        if '|' in route_base:
+            route_base = route_base.split('|')[1]
+
         # Split by --
         parts = route_base.split('--')
         if len(parts) >= 2:

@@ -3,7 +3,10 @@
  * Renders a group of controls within a panel
  */
 
+import { useMemo } from 'react'
 import type { PanelGroup as PanelGroupType, PanelState } from '@/types/panels'
+import { useParamsStore } from '@/stores/useParamsStore'
+import { isControlVisible } from '@/utils/conditionalEvaluator'
 import { Button } from '@/components/common'
 import { DynamicControl } from './DynamicControl'
 import './PanelGroup.css'
@@ -15,8 +18,27 @@ interface PanelGroupProps {
 }
 
 export function PanelGroup({ group, state, panelId }: PanelGroupProps) {
+  const params = useParamsStore((store) => store.params)
+
   // Skip hidden groups
   if (group.hidden) {
+    return null
+  }
+
+  // Check if any controls in this group are visible
+  const hasVisibleControls = useMemo(() => {
+    return group.controls.some((control) => {
+      // Check if control is hidden in web UI
+      if ('webSupported' in control && control.webSupported === false) {
+        return false
+      }
+      // Check visibility conditions
+      return isControlVisible(control, state, params)
+    })
+  }, [group.controls, state, params])
+
+  // Hide the entire group if no controls are visible
+  if (!hasVisibleControls) {
     return null
   }
 

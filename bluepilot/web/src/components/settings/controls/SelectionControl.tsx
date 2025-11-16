@@ -20,8 +20,9 @@ export function SelectionControl({ control, disabled, disabledReason }: Selectio
   const { params, updateParam } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
 
-  // Get current value
-  const currentValue = params[control.param]?.value || ''
+  // Get current value and normalize to string for comparison
+  const rawValue = params[control.param]?.value
+  const currentValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : ''
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -50,14 +51,15 @@ export function SelectionControl({ control, disabled, disabledReason }: Selectio
       footer={
         <select
           className="selection-control__select"
-          value={String(currentValue)}
+          value={currentValue}
           onChange={handleChange}
           disabled={disabled || availableOptions.length === 0}
         >
           {availableOptions.map((option) => {
             const displayName = unit ? option.name.replace('{unit}', unit) : option.name
+            const optionValue = String(option.value)
             return (
-              <option key={option.value} value={option.value}>
+              <option key={option.value} value={optionValue}>
                 {displayName}
               </option>
             )

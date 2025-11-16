@@ -20,8 +20,9 @@ export function SegmentedControl({ control, disabled, disabledReason }: Segmente
   const { params, updateParam } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
 
-  // Get current value
-  const currentValue = params[control.param]?.value || ''
+  // Get current value and normalize to string for comparison
+  const rawValue = params[control.param]?.value
+  const currentValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : ''
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -38,8 +39,8 @@ export function SegmentedControl({ control, disabled, disabledReason }: Segmente
     }
   }
 
-  // Get selected option description
-  const selectedOption = availableOptions.find((opt) => opt.value === currentValue)
+  // Get selected option description (normalize option.value to string for comparison)
+  const selectedOption = availableOptions.find((opt) => String(opt.value) === currentValue)
   const selectedDesc = selectedOption?.desc
 
   const topDescription = control.showDescBottom ? null : description
@@ -58,10 +59,11 @@ export function SegmentedControl({ control, disabled, disabledReason }: Segmente
       <div className="segmented-control-buttons">
         {availableOptions.map((option) => {
           const lines = option.name.split('\n')
+          const optionValue = String(option.value)
           return (
             <button
               key={option.value}
-              className={`segmented-button ${currentValue === option.value ? 'active' : ''}`}
+              className={`segmented-button ${currentValue === optionValue ? 'active' : ''}`}
               onClick={() => handleSelect(option.value)}
               disabled={disabled}
             >

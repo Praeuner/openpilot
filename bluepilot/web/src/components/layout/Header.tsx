@@ -15,10 +15,12 @@ export const Header = ({ deviceStatus = 'checking', onMetricsClick }: HeaderProp
   const isRoutesPage = location.pathname.startsWith('/routes')
 
   const getTitle = () => {
-    if (isRoutesPage) return 'BluePilot Routes'
-    if (location.pathname.startsWith('/parameters')) return 'Parameters'
-    if (location.pathname.startsWith('/logs')) return 'System Logs'
-    return 'BluePilot App'
+    if (location.pathname === '/') return 'BluePilot - Home'
+    if (isRoutesPage) return 'BluePilot - Routes'
+    if (location.pathname.startsWith('/parameters')) return 'BluePilot - Parameters'
+    if (location.pathname.startsWith('/logs')) return 'BluePilot - Logs'
+    if (location.pathname.startsWith('/settings')) return 'BluePilot - Settings'
+    return 'BluePilot'
   }
 
   const isParametersPage = location.pathname.startsWith('/parameters')

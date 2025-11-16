@@ -113,11 +113,11 @@ from bluepilot.backend.video import (
 from bluepilot.backend.system import get_system_metrics
 
 # Params management
-from bluepilot.backend.params_manager import (
+from bluepilot.backend.params.params_manager import (
     get_all_params, get_params_by_category, get_param_value,
     set_param_value, search_params, READONLY_PARAMS, CRITICAL_PARAMS
 )
-from bluepilot.backend.params_watcher import ParamsWatcher
+from bluepilot.backend.params.params_watcher import ParamsWatcher
 
 # Cache management
 from bluepilot.backend.cache import (
@@ -153,17 +153,13 @@ from bluepilot.backend.utils.power import (
 # WebSocket
 from bluepilot.backend.realtime import WebSocketBroadcaster, WebSocketEvent
 
-# Export/backup handlers
-from bluepilot.backend.handlers.export_backup import (
-    handle_videos_zip_post, handle_route_backup_post,
-    handle_route_import_post,
-    handle_videos_zip_status_get, handle_videos_zip_download_get,
-    handle_route_backup_status_get, handle_route_backup_download_get,
-    handle_route_import_status_get,
+# Log download handlers
+from bluepilot.backend.handlers.log_downloads import (
+    handle_qlog_download, handle_rlog_download
 )
 
 # Params - import from params_manager to get fallback support
-from bluepilot.backend.params_manager import Params
+from bluepilot.backend.params.params_manager import Params
 params = Params()
 
 
@@ -924,7 +920,26 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             elif path == '/api/status':
                 # Basic status endpoint (lightweight, always available)
                 onroad = is_onroad()
-                routes = scan_routes()
+
+                # Fast route count (no full scan - just count unique base routes)
+                # Full route scanning is handled by:
+                # - /api/routes endpoint (when viewing routes page)
+                # - Background preprocessor (every 30s, broadcasts via WebSocket)
+                routes_count = 0
+                if os.path.exists(ROUTES_DIR):
+                    try:
+                        # Count unique route base names (not individual segments)
+                        unique_routes = set()
+                        for entry in os.listdir(ROUTES_DIR):
+                            if (os.path.isdir(os.path.join(ROUTES_DIR, entry))
+                                and '--' in entry
+                                and entry not in ('boot', 'crash')):
+                                # Extract base route name (removes segment number)
+                                base_name = get_route_base_name(entry)
+                                unique_routes.add(base_name)
+                        routes_count = len(unique_routes)
+                    except Exception:
+                        pass
 
                 # Count params by listing directory
                 params_count = 0
@@ -938,7 +953,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 self.send_json_response({
                     'status': 'onroad' if onroad else 'online',
                     'onroad': onroad,
-                    'routes_count': len(routes),
+                    'routes_count': routes_count,
                     'params_count': params_count,
                     'routes_dir': ROUTES_DIR,
                     'routes_dir_exists': os.path.exists(ROUTES_DIR),
@@ -1850,7 +1865,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     return
 
                 try:
-                    stream_route_export(route_base, camera, self)
+                    stream_route_export(route_base, camera, self, server_state)
                 except FileNotFoundError as e:
                     self.send_json_response({'error': str(e)}, 404)
                 except ValueError as e:
@@ -1872,26 +1887,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 payload, status_code = self.build_route_export_status(route_base, camera)
                 self.send_json_response(payload, status_code)
 
-            elif path.startswith('/api/videos-zip/') and '/status' in path:
-                handle_videos_zip_status_get(self, path, server_state)
-                return
-
-            elif path.startswith('/api/videos-zip/') and '/download' in path:
-                handle_videos_zip_download_get(self, path, server_state)
-                return
-
-            elif path.startswith('/api/route-backup/') and '/status' in path:
-                handle_route_backup_status_get(self, path, server_state)
-                return
-
-            elif path.startswith('/api/route-backup/') and '/download' in path:
-                handle_route_backup_download_get(self, path, server_state)
-                return
-
-            elif path.startswith('/api/route-import/') and '/status' in path:
-                handle_route_import_status_get(self, path, server_state)
-                return
-
             elif path.startswith('/api/download/route/'):
                 # Download full route: /api/download/route/{route_base}/{camera}
                 parts = path.split('/')[4:]  # Skip '', 'api', 'download', 'route'
@@ -1909,6 +1904,16 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     return
 
                 self.download_full_route(route_base, camera, segments)
+
+            elif path.startswith('/api/download/qlog/'):
+                # Download qlog: /api/download/qlog/{route_base}
+                handle_qlog_download(self, path, get_route_segments)
+                return
+
+            elif path.startswith('/api/download/rlog/'):
+                # Download rlog: /api/download/rlog/{route_base}
+                handle_rlog_download(self, path, get_route_segments)
+                return
 
             elif path.startswith('/api/route-coordinates/'):
                 # New endpoint: /api/route-coordinates/{route_base}
@@ -1944,7 +1949,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Route not found'}, 404)
                     return
 
-                # Camera file mappings
+                # Camera and log file mappings
                 camera_files = {
                     'front': 'fcamera.hevc',
                     'wide': 'ecamera.hevc',
@@ -1952,16 +1957,19 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'lq': 'qcamera.ts'
                 }
 
-                # Calculate total size for each camera across all segments
+                # Calculate total size for each camera and log file across all segments
                 camera_sizes = {
                     'front': 0,
                     'wide': 0,
                     'driver': 0,
-                    'lq': 0
+                    'lq': 0,
+                    'qlog': 0,
+                    'rlog': 0
                 }
 
                 for segment in segments:
                     segment_path = segment['path']
+                    # Camera sizes
                     for camera, filename in camera_files.items():
                         file_path = os.path.join(segment_path, filename)
                         if os.path.exists(file_path):
@@ -1970,13 +1978,24 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             except Exception as e:
                                 logger.debug(f"Error getting size for {file_path}: {e}")
 
+                    # Log file sizes
+                    for log_type in ['qlog', 'rlog']:
+                        log_path = os.path.join(segment_path, f'{log_type}.zst')
+                        if os.path.exists(log_path):
+                            try:
+                                camera_sizes[log_type] += os.path.getsize(log_path)
+                            except Exception as e:
+                                logger.debug(f"Error getting size for {log_path}: {e}")
+
                 self.send_json_response({
                     'success': True,
                     'baseName': route_base,
                     'front': camera_sizes['front'],
                     'wide': camera_sizes['wide'],
                     'driver': camera_sizes['driver'],
-                    'lq': camera_sizes['lq']
+                    'lq': camera_sizes['lq'],
+                    'qlog': camera_sizes['qlog'],
+                    'rlog': camera_sizes['rlog']
                 })
 
             elif path.startswith('/api/logs/'):
@@ -2289,115 +2308,70 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'success': False, 'error': str(e)}, 500)
 
             elif path == '/api/drive-stats':
-                # Get aggregate drive statistics from Comma Connect API
-                # This matches the Qt widget behavior which fetches from cloud
+                # Get aggregate drive statistics from ApiCache_DriveStats param
+                # This matches the Qt widget behavior which caches API responses in params
                 try:
-                    # Get DongleId from params with defensive handling
-                    dongle_id = None
+                    # Try to get cached stats from ApiCache_DriveStats param
+                    cached_stats = None
                     try:
-                        dongle_id_bytes = params.get("DongleId")
-                        if dongle_id_bytes and isinstance(dongle_id_bytes, bytes):
-                            dongle_id = dongle_id_bytes.decode('utf-8').strip()
-                            if not dongle_id:  # Empty string after strip
-                                dongle_id = None
-                    except Exception as e:
-                        logger.debug(f"Error getting DongleId: {e}")
-                        dongle_id = None
+                        cached_stats_data = params.get("ApiCache_DriveStats")
+                        logger.info(f"ApiCache_DriveStats: type={type(cached_stats_data)}, len={len(cached_stats_data) if cached_stats_data else 0}")
 
-                    if not dongle_id:
-                        # Return zeros if no DongleId
-                        zero_stats = {
-                            'routes': 0,
-                            'distance': 0,
-                            'distanceMiles': 0,
-                            'duration': 0,
-                            'durationMinutes': 0,
-                            'averageSpeed': 0,
-                        }
-                        self.send_json_response({
+                        # Handle both cases: bytes (fallback Params) and dict (openpilot Params with auto-deserialization)
+                        if isinstance(cached_stats_data, dict):
+                            # Already deserialized by openpilot Params
+                            cached_stats = cached_stats_data
+                            logger.info(f"Got pre-deserialized stats: all={cached_stats.get('all', {}).get('routes', 0)} routes")
+                        elif cached_stats_data and isinstance(cached_stats_data, bytes):
+                            # Raw bytes from fallback Params - need to decode and parse
+                            cached_stats_str = cached_stats_data.decode('utf-8').strip()
+                            logger.info(f"Decoded stats string: {cached_stats_str[:100]}")
+                            if cached_stats_str:
+                                cached_stats = json.loads(cached_stats_str)
+                                logger.info(f"Successfully parsed cached stats: all={cached_stats.get('all', {}).get('routes', 0)} routes")
+                    except Exception as e:
+                        logger.error(f"Error reading ApiCache_DriveStats param: {e}", exc_info=True)
+                        cached_stats = None
+
+                    if cached_stats:
+                        # Parse response (format: {all: {routes, distance, minutes}, week: {...}})
+                        # Convert both "all" and "week" stats to frontend format
+                        def convert_stats(stats_data):
+                            """Convert API stats to frontend format"""
+                            distance_miles = stats_data.get('distance', 0)
+                            distance_meters = distance_miles * 1609.34
+                            duration_minutes = stats_data.get('minutes', 0)
+                            duration_seconds = duration_minutes * 60
+                            routes = stats_data.get('routes', 0)
+
+                            # Calculate average speed if we have both distance and duration
+                            avg_speed_ms = distance_meters / duration_seconds if duration_seconds > 0 else 0
+
+                            return {
+                                'routes': routes,
+                                'distance': distance_meters,
+                                'distanceMiles': distance_miles,  # Keep original for reference
+                                'duration': duration_seconds,
+                                'durationMinutes': duration_minutes,  # Keep original for reference
+                                'averageSpeed': avg_speed_ms,  # m/s
+                            }
+
+                        all_stats = convert_stats(cached_stats.get('all', {}))
+                        week_stats = convert_stats(cached_stats.get('week', {}))
+
+                        result = {
                             'success': True,
-                            'all': zero_stats,
-                            'week': zero_stats.copy(),
-                            'error': 'No DongleId configured'
-                        })
+                            'all': all_stats,
+                            'week': week_stats,
+                            'source': 'param_cache',
+                            'timestamp': datetime.now().isoformat()
+                        }
+
+                        self.send_json_response(result)
                         return
 
-                    # Check cache first (30s cache like Qt widget)
-                    cache_file = os.path.join(METRICS_CACHE, "drive_stats_cloud.json")
-                    cache_max_age = 30  # seconds
-
-                    if os.path.exists(cache_file):
-                        cache_age = time.time() - os.path.getmtime(cache_file)
-                        if cache_age < cache_max_age:
-                            try:
-                                with open(cache_file, 'r') as f:
-                                    cached_data = json.load(f)
-                                self.send_json_response(cached_data)
-                                return
-                            except Exception as e:
-                                logger.debug(f"Cache read failed: {e}")
-
-                    # Fetch from Comma Connect API with JWT authentication
-                    api_url = f"https://api.commadotai.com/v1.1/devices/{dongle_id}/stats"
-                    logger.info(f"Fetching drive stats from Comma Connect API: {api_url}")
-
-                    # Create JWT token for authentication
-                    jwt_token = create_comma_jwt(dongle_id)
-                    headers = {}
-                    if jwt_token:
-                        headers['Authorization'] = f"JWT {jwt_token}"
-                    else:
-                        logger.warning("No JWT token available, attempting unauthenticated request")
-
-                    response = requests.get(api_url, headers=headers, timeout=10)
-                    response.raise_for_status()
-                    cloud_data = response.json()
-
-                    # Parse response (format: {all: {routes, distance, minutes}, week: {...}})
-                    # Convert both "all" and "week" stats to frontend format
-                    def convert_stats(stats_data):
-                        """Convert API stats to frontend format"""
-                        distance_miles = stats_data.get('distance', 0)
-                        distance_meters = distance_miles * 1609.34
-                        duration_minutes = stats_data.get('minutes', 0)
-                        duration_seconds = duration_minutes * 60
-                        routes = stats_data.get('routes', 0)
-
-                        # Calculate average speed if we have both distance and duration
-                        avg_speed_ms = distance_meters / duration_seconds if duration_seconds > 0 else 0
-
-                        return {
-                            'routes': routes,
-                            'distance': distance_meters,
-                            'distanceMiles': distance_miles,  # Keep original for reference
-                            'duration': duration_seconds,
-                            'durationMinutes': duration_minutes,  # Keep original for reference
-                            'averageSpeed': avg_speed_ms,  # m/s
-                        }
-
-                    all_stats = convert_stats(cloud_data.get('all', {}))
-                    week_stats = convert_stats(cloud_data.get('week', {}))
-
-                    result = {
-                        'success': True,
-                        'all': all_stats,
-                        'week': week_stats,
-                        'timestamp': datetime.now().isoformat()
-                    }
-
-                    # Cache the response
-                    try:
-                        os.makedirs(METRICS_CACHE, exist_ok=True)
-                        with open(cache_file, 'w') as f:
-                            json.dump(result, f)
-                    except Exception as e:
-                        logger.debug(f"Cache write failed: {e}")
-
-                    self.send_json_response(result)
-
-                except (requests.RequestException, json.JSONDecodeError, ValueError) as e:
-                    logger.error(f"Error fetching from Comma Connect API: {e}")
-                    # Return zeros when API fails
+                    # No cached data available, return zeros
+                    logger.debug("No cached drive stats available in ApiCache_DriveStats param")
                     zero_stats = {
                         'routes': 0,
                         'distance': 0,
@@ -2410,10 +2384,12 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'success': True,
                         'all': zero_stats,
                         'week': zero_stats.copy(),
-                        'cloud_error': str(e)
+                        'source': 'no_cache',
+                        'info': 'No cached data available. Stats will populate when Qt UI fetches them.'
                     })
+
                 except Exception as e:
-                    logger.error(f"Error calculating drive stats: {e}", exc_info=True)
+                    logger.error(f"Error reading drive stats from param: {e}", exc_info=True)
                     self.send_json_response({'success': False, 'error': str(e)}, 500)
 
             elif path == '/api/file-content':
@@ -2845,7 +2821,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 def worker():
                     try:
-                        export_path_local = generate_route_export(route_base, camera, progress_callback)
+                        export_path_local = generate_route_export(route_base, camera, progress_callback, server_state)
                         info = server_state.complete_route_export(key, export_path_local, message="Video ready")
                         broadcast_route_export_update(route_base, camera, info, export_path_local)
                     except Exception as exc:
@@ -2865,77 +2841,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 payload, _ = self.build_route_export_status(route_base, camera)
                 self.send_json_response(payload)
-                return
-
-            elif path.startswith('/api/videos-zip/') and path.endswith('/cancel'):
-                parts = path.split('/')[3:]
-                if len(parts) < 2:
-                    self.send_json_response({'error': 'Invalid cancel path'}, 400)
-                    return
-
-                route_base = parts[0]
-                zip_path = server_state.cancel_videos_zip(route_base)
-
-                # Clean up ZIP file
-                if zip_path and os.path.exists(zip_path):
-                    try:
-                        os.remove(zip_path)
-                        logger.info(f"Cleaned up cancelled videos ZIP: {zip_path}")
-                    except Exception as e:
-                        logger.error(f"Failed to clean up videos ZIP: {e}")
-
-                self.send_json_response({'status': 'cancelled', 'message': 'Videos ZIP cancelled'})
-                return
-
-            elif path.startswith('/api/videos-zip/'):
-                # Delegate to modular handler
-                handle_videos_zip_post(
-                    self, path, server_state, get_route_segments,
-                    CAMERA_FILES, generate_route_export,
-                    generate_route_export_filename, VIDEOS_ZIP_CACHE,
-                    ROUTE_EXPORT_CACHE, get_disk_space_info,
-                    broadcast_websocket_event, WebSocketEvent
-                )
-                return
-
-            elif path.startswith('/api/route-backup/') and path.endswith('/cancel'):
-                parts = path.split('/')[3:]
-                if len(parts) < 2:
-                    self.send_json_response({'error': 'Invalid cancel path'}, 400)
-                    return
-
-                route_base = parts[0]
-                backup_path = server_state.cancel_backup(route_base)
-
-                # Clean up backup file
-                if backup_path and os.path.exists(backup_path):
-                    try:
-                        os.remove(backup_path)
-                        logger.info(f"Cleaned up cancelled backup: {backup_path}")
-                    except Exception as e:
-                        logger.error(f"Failed to clean up backup file: {e}")
-
-                self.send_json_response({'status': 'cancelled', 'message': 'Backup cancelled'})
-                return
-
-            elif path.startswith('/api/route-backup/'):
-                # Delegate to modular handler
-                handle_route_backup_post(
-                    self, path, server_state, get_route_segments,
-                    BACKUP_CACHE, METRICS_CACHE, THUMBNAIL_CACHE,
-                    get_disk_space_info, broadcast_websocket_event,
-                    WebSocketEvent
-                )
-                return
-
-            elif path == '/api/route-import':
-                # Delegate to modular handler
-                handle_route_import_post(
-                    self, path, server_state, IMPORT_TEMP_DIR,
-                    ROUTES_DIR, METRICS_CACHE, THUMBNAIL_CACHE,
-                    set_route_preserve, broadcast_websocket_event,
-                    WebSocketEvent
-                )
                 return
 
             elif path.startswith('/api/preserve/'):

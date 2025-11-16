@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoutesStore } from '@/stores/useRoutesStore'
 import { useToastStore } from '@/stores/useToastStore'
-import { ExportBackupModal } from '@/components/modals'
+import { RouteDownloadModal } from '@/components/modals'
 import type { RouteDetails, CameraType } from '@/types'
 import { VehicleInfoPanel } from './panels/VehicleInfoPanel'
 import { LogsPanel } from './panels/LogsPanel'
@@ -771,7 +771,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
 
   return (
     <>
-      <ExportBackupModal
+      <RouteDownloadModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         route={route}
@@ -1011,7 +1011,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Export & Backup
+                Export Videos & Logs
               </button>
               <button type="button" className="btn btn-danger" onClick={handleDelete}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

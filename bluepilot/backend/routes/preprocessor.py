@@ -33,11 +33,9 @@ from bluepilot.backend.routes.processing import (
     process_route,
 )
 
-# Import server-specific functions
-from bluepilot.backend.web_routes_server import (
-    scan_routes,
-    get_route_segments,
-)
+# Import route scanning and segment functions
+from bluepilot.backend.routes.scanner import scan_routes
+from bluepilot.backend.routes.segments import get_route_segments
 
 # Import WebSocket broadcaster for cross-process communication
 from bluepilot.backend.realtime import WebSocketBroadcaster
@@ -258,10 +256,8 @@ def main():
     broadcaster = WebSocketBroadcaster(http_fallback_port=web_port)
     logger.info(f"WebSocket broadcaster initialized (HTTP fallback to port {web_port})")
 
-    # Main loop
-    check_interval = 60  # Check every 60 seconds
-    route_check_interval = 10  # Check for new routes every 10 seconds
-    last_route_check = 0
+    # Main loop - check every 30 seconds for new routes and processing opportunities
+    check_interval = 30
 
     # Track known routes
     known_routes = set(r['baseName'] for r in scan_routes())
@@ -269,14 +265,10 @@ def main():
 
     while True:
         try:
-            current_time = time.monotonic()
-
-            # Check for new routes more frequently (every 10 seconds)
-            if current_time - last_route_check >= route_check_interval:
-                new_routes = monitor_new_routes(known_routes)
-                if new_routes:
-                    known_routes.update(new_routes)
-                last_route_check = current_time
+            # Check for new routes
+            new_routes = monitor_new_routes(known_routes)
+            if new_routes:
+                known_routes.update(new_routes)
 
             # Check if device is idle
             if is_device_idle():
