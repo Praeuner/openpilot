@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { useRoutesStore } from '@/stores/useRoutesStore'
 import { useToastStore } from '@/stores/useToastStore'
-import { LoadingSpinner } from '@/components/common'
+import { LoadingSpinner, ConfirmDialog, Icon } from '@/components/common'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { DiskSpaceVisualization } from '@/components/storage/DiskSpaceVisualization'
 import { MetricsModal, RouteDownloadModal } from '@/components/modals'
@@ -20,6 +20,9 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
   const [showMetricsModal, setShowMetricsModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportRoute, setExportRoute] = useState<RouteDetails | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showPreserveConfirm, setShowPreserveConfirm] = useState(false)
+  const [pendingActionRoute, setPendingActionRoute] = useState<string | null>(null)
 
   useEffect(() => {
     fetchRoutes()
@@ -38,12 +41,37 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
 
   const handlePreserveToggle = async (e: React.MouseEvent, baseName: string) => {
     e.stopPropagation()
+    // Check if the route is currently preserved
+    const route = routes.find(r => r.baseName === baseName)
+    const isCurrentlyPreserved = route ? (route.preserved || (route as any).isStarred) : false
+
+    if (isCurrentlyPreserved) {
+      // If already preserved, show confirmation to unpreserve
+      setPendingActionRoute(baseName)
+      setShowPreserveConfirm(true)
+    } else {
+      // If not preserved, preserve without confirmation
+      try {
+        await preserveRoute(baseName)
+        addToast('Route preserved successfully', 'success')
+      } catch (error: any) {
+        console.error('Failed to preserve route:', error)
+        addToast(error?.message || 'Failed to preserve route', 'error')
+      }
+    }
+  }
+
+  const handleConfirmUnpreserve = async () => {
+    if (!pendingActionRoute) return
+
     try {
-      await preserveRoute(baseName)
-      addToast('Route preservation toggled successfully', 'success')
+      await preserveRoute(pendingActionRoute)
+      addToast('Route unpreserved successfully', 'success')
     } catch (error: any) {
-      console.error('Failed to preserve route:', error)
-      addToast(error?.message || 'Failed to preserve route', 'error')
+      console.error('Failed to unpreserve route:', error)
+      addToast(error?.message || 'Failed to unpreserve route', 'error')
+    } finally {
+      setPendingActionRoute(null)
     }
   }
 
@@ -58,14 +86,21 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
 
   const handleDeleteClick = async (e: React.MouseEvent, baseName: string) => {
     e.stopPropagation()
-    if (confirm('Are you sure you want to delete this route? This action cannot be undone.')) {
-      try {
-        await deleteRoute(baseName)
-        addToast('Route deleted successfully', 'success')
-      } catch (error: any) {
-        console.error('Failed to delete route:', error)
-        addToast(error?.message || 'Failed to delete route', 'error')
-      }
+    setPendingActionRoute(baseName)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!pendingActionRoute) return
+
+    try {
+      await deleteRoute(pendingActionRoute)
+      addToast('Route deleted successfully', 'success')
+    } catch (error: any) {
+      console.error('Failed to delete route:', error)
+      addToast(error?.message || 'Failed to delete route', 'error')
+    } finally {
+      setPendingActionRoute(null)
     }
   }
 
@@ -239,6 +274,32 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
         }}
         route={exportRoute}
       />
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false)
+          setPendingActionRoute(null)
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Route"
+        message="Are you sure you want to delete this route? This action cannot be undone and all video files and logs will be permanently removed."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+      <ConfirmDialog
+        isOpen={showPreserveConfirm}
+        onClose={() => {
+          setShowPreserveConfirm(false)
+          setPendingActionRoute(null)
+        }}
+        onConfirm={handleConfirmUnpreserve}
+        title="Unpreserve Route"
+        message="Are you sure you want to unpreserve this route? The route may be automatically deleted when disk space is needed."
+        confirmText="Unpreserve"
+        cancelText="Cancel"
+        variant="warning"
+      />
       {selectedRoute && (
         <VideoPlayer route={selectedRoute} onClose={handleCloseVideo} />
       )}
@@ -246,17 +307,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
       <div className="routes-container">
         {routes.length === 0 ? (
           <div className="empty">
-            <svg
-              width="120"
-              height="120"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
+            <Icon name="home" size={120} />
             <h2>No Routes Found</h2>
             <p>
               No driving routes available yet. Start driving to see your routes here.
@@ -289,9 +340,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                         {/* Preserved Badge */}
                         {preserved && (
                           <div className="preserved-badge">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
-                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                            </svg>
+                            <Icon name="star" size={12} />
                             Preserved
                           </div>
                         )}
@@ -299,10 +348,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                         {/* Processing Banner */}
                         {route.processing && (
                           <div className="route-processing-banner">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10"/>
-                              <path d="M12 6v6l4 2"/>
-                            </svg>
+                            <Icon name="schedule" size={14} />
                             <span className="banner-text">Processing drive statistics...</span>
                           </div>
                         )}
@@ -315,9 +361,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                             alt="Route thumbnail"
                           />
                           <div className="play-overlay">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="#2196f3" stroke="#2196f3" strokeWidth="2">
-                              <polygon points="5 3 19 12 5 21 5 3"/>
-                            </svg>
+                            <Icon name="play_circle_filled" size={48} style={{ color: '#2196f3' }} />
                           </div>
                         </div>
 
@@ -325,10 +369,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                         <div className="route-info">
                           <div className="route-info-header">
                             <div className="route-time-range">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                              </svg>
+                              <Icon name="schedule" size={16} />
                               {formatTimeRange(route)}
                             </div>
                           </div>
@@ -336,10 +377,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                           {/* Location */}
                           {(startLocation || endLocation) && (
                             <div className="route-location">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                                <circle cx="12" cy="10" r="3"/>
-                              </svg>
+                              <Icon name="place" size={14} />
                               {startLocation === endLocation || !endLocation
                                 ? startLocation
                                 : `${startLocation || 'N/A'} → ${endLocation || 'N/A'}`
@@ -350,10 +388,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                           {/* Fingerprint */}
                           {route.fingerprint?.carFingerprint && (
                             <div className="route-fingerprint">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                              </svg>
+                              <Icon name="directions_car" size={14} />
                               {route.fingerprint.carFingerprint}
                             </div>
                           )}
@@ -361,63 +396,39 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                           {/* Stats Grid */}
                           <div className="route-stats-grid">
                             <div className="route-stat">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                              </svg>
+                              <Icon name="schedule" size={14} />
                               {route.duration}
                             </div>
                             <div className="route-stat">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                                <circle cx="12" cy="10" r="3"/>
-                              </svg>
+                              <Icon name="place" size={14} />
                               {route.distance || getField(route, 'mileage') || '--'}
                             </div>
                             {avgSpeed && (
                               <div className="route-stat">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M12 2v4"/>
-                                  <path d="m6.8 15-3.5 2"/>
-                                  <path d="m20.7 7-3.5 2"/>
-                                  <path d="M6.8 9 3.3 7"/>
-                                  <path d="m20.7 17-3.5-2"/>
-                                  <path d="M18 18.7a9 9 0 1 0-12 0"/>
-                                </svg>
+                                <Icon name="speed" size={14} />
                                 {avgSpeed} avg
                               </div>
                             )}
                             {topSpeed && (
                               <div className="route-stat">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                                </svg>
+                                <Icon name="bolt" size={14} />
                                 {topSpeed} top
                               </div>
                             )}
                             {opEngagedPercent !== undefined && (
                               <div className="route-stat route-stat-engagement">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <circle cx="12" cy="12" r="10"/>
-                                  <path d="M12 6v6l4 2"/>
-                                </svg>
+                                <Icon name="schedule" size={14} />
                                 {Math.round(opEngagedPercent)}% engaged
                               </div>
                             )}
                             {alertCount !== undefined && alertCount > 0 && (
                               <div className="route-stat route-stat-alerts">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                                  <line x1="12" y1="9" x2="12" y2="13"/>
-                                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                                </svg>
+                                <Icon name="warning" size={14} />
                                 {alertCount} alerts
                               </div>
                             )}
                             <div className="route-stat">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                              </svg>
+                              <Icon name="inventory_2" size={14} />
                               {(() => {
                                 const segments = getField(route, 'segments', 'totalSegments')
                                 // Ensure we only render a number, not an object
@@ -425,10 +436,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                               })()} seg
                             </div>
                             <div className="route-stat">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="22" y1="12" x2="2" y2="12"/>
-                                <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
-                              </svg>
+                              <Icon name="folder" size={14} />
                               {route.size}
                             </div>
                           </div>
@@ -442,9 +450,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                               title={preserved ? 'Preserved' : 'Preserve'}
                               onClick={(e) => handlePreserveToggle(e, baseName)}
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill={preserved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                              </svg>
+                              <Icon name={preserved ? 'star' : 'star_outline'} size={14} />
                               <span>{preserved ? 'Preserved' : 'Preserve'}</span>
                             </button>
                             <button
@@ -453,11 +459,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                               title="Export videos and logs"
                               onClick={(e) => handleExportClick(e, baseName)}
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                              </svg>
+                              <Icon name="download" size={14} />
                               <span>Export</span>
                             </button>
                             <button
@@ -466,12 +468,7 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
                               title="Delete route"
                               onClick={(e) => handleDeleteClick(e, baseName)}
                             >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                <line x1="10" y1="11" x2="10" y2="17" />
-                                <line x1="14" y1="11" x2="14" y2="17" />
-                              </svg>
+                              <Icon name="delete" size={16} />
                             </button>
                           </div>
                         </div>

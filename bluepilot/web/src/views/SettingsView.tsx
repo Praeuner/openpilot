@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
-import { LoadingSpinner } from '@/components/common'
+import { LoadingSpinner, Icon } from '@/components/common'
 import { PanelGroup } from '@/components/settings/PanelGroup'
 import { BackupRestore } from '@/components/settings/BackupRestore'
 import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
@@ -31,84 +31,16 @@ type PanelIconKey =
   | 'default'
 
 const panelIcons: Record<PanelIconKey, () => JSX.Element> = {
-  favorites: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 3.5l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.9l-5.3 2.81 1.01-5.9-4.29-4.18 5.93-.86L12 3.5z"
-        fill="currentColor"
-      />
-    </svg>
-  ),
-  bp_device_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <rect x="9" y="20" width="6" height="1.5" rx="0.75" fill="currentColor" />
-    </svg>
-  ),
-  bp_display_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <path d="M9 20h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  ),
-  bp_visuals_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M2.5 12s3-6 9.5-6 9.5 6 9.5 6-3 6-9.5 6-9.5-6-9.5-6z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        fill="none"
-      />
-      <circle cx="12" cy="12" r="2.7" stroke="currentColor" strokeWidth="1.4" fill="none" />
-    </svg>
-  ),
-  bp_vehicle_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5 16l-1.2-3.5A2 2 0 0 1 5.7 10h12.6a2 2 0 0 1 1.9 2.5L19 16"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="7.5" cy="17.5" r="1.5" fill="currentColor" />
-      <circle cx="16.5" cy="17.5" r="1.5" fill="currentColor" />
-    </svg>
-  ),
-  bp_cruise_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  ),
-  bp_toggles_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="6" width="18" height="5" rx="2.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <rect x="3" y="13" width="18" height="5" rx="2.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <circle cx="9" cy="8.5" r="2" fill="currentColor" />
-      <circle cx="15" cy="15.5" r="2" fill="currentColor" />
-    </svg>
-  ),
-  bp_steering_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
-      <path d="M4.5 12h5.5M14 12h5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  ),
-  bp_developer_panel: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 8l3.5 4L6 16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  ),
-  default: () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="4" rx="1.5" fill="currentColor" />
-      <rect x="4" y="11" width="16" height="8" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
-    </svg>
-  ),
+  favorites: () => <Icon name="star" />,
+  bp_device_panel: () => <Icon name="devices" />,
+  bp_display_panel: () => <Icon name="monitor" />,
+  bp_visuals_panel: () => <Icon name="visibility" />,
+  bp_vehicle_panel: () => <Icon name="directions_car" />,
+  bp_cruise_panel: () => <Icon name="speed" />,
+  bp_toggles_panel: () => <Icon name="toggle_on" />,
+  bp_steering_panel: () => <Icon name="trip_origin" />,
+  bp_developer_panel: () => <Icon name="code" />,
+  default: () => <Icon name="dashboard" />,
 }
 
 const getPanelIcon = (panelId?: string) => {
@@ -236,6 +168,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                   key={panel.id}
                   className={`settings-nav-btn ${selectedPanelId === panel.id ? 'active' : ''}`}
                   onClick={() => setSelectedPanelId(panel.id)}
+                  data-panel-id={panel.id}
                 >
                   <div className="settings-nav-icon">{getPanelIcon(panel.id)}</div>
                   <div className="settings-nav-copy">
@@ -270,7 +203,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                     onClick={() => setSearchQuery('')}
                     aria-label="Clear search"
                   >
-                    ✕
+                    <Icon name="close" size={18} />
                   </button>
                 )}
               </div>

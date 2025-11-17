@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { systemAPI } from '@/services/api'
 import { Button } from './Button'
+import { Icon } from './Icon'
 import './StatusOverlay.css'
 
 interface StatusOverlayProps {
@@ -47,23 +48,12 @@ export const StatusOverlay = ({ type, onRetry }: StatusOverlayProps) => {
 
   const config = type === 'onroad'
     ? {
-        icon: (
-          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-        ),
+        icon: <Icon name="schedule" size={80} />,
         title: 'Device Onroad',
         message: 'The device is currently driving. Web access is limited to prevent distractions.',
       }
     : {
-        icon: (
-          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-        ),
+        icon: <Icon name="cloud_off" size={80} />,
         title: 'Device Offline',
         message: 'Cannot connect to the device. Please check your network connection.',
       }

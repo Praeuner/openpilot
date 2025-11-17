@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal } from '@/components/common'
+import { Modal, Icon } from '@/components/common'
 import { useToastStore } from '@/stores/useToastStore'
 import type { RouteDetails } from '@/types'
 import './RouteDownloadModal.css'
@@ -204,10 +204,7 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
         {/* Video Downloads Section */}
         <div className="download-section">
           <h3 className="download-section-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="23 7 16 12 23 17 23 7" />
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-            </svg>
+            <Icon name="videocam" size={20} />
             Camera Videos
           </h3>
           <p className="download-section-description">
@@ -289,13 +286,7 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
         {/* Log Downloads Section */}
         <div className="download-section">
           <h3 className="download-section-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
+            <Icon name="description" size={20} />
             Log Files
           </h3>
           <p className="download-section-description">

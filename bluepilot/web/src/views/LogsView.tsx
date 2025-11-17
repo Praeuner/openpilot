@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
-import { Button, ToggleSwitch } from '@/components/common'
+import { Button, ToggleSwitch, Icon } from '@/components/common'
 import './LogsView.css'
 
 interface LogResponse {
@@ -345,7 +345,7 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
                 onClick={() => setSearchQuery('')}
                 aria-label="Clear search"
               >
-                ✕
+                <Icon name="close" size={18} />
               </button>
             )}
           </div>
@@ -355,7 +355,7 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
               variant={isPaused ? 'primary' : 'secondary'}
               size="small"
               onClick={handlePauseToggle}
-              icon={<span aria-hidden="true">{isPaused ? '▶' : '⏸'}</span>}
+              icon={<Icon name={isPaused ? 'play_arrow' : 'pause'} size={18} />}
             >
               {isPaused ? 'Resume' : 'Pause'}
             </Button>
@@ -364,7 +364,7 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
               variant="secondary"
               size="small"
               onClick={handleClear}
-              icon={<span aria-hidden="true">🗑</span>}
+              icon={<Icon name="delete" size={18} />}
             >
               Clear
             </Button>
@@ -374,7 +374,7 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
               size="small"
               onClick={handleRefresh}
               disabled={isConnecting}
-              icon={<span aria-hidden="true">↻</span>}
+              icon={<Icon name="refresh" size={18} />}
             >
               Refresh
             </Button>

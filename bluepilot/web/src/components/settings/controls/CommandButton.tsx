@@ -8,7 +8,7 @@ import type { CommandButtonControl } from '@/types/panels'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { panelAPI } from '@/services/panelAPI'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
-import { Button, ControlCard, Modal, InputDialog } from '@/components/common'
+import { Button, ControlCard, Modal, InputDialog, ConfirmDialog } from '@/components/common'
 import './CommandButton.css'
 
 const DEVICE_UI_ACTIONS = new Set([
@@ -284,28 +284,17 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
         )}
       </ControlCard>
 
-      {/* Confirmation Modal */}
-      {showConfirm && (
-        <Modal
-          isOpen={showConfirm}
-          title={inputConfig?.title || 'Confirm Action'}
-          onClose={() => setShowConfirm(false)}
-          actions={[
-            {
-              label: control.cancel_button_text || control.confirm_no_text || 'Cancel',
-              onClick: () => setShowConfirm(false),
-              variant: 'secondary',
-            },
-            {
-              label: control.confirm_button_text || control.confirm_yes_text || (sshKeysState?.has_keys ? 'Remove' : 'Confirm'),
-              onClick: executeCommand,
-              variant: sshKeysState?.has_keys ? 'danger' : 'primary',
-            },
-          ]}
-        >
-          <div dangerouslySetInnerHTML={{ __html: inputConfig?.message || control.confirm_text || `Are you sure you want to ${control.title}?` }} />
-        </Modal>
-      )}
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={executeCommand}
+        title={inputConfig?.title || 'Confirm Action'}
+        message={<div dangerouslySetInnerHTML={{ __html: inputConfig?.message || control.confirm_text || `Are you sure you want to ${control.title}?` }} />}
+        confirmText={control.confirm_button_text || control.confirm_yes_text || (sshKeysState?.has_keys ? 'Remove' : 'Confirm')}
+        cancelText={control.cancel_button_text || control.confirm_no_text || 'Cancel'}
+        variant={sshKeysState?.has_keys ? 'danger' : 'info'}
+      />
 
       {/* Input Dialog */}
       {showInput && inputConfig && (

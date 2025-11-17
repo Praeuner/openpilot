@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon } from '@/components/common'
 import type { RouteDetails } from '@/types'
 import './Panels.css'
 
@@ -59,20 +60,7 @@ export const VehicleInfoPanel = ({ route }: VehicleInfoPanelProps) => {
         style={{ cursor: 'pointer' }}
       >
         <div className="panel-title">
-          <svg
-            className="panel-icon"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M18 6H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h13l4-3.5L18 6Z" />
-            <path d="M5 11V6" />
-            <circle cx="7" cy="15" r="2" />
-            <circle cx="17" cy="15" r="2" />
-          </svg>
+          <Icon name="directions_car" className="panel-icon" size={20} />
           <div className="panel-title-text">
             <span className="panel-title-label">Vehicle Information</span>
             <span className="panel-title-subtitle">Platform details & firmware</span>
@@ -80,20 +68,11 @@ export const VehicleInfoPanel = ({ route }: VehicleInfoPanelProps) => {
         </div>
         <div className="panel-header-actions">
           <span className="panel-collapse-indicator">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              style={{
-                transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                transition: 'transform 0.2s'
-              }}
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            <Icon
+              name={isOpen ? 'expand_more' : 'chevron_right'}
+              size={16}
+              style={{ transition: 'transform 0.2s' }}
+            />
           </span>
         </div>
       </div>

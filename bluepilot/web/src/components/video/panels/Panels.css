@@ -655,3 +655,153 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ANSI Color Classes for Log Output */
+/* Text styling */
+.ansi-bold {
+  font-weight: 700;
+}
+
+.ansi-dim {
+  opacity: 0.6;
+}
+
+.ansi-italic {
+  font-style: italic;
+}
+
+.ansi-underline {
+  text-decoration: underline;
+}
+
+/* Standard foreground colors (30-37) */
+.ansi-black {
+  color: #2e3436;
+}
+
+.ansi-red {
+  color: #ef2929;
+}
+
+.ansi-green {
+  color: #8ae234;
+}
+
+.ansi-yellow {
+  color: #fce94f;
+}
+
+.ansi-blue {
+  color: #729fcf;
+}
+
+.ansi-magenta {
+  color: #ad7fa8;
+}
+
+.ansi-cyan {
+  color: #34e2e2;
+}
+
+.ansi-white {
+  color: #d3d7cf;
+}
+
+/* Bright foreground colors (90-97) */
+.ansi-bright-black {
+  color: #555753;
+}
+
+.ansi-bright-red {
+  color: #ff6b6b;
+}
+
+.ansi-bright-green {
+  color: #a8ff60;
+}
+
+.ansi-bright-yellow {
+  color: #ffff77;
+}
+
+.ansi-bright-blue {
+  color: #96cbfe;
+}
+
+.ansi-bright-magenta {
+  color: #ff73fd;
+}
+
+.ansi-bright-cyan {
+  color: #6ff;
+}
+
+.ansi-bright-white {
+  color: #eeeeec;
+}
+
+/* Background colors (40-47) */
+.ansi-bg-black {
+  background-color: #2e3436;
+}
+
+.ansi-bg-red {
+  background-color: #cc0000;
+}
+
+.ansi-bg-green {
+  background-color: #4e9a06;
+}
+
+.ansi-bg-yellow {
+  background-color: #c4a000;
+}
+
+.ansi-bg-blue {
+  background-color: #3465a4;
+}
+
+.ansi-bg-magenta {
+  background-color: #75507b;
+}
+
+.ansi-bg-cyan {
+  background-color: #06989a;
+}
+
+.ansi-bg-white {
+  background-color: #d3d7cf;
+}
+
+/* Bright background colors (100-107) */
+.ansi-bg-bright-black {
+  background-color: #555753;
+}
+
+.ansi-bg-bright-red {
+  background-color: #ef2929;
+}
+
+.ansi-bg-bright-green {
+  background-color: #8ae234;
+}
+
+.ansi-bg-bright-yellow {
+  background-color: #fce94f;
+}
+
+.ansi-bg-bright-blue {
+  background-color: #729fcf;
+}
+
+.ansi-bg-bright-magenta {
+  background-color: #ad7fa8;
+}
+
+.ansi-bg-bright-cyan {
+  background-color: #34e2e2;
+}
+
+.ansi-bg-bright-white {
+  background-color: #eeeeec;
+}

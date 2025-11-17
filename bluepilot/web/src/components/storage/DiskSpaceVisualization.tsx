@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { systemAPI } from '@/services/api'
 import { useRoutesStore } from '@/stores/useRoutesStore'
+import { ConfirmDialog, Icon } from '@/components/common'
 import './DiskSpaceVisualization.css'
 
 interface DiskSpaceData {
@@ -35,6 +36,7 @@ interface DiskAnalysis {
 export const DiskSpaceVisualization = () => {
   const [diskData, setDiskData] = useState<DiskAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false)
   const { routes, clearCache, fetchRoutes } = useRoutesStore()
 
   useEffect(() => {
@@ -53,11 +55,13 @@ export const DiskSpaceVisualization = () => {
     }
   }
 
-  const handleClearCache = async () => {
-    if (confirm('Clear all cached data (videos, thumbnails, GPS)?')) {
-      await clearCache()
-      loadDiskAnalysis() // Reload disk analysis after clearing
-    }
+  const handleClearCache = () => {
+    setShowClearCacheConfirm(true)
+  }
+
+  const handleConfirmClearCache = async () => {
+    await clearCache()
+    loadDiskAnalysis() // Reload disk analysis after clearing
   }
 
   const handleRefresh = async () => {
@@ -99,8 +103,19 @@ export const DiskSpaceVisualization = () => {
     : '0 GB'
 
   return (
-    <div className="storage-bar">
-      <div className="storage-bar-content">
+    <>
+      <ConfirmDialog
+        isOpen={showClearCacheConfirm}
+        onClose={() => setShowClearCacheConfirm(false)}
+        onConfirm={handleConfirmClearCache}
+        title="Clear Cached Data"
+        message="Are you sure you want to clear all cached data (videos, thumbnails, GPS)? This will free up disk space but cached videos will need to be re-downloaded when viewing routes."
+        confirmText="Clear Cache"
+        cancelText="Cancel"
+        variant="warning"
+      />
+      <div className="storage-bar">
+        <div className="storage-bar-content">
         <div className="storage-bar-left">
           <div className="storage-info">
             <span className="storage-text">
@@ -108,11 +123,7 @@ export const DiskSpaceVisualization = () => {
             </span>
             {warningLevel !== 'none' && (
               <div className="storage-warning-icon" title={warningText}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
+                <Icon name="warning" size={14} />
               </div>
             )}
           </div>
@@ -154,16 +165,11 @@ export const DiskSpaceVisualization = () => {
           </div>
           <div className="storage-stats">
             <span className="storage-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
+              <Icon name="place" size={14} />
               <span>{routes.length} routes</span>
             </span>
             <span className="storage-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              </svg>
+              <Icon name="inventory_2" size={14} />
               <span>{totalSize}</span>
             </span>
           </div>
@@ -175,19 +181,7 @@ export const DiskSpaceVisualization = () => {
             title="Clear all cached data (videos, thumbnails, GPS)"
             onClick={handleClearCache}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <line x1="10" y1="11" x2="10" y2="17" />
-              <line x1="14" y1="11" x2="14" y2="17" />
-            </svg>
+            <Icon name="delete" size={20} />
           </button>
           <button
             type="button"
@@ -195,20 +189,11 @@ export const DiskSpaceVisualization = () => {
             title="Refresh routes"
             onClick={handleRefresh}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M23 4v6h-6M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-            </svg>
+            <Icon name="refresh" size={20} />
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

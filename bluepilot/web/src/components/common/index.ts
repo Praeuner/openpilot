@@ -1,8 +1,10 @@
 // Common components barrel export
 export { Button } from './Button'
+export { Icon } from './Icon'
 export { LoadingSpinner } from './LoadingSpinner'
 export { Modal } from './Modal'
 export { InputDialog } from './InputDialog'
+export { ConfirmDialog } from './ConfirmDialog'
 export { Tabs } from './Tabs'
 export { Toast, ToastContainer } from './Toast'
 export { WarningBanners } from './WarningBanners'

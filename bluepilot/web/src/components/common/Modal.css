@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   animation: fadeIn var(--transition-normal);
 }
 
@@ -49,7 +49,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   border-bottom: 1px solid var(--bp-border);
 }
 
@@ -81,7 +81,7 @@
 }
 
 .modal-body {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   overflow-y: auto;
   flex: 1;
 }
@@ -110,7 +110,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-md, 0.75rem);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   border-top: 1px solid var(--bp-border);
   background: var(--bp-bg-secondary);
 }

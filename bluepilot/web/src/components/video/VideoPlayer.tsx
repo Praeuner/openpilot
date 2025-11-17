@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoutesStore } from '@/stores/useRoutesStore'
 import { useToastStore } from '@/stores/useToastStore'
+import { ConfirmDialog, Icon } from '@/components/common'
 import { RouteDownloadModal } from '@/components/modals'
 import type { RouteDetails, CameraType } from '@/types'
 import { VehicleInfoPanel } from './panels/VehicleInfoPanel'
@@ -27,6 +28,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
   const { deleteRoute, preserveRoute } = useRoutesStore()
   const { addToast } = useToastStore()
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -756,16 +758,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm(`Delete route "${route.date}"? This action cannot be undone.`)) {
-      try {
-        await deleteRoute(route.baseName || route.id || '')
-        handleBack() // Close player and return to routes list
-      } catch (error) {
-        console.error('Failed to delete route:', error)
-        alert('Failed to delete route. Please try again.')
-      }
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteRoute(route.baseName || route.id || '')
+      addToast('Route deleted successfully', 'success')
+      handleBack() // Close player and return to routes list
+    } catch (error) {
+      console.error('Failed to delete route:', error)
+      addToast('Failed to delete route. Please try again.', 'error')
     }
   }
 
@@ -776,6 +781,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
         onClose={() => setShowExportModal(false)}
         route={route}
       />
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Route"
+        message={`Are you sure you want to delete route "${route.date}"? This action cannot be undone and all video files and logs will be permanently removed.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
       <div className="video-player" ref={containerRef}>
         <div className="video-header">
           <div className="video-header-left">
@@ -784,17 +799,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
               onClick={handleBack}
               title="Back to routes"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="15 18 9 12 15 6"></polyline>
-                <line x1="9" y1="12" x2="21" y2="12"></line>
-              </svg>
+              <Icon name="arrow_back" size={18} />
               <span>Routes</span>
             </button>
             <div className="video-title-container">
@@ -810,18 +815,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
               aria-label="Toggle debug logs"
               onClick={() => setShowDebugPanel(!showDebugPanel)}
             >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <line x1="9" y1="9" x2="15" y2="9" />
-                <line x1="9" y1="15" x2="15" y2="15" />
-              </svg>
+              <Icon name="terminal" size={24} />
             </button>
           </div>
         </div>
@@ -860,17 +854,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
             {showReplayOverlay && (
               <div className="video-replay">
                 <button className="replay-btn" onClick={handleReplay}>
-                  <svg
-                    width="48"
-                    height="48"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                  </svg>
+                  <Icon name="replay" size={48} />
                   <span>Replay Route</span>
                 </button>
               </div>
@@ -928,10 +912,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
             <h2 className="player-route-title">Route Details</h2>
             <div className="player-route-summary">
               <div className="player-route-time">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+                <Icon name="schedule" size={16} />
                 <span>{route.start_time || route.baseName}</span>
               </div>
               {(route.start_location || route.end_location) && (
@@ -1000,24 +981,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
             <h3 className="sidebar-group-title">Actions</h3>
             <div className="route-actions-sidebar">
               <button type="button" className={`btn btn-secondary ${route.preserved ? 'active' : ''}`} onClick={handlePreserve} title={route.preserved ? 'Preserved' : 'Preserve this route'}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill={route.preserved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
+                <Icon name={route.preserved ? 'star' : 'star_border'} size={18} />
                 <span>{route.preserved ? 'Preserved' : 'Preserve'}</span>
               </button>
               <button type="button" className="btn btn-primary" title="Export videos and backup route data" onClick={() => setShowExportModal(true)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
+                <Icon name="download" size={18} />
                 Export Videos & Logs
               </button>
               <button type="button" className="btn btn-danger" onClick={handleDelete}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
+                <Icon name="delete" size={18} />
                 Delete Route
               </button>
             </div>

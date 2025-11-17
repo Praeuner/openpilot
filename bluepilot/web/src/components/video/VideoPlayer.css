@@ -204,7 +204,7 @@
 .time-display {
   font-size: 0.875rem;
   color: var(--bp-text-secondary);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   min-width: 100px;
 }
 
@@ -317,7 +317,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: center;
+  align-items: start;
   text-align: center;
 }
 

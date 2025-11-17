@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { Icon } from '@/components/common'
 import type { RouteDetails } from '@/types'
+import { ansiToHtml } from '@/utils/ansiParser'
 import './Panels.css'
 
 interface LogsPanelProps {
@@ -147,12 +149,6 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
     setLogStats({ returned: 0, total: 0, truncated: false })
   }
 
-  const escapeHtml = (text: string): string => {
-    const div = document.createElement('div')
-    div.textContent = text
-    return div.innerHTML
-  }
-
   const formatTimestamp = (timestamp: number): string => {
     const relativeTime = timestamp - logTimeRange.start
     const minutes = Math.floor(relativeTime / 60)
@@ -169,20 +165,7 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
         style={{ cursor: 'pointer' }}
       >
         <div className="panel-title">
-          <svg
-            className="panel-icon"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
+          <Icon name="description" className="panel-icon" size={20} />
           <div className="panel-title-text">
             <span className="panel-title-label">Logs</span>
             <span className="panel-title-subtitle">Cloudlog events & diagnostics</span>
@@ -298,7 +281,7 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
                       <span className={`log-level ${log.level}`}>{log.level}</span>
                       <span
                         className="log-text"
-                        dangerouslySetInnerHTML={{ __html: escapeHtml(log.message) }}
+                        dangerouslySetInnerHTML={{ __html: ansiToHtml(log.message) }}
                       />
                     </div>
                   ))}

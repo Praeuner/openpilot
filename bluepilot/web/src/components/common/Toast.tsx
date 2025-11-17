@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { Icon } from './Icon'
 import './Toast.css'
 
 export interface ToastProps {
@@ -20,22 +21,24 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'success', duratio
     }
   }, [duration, onClose])
 
-  const getIcon = () => {
+  const getIconName = () => {
     switch (type) {
       case 'success':
-        return '✓'
+        return 'check_circle'
       case 'error':
-        return '✕'
+        return 'error'
       case 'info':
-        return 'ℹ'
+        return 'info'
       default:
-        return '✓'
+        return 'check_circle'
     }
   }
 
   return (
     <div className={`toast toast--${type}`}>
-      <span className="toast__icon">{getIcon()}</span>
+      <span className="toast__icon">
+        <Icon name={getIconName()} size={20} />
+      </span>
       <span className="toast__message">{message}</span>
       <button
         className="toast__close"
@@ -43,7 +46,7 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'success', duratio
         aria-label="Close notification"
         type="button"
       >
-        ✕
+        <Icon name="close" size={16} />
       </button>
     </div>
   )

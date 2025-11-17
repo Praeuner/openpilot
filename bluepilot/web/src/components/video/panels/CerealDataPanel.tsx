@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@/components/common'
 import type { RouteDetails } from '@/types'
 import './Panels.css'
 
@@ -194,17 +195,7 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
         style={{ cursor: 'pointer' }}
       >
         <div className="panel-title">
-          <svg
-            className="panel-icon"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
+          <Icon name="data_usage" className="panel-icon" size={20} />
           <div className="panel-title-text">
             <span className="panel-title-label">Cereal Data Viewer</span>
             <span className="panel-title-subtitle">Cap'n Proto message explorer</span>
