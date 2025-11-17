@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Icon } from '@/components/common'
+import { useToastStore } from '@/stores/useToastStore'
 import type { RouteDetails } from '@/types'
 import { ansiToHtml } from '@/utils/ansiParser'
 import './Panels.css'
@@ -28,6 +29,7 @@ interface LogResponse {
 }
 
 export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsPanelProps) => {
+  const { addToast } = useToastStore()
   const [isOpen, setIsOpen] = useState(false)
   const [logType, setLogType] = useState<'qlog' | 'rlog'>('rlog')
   const [levelFilter, setLevelFilter] = useState('all')
@@ -132,13 +134,13 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
           end: data.end_time
         })
       } else {
-        alert(`Error loading logs: ${data.error}`)
+        addToast(`Error loading logs: ${data.error}`, 'error')
         setLogs([])
       }
     } catch (error) {
       console.error('Error loading logs:', error)
       setLoading(false)
-      alert(`Failed to load logs: ${error}`)
+      addToast(`Failed to load logs: ${error}`, 'error')
       setLogs([])
     }
   }
@@ -167,7 +169,7 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
         <div className="panel-title">
           <Icon name="description" className="panel-icon" size={20} />
           <div className="panel-title-text">
-            <span className="panel-title-label">Logs</span>
+            <span className="panel-title-label">Route Logs</span>
             <span className="panel-title-subtitle">Cloudlog events & diagnostics</span>
           </div>
         </div>
@@ -195,6 +197,11 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
               Load Logs
             </button>
           )}
+          <Icon
+            name={isOpen ? "expand_more" : "chevron_right"}
+            size={20}
+            style={{ marginLeft: '8px', opacity: 0.7, cursor: 'pointer' }}
+          />
         </div>
       </div>
       {isOpen && (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '@/components/common'
+import { useToastStore } from '@/stores/useToastStore'
 import type { RouteDetails } from '@/types'
 import './Panels.css'
 
@@ -25,6 +26,7 @@ interface CerealResponse {
 }
 
 export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }: CerealDataPanelProps) => {
+  const { addToast } = useToastStore()
   const [isOpen, setIsOpen] = useState(false)
   const [messageType, setMessageType] = useState('carState')
   const [syncWithVideo, setSyncWithVideo] = useState(false)
@@ -72,7 +74,7 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
     }
 
     if (!messageType) {
-      alert('Please select a message type')
+      addToast('Please select a message type', 'info')
       return
     }
 
@@ -99,13 +101,13 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
         setCurrentMessageIndex(0)
         setLastUpdate(new Date().toLocaleTimeString())
       } else {
-        alert(`Error loading cereal data: ${data.error}`)
+        addToast(`Error loading cereal data: ${data.error}`, 'error')
         setMessages([])
       }
     } catch (error) {
       console.error('Error loading cereal data:', error)
       setLoading(false)
-      alert(`Failed to load cereal data: ${error}`)
+      addToast(`Failed to load cereal data: ${error}`, 'error')
       setMessages([])
     }
   }
@@ -225,6 +227,11 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
               Load Data
             </button>
           )}
+          <Icon
+            name={isOpen ? "expand_more" : "chevron_right"}
+            size={20}
+            style={{ marginLeft: '8px', opacity: 0.7, cursor: 'pointer' }}
+          />
         </div>
       </div>
       {isOpen && (

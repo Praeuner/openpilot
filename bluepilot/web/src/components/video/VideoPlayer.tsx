@@ -626,20 +626,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
   }, [browserCaps, currentCamera, switchToVideoElement, callLoadH265WebPlayer, callLoadHLSPlayback, callLoadNativeHLS])
 
   // Check camera availability when segment changes
+  // NOTE: For HLS playback, the entire route is streamed continuously, so we should NOT
+  // reload the video when segments change. Only check camera availability on initial load
+  // or when user manually switches cameras, not during normal playback segment transitions.
   useEffect(() => {
     if (!route.segments || currentSegment >= route.segments.length) return
 
     const segment = route.segments[currentSegment]
     const availableCameras = Object.keys(segment.videos || {}) as CameraType[]
 
-    // If current camera is not available in this segment, fall back to first available
-    if (!availableCameras.includes(currentCamera) && availableCameras.length > 0) {
+    // Only switch cameras if:
+    // 1. Current camera is not available in this segment, AND
+    // 2. We're not using HLS (which streams the entire route continuously)
+    // For HLS playback, segment changes are just UI updates, not actual video switches
+    const isUsingHLS = hlsRef.current !== null || (browserCaps?.isSafari && canUseNativeHLS())
+
+    if (!isUsingHLS && !availableCameras.includes(currentCamera) && availableCameras.length > 0) {
       console.warn(
         `Camera ${currentCamera} not available in segment ${currentSegment + 1}, switching to ${availableCameras[0]}`
       )
       setCurrentCamera(availableCameras[0])
     }
-  }, [currentSegment, route.segments, currentCamera])
+  }, [currentSegment, route.segments, currentCamera, browserCaps])
 
   // Replay route handler
   const handleReplay = useCallback(() => {

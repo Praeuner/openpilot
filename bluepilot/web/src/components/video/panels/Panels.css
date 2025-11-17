@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 24px;
+  padding: 10px 16px;
   cursor: pointer;
   background: rgba(54, 54, 54, 0.85);
   transition: background 0.2s, border-color 0.2s;
@@ -53,7 +53,7 @@
 .panel-title-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* gap: 4px; */
 }
 
 .panel-title-label {
@@ -248,7 +248,7 @@
 }
 
 .log-messages {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -433,14 +433,14 @@
 }
 
 .cereal-field-name {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--bp-accent-blue);
   font-weight: 600;
   width: 40%;
 }
 
 .cereal-field-value {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--bp-text-primary);
 }
 
@@ -471,7 +471,7 @@
   font-size: 14px;
   color: var(--bp-text-primary);
   font-weight: 600;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .firmware-section-title {
@@ -506,7 +506,7 @@
 .firmware-table td {
   padding: 10px 12px;
   font-size: 13px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--bp-text-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -517,7 +517,7 @@
 
 /* FFmpeg Debug Panel */
 .debug-messages {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
   line-height: 1.5;
   color: var(--bp-text-primary);
@@ -653,7 +653,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ANSI Color Classes for Log Output */

@@ -347,8 +347,13 @@
 
 .icon-btn:hover {
   background: var(--bp-accent-blue);
-  border-color: var(--bp-accent-blue);
+  border-color: var(--bp-text-secondary);
   transform: scale(1.05);
+  color: #ffffff;
+}
+
+.icon-btn:hover > * {
+  color: #ffffff;
 }
 
 .param-modal-simple__value {
