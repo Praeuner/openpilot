@@ -4,12 +4,6 @@ This process finds calibration values. More info on what these calibration value
 are can be found here https://github.com/commaai/openpilot/tree/master/common/transformations
 While the roll calibration is a real value that can be estimated, here we assume it's zero,
 and the image input into the neural network is not corrected for roll.
-
-Calibration Restrictions:
-- Vehicle must be driving over 15 mph (MIN_SPEED_FILTER)
-- At least 2 lane lines must be detected with probability > 0.5 (MIN_LANE_LINE_PROB)
-- Vehicle must be driving straight (low yaw rate)
-- Camera pose estimation must be certain (low standard deviation)
 '''
 
 import os
@@ -31,10 +25,6 @@ MAX_VEL_ANGLE_STD = np.radians(0.25)
 MAX_YAW_RATE_FILTER = np.radians(2)  # per second
 
 MAX_HEIGHT_STD = np.exp(-3.5)
-
-# Lane line detection thresholds for calibration
-MIN_LANE_LINE_PROB = 0.5  # Minimum probability for lane line to be considered detected
-MIN_LANE_LINES_REQUIRED = 2  # Minimum number of lane lines that must be detected
 
 # This is at model frequency, blocks needed for efficiency
 SMOOTH_CYCLES = 10
@@ -70,25 +60,6 @@ def sanity_clip(rpy: np.ndarray) -> np.ndarray:
 def moving_avg_with_linear_decay(prev_mean: np.ndarray, new_val: np.ndarray, idx: int, block_size: float) -> np.ndarray:
   return (idx*prev_mean + (block_size - idx) * new_val) / block_size
 
-def check_lane_lines_detected(lane_line_probs: list[float]) -> bool:
-  """
-  Check if at least MIN_LANE_LINES_REQUIRED lane lines are detected with sufficient probability.
-
-  Args:
-    lane_line_probs: List of lane line probabilities from modelV2
-
-  Returns:
-    bool: True if enough lane lines are detected, False otherwise
-  """
-  if not lane_line_probs or len(lane_line_probs) < 4:
-    return False
-
-  # Count lane lines with sufficient probability
-  # Lane lines are typically indexed as: [0: far left, 1: left, 2: right, 3: far right]
-  detected_lines = sum(1 for prob in lane_line_probs if prob > MIN_LANE_LINE_PROB)
-
-  return detected_lines >= MIN_LANE_LINES_REQUIRED
-
 class Calibrator:
   def __init__(self, param_put: bool = False):
     self.param_put = param_put
@@ -97,7 +68,6 @@ class Calibrator:
 
     # Read saved calibration
     self.params = Params()
-    self.lane_line_calibration_required = self.params.get_bool("LaneLineCalibrationRequired")
     calibration_params = self.params.get("CalibrationParams")
     rpy_init = RPY_INIT
     wide_from_device_euler = WIDE_FROM_DEVICE_EULER_INIT
@@ -213,8 +183,7 @@ class Calibrator:
                             wide_from_device_euler: list[float],
                             trans_std: list[float],
                             road_transform_trans: list[float],
-                            road_transform_trans_std: list[float],
-                            lane_line_probs: list[float] = None) -> np.ndarray | None:
+                            road_transform_trans_std: list[float]) -> np.ndarray | None:
     self.old_rpy_weight = max(0.0, self.old_rpy_weight - 1/SMOOTH_CYCLES)
 
     straight_and_fast = ((self.v_ego > MIN_SPEED_FILTER) and (trans[0] > MIN_SPEED_FILTER) and (abs(rot[2]) < MAX_YAW_RATE_FILTER))
@@ -226,17 +195,8 @@ class Calibrator:
     else:
       height_certain = True
 
-    # Check lane line detection if required and lane_line_probs is provided
-    lane_lines_ok = True
-    if self.lane_line_calibration_required and lane_line_probs is not None:
-      try:
-        lane_lines_ok = check_lane_lines_detected(lane_line_probs)
-      except Exception:
-        # Fall back to stock behavior on error
-        lane_lines_ok = True
-
     certain_if_calib = (rpy_certain and height_certain) or (self.valid_blocks < INPUTS_NEEDED)
-    if not (straight_and_fast and certain_if_calib and lane_lines_ok):
+    if not (straight_and_fast and certain_if_calib):
       return None
 
     observed_rpy = np.array([0,
@@ -316,19 +276,12 @@ def main() -> NoReturn:
 
     if sm.updated['cameraOdometry']:
       calibrator.handle_v_ego(sm['carState'].vEgo)
-
-      # Get lane line probabilities from modelV2 if available
-      lane_line_probs = None
-      if sm.valid['modelV2'] and len(sm['modelV2'].laneLineProbs) >= 4:
-        lane_line_probs = sm['modelV2'].laneLineProbs
-
       new_rpy = calibrator.handle_cam_odom(sm['cameraOdometry'].trans,
                                            sm['cameraOdometry'].rot,
                                            sm['cameraOdometry'].wideFromDeviceEuler,
                                            sm['cameraOdometry'].transStd,
                                            sm['cameraOdometry'].roadTransformTrans,
-                                           sm['cameraOdometry'].roadTransformTransStd,
-                                           lane_line_probs)
+                                           sm['cameraOdometry'].roadTransformTransStd)
 
       if DEBUG and new_rpy is not None:
         print('got new rpy', new_rpy)

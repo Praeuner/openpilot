@@ -139,6 +139,7 @@ class FordCANFDPlatformConfig(FordPlatformConfig):
     super().init()
     self.flags |= FordFlags.CANFD
 
+
 @dataclass
 class FordF150LightningPlatform(FordCANFDPlatformConfig):
   def init(self):

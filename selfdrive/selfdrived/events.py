@@ -7,16 +7,14 @@ import cereal.messaging as messaging
 from openpilot.common.constants import CV
 from openpilot.common.git import get_short_branch
 from openpilot.common.realtime import DT_CTRL
-from openpilot.selfdrive.locationd.calibrationd import MIN_SPEED_FILTER, MIN_LANE_LINE_PROB, MIN_LANE_LINES_REQUIRED
+from openpilot.selfdrive.locationd.calibrationd import MIN_SPEED_FILTER
 from openpilot.system.micd import SAMPLE_RATE, SAMPLE_BUFFER
 from openpilot.selfdrive.ui.feedback.feedbackd import FEEDBACK_MAX_DURATION
-from openpilot.common.params import Params
 
 from openpilot.sunnypilot.selfdrive.selfdrived.events_base import EventsBase, Priority, ET, Alert, \
   NoEntryAlert, SoftDisableAlert, UserSoftDisableAlert, ImmediateDisableAlert, EngagementAlert, NormalPermanentAlert, \
   StartupAlert, AlertCallbackType, wrong_car_mode_alert
 
-params = Params()
 
 AlertSize = log.SelfdriveState.AlertSize
 AlertStatus = log.SelfdriveState.AlertStatus
@@ -85,44 +83,14 @@ def below_steer_speed_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.S
     f"Steer Unavailable Below {get_display_speed(CP.minSteerSpeed, metric)}",
     "",
     AlertStatus.userPrompt, AlertSize.small,
-    Priority.LOW, VisualAlert.steerRequired, AudibleAlert.prompt, 0.4)
+    Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 0.4)
 
 
 def calibration_incomplete_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
   first_word = 'Recalibration' if sm['liveCalibration'].calStatus == log.LiveCalibrationData.Status.recalibrating else 'Calibration'
-
-  # Check current conditions to provide specific feedback
-  v_ego = CS.vEgo
-  speed_ok = v_ego > MIN_SPEED_FILTER
-
-  # Check lane line detection if required and modelV2 is available
-  lane_lines_ok = True
-  lane_line_reason = ""
-  try:
-    lane_line_calibration_required = params.get_bool("LaneLineCalibrationRequired")
-
-    if lane_line_calibration_required and sm.valid['modelV2'] and len(sm['modelV2'].laneLineProbs) >= 4:
-      lane_line_probs = sm['modelV2'].laneLineProbs
-      detected_lanes = sum(1 for prob in lane_line_probs if prob > MIN_LANE_LINE_PROB)
-      lane_lines_ok = detected_lanes >= MIN_LANE_LINES_REQUIRED
-      if not lane_lines_ok:
-        lane_line_reason = f"Need {MIN_LANE_LINES_REQUIRED}+ lane lines (detected: {detected_lanes})"
-  except Exception:
-    # Fall back to stock behavior on error
-    lane_lines_ok = True
-    lane_line_reason = ""
-
-  # Determine the specific reason calibration isn't proceeding
-  if not speed_ok:
-    reason = f"Drive Above {get_display_speed(MIN_SPEED_FILTER, metric)}"
-  elif not lane_lines_ok:
-    reason = lane_line_reason
-  else:
-    reason = "Drive on straight road with clear lane markings"
-
   return Alert(
     f"{first_word} in Progress: {sm['liveCalibration'].calPerc:.0f}%",
-    reason,
+    f"Drive Above {get_display_speed(MIN_SPEED_FILTER, metric)}",
     AlertStatus.normal, AlertSize.mid,
     Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .2)
 
