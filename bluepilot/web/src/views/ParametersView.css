@@ -225,6 +225,12 @@
   color: #f3c4ff;
 }
 
+.value-pill--attribute {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #81c784;
+}
+
 .value-code-block {
   width: 100%;
   margin-top: 0.45rem;

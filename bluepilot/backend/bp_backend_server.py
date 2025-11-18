@@ -2263,45 +2263,35 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             elif path == '/api/params/backup':
                 # Get only params with BACKUP flag for backup/restore
                 try:
-                    # Parse params_keys.h to find BACKUP-flagged params
-                    params_keys_path = Path(__file__).parent.parent.parent / 'common' / 'params_keys.h'
+                    # Get all params with their metadata (including attributes)
+                    all_params = get_all_params(params)
 
-                    backup_params = set()
-                    if params_keys_path.exists():
-                        with open(params_keys_path, 'r') as f:
-                            content = f.read()
-                            # Find all params with BACKUP flag
-                            import re
-                            # Match pattern: {"ParamName", {... BACKUP ..., TYPE}}
-                            pattern = r'\{"([^"]+)",\s*\{[^}]*BACKUP[^}]*\}\}'
-                            matches = re.findall(pattern, content)
-                            backup_params = set(matches)
-
-                    # Get values for all BACKUP params
+                    # Filter to only params with BACKUP attribute and extract their values
                     backup_data = {}
-                    for param_key in backup_params:
-                        try:
-                            value = params.get(param_key)
+                    backup_keys = []
+
+                    for key, param_entry in all_params.items():
+                        attributes = param_entry.get('attributes', [])
+                        if 'BACKUP' in attributes:
+                            backup_keys.append(key)
+                            value = param_entry.get('value')
+
+                            # Store value for backup
                             if value is not None:
-                                # Try to decode as string
-                                try:
-                                    decoded = value.decode('utf-8')
-                                    backup_data[param_key] = decoded
-                                except (UnicodeDecodeError, AttributeError):
-                                    # Store as base64 for binary data
-                                    import base64
-                                    backup_data[param_key] = {
-                                        '_binary': True,
-                                        'data': base64.b64encode(value).decode('utf-8')
-                                    }
-                        except Exception as e:
-                            logger.warning(f"Error reading backup param {param_key}: {e}")
+                                # Check if it's already a dict with _binary flag
+                                if isinstance(value, dict) and value.get('_binary'):
+                                    backup_data[key] = value
+                                elif isinstance(value, (str, int, float, bool)):
+                                    backup_data[key] = value
+                                else:
+                                    # For other types, store as JSON string
+                                    backup_data[key] = json.dumps(value)
 
                     self.send_json_response({
                         'success': True,
                         'params': backup_data,
                         'count': len(backup_data),
-                        'backup_params_list': sorted(backup_params)
+                        'backup_params_list': sorted(backup_keys)
                     })
 
                 except Exception as e:
@@ -2964,17 +2954,11 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         }, 400)
                         return
 
-                    # Parse params_keys.h to get list of valid BACKUP params
-                    params_keys_path = Path(__file__).parent.parent.parent / 'common' / 'params_keys.h'
-                    backup_params = set()
+                    # Use centralized attributes cache to get list of valid BACKUP params
+                    from bluepilot.backend.params.params_manager import _load_param_attributes_cache
 
-                    if params_keys_path.exists():
-                        with open(params_keys_path, 'r') as f:
-                            content = f.read()
-                            import re
-                            pattern = r'\{"([^"]+)",\s*\{[^}]*BACKUP[^}]*\}\}'
-                            matches = re.findall(pattern, content)
-                            backup_params = set(matches)
+                    attributes_cache = _load_param_attributes_cache()
+                    backup_params = {key for key, attrs in attributes_cache.items() if 'BACKUP' in attrs}
 
                     restored = []
                     failed = []

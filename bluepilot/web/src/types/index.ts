@@ -99,6 +99,7 @@ export interface Parameter {
   decoded?: ParameterDecodedValue | null
   timestamp?: number
   error?: string
+  attributes?: string[]  // ParamKeyAttributes flags from params_keys.h
 }
 
 export interface SystemMetrics {
