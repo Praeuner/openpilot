@@ -230,7 +230,7 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                   trimmed.length > 260 ? `${trimmed.substring(0, 257).trimEnd()}…` : trimmed || '—'
                 const formatBadge = formattedValue.formatLabel?.toUpperCase()
                 const typeBadge = param.type ? param.type.toUpperCase() : null
-                const categoryBadge = param.category ?? null
+                const attributeBadges = param.attributes || []
 
                 return (
                   <div className="param-row" key={param.key}>
@@ -275,9 +275,9 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                         <span className="value-label">Value</span>
                         <div className="value-pill-group">
                           {typeBadge && <span className="value-pill value-pill--type">{typeBadge}</span>}
-                          {categoryBadge && (
-                            <span className="value-pill value-pill--category">{categoryBadge}</span>
-                          )}
+                          {attributeBadges.map((attr) => (
+                            <span key={attr} className="value-pill value-pill--attribute">{attr}</span>
+                          ))}
                           {formatBadge && formatBadge !== typeBadge && (
                             <span className="value-pill">{formatBadge}</span>
                           )}
@@ -412,9 +412,9 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                 {viewValueModal.type && (
                   <span className="value-pill value-pill--type">{viewValueModal.type.toUpperCase()}</span>
                 )}
-                {viewValueModal.category && (
-                  <span className="value-pill value-pill--category">{viewValueModal.category}</span>
-                )}
+                {viewValueModal.attributes?.map((attr) => (
+                  <span key={attr} className="value-pill value-pill--attribute">{attr}</span>
+                ))}
                 {formattedModalValue?.formatLabel && (
                   <span className="value-pill">{formattedModalValue.formatLabel.toUpperCase()}</span>
                 )}

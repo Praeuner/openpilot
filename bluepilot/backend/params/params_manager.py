@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 PARAMS_DIR = "/data/params/d"
 USE_DIRECT_FILE_READING = False
 _PARAM_TYPE_CACHE: Optional[Dict[str, str]] = None
+_PARAM_ATTRIBUTES_CACHE: Optional[Dict[str, List[str]]] = None
 
 CAR_PARAM_KEYS = {
     "CarParams", "CarParamsCache", "CarParamsPersistent", "CarParamsPrevRoute",
@@ -200,6 +201,48 @@ def _load_param_type_cache() -> Dict[str, str]:
         logger.debug(f"Failed to parse params_keys.h for param types: {e}")
 
     _PARAM_TYPE_CACHE = cache
+    return cache
+
+
+def _load_param_attributes_cache() -> Dict[str, List[str]]:
+    """Parse common/params_keys.h to extract ParamKeyAttributes flags.
+
+    Returns a dict mapping param key to list of attribute flags like:
+    ['PERSISTENT', 'BACKUP'], ['CLEAR_ON_MANAGER_START'], etc.
+    """
+    global _PARAM_ATTRIBUTES_CACHE
+    if _PARAM_ATTRIBUTES_CACHE is not None:
+        return _PARAM_ATTRIBUTES_CACHE
+
+    cache: Dict[str, List[str]] = {}
+    try:
+        repo_root = Path(__file__).resolve().parents[3]  # Go up to openpilot root
+        header_path = repo_root / "common" / "params_keys.h"
+        if header_path.exists():
+            contents = header_path.read_text()
+            # Match pattern: {"ParamName", {FLAGS, TYPE, ...}}
+            # FLAGS can be: PERSISTENT | BACKUP | CLEAR_ON_MANAGER_START | DONT_LOG | DEVELOPMENT_ONLY | etc.
+            pattern = re.compile(r'\{"([^"]+)",\s*\{([^}]+)\}\}')
+            for match in pattern.finditer(contents):
+                key, attributes_str = match.groups()
+                # Extract the flags portion (everything before the type)
+                # Format: FLAGS, TYPE or just TYPE
+                parts = [p.strip() for p in attributes_str.split(',')]
+                if len(parts) >= 2:
+                    flags_str = parts[0]  # First part is flags
+                    # Split flags by | and clean up
+                    flags = [f.strip() for f in flags_str.split('|')]
+                    # Filter out known attribute flags
+                    known_flags = ['PERSISTENT', 'BACKUP', 'CLEAR_ON_MANAGER_START',
+                                   'CLEAR_ON_ONROAD_TRANSITION', 'CLEAR_ON_OFFROAD_TRANSITION',
+                                   'CLEAR_ON_IGNITION_ON', 'DONT_LOG', 'DEVELOPMENT_ONLY']
+                    valid_flags = [f for f in flags if f in known_flags]
+                    if valid_flags:
+                        cache[key] = valid_flags
+    except Exception as e:
+        logger.debug(f"Failed to parse params_keys.h for param attributes: {e}")
+
+    _PARAM_ATTRIBUTES_CACHE = cache
     return cache
 
 
@@ -418,13 +461,18 @@ def _build_param_entry(key: str, params: Optional[Params], params_dir: Optional[
     if params_dir is None:
         params_dir = PARAMS_DIR if os.path.exists(PARAMS_DIR) else None
 
+    # Get ParamKeyAttributes from params_keys.h
+    attributes_cache = _load_param_attributes_cache()
+    param_attributes = attributes_cache.get(key, [])
+
     entry: Dict[str, Any] = {
         "key": key,
         "category": categorize_param(key),
         "readonly": key in READONLY_PARAMS,
         "critical": key in CRITICAL_PARAMS,
         "type": "unknown",
-        "last_modified": _get_param_mtime(params_dir, key)
+        "last_modified": _get_param_mtime(params_dir, key),
+        "attributes": param_attributes  # Add ParamKeyAttributes flags
     }
 
     try:

@@ -454,8 +454,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
           self.human_turn = False
 
         # Determine when to reset steering
-        # if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
-        if (self.human_turn) or (CS.out.vEgoRaw < 0.1):
+        if ((self.human_turn) and self.enable_human_turn_detection) or (CS.out.vEgoRaw < 0.1):
           reset_steering = 1
         else:
           reset_steering = 0
