@@ -11,10 +11,11 @@ import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
 import { usePanelsStore } from '@/stores/usePanelsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { useParamsStore } from '@/stores/useParamsStore'
+import type { DeviceStatus } from '@/types'
 import './SettingsView.css'
 
 interface SettingsViewProps {
-  deviceStatus: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus: DeviceStatus
 }
 
 type PanelIconKey =
@@ -254,30 +255,33 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
       <div className="settings-view">
         <div className="settings-layout">
           <aside className="settings-sidebar">
-            {/* Import/Export buttons */}
-            <div className="settings-backup-actions">
-              <button
-                type="button"
-                className="settings-backup-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-              >
-                <Icon name="upload" size={18} />
-                <span>{importing ? 'Importing...' : 'Import'}</span>
-              </button>
-              <button
-                type="button"
-                className="settings-backup-btn"
-                onClick={handleExport}
-                disabled={exporting}
-              >
-                <Icon name="download" size={18} />
-                <span>{exporting ? 'Exporting...' : 'Export'}</span>
-              </button>
-            </div>
-
             <div className="settings-nav">
+              {/* Import/Export buttons inline with nav */}
+              <div className="settings-backup-actions">
+                <button
+                  type="button"
+                  className="settings-backup-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  title="Import settings"
+                >
+                  <Icon name="upload" size={18} />
+                  <span>{importing ? '...' : 'Import'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-backup-btn"
+                  onClick={handleExport}
+                  disabled={exporting}
+                  title="Export settings"
+                >
+                  <Icon name="download" size={18} />
+                  <span>{exporting ? '...' : 'Export'}</span>
+                </button>
+              </div>
+
               <button
+                type="button"
                 className={`settings-nav-btn ${selectedPanelId === 'favorites' ? 'active' : ''}`}
                 onClick={() => setSelectedPanelId('favorites')}
               >
@@ -290,6 +294,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
 
               {panels.map((panel) => (
                 <button
+                  type="button"
                   key={panel.id}
                   className={`settings-nav-btn ${selectedPanelId === panel.id ? 'active' : ''}`}
                   onClick={() => setSelectedPanelId(panel.id)}
@@ -325,6 +330,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                 />
                 {searchQuery && (
                   <button
+                    type="button"
                     className="settings-search-clear"
                     onClick={() => setSearchQuery('')}
                     aria-label="Clear search"
@@ -356,7 +362,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                   ) : searchQuery ? (
                     <div className="settings-no-results">
                       <p>No settings found for "{searchQuery}"</p>
-                      <button onClick={() => setSearchQuery('')}>Clear search</button>
+                      <button type="button" onClick={() => setSearchQuery('')}>Clear search</button>
                     </div>
                   ) : null}
                 </>

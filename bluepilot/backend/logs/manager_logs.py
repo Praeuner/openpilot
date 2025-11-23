@@ -23,6 +23,20 @@ logger = logging.getLogger(__name__)
 TYPE_SUFFIX_SEPARATOR = '$'
 ANSI_ESCAPE_PATTERN = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 
+# ANSI color codes for log levels
+ANSI_COLORS = {
+    'DEBUG': '\x1b[36m',      # Cyan
+    'INFO': '\x1b[32m',       # Green
+    'WARNING': '\x1b[33m',    # Yellow
+    'WARN': '\x1b[33m',       # Yellow
+    'ERROR': '\x1b[31m',      # Red
+    'CRITICAL': '\x1b[35m',   # Magenta
+    'FATAL': '\x1b[35m',      # Magenta
+}
+ANSI_RESET = '\x1b[0m'
+ANSI_DIM = '\x1b[2m'
+ANSI_BOLD = '\x1b[1m'
+
 
 def _strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from text."""
@@ -61,7 +75,7 @@ def _format_timestamp(value: Optional[float]) -> str:
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
 
-def _stringify_message(message) -> str:
+def _stringify_message(message, preserve_ansi: bool = True) -> str:
     """Return a compact string representation of a log message payload."""
     if message is None:
         return ''
@@ -74,13 +88,20 @@ def _stringify_message(message) -> str:
     else:
         cleaned = str(message)
 
-    return _strip_ansi(cleaned)
+    # Optionally strip ANSI codes (default: preserve them for web display)
+    if not preserve_ansi:
+        return _strip_ansi(cleaned)
+    return cleaned
 
 
-def parse_manager_log_line(record: str) -> Optional[str]:
+def parse_manager_log_line(record: str, colorize: bool = True) -> Optional[str]:
     """
     Parse a single swaglog JSON entry (from messaging or file) and return
     a formatted string if it belongs to the manager daemon.
+
+    Args:
+        record: JSON log record string
+        colorize: If True, add ANSI color codes based on log level
     """
     try:
         data = json.loads(record)
@@ -99,6 +120,13 @@ def parse_manager_log_line(record: str) -> Optional[str]:
     msg = _stringify_message(_get_field(data, 'msg'))
 
     timestamp = _format_timestamp(created)
+
+    if colorize:
+        # Add ANSI colors based on log level
+        level_color = ANSI_COLORS.get(level, '')
+        # Format: dim timestamp, colored [LEVEL], normal module: message
+        return f"{ANSI_DIM}{timestamp}{ANSI_RESET} {level_color}[{level}]{ANSI_RESET} {module}: {msg}".strip()
+
     return f"{timestamp} [{level}] {module}: {msg}".strip()
 
 

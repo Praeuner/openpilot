@@ -8,7 +8,7 @@ import type { ToggleControl as ToggleControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription, getDynamicTitle, getDynamicStyle } from '@/utils/conditionalEvaluator'
-import { ControlCard, Modal, ToggleSwitch } from '@/components/common'
+import { ControlCard, ConfirmDialog, ToggleSwitch } from '@/components/common'
 import './ToggleControl.css'
 
 interface ToggleControlProps {
@@ -79,19 +79,22 @@ export function ToggleControl({ control, disabled, disabledReason }: ToggleContr
         }
       />
 
-      {showConfirm && (
-        <Modal
-          isOpen={showConfirm}
-          title="Confirm Change"
-          onClose={handleCancel}
-          actions={[
-            { label: control.confirm_no_text || 'Cancel', onClick: handleCancel, variant: 'secondary' },
-            { label: control.confirm_yes_text || 'Confirm', onClick: handleConfirm, variant: 'primary' },
-          ]}
-        >
-          <p>{control.confirm_text || `Are you sure you want to ${pendingValue ? 'enable' : 'disable'} ${title}?`}</p>
-        </Modal>
-      )}
+      <ConfirmDialog
+        isOpen={showConfirm}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={`${pendingValue ? 'Enable' : 'Disable'} ${title}`}
+        message={
+          control.confirm_text ? (
+            <div dangerouslySetInnerHTML={{ __html: control.confirm_text }} />
+          ) : (
+            `Are you sure you want to ${pendingValue ? 'enable' : 'disable'} ${title}?`
+          )
+        }
+        confirmText={control.confirm_yes_text || (pendingValue ? 'Enable' : 'Disable')}
+        cancelText={control.confirm_no_text || 'Cancel'}
+        variant={style?.backgroundColor?.toLowerCase().includes('e22c2c') ? 'danger' : 'warning'}
+      />
     </>
   )
 }

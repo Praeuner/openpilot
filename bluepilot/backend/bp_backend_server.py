@@ -887,11 +887,17 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     }, 403)
                     return
 
-            # Route handlers
-            if path == '/' or path == '/index.html':
-                self.send_file_response(str(WEBAPP_DIR / 'index.html'), 'text/html')
+            # SPA routes - serve index.html for frontend routes
+            # This allows direct navigation and page refresh to work
+            SPA_ROUTES = {'/', '/index.html', '/settings', '/parameters', '/routes', '/logs'}
 
-            elif path == '/api/health':
+            # Route handlers
+            if path in SPA_ROUTES or path.startswith('/settings/'):
+                self.send_file_response(str(WEBAPP_DIR / 'index.html'), 'text/html')
+                return
+
+            # API routes - separate if/elif chain since SPA routes return early
+            if path == '/api/health':
                 # Health check endpoint for monitoring
                 try:
                     onroad = is_onroad()
@@ -2131,6 +2137,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'bp_cruise_panel',
                         'bp_visuals_panel',
                         'bp_display_panel',
+                        'bp_software_panel',
+                        'bp_models_panel',
                         'bp_vehicle_panel',
                         'bp_developer_panel',
                     ]

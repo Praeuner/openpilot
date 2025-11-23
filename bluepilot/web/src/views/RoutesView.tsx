@@ -6,11 +6,11 @@ import { LoadingSpinner, ConfirmDialog, Icon } from '@/components/common'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { DiskSpaceVisualization } from '@/components/storage/DiskSpaceVisualization'
 import { MetricsModal, RouteDownloadModal } from '@/components/modals'
-import type { Route, RouteDetails } from '@/types'
+import type { Route, RouteDetails, DeviceStatus } from '@/types'
 import './RoutesView.css'
 
 interface RoutesViewProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus?: DeviceStatus
 }
 
 export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {

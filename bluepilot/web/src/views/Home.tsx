@@ -5,10 +5,11 @@ import { Icon } from '@/components/common'
 import { useSystemStore } from '@/stores/useSystemStore'
 import { useRoutesStore } from '@/stores/useRoutesStore'
 import { useParamsStore } from '@/stores/useParamsStore'
+import type { DeviceStatus } from '@/types'
 import './Home.css'
 
 interface HomeProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus?: DeviceStatus
 }
 
 interface DriveStats {
