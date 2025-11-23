@@ -3,6 +3,14 @@ BluePilot - 5.0.0 (2025-11-23)
 * Based on sunnypilot 2025.003.0.0
 * Includes AGNOS 13.1 Update
 ************************
+
+### BluePilot Portal (NEW)
+* NEW❗: React-based Progressive Web App accessible at `http://<device-ip>:8088`
+* NEW❗: Home Dashboard with system status, drive stats, and disk visualization
+* NEW❗: Routes Management with video playback, GPS maps, and camera exports
+* NEW❗: Settings Panel for configuring parameters with real-time WebSocket updates
+* NEW❗: Diagnostics Panel with TMUX streaming and parameter browser
+
 ### User Interface & Design
 * NEW❗: Completely redesigned settings menu structure
   * Reorganized into focused panels: Device, Display, Network, Vehicle, Toggles, Cruise, Steering, Developer, and Visuals
@@ -67,6 +75,12 @@ BluePilot - 5.0.0 (2025-11-23)
   * WiFi management with connection status display
   * Signal strength indicators
   * Improved WiFi list and metered connection controls
+* IMPROVED: WiFi connection handling for known networks
+
+### Ford-Specific Features
+* IMPROVED: Human Turn Detection - 3.0s latch time, better EPAS wind-up prevention
+* IMPROVED: Panda safety curvature limits and message handling
+* FIXED: Ford Escape MK4.5 naming (ESCAPE_MK5 → ESCAPE_MK4_5)
 
 ### Vehicle Features
 * IMPROVED: Brake status indicator
@@ -119,6 +133,7 @@ BluePilot - 5.0.0 (2025-11-23)
   * Thread safety improvements in sidebar
   * Better exception handling throughout UI
   * Improved offroad transition handling
+  * Fixed web server crash on first enable
   * General bug fixes and stability improvements
 
 ### Removed Features
