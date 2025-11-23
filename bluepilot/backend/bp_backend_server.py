@@ -65,8 +65,8 @@ from bluepilot.backend.config import (
     ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE,
     CAMERA_FILES, HEVC_CAMERAS, CAMERA_LABELS,
     WEBSOCKET_HOST, CELLULAR_ACCESS_TIMEOUT_DEFAULT,
-    RATE_LIMIT_WINDOW_SECONDS, RATE_LIMIT_MAX_REQUESTS,
-    MAX_REQUESTS_PER_MINUTE_ONROAD, MAX_REQUESTS_PER_MINUTE_OFFROAD,
+    RATE_LIMIT_WINDOW_SECONDS,
+    RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD, RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
 )
 
 # Core server components
@@ -819,18 +819,18 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             path = parsed.path
 
-            # Rate limiting check
+            # Rate limiting check (per-second burst protection)
             client_ip = self.client_address[0]
             is_allowed, retry_after = process_manager.check_rate_limit(
                 client_ip,
                 is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
+                max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+                max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
                 window_seconds=RATE_LIMIT_WINDOW_SECONDS
             )
             if not is_allowed:
                 onroad = is_onroad()
-                limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+                limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
 
                 self.send_response(429)  # Too Many Requests
                 self.send_header('Retry-After', str(retry_after))
@@ -842,8 +842,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     'error': 'Rate limit exceeded',
                     'details': f'Too many requests from {client_ip}',
                     'retry_after_seconds': retry_after,
-                    'limit': f'{limit} requests per minute',
-                    'hint': f'Please wait {retry_after} seconds before trying again',
+                    'limit': f'{limit} requests per second',
+                    'hint': f'Please wait {retry_after}s before trying again',
                     'reason': 'onroad_protection' if onroad else 'rate_limit',
                     'timestamp': datetime.now().isoformat()
                 }).encode()
@@ -3411,7 +3411,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 client_ip,
                 is_onroad_func=is_onroad,
                 max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
+                max_onroad=MAX_REQUESTS_PER_MINUTE_ONROAD,
                 window_seconds=RATE_LIMIT_WINDOW_SECONDS
             )
             if not is_allowed:
@@ -3630,15 +3630,13 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     logger.info("Registered graceful shutdown handlers")
 
-    # Ensure dependencies are available, install if missing
-    needs_restart = lifecycle.ensure_dependencies()
-
-    if needs_restart:
-        # Dependencies were just installed, restart the server process
-        logger.info("Waiting 3 seconds before restart to ensure packages are fully installed...")
-        time.sleep(3)
-        logger.info("Restarting server to load newly installed packages...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+    # Check if dependencies are available (don't install yet - server starts first)
+    deps_available = lifecycle.check_dependencies()
+    if deps_available:
+        logger.info("All dependencies available - WebSocket features enabled")
+    else:
+        logger.info("Some dependencies missing - will install in background after server starts")
+        logger.info("HTTP API will work immediately, WebSocket features available after restart")
 
     # Kill any existing server instances first
     kill_existing_process('web_routes_server.py')
@@ -3812,6 +3810,18 @@ def main():
         except Exception as e:
             logger.error(f"Error in status monitor: {e}")
 
+    # Start background dependency installation if needed (after server is ready to start)
+    # This ensures the server is responsive immediately while packages install in background
+    if not deps_available:
+        def on_deps_installed(restart_needed):
+            if restart_needed:
+                logger.info("Dependencies installed - server will restart on next timeout cycle")
+            else:
+                logger.info("Dependency installation complete - no restart needed")
+
+        lifecycle.install_dependencies_background(on_complete_callback=on_deps_installed)
+        logger.info("Server starting immediately - dependency installation running in background")
+
     # Start HTTP server - runs continuously until disabled or terminated
     try:
         logger.info(f"Web server starting on {bind_address}:{port}")
@@ -3822,6 +3832,22 @@ def main():
 
         def custom_handle_timeout():
             monitor_status()  # Check onroad status and broadcast changes
+
+            # Check if restart is needed due to dependency installation
+            if lifecycle.is_restart_pending():
+                logger.info("Restart pending - triggering graceful restart...")
+                try:
+                    # Shutdown server before restart (best effort)
+                    server.shutdown()
+                except Exception as e:
+                    logger.warning(f"Error during server shutdown: {e}")
+                try:
+                    lifecycle.trigger_restart()
+                except Exception as e:
+                    logger.error(f"Failed to trigger restart: {e}")
+                    # Server will continue running, retry on next timeout
+                return  # Don't call original handler if restarting
+
             if original_handle_timeout:
                 original_handle_timeout()
 
