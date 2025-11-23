@@ -432,6 +432,23 @@
   border-color: #10b981;
 }
 
+/* Disabled state for onroad */
+.quick-link-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.quick-link-card.disabled:hover {
+  border-color: var(--border-subtle);
+  transform: none;
+}
+
+.quick-link-card.disabled .subtext {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 @media (max-width: 480px) {
   .quick-links {
     gap: 0.5rem;

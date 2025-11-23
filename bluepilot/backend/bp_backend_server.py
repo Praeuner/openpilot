@@ -859,18 +859,28 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 }, 503)
                 return
 
-            # Onroad: Block ALL interactions except status endpoints
-            # The frontend shows a full-page overlay to prevent any interactions
+            # Onroad: Block route-related endpoints but allow settings/params
+            # Settings can be modified while driving, routes cannot be browsed
             onroad = is_onroad()
             if onroad and path.startswith('/api/'):
-                # Allow only status endpoints to check onroad state and show overlay
-                status_only_endpoints = ['/api/status', '/api/health']
-                is_status_check = any(path.startswith(ep) for ep in status_only_endpoints)
+                # Endpoints allowed when onroad (status, params, settings, system info)
+                allowed_onroad_prefixes = [
+                    '/api/status',
+                    '/api/health',
+                    '/api/params',
+                    '/api/system',
+                    '/api/logs',
+                    '/api/manager-logs',
+                    '/api/websocket_status',
+                    '/api/drive-stats',
+                    '/api/panels',
+                ]
+                is_allowed_onroad = any(path.startswith(ep) for ep in allowed_onroad_prefixes)
 
-                if not is_status_check:
-                    # Block ALL operations when onroad (including routes list and video playback)
+                if not is_allowed_onroad:
+                    # Block route-related operations when onroad
                     self.send_json_response({
-                        'error': 'All operations disabled while driving for safety',
+                        'error': 'Routes disabled while driving for safety',
                         'onroad': True,
                         'readonly_mode': False,
                         'hint': 'Park the vehicle to access routes and videos'
@@ -2724,15 +2734,24 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     }, 500)
                 return
 
-            # Check if onroad for write operations
+            # Check if onroad for route-related write operations
+            # Params/settings can be modified while driving, routes cannot
             if is_onroad():
-                self.send_json_response({
-                    'error': 'Operation not allowed while driving',
-                    'details': 'Write operations are disabled for safety while vehicle is in motion',
-                    'hint': 'Park the vehicle to modify routes',
-                    'reason': 'safety'
-                }, 503)
-                return
+                # Allow params write operations when onroad
+                allowed_onroad_post = [
+                    '/api/params',
+                    '/api/manager-logs/stream',
+                ]
+                is_allowed_onroad = any(path.startswith(ep) for ep in allowed_onroad_post)
+
+                if not is_allowed_onroad:
+                    self.send_json_response({
+                        'error': 'Route operations not allowed while driving',
+                        'details': 'Route modifications are disabled for safety while vehicle is in motion',
+                        'hint': 'Park the vehicle to modify routes',
+                        'reason': 'safety'
+                    }, 503)
+                    return
 
             # Cancel export operations
             if path.startswith('/api/route-export/') and path.endswith('/cancel'):

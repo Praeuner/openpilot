@@ -258,6 +258,20 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
     )
   }
 
+  // Block routes access while driving
+  if (deviceStatus === 'onroad') {
+    return (
+      <>
+        <Header deviceStatus={deviceStatus} subtitle="Routes unavailable while driving" />
+        <div className="routes-blocked">
+          <Icon name="directions_car" size={80} />
+          <h2>Routes Unavailable</h2>
+          <p>Route browsing is disabled while driving for safety. Please return when parked.</p>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <Header
