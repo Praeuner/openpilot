@@ -246,13 +246,18 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
                   <span className="subtext">Configure BluePilot</span>
                 </div>
               </button>
-              <button className="quick-link-card routes" onClick={() => navigate('/routes')}>
+              <button
+                className={`quick-link-card routes ${deviceStatus === 'onroad' ? 'disabled' : ''}`}
+                onClick={() => deviceStatus !== 'onroad' && navigate('/routes')}
+                disabled={deviceStatus === 'onroad'}
+                title={deviceStatus === 'onroad' ? 'Routes unavailable while driving' : undefined}
+              >
                 <div className="quick-link-icon">
                   <Icon name="place" />
                 </div>
                 <div className="quick-link-copy">
                   <span className="label">Routes</span>
-                  <span className="subtext">Review recordings</span>
+                  <span className="subtext">{deviceStatus === 'onroad' ? 'Unavailable while driving' : 'Review recordings'}</span>
                 </div>
                 <span className="link-badge">{status?.routes_count || 0}</span>
               </button>

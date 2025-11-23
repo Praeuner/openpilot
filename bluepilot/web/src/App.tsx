@@ -76,7 +76,7 @@ function App() {
   return (
     <BrowserRouter>
       <WarningBanners />
-      {(deviceStatus === 'onroad' || deviceStatus === 'offline') && (
+      {deviceStatus === 'offline' && (
         <StatusOverlay type={deviceStatus} onRetry={handleRetryConnection} />
       )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
