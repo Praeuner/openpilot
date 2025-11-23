@@ -347,7 +347,6 @@ Set via Comma device UI (Routes panel) or params API:
   - WebSocket server runs on port + 1 (default: 8089)
 
 **Network Access:**
-- `BPWebServerAllowCellular` (bool) - Allow cellular access (default: false)
   - When enabled: Binds to 0.0.0.0 (all interfaces)
   - When disabled: Binds to WiFi IP only (secure default)
   - Time-limited access (configurable timeout)
