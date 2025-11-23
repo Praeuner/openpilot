@@ -61,7 +61,6 @@
       "create_default": true,
       "enabled": true
     },
-
     {
       "name": "FordPrefSupportsHybridDrive",
       "default": false,
@@ -309,14 +308,6 @@
       "enabled": true
     },
     {
-      "name": "EnableBluepilotRlogUploader",
-      "default": false,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": false,
-      "enabled": false
-    },
-    {
       "name": "ShowGForceMeter",
       "default": false,
       "type": "bool",
@@ -415,24 +406,6 @@
       "flags": ["PERSISTENT", "BACKUP"],
       "create_default": true,
       "enabled": true
-    },
-    {
-      "name": "BPWebServerAllowCellular",
-      "default": false,
-      "type": "bool",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": false,
-      "enabled": true
-    },
-    {
-      "name": "BPWebServerCellularTimeoutMinutes",
-      "default": 60,
-      "type": "int",
-      "flags": ["PERSISTENT", "BACKUP"],
-      "create_default": true,
-      "enabled": true,
-      "min": 5,
-      "max": 480
     },
     {
       "name": "BPWebServerCrashCount",
