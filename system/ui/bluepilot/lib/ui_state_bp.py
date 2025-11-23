@@ -128,7 +128,7 @@ class UIStateBP(UIState):
 
   def get_sunnylink_color(self):
     """Get the appropriate color for SunnyLink status"""
-    from bluepilot.ui.lib.colors import BPColors
+    from system.ui.bluepilot.lib.colors import BPColors
 
     if not self.sunnylink_enabled:
       return BPColors.DISABLED

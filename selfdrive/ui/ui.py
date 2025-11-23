@@ -16,7 +16,7 @@ from openpilot.selfdrive.ui.ui_state import ui_state
 # BluePilot: Use BluePilot layout with custom sidebar and home screen
 # Falls back to stock MainLayout if BluePilot UI is not available
 try:
-  from bluepilot.ui.layouts.main_bp import MainLayoutBP as MainLayout
+  from system.ui.bluepilot.layouts.main_bp import MainLayoutBP as MainLayout
   BLUEPILOT_UI = True
 except ImportError:
   from openpilot.selfdrive.ui.layouts.main import MainLayout

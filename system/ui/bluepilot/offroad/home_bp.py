@@ -11,14 +11,15 @@ from collections.abc import Callable
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAlert
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
-from openpilot.selfdrive.ui.widgets.prime import PrimeWidget
 from openpilot.selfdrive.ui.widgets.setup import SetupWidget
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, DEFAULT_TEXT_COLOR
 from openpilot.system.ui.widgets import Widget
-from bluepilot.ui.lib.colors import BPColors
-from bluepilot.ui.lib.constants import BPConstants
-from bluepilot.ui.widgets.badge_widget import BadgeWidget, VersionBadgeGroup
+from system.ui.bluepilot.lib.colors import BPColors
+from system.ui.bluepilot.lib.constants import BPConstants
+from system.ui.bluepilot.widgets.badge_widget import BadgeWidget, VersionBadgeGroup
+from system.ui.bluepilot.offroad.drive_stats import DriveStats
+from system.ui.bluepilot.offroad.model_info import ModelInfoWidget
 
 
 HEADER_HEIGHT = 80
@@ -70,9 +71,12 @@ class HomeLayoutBP(Widget):
     self.alert_notif_rect = rl.Rectangle(0, 0, 220, HEADER_HEIGHT - 10)
 
     # Widgets
-    self._prime_widget = PrimeWidget()
     self._setup_widget = SetupWidget()
     self._exp_mode_button = ExperimentalModeButton()
+
+    # BluePilot offroad widgets
+    self._drive_stats = DriveStats()
+    self._model_info = ModelInfoWidget()
 
     # BluePilot version badges
     self._version_badges = VersionBadgeGroup()
@@ -97,11 +101,14 @@ class HomeLayoutBP(Widget):
     parts = desc.split(" / ") if desc else []
 
     # Read BP version from BPVERSION file
+    # Get project root (4 levels up from this file: offroad -> bluepilot -> ui -> system -> root)
+    this_dir = os.path.dirname(__file__)
+    project_root = os.path.abspath(os.path.join(this_dir, "..", "..", "..", ".."))
+
     bp_version = ""
     version_paths = [
       "/data/openpilot/BPVERSION",
-      "../../BPVERSION",
-      os.path.join(os.path.dirname(__file__), "../../../../BPVERSION")
+      os.path.join(project_root, "BPVERSION"),
     ]
 
     for path in version_paths:
@@ -252,7 +259,44 @@ class HomeLayoutBP(Widget):
     self.offroad_alert.render(self.content_rect)
 
   def _render_left_column(self):
-    self._prime_widget.render(self.left_column_rect)
+    # Layout: Drive Stats (top), Model Info (bottom)
+    # Prime widget is not used in BluePilot/SunnyPilot
+    # Qt uses 30px spacing between widgets (see offroad_home.cc)
+    # Qt DriveStats: base height 550px for 1.0 font scale
+    # Qt ModelInfoWidget: ~260px (title 48 + margins 60 + spacing 15 + container ~130)
+    total_height = self.left_column_rect.height
+    spacing = 30  # Qt uses 30px spacing
+
+    # Use Qt-matched fixed heights
+    # DriveStats: 550px for full 1.0 scale fonts (title 48, number 66, unit 42)
+    # ModelInfo: 260px for proper Qt appearance
+    drive_stats_height = 550
+    model_info_height = 260
+
+    # If screen is too small, scale proportionally
+    total_needed = drive_stats_height + model_info_height + spacing
+    if total_needed > total_height:
+      scale = total_height / total_needed
+      drive_stats_height = int(drive_stats_height * scale)
+      model_info_height = int(model_info_height * scale)
+
+    # Drive Stats at top
+    drive_stats_rect = rl.Rectangle(
+      self.left_column_rect.x,
+      self.left_column_rect.y,
+      self.left_column_rect.width,
+      drive_stats_height
+    )
+    self._drive_stats.render(drive_stats_rect)
+
+    # Model Info below drive stats
+    model_info_rect = rl.Rectangle(
+      self.left_column_rect.x,
+      self.left_column_rect.y + drive_stats_height + spacing,
+      self.left_column_rect.width,
+      model_info_height
+    )
+    self._model_info.render(model_info_rect)
 
   def _render_right_column(self):
     exp_height = 125
@@ -277,6 +321,7 @@ class HomeLayoutBP(Widget):
     self.alert_count = self.offroad_alert.refresh()
     self._update_state_priority(self.update_available, self.alert_count > 0)
     self._refresh_version_info()
+    self._drive_stats.refresh()
 
   def _update_state_priority(self, update_available: bool, alerts_present: bool):
     current_state = self.current_state

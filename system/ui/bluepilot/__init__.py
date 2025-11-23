@@ -8,8 +8,8 @@
 #   offroad/  - Offroad-specific screens (home)
 #   onroad/   - Onroad-specific screens (future)
 
-from bluepilot.ui.lib.colors import BPColors
-from bluepilot.ui.lib.constants import BPConstants
-from bluepilot.ui.layouts.main_bp import MainLayoutBP
+from system.ui.bluepilot.lib.colors import BPColors
+from system.ui.bluepilot.lib.constants import BPConstants
+from system.ui.bluepilot.layouts.main_bp import MainLayoutBP
 
 __all__ = ['BPColors', 'BPConstants', 'MainLayoutBP']

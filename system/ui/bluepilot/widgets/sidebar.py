@@ -17,11 +17,11 @@ from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
-from bluepilot.ui.lib.colors import BPColors
-from bluepilot.ui.lib.constants import BPConstants, get_carrier_name
-from bluepilot.ui.widgets.metric_card import MetricCard, MetricData
-from bluepilot.ui.widgets.network_card import NetworkCard
-from bluepilot.ui.widgets.icon_button import IconButton, FanWidget
+from system.ui.bluepilot.lib.colors import BPColors
+from system.ui.bluepilot.lib.constants import BPConstants, get_carrier_name
+from system.ui.bluepilot.widgets.metric_card import MetricCard, MetricData
+from system.ui.bluepilot.widgets.network_card import NetworkCard
+from system.ui.bluepilot.widgets.icon_button import IconButton, FanWidget
 
 
 ThermalStatus = log.DeviceState.ThermalStatus

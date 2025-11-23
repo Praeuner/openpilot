@@ -9,11 +9,11 @@ from enum import IntEnum
 import cereal.messaging as messaging
 from openpilot.selfdrive.ui.ui_state import ui_state, device
 from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
-from openpilot.selfdrive.ui.layouts.settings.settings import SettingsLayout, PanelType
 from openpilot.system.ui.widgets import Widget
-from bluepilot.ui.lib.constants import BPConstants
-from bluepilot.ui.widgets.sidebar import SidebarBP
-from bluepilot.ui.offroad.home_bp import HomeLayoutBP
+from system.ui.bluepilot.lib.constants import BPConstants
+from system.ui.bluepilot.widgets.sidebar import SidebarBP
+from system.ui.bluepilot.offroad.home_bp import HomeLayoutBP
+from system.ui.bluepilot.settings.settings_bp import BPSettingsLayout, BPPanelType
 
 
 class MainState(IntEnum):
@@ -43,10 +43,10 @@ class MainLayoutBP(Widget):
     self._current_mode = MainState.HOME
     self._prev_onroad = False
 
-    # Initialize layouts - using BluePilot home layout
+    # Initialize layouts - using BluePilot home and settings layouts
     self._layouts = {
       MainState.HOME: HomeLayoutBP(),
-      MainState.SETTINGS: SettingsLayout(),
+      MainState.SETTINGS: BPSettingsLayout(),
       MainState.ONROAD: AugmentedRoadView()
     }
 
@@ -73,7 +73,7 @@ class MainLayoutBP(Widget):
     # Setup widget callbacks for home layout
     try:
       self._layouts[MainState.HOME]._setup_widget.set_open_settings_callback(
-        lambda: self.open_settings(PanelType.FIREHOSE)
+        lambda: self.open_settings(BPPanelType.FIREHOSE)
       )
     except AttributeError:
       # If _setup_widget doesn't exist, skip this
@@ -122,7 +122,7 @@ class MainLayoutBP(Widget):
       self._current_mode = layout
       self._layouts[self._current_mode].show_event()
 
-  def open_settings(self, panel_type: PanelType):
+  def open_settings(self, panel_type: BPPanelType):
     """Open settings panel"""
     self._layouts[MainState.SETTINGS].set_current_panel(panel_type)
     self._set_current_layout(MainState.SETTINGS)
@@ -131,7 +131,7 @@ class MainLayoutBP(Widget):
 
   def _on_settings_clicked(self):
     """Handle settings button click"""
-    self.open_settings(PanelType.DEVICE)
+    self.open_settings(BPPanelType.DEVICE)
 
   def _on_bookmark_clicked(self):
     """Handle bookmark/flag button click"""
@@ -141,11 +141,11 @@ class MainLayoutBP(Widget):
 
   def _on_debug_clicked(self):
     """Handle debug button click - opens developer panel"""
-    self.open_settings(PanelType.DEVELOPER)
+    self.open_settings(BPPanelType.DEVELOPER)
 
   def _on_network_clicked(self):
     """Handle network card click - opens network settings"""
-    self.open_settings(PanelType.NETWORK)
+    self.open_settings(BPPanelType.NETWORK)
 
   def _on_onroad_clicked(self):
     """Handle click on onroad view - toggle sidebar"""

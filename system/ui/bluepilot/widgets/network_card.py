@@ -8,8 +8,8 @@ from collections.abc import Callable
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
-from bluepilot.ui.lib.colors import BPColors
-from bluepilot.ui.lib.constants import BPConstants
+from system.ui.bluepilot.lib.colors import BPColors
+from system.ui.bluepilot.lib.constants import BPConstants
 
 
 class NetworkCard(Widget):

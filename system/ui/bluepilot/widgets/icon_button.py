@@ -7,8 +7,8 @@ import pyray as rl
 from collections.abc import Callable
 from openpilot.system.ui.lib.application import gui_app, MousePos
 from openpilot.system.ui.widgets import Widget
-from bluepilot.ui.lib.colors import BPColors
-from bluepilot.ui.lib.constants import BPConstants
+from system.ui.bluepilot.lib.colors import BPColors
+from system.ui.bluepilot.lib.constants import BPConstants
 
 
 class IconButton(Widget):
