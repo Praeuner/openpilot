@@ -30,9 +30,10 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   const isFloat = control.type === 'float'
 
   // Get current value
-  // Division converts stored value to display value (e.g., stored 40 / division 100 = display 0.40)
+  // For floats: store the actual decimal value (0.70), no division scaling needed
+  // For integers: use division to convert stored integer to display decimal (e.g., stored 70 / 100 = display 0.70)
   const storedValue = params[control.param]?.value
-  const division = control.division || 1
+  const division = isFloat ? 1 : (control.division || 1)
   const currentValue = storedValue !== undefined ? Number(storedValue) / division : control.min
 
   const [localValue, setLocalValue] = useState(currentValue)
@@ -69,10 +70,9 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
     const clamped = Math.max(control.min, Math.min(control.max, value))
     setLocalValue(clamped)
 
-    // Convert display value back to stored value (multiply by division)
-    // For integers, round the result
-    const rawValue = clamped * division
-    const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+    // For floats: store the display value directly (0.70)
+    // For integers: multiply by division and round (display 0.70 * 100 = stored 70)
+    const valueToStore = isFloat ? clamped : Math.round(clamped * division)
     await updateParam(control.param, String(valueToStore))
   }, [control.min, control.max, control.param, division, isFloat, updateParam])
 
@@ -91,9 +91,8 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   const increment = useCallback(() => {
     setLocalValue((prev) => {
       const newValue = Math.min(control.max, prev + control.increment)
-      // Convert display value back to stored value (multiply by division)
-      const rawValue = newValue * division
-      const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+      // For floats: store directly; for integers: multiply by division
+      const valueToStore = isFloat ? newValue : Math.round(newValue * division)
       updateParam(control.param, String(valueToStore))
       return newValue
     })
@@ -102,9 +101,8 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   const decrement = useCallback(() => {
     setLocalValue((prev) => {
       const newValue = Math.max(control.min, prev - control.increment)
-      // Convert display value back to stored value (multiply by division)
-      const rawValue = newValue * division
-      const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+      // For floats: store directly; for integers: multiply by division
+      const valueToStore = isFloat ? newValue : Math.round(newValue * division)
       updateParam(control.param, String(valueToStore))
       return newValue
     })
