@@ -5,13 +5,14 @@
   border: 1px solid var(--border-color);
   background: var(--panel-card-gradient);
   box-shadow: var(--panel-card-shadow);
-  padding: var(--spacing-sm);
+  padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
   transition: border-color var(--transition-normal),
     transform var(--transition-normal);
   height: 100%;
+  min-height: 140px; /* Ensure enough space for favorite button */
 }
 
 .control-card:not(.control-card--disabled):hover {

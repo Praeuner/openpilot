@@ -1,21 +1,91 @@
-.number-control .control-card__meta {
-  display: inline-flex;
+/* Number Control - Touch-friendly +/- buttons layout */
+
+.number-control__controls {
+  display: flex;
   align-items: center;
-  gap: 0.65rem;
+  justify-content: center;
+  gap: 1rem;
+  /* padding: 0.5rem 0; */
 }
 
-.number-control__value-display {
-  display: inline-flex;
+/* Large touch-friendly +/- buttons */
+.number-control__btn {
+  display: flex;
   align-items: center;
-  gap: 0.65rem;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Perfect centering for +/- symbols */
+  line-height: 1;
+  padding: 0;
+  text-align: center;
+}
+
+/* SVG icon centering */
+.number-control__btn svg {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.number-control__btn:hover:not(:disabled) {
+  transform: scale(1.03);
+}
+
+.number-control__btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.number-control__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.number-control__btn--minus {
+  background: linear-gradient(135deg, #555 0%, #333 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.number-control__btn--minus:hover:not(:disabled) {
+  background: linear-gradient(135deg, #666 0%, #444 100%);
+}
+
+.number-control__btn--plus {
+  background: linear-gradient(135deg, var(--primary-color) 0%, #1565c0 100%);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.35);
+}
+
+.number-control__btn--plus:hover:not(:disabled) {
+  background: linear-gradient(135deg, #42a5f5 0%, #1976d2 100%);
+}
+
+/* Value display in center */
+.number-control__value {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 100px;
 }
 
 .number-control__input {
-  width: 90px;
-  padding: 0.55rem 0.75rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  text-align: right;
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
   background: var(--input-bg);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
@@ -33,81 +103,52 @@
   cursor: not-allowed;
 }
 
+/* Hide number input spinners */
+.number-control__input::-webkit-outer-spin-button,
+.number-control__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-control__input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .number-control__unit {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-.number-control__slider {
+/* Button wrapper with limit label above */
+.number-control__btn-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: 0.375rem;
 }
 
 .number-control__limit {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-tertiary);
-  min-width: 48px;
-  text-align: center;
+  font-weight: 500;
 }
 
-.number-control__range {
-  flex: 1;
-  height: 8px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: #2f2f2f;
-  border-radius: var(--radius-full);
-  outline: none;
-  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.45);
-}
-
-.number-control__range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  background: var(--primary-color);
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(33, 150, 243, 0.35);
-  border: 2px solid #151515;
-  transition: transform 0.2s ease;
-}
-
-.number-control__range::-webkit-slider-thumb:hover {
-  transform: scale(1.08);
-}
-
-.number-control__range::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
-  background: var(--primary-color);
-  border: 2px solid #151515;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(33, 150, 243, 0.35);
-}
-
-.number-control__range:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
+/* Mobile adjustments */
 @media (max-width: 768px) {
-  .number-control .control-card__meta {
-    flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
+  .number-control__btn {
+    width: 72px;
+    height: 72px;
+    font-size: 2.25rem;
   }
 
-  .number-control__value-display {
-    width: 100%;
+  .number-control__btn svg {
+    width: 36px;
+    height: 36px;
   }
 
   .number-control__input {
-    flex: 1;
+    font-size: 1.75rem;
   }
 }

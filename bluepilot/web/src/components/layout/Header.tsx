@@ -10,7 +10,11 @@ interface HeaderProps {
   subtitle?: string
 }
 
-export const Header = ({ deviceStatus = 'checking', onMetricsClick, subtitle }: HeaderProps = {}) => {
+export const Header = ({
+  deviceStatus = 'checking',
+  onMetricsClick,
+  subtitle,
+}: HeaderProps = {}) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { connected } = useWebSocketStore()

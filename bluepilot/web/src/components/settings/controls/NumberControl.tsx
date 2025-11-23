@@ -1,14 +1,14 @@
 /**
  * Number Control Component
- * Renders a slider/input for integer and float values
+ * Renders touch-friendly +/- buttons with hold-to-repeat for integer and float values
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { IntegerControl, FloatControl } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
-import { ControlCard } from '@/components/common'
+import { ControlCard, Icon } from '@/components/common'
 import './NumberControl.css'
 
 interface NumberControlProps {
@@ -17,20 +17,42 @@ interface NumberControlProps {
   disabledReason?: string | null
 }
 
+// Hold-to-repeat timing constants
+const INITIAL_DELAY = 400 // ms before repeat starts
+const REPEAT_INTERVAL = 100 // ms between repeats
+const FAST_REPEAT_THRESHOLD = 1500 // ms before faster repeat
+const FAST_REPEAT_INTERVAL = 50 // ms between fast repeats
+
 export function NumberControl({ control, disabled, disabledReason }: NumberControlProps) {
   const { params, updateParam } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
 
+  const isFloat = control.type === 'float'
+
   // Get current value
+  // Division converts stored value to display value (e.g., stored 40 / division 100 = display 0.40)
   const storedValue = params[control.param]?.value
   const division = control.division || 1
   const currentValue = storedValue !== undefined ? Number(storedValue) / division : control.min
 
   const [localValue, setLocalValue] = useState(currentValue)
 
+  // Refs for hold-to-repeat
+  const holdStartTimeRef = useRef<number>(0)
+  const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     setLocalValue(currentValue)
   }, [currentValue])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current)
+      if (repeatTimeoutRef.current) clearTimeout(repeatTimeoutRef.current)
+    }
+  }, [])
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -39,16 +61,20 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   const isMetric = params['IsMetric']?.value === true
   const unit = isMetric && control.unitMetric ? control.unitMetric : control.unit
 
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value)
-    setLocalValue(value)
-  }
+  // Decimal places for display
+  const decimalPlaces = isFloat ? 2 : 0
 
-  const handleSliderRelease = async () => {
-    // Convert back to stored format
-    const storedValue = Math.round(localValue * division)
-    await updateParam(control.param, String(storedValue))
-  }
+  // Save value to backend
+  const saveValue = useCallback(async (value: number) => {
+    const clamped = Math.max(control.min, Math.min(control.max, value))
+    setLocalValue(clamped)
+
+    // Convert display value back to stored value (multiply by division)
+    // For integers, round the result
+    const rawValue = clamped * division
+    const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+    await updateParam(control.param, String(valueToStore))
+  }, [control.min, control.max, control.param, division, isFloat, updateParam])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value)
@@ -58,34 +84,87 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   }
 
   const handleInputBlur = async () => {
-    // Clamp value to min/max
-    const clamped = Math.max(control.min, Math.min(control.max, localValue))
-    setLocalValue(clamped)
-
-    // Convert back to stored format
-    const storedValue = Math.round(clamped * division)
-    await updateParam(control.param, String(storedValue))
+    await saveValue(localValue)
   }
 
-  // Calculate step based on control type
-  const step = control.increment
+  // Increment/decrement with bounds checking
+  const increment = useCallback(() => {
+    setLocalValue((prev) => {
+      const newValue = Math.min(control.max, prev + control.increment)
+      // Convert display value back to stored value (multiply by division)
+      const rawValue = newValue * division
+      const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+      updateParam(control.param, String(valueToStore))
+      return newValue
+    })
+  }, [control.max, control.increment, control.param, division, isFloat, updateParam])
 
-  const metaDisplay = (
-    <div className="number-control__value-display">
-      <input
-        type="number"
-        className="number-control__input"
-        value={localValue.toFixed(control.type === 'float' ? 2 : 0)}
-        onChange={handleInputChange}
-        onBlur={handleInputBlur}
-        disabled={disabled}
-        min={control.min}
-        max={control.max}
-        step={step}
-      />
-      {unit && <span className="number-control__unit">{unit}</span>}
-    </div>
-  )
+  const decrement = useCallback(() => {
+    setLocalValue((prev) => {
+      const newValue = Math.max(control.min, prev - control.increment)
+      // Convert display value back to stored value (multiply by division)
+      const rawValue = newValue * division
+      const valueToStore = isFloat ? rawValue : Math.round(rawValue)
+      updateParam(control.param, String(valueToStore))
+      return newValue
+    })
+  }, [control.min, control.increment, control.param, division, isFloat, updateParam])
+
+  // Start hold-to-repeat
+  const startHold = useCallback((action: () => void, checkBounds: () => boolean) => {
+    if (disabled) return
+
+    holdStartTimeRef.current = Date.now()
+
+    // Execute once immediately
+    action()
+
+    // Start repeat after initial delay
+    repeatTimeoutRef.current = setTimeout(() => {
+      repeatIntervalRef.current = setInterval(() => {
+        if (!checkBounds()) {
+          stopHold()
+          return
+        }
+
+        // Speed up after threshold
+        const elapsed = Date.now() - holdStartTimeRef.current
+        if (elapsed > FAST_REPEAT_THRESHOLD && repeatIntervalRef.current) {
+          clearInterval(repeatIntervalRef.current)
+          repeatIntervalRef.current = setInterval(() => {
+            if (!checkBounds()) {
+              stopHold()
+              return
+            }
+            action()
+          }, FAST_REPEAT_INTERVAL)
+        }
+
+        action()
+      }, REPEAT_INTERVAL)
+    }, INITIAL_DELAY)
+  }, [disabled])
+
+  // Stop hold-to-repeat
+  const stopHold = useCallback(() => {
+    if (repeatIntervalRef.current) {
+      clearInterval(repeatIntervalRef.current)
+      repeatIntervalRef.current = null
+    }
+    if (repeatTimeoutRef.current) {
+      clearTimeout(repeatTimeoutRef.current)
+      repeatTimeoutRef.current = null
+    }
+  }, [])
+
+  // Button handlers
+  const handleDecrementStart = () => {
+    startHold(decrement, () => localValue > control.min)
+  }
+
+  const handleIncrementStart = () => {
+    startHold(increment, () => localValue < control.max)
+  }
 
   return (
     <ControlCard
@@ -94,29 +173,57 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
       disabled={disabled}
       disabledReason={disabledReason}
       className="number-control"
-      meta={metaDisplay}
     >
-      <div className="number-control__slider">
-        <span className="number-control__limit">
-          {control.min}
-          {unit}
-        </span>
-        <input
-          type="range"
-          className="number-control__range"
-          min={control.min}
-          max={control.max}
-          step={step}
-          value={localValue}
-          onChange={handleSliderChange}
-          onMouseUp={handleSliderRelease}
-          onTouchEnd={handleSliderRelease}
-          disabled={disabled}
-        />
-        <span className="number-control__limit">
-          {control.max}
-          {unit}
-        </span>
+      <div className="number-control__controls">
+        <div className="number-control__btn-wrapper">
+          <span className="number-control__limit">min: {control.min}{unit}</span>
+          <button
+            type="button"
+            className="number-control__btn number-control__btn--minus"
+            onMouseDown={handleDecrementStart}
+            onMouseUp={stopHold}
+            onMouseLeave={stopHold}
+            onTouchStart={handleDecrementStart}
+            onTouchEnd={stopHold}
+            disabled={disabled || localValue <= control.min}
+            aria-label="Decrease value"
+          >
+            <Icon name="remove" size={32} />
+          </button>
+        </div>
+
+        <div className="number-control__value">
+          <input
+            type="number"
+            className="number-control__input"
+            value={localValue.toFixed(decimalPlaces)}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            disabled={disabled}
+            min={control.min}
+            max={control.max}
+            step={control.increment}
+            aria-label={`${control.title} value`}
+          />
+          {unit && <span className="number-control__unit">{unit}</span>}
+        </div>
+
+        <div className="number-control__btn-wrapper">
+          <span className="number-control__limit">max: {control.max}{unit}</span>
+          <button
+            type="button"
+            className="number-control__btn number-control__btn--plus"
+            onMouseDown={handleIncrementStart}
+            onMouseUp={stopHold}
+            onMouseLeave={stopHold}
+            onTouchStart={handleIncrementStart}
+            onTouchEnd={stopHold}
+            disabled={disabled || localValue >= control.max}
+            aria-label="Increase value"
+          >
+            <Icon name="add" size={32} />
+          </button>
+        </div>
       </div>
     </ControlCard>
   )
