@@ -1,0 +1,149 @@
+{
+  "menuName": "BP Software",
+  "menuIcon": "icon_software",
+  "menuDescription": "Software updates, version info, and branch management",
+  "type": "settings",
+  "groups": [
+    {
+      "groupName": "version_info",
+      "title": "Version Information",
+      "controls": [
+        {
+          "type": "file_param_display",
+          "title": "BluePilot Version",
+          "desc": "Current BluePilot version installed on this device",
+          "file": "BPVERSION",
+          "prefix": "BP "
+        },
+        {
+          "type": "static_param_display",
+          "title": "Current Branch",
+          "desc": "Git branch currently checked out",
+          "param": "GitBranch"
+        },
+        {
+          "type": "static_param_display",
+          "title": "Git Commit",
+          "desc": "Current commit hash",
+          "param": "GitCommit"
+        },
+        {
+          "type": "static_param_display",
+          "title": "Git Remote",
+          "desc": "Remote repository URL",
+          "param": "GitRemote"
+        }
+      ]
+    },
+    {
+      "groupName": "recent_changes",
+      "title": "Change Logs",
+      "controls": [
+        {
+          "type": "recent_changes",
+          "title": "Recent Changes",
+          "desc": "View BluePilot and SunnyPilot changelogs"
+        }
+      ]
+    },
+    {
+      "groupName": "update_status",
+      "title": "Update Status",
+      "controls": [
+        {
+          "type": "static_param_display",
+          "title": "Updater State",
+          "desc": "Current state of the update system",
+          "param": "UpdaterState"
+        },
+        {
+          "type": "static_param_display",
+          "title": "Last Update Check",
+          "desc": "When updates were last checked",
+          "param": "LastUpdateTime"
+        },
+        {
+          "type": "static_param_display",
+          "title": "Target Branch",
+          "desc": "Branch selected for updates",
+          "param": "UpdaterTargetBranch"
+        },
+        {
+          "type": "command_button",
+          "title": "Check for Updates",
+          "desc": "Check for available software updates. Updates are only downloaded while the car is off.",
+          "button_text": "CHECK",
+          "action": "check_for_updates",
+          "webSupported": false,
+          "device_only_message": "Update checking must be done on the device. The updater will automatically check for updates when the car is off."
+        }
+      ]
+    },
+    {
+      "groupName": "system_controls",
+      "title": "System",
+      "controls": [
+        {
+          "type": "toggle",
+          "param": "DisableUpdates",
+          "title": "Disable Updates",
+          "desc": "When enabled, automatic software updates will be disabled. Requires a reboot to take effect.",
+          "confirm": true,
+          "confirm_text": "Changing this setting requires a reboot to take effect.<br><br>Are you sure you want to change this setting?",
+          "confirm_yes_text": "Change",
+          "confirm_no_text": "Cancel",
+          "requiresReboot": true,
+          "enableConditions": {
+            "isOffroad": true,
+            "reason": "Cannot change update settings while driving"
+          }
+        },
+        {
+          "type": "command_button",
+          "title": "Select Update Branch",
+          "desc": "Choose which branch to receive updates from",
+          "button_text": "SELECT",
+          "action": "select_branch",
+          "webSupported": false,
+          "device_only_message": "Branch selection must be done on the device UI."
+        },
+        {
+          "type": "command_button",
+          "title": "Force Branch Update",
+          "desc": "Force update to a specific branch. This clones a fresh copy and replaces the current installation.",
+          "button_text": "SELECT",
+          "action": "force_branch_update",
+          "webSupported": false,
+          "device_only_message": "Force update must be initiated from the device UI for safety."
+        }
+      ]
+    },
+    {
+      "groupName": "danger_zone",
+      "title": "Danger Zone",
+      "controls": [
+        {
+          "type": "command_button",
+          "title": "Uninstall BluePilot",
+          "desc": "Completely remove BluePilot from this device",
+          "button_text": "UNINSTALL",
+          "action": "set_param",
+          "param": "DoUninstall",
+          "value": "1",
+          "confirm": true,
+          "confirm_text": "Are you sure you want to uninstall BluePilot?<br><br>This will completely remove the software from your device. You will need to reinstall to use BluePilot again.",
+          "confirm_yes_text": "Uninstall",
+          "confirm_no_text": "Cancel",
+          "button_style": {
+            "background_color": "#E22C2C",
+            "text_color": "#FFFFFF"
+          },
+          "enableConditions": {
+            "isOffroad": true,
+            "reason": "Cannot uninstall while driving"
+          }
+        }
+      ]
+    }
+  ]
+}

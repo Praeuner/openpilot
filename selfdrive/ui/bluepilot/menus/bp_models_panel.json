@@ -1,0 +1,133 @@
+{
+  "menuName": "BP Models",
+  "menuIcon": "icon_models",
+  "menuDescription": "Driving model selection and model-related settings",
+  "type": "settings",
+  "groups": [
+    {
+      "groupName": "model_selection",
+      "title": "Model Selection",
+      "controls": [
+        {
+          "type": "static_param_display",
+          "title": "Current Model",
+          "desc": "The driving model currently in use",
+          "param": "ModelManager_ActiveBundle"
+        },
+        {
+          "type": "command_button",
+          "title": "Select Driving Model",
+          "desc": "Choose a different driving model. Model selection requires the device UI for the tree selection dialog.",
+          "button_text": "SELECT",
+          "action": "select_model",
+          "webSupported": false,
+          "device_only_message": "Model selection must be done on the device UI. This feature requires the interactive model browser."
+        },
+        {
+          "type": "command_button",
+          "title": "Refresh Model List",
+          "desc": "Fetch the latest available models from the server",
+          "button_text": "REFRESH",
+          "action": "set_param",
+          "param": "ModelManager_LastSyncTime",
+          "value": "0",
+          "webSupported": false,
+          "device_only_message": "Model refresh must be done on the device UI."
+        },
+        {
+          "type": "command_button",
+          "title": "Clear Model Cache",
+          "desc": "Delete all downloaded models except the currently active model",
+          "button_text": "CLEAR",
+          "action": "set_param",
+          "param": "ModelManager_ClearCache",
+          "value": "1",
+          "confirm": true,
+          "confirm_text": "This will delete ALL downloaded models from the cache except the currently active model.<br><br>Are you sure you want to continue?",
+          "confirm_yes_text": "Clear Cache",
+          "confirm_no_text": "Cancel",
+          "button_style": {
+            "background_color": "#F44336",
+            "text_color": "#FFFFFF"
+          },
+          "webSupported": false,
+          "device_only_message": "Cache clearing must be done on the device UI."
+        }
+      ]
+    },
+    {
+      "groupName": "lane_turn_settings",
+      "title": "Lane Turn Settings",
+      "controls": [
+        {
+          "type": "toggle",
+          "param": "LaneTurnDesire",
+          "title": "Use Lane Turn Desires",
+          "desc": "If you're driving at 20 mph (32 km/h) or below and have your blinker on, the car will plan a turn in that direction at the nearest drivable path. This prevents situations (like at red lights) where the car might plan the wrong turn direction."
+        },
+        {
+          "type": "integer",
+          "param": "LaneTurnValue",
+          "title": "Lane Turn Speed Threshold",
+          "desc": "Set the maximum speed for lane turn desires. Default is 19 mph (32 km/h).",
+          "min": 5,
+          "max": 20,
+          "increment": 1,
+          "unit": "mph",
+          "unitMetric": "km/h",
+          "visibleConditions": {
+            "paramIsTrue": "LaneTurnDesire"
+          }
+        }
+      ]
+    },
+    {
+      "groupName": "steering_delay_settings",
+      "title": "Steering Delay Settings",
+      "controls": [
+        {
+          "type": "toggle",
+          "param": "LagdToggle",
+          "title": "Live Learning Steer Delay",
+          "desc": "Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. Keeping this on provides the stock openpilot experience."
+        },
+        {
+          "type": "float",
+          "param": "LagdToggleDelay",
+          "title": "Software Delay",
+          "desc": "Adjust the software delay when Live Learning Steer Delay is toggled off. The default software delay value is 0.20 seconds.",
+          "min": 5,
+          "max": 50,
+          "increment": 1,
+          "division": 100,
+          "unit": "s",
+          "visibleConditions": {
+            "paramIsFalse": "LagdToggle"
+          }
+        }
+      ]
+    },
+    {
+      "groupName": "calibration",
+      "title": "Calibration",
+      "controls": [
+        {
+          "type": "command_button",
+          "title": "Reset Model Calibration",
+          "desc": "Reset calibration parameters. Recommended when switching to a different model generation.",
+          "button_text": "RESET",
+          "action": "remove_params",
+          "params": ["CalibrationParams", "LiveTorqueParameters", "LiveParameters", "LiveParametersV2", "LiveDelay"],
+          "confirm": true,
+          "confirm_text": "This will reset all calibration and learning parameters:<br><br>- Calibration Parameters<br>- Live Torque Parameters<br>- Live Parameters<br>- Live Delay<br><br>The system will need to recalibrate. Are you sure?",
+          "confirm_yes_text": "Reset",
+          "confirm_no_text": "Cancel",
+          "button_style": {
+            "background_color": "#FF9800",
+            "text_color": "#FFFFFF"
+          }
+        }
+      ]
+    }
+  ]
+}
