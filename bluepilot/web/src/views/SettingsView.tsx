@@ -3,11 +3,10 @@
  * Main settings page with tabbed panel interface
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Header } from '@/components/layout/Header'
-import { LoadingSpinner, Icon } from '@/components/common'
+import { LoadingSpinner, Icon, Modal, Button } from '@/components/common'
 import { PanelGroup } from '@/components/settings/PanelGroup'
-import { BackupRestore } from '@/components/settings/BackupRestore'
 import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
 import { usePanelsStore } from '@/stores/usePanelsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
@@ -56,12 +55,106 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Backup/Restore state
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [backupResult, setBackupResult] = useState<{ success: boolean; message: string; details?: any } | null>(null)
+  const [showBackupModal, setShowBackupModal] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Fetch panels and state on mount
   useEffect(() => {
     fetchPanels()
     fetchState()
     fetchParams()
   }, [fetchPanels, fetchState, fetchParams])
+
+  // Export settings handler
+  const handleExport = async () => {
+    setExporting(true)
+    setBackupResult(null)
+
+    try {
+      const response = await fetch('/api/params/backup')
+      const data = await response.json()
+
+      if (data.success) {
+        const backup = {
+          version: '1.0',
+          timestamp: new Date().toISOString(),
+          device: 'BluePilot',
+          params: data.params,
+          count: data.count,
+        }
+
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `bluepilot-backup-${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+
+        setBackupResult({ success: true, message: `Exported ${data.count} settings` })
+        setShowBackupModal(true)
+      } else {
+        setBackupResult({ success: false, message: data.error || 'Export failed' })
+        setShowBackupModal(true)
+      }
+    } catch (err) {
+      setBackupResult({ success: false, message: err instanceof Error ? err.message : 'Export failed' })
+      setShowBackupModal(true)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Import settings handler
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    setBackupResult(null)
+
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+
+      if (!backup.params || !backup.version) {
+        throw new Error('Invalid backup file format')
+      }
+
+      const response = await fetch('/api/params/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ params: backup.params }),
+      })
+
+      const data = await response.json()
+
+      if (data.success || data.restored?.length > 0) {
+        setBackupResult({
+          success: true,
+          message: `Restored ${data.count || data.restored?.length || 0} settings`,
+          details: { restored: data.restored?.length || 0, failed: data.failed?.length || 0 },
+        })
+        // Refresh params after restore
+        fetchParams()
+      } else {
+        setBackupResult({ success: false, message: data.error || 'Restore failed' })
+      }
+      setShowBackupModal(true)
+    } catch (err) {
+      setBackupResult({ success: false, message: err instanceof Error ? err.message : 'Import failed' })
+      setShowBackupModal(true)
+    } finally {
+      setImporting(false)
+      event.target.value = ''
+    }
+  }
 
   // Auto-select Favorites panel on mount
   useEffect(() => {
@@ -148,9 +241,41 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   return (
     <>
       <Header deviceStatus={_deviceStatus} subtitle="Configure BluePilot settings and behavior" />
+      {/* Hidden file input for import */}
+      <input
+        type="file"
+        accept=".json"
+        onChange={handleImport}
+        disabled={importing}
+        ref={fileInputRef}
+        className="settings-file-input-hidden"
+        aria-label="Import settings file"
+      />
       <div className="settings-view">
         <div className="settings-layout">
           <aside className="settings-sidebar">
+            {/* Import/Export buttons */}
+            <div className="settings-backup-actions">
+              <button
+                type="button"
+                className="settings-backup-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+              >
+                <Icon name="upload" size={18} />
+                <span>{importing ? 'Importing...' : 'Import'}</span>
+              </button>
+              <button
+                type="button"
+                className="settings-backup-btn"
+                onClick={handleExport}
+                disabled={exporting}
+              >
+                <Icon name="download" size={18} />
+                <span>{exporting ? 'Exporting...' : 'Export'}</span>
+              </button>
+            </div>
+
             <div className="settings-nav">
               <button
                 className={`settings-nav-btn ${selectedPanelId === 'favorites' ? 'active' : ''}`}
@@ -196,6 +321,7 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                   placeholder="Search settings..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search settings"
                 />
                 {searchQuery && (
                   <button
@@ -216,15 +342,6 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
                 <>
                   {!searchQuery && headerDescription && (
                     <div className="settings-panel-description">{headerDescription}</div>
-                  )}
-
-                  {selectedPanelId === 'bp_device_panel' && !searchQuery && (
-                    <div className="panel-group panel-group-inline">
-                      <div className="panel-group-header">
-                        <h3 className="panel-group-title">Backup &amp; Restore</h3>
-                      </div>
-                      <BackupRestore />
-                    </div>
                   )}
 
                   {filteredGroups && filteredGroups.length > 0 ? (
@@ -252,6 +369,27 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
           </section>
         </div>
       </div>
+
+      {/* Backup/Restore Result Modal */}
+      {showBackupModal && backupResult && (
+        <Modal
+          isOpen={showBackupModal}
+          title={backupResult.success ? 'Success' : 'Error'}
+          onClose={() => setShowBackupModal(false)}
+        >
+          <p>{backupResult.message}</p>
+          {backupResult.details && backupResult.details.failed > 0 && (
+            <p className="settings-backup-detail">
+              <strong>Failed:</strong> {backupResult.details.failed}
+            </p>
+          )}
+          <div className="settings-backup-modal-actions">
+            <Button variant="primary" onClick={() => setShowBackupModal(false)}>
+              OK
+            </Button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

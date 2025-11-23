@@ -6,12 +6,13 @@
 }
 
 .favorites-info {
-  padding: 1.25rem 1.5rem;
+  padding: 0.25rem 1rem;
   border-radius: 18px;
   background: rgba(33, 150, 243, 0.1);
   border: 1px solid rgba(33, 150, 243, 0.25);
   color: var(--text-secondary);
-  box-shadow: var(--panel-card-shadow);
+  font-size: 0.8rem;
+  /* box-shadow: var(--panel-card-shadow); */
 }
 
 .favorites-info strong {
@@ -47,6 +48,22 @@
   margin: 0;
   max-width: 460px;
   line-height: 1.6;
+}
+
+.favorites-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.favorites-loading p {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .favorites-section {

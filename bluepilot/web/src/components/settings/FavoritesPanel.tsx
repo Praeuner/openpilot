@@ -3,7 +3,7 @@
  * Displays user's bookmarked settings for quick access
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useFavoritesStore } from '@/stores/useFavoritesStore'
 import { usePanelsStore } from '@/stores/usePanelsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
@@ -13,8 +13,29 @@ import './FavoritesPanel.css'
 
 export function FavoritesPanel() {
   const favorites = useFavoritesStore((state) => state.favorites)
-  const { loadedPanels } = usePanelsStore()
+  const { loadedPanels, fetchPanel, loading } = usePanelsStore()
   const { state } = usePanelStateStore()
+
+  // Track which panels we need to load
+  const requiredPanelIds = useMemo(
+    () => [...new Set(favorites.map((fav) => fav.panelId))],
+    [favorites]
+  )
+
+  // Check if all required panels are loaded
+  const allPanelsLoaded = useMemo(
+    () => requiredPanelIds.every((id) => loadedPanels[id]),
+    [requiredPanelIds, loadedPanels]
+  )
+
+  // Load all panels referenced by favorites on mount
+  useEffect(() => {
+    for (const panelId of requiredPanelIds) {
+      if (!loadedPanels[panelId]) {
+        fetchPanel(panelId)
+      }
+    }
+  }, [requiredPanelIds, loadedPanels, fetchPanel])
 
   // Build list of favorite controls with their full data
   const favoriteControls = useMemo(() => {
@@ -70,6 +91,9 @@ export function FavoritesPanel() {
     )
   }
 
+  // Show loading state while panels are being fetched
+  const isLoading = loading || (favorites.length > 0 && !allPanelsLoaded)
+
   return (
     <div className="favorites-panel">
       <div className="favorites-info">
@@ -79,7 +103,11 @@ export function FavoritesPanel() {
         </p>
       </div>
 
-      {Object.entries(groupedByPanel).map(([panelName, items]) => (
+      {isLoading && favoriteControls.length === 0 ? (
+        <div className="favorites-loading">
+          <p>Loading favorite controls...</p>
+        </div>
+      ) : Object.entries(groupedByPanel).map(([panelName, items]) => (
         <div key={panelName} className="favorites-section">
           <h3 className="favorites-section-title">{panelName}</h3>
           <div className="favorites-controls">
