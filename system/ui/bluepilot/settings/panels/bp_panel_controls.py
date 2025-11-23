@@ -147,6 +147,10 @@ class ControlConfig:
   # Selection control specific
   hide_description: bool = False
 
+  # Unit handling (for {unit} placeholder substitution)
+  unit: str = ""
+  unit_metric: str = ""
+
   # Button styling (from JSON button_style)
   button_style: dict = field(default_factory=dict)
 
@@ -215,6 +219,20 @@ class BPControlBase(Widget):
       text = text[:-1]
       measure = measure_text_cached(self._font_normal, text + "...", font_size)
     return text + "..." if text else ""
+
+  def _get_unit(self) -> str:
+    """Get the appropriate unit based on IsMetric param"""
+    is_metric = self._get_param_bool("IsMetric")
+    if is_metric and self.config.unit_metric:
+      return self.config.unit_metric
+    return self.config.unit
+
+  def _apply_unit_substitution(self, text: str) -> str:
+    """Replace {unit} placeholder with appropriate unit value"""
+    if not text or "{unit}" not in text:
+      return text
+    unit = self._get_unit()
+    return text.replace("{unit}", unit)
 
   def _render_disabled_reasons(self, rect: rl.Rectangle, y_offset: float) -> float:
     """Render disabled reasons UI (Qt style) - returns height used"""
@@ -723,6 +741,8 @@ class BPSelectionControl(BPControlBase):
           break
 
     display_name = self._options_map.get(current_value, current_value)
+    # Apply {unit} placeholder substitution
+    display_name = self._apply_unit_substitution(display_name)
 
     if display_name:
       value_y = text_y + TITLE_SIZE + TEXT_SPACING

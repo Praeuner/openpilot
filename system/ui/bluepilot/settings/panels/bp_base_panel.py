@@ -257,6 +257,10 @@ class BPBasePanel(Widget):
       # Selection control specific (Qt hideDescription)
       hide_description=ctrl_data.get("hideDescription", False),
 
+      # Unit handling (for {unit} placeholder substitution)
+      unit=ctrl_data.get("unit", ""),
+      unit_metric=ctrl_data.get("unitMetric", ""),
+
       # Button styling (colors, etc.)
       button_style=ctrl_data.get("button_style", {}),
     )
@@ -599,21 +603,36 @@ class BPBasePanel(Widget):
 
   def _show_selection_dialog(self, config: ControlConfig):
     """Show selection dialog for a control"""
-    options = [opt.get("name", str(i)) for i, opt in enumerate(config.options)]
+    # Apply {unit} substitution to option names
+    unit = self._get_unit_for_config(config)
+    options = []
+    for i, opt in enumerate(config.options):
+      name = opt.get("name", str(i))
+      name = name.replace("{unit}", unit) if unit else name
+      options.append(name)
+
     current = ""
     current_value = self._get_param_value(config.param)
-    for opt in config.options:
+    for i, opt in enumerate(config.options):
       if str(opt.get("value", "")) == current_value:
-        current = opt.get("name", "")
+        current = options[i]  # Use the substituted name
         break
 
     def on_select(selected_name: str):
-      for opt in config.options:
-        if opt.get("name", "") == selected_name:
+      # Match by substituted name
+      for i, opt in enumerate(config.options):
+        if options[i] == selected_name:
           self._set_param_value(config.param, str(opt.get("value", "")))
           break
 
     self._modal.show_selection(config.title, options, current, on_select)
+
+  def _get_unit_for_config(self, config: ControlConfig) -> str:
+    """Get the appropriate unit based on IsMetric param"""
+    is_metric = self._get_param_bool("IsMetric")
+    if is_metric and config.unit_metric:
+      return config.unit_metric
+    return config.unit
 
   def _execute_command(self, config: ControlConfig):
     """Execute a command button's command"""
@@ -654,6 +673,12 @@ class BPBasePanel(Widget):
   # ============================================================
   # Parameter Helpers
   # ============================================================
+
+  def _get_param_bool(self, param: str) -> bool:
+    try:
+      return self._params.get_bool(param)
+    except Exception:
+      return False
 
   def _get_param_value(self, param: str) -> str:
     try:
