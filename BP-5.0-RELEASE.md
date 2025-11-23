@@ -143,7 +143,7 @@ BluePilot 5.0 includes all features from SunnyPilot 2025.003.0.0:
 - Neural Network Lateral Control (NNLC)
 - Dynamic Experimental Control (DEC)
 - Speed Limit Assist (SLA)
-- Intelligent Cruise Button Management (ICBM)
+- Intelligent Cruise Button Management (ICBM, not yet available for Ford vehicles)
 - Driving Model Manager with 86+ models
 - sunnylink integration
 - And much more...
