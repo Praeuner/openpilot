@@ -50,7 +50,7 @@ Join the official #ford channel at the sunnypilot Discord server to stay up to d
 
 ---
 
-[bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.
+[bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.  BluePilot is always based upon sunnypilot's dev-c3-new branch.
 
 **BluePilot bp-5.0** is based on **SunnyPilot v2025.001.000** and includes all upstream sunnypilot features plus Ford-specific enhancements. This release runs on AGNOS 13.1 and brings significant improvements to the UI, settings management, and onroad experience.
 
@@ -59,7 +59,7 @@ BluePilot includes **all** features from the upstream SunnyPilot project. For a 
 * **[CHANGELOG_SP.md](CHANGELOG_SP.md)** - Complete sunnypilot changelog with all upstream features
 * **[README_SP.md](README_SP.md)** - Full sunnypilot documentation and feature descriptions
 
-Key upstream features include: MADS (Modular Assistive Driving System), Neural Network Lateral Control (NNLC), Dynamic Experimental Control (DEC), Speed Limit Assist (SLA), Intelligent Cruise Button Management (ICBM), Smart Cruise Control Map & Vision (SCC-M / SCC-V), Driving Model Manager with 86+ models, sunnylink integration, and much more.
+Key upstream features include: MADS (Modular Assistive Driving System), Neural Network Lateral Control (NNLC), Dynamic Experimental Control (DEC), Speed Limit Assist (SLA), Intelligent Cruise Button Management (ICBM, not yet available for Ford vehicles), Smart Cruise Control Map & Vision (SCC-M / SCC-V), Driving Model Manager with 86+ models, sunnylink integration, and much more.
 
 </details>
 
