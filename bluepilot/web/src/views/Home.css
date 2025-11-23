@@ -220,8 +220,14 @@
 
 .stats-cards-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.625rem;
+}
+
+@media (max-width: 480px) {
+  .stats-cards-grid {
+    gap: 0.5rem;
+  }
 }
 
 .stat-card {

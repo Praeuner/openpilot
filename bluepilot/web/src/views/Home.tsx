@@ -89,7 +89,7 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
       if (response.ok) {
         const data: LastErrorResponse = await response.json()
         if (data.success && data.has_error && data.error) {
-          setLastError(data.error)
+          setLastError(data.error ?? null)
         } else {
           setLastError(null)
         }

@@ -64,7 +64,7 @@ from bluepilot.backend.config import (
     THUMBNAIL_CACHE, REMUX_CACHE, METRICS_CACHE,
     ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE,
     CAMERA_FILES, HEVC_CAMERAS, CAMERA_LABELS,
-    WEBSOCKET_HOST, CELLULAR_ACCESS_TIMEOUT_DEFAULT,
+    WEBSOCKET_HOST,
     RATE_LIMIT_WINDOW_SECONDS,
     RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD, RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
 )
@@ -819,36 +819,38 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             path = parsed.path
 
-            # Rate limiting check (per-second burst protection)
-            client_ip = self.client_address[0]
-            is_allowed, retry_after = process_manager.check_rate_limit(
-                client_ip,
-                is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
-                max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
-                window_seconds=RATE_LIMIT_WINDOW_SECONDS
-            )
-            if not is_allowed:
-                onroad = is_onroad()
-                limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
+            # Rate limiting check (per-second burst protection) - only for API calls
+            # Static resources (JS, CSS, images) are not rate-limited
+            if path.startswith('/api/'):
+                client_ip = self.client_address[0]
+                is_allowed, retry_after = process_manager.check_rate_limit(
+                    client_ip,
+                    is_onroad_func=is_onroad,
+                    max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+                    max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+                    window_seconds=RATE_LIMIT_WINDOW_SECONDS
+                )
+                if not is_allowed:
+                    onroad = is_onroad()
+                    limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
 
-                self.send_response(429)  # Too Many Requests
-                self.send_header('Retry-After', str(retry_after))
-                self.send_cors_headers()
-                self.end_headers()
+                    self.send_response(429)  # Too Many Requests
+                    self.send_header('Retry-After', str(retry_after))
+                    self.send_cors_headers()
+                    self.end_headers()
 
-                error_msg = json.dumps({
-                    'success': False,
-                    'error': 'Rate limit exceeded',
-                    'details': f'Too many requests from {client_ip}',
-                    'retry_after_seconds': retry_after,
-                    'limit': f'{limit} requests per second',
-                    'hint': f'Please wait {retry_after}s before trying again',
-                    'reason': 'onroad_protection' if onroad else 'rate_limit',
-                    'timestamp': datetime.now().isoformat()
-                }).encode()
-                self.wfile.write(error_msg)
-                return
+                    error_msg = json.dumps({
+                        'success': False,
+                        'error': 'Rate limit exceeded',
+                        'details': f'Too many requests from {client_ip}',
+                        'retry_after_seconds': retry_after,
+                        'limit': f'{limit} requests per second',
+                        'hint': f'Please wait {retry_after}s before trying again',
+                        'reason': 'onroad_protection' if onroad else 'rate_limit',
+                        'timestamp': datetime.now().isoformat()
+                    }).encode()
+                    self.wfile.write(error_msg)
+                    return
 
             # Check if server is enabled (always run when enabled, just rate-limited onroad)
             if not should_server_run():
