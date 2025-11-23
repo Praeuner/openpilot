@@ -79,7 +79,7 @@ from bluepilot.backend.network import (
     get_wifi_ip, get_all_wifi_ips, get_connection_type,
 )
 
-# Route utilities  
+# Route utilities
 from bluepilot.backend.routes import (
     # Processing
     haversine_distance, reverse_geocode,
@@ -1160,7 +1160,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     ffmpeg_count = server_state.get_ffmpeg_count()
 
                     # Rate limit info
-                    current_limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+                    current_limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
 
                     self.send_json_response({
                     'status': 'onroad' if onroad else 'online',
@@ -1177,7 +1177,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'wifi_available': wifi_ip is not None,
                         'all_wifi_ips': [{'interface': iface, 'ip': ip} for iface, ip in all_wifi_ips],
                         'tethering_enabled': tethering_enabled,
-                        'port': int(params.get("BPWebServerPort") or "8088")
+                        'port': int(params.get("BPPortalPort") or "8088")
                     },
                     'clients': {
                         'websocket_connected': ws_clients,
@@ -1185,7 +1185,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     },
                     'rate_limit': {
                         'requests_per_minute': current_limit,
-                        'window_seconds': RATE_LIMIT_WINDOW,
+                        'window_seconds': RATE_LIMIT_WINDOW_SECONDS,
                         'mode': 'global' if onroad else 'per_ip'
                     },
                     'ffmpeg': {
@@ -1232,6 +1232,95 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({
                         'success': False,
                         'error': 'Failed to retrieve logs',
+                        'details': str(e)
+                    }, 500)
+
+            elif path == '/api/last-error':
+                # Get the most recent crash/error from the crashes file
+                # This is the same file shown in the BP Developer Panel
+                try:
+                    crash_file = '/data/community/crashes/error.txt'
+
+                    if not os.path.exists(crash_file):
+                        self.send_json_response({
+                            'success': True,
+                            'has_error': False,
+                            'message': 'No crash file found'
+                        })
+                        return
+
+                    # Get file stats
+                    file_stat = os.stat(crash_file)
+                    file_size = file_stat.st_size
+                    file_mtime = file_stat.st_mtime
+
+                    # Skip if file is empty
+                    if file_size == 0:
+                        self.send_json_response({
+                            'success': True,
+                            'has_error': False,
+                            'message': 'Crash file is empty'
+                        })
+                        return
+
+                    # Limit file size to 100KB for safety
+                    if file_size > 100 * 1024:
+                        # Read only the last 100KB
+                        with open(crash_file, 'r', encoding='utf-8', errors='replace') as f:
+                            f.seek(max(0, file_size - 100 * 1024))
+                            content = f.read()
+                    else:
+                        with open(crash_file, 'r', encoding='utf-8', errors='replace') as f:
+                            content = f.read()
+
+                    # Parse the error content to extract useful info
+                    lines = content.strip().split('\n')
+
+                    # Try to extract timestamp and error type from content
+                    timestamp = None
+                    error_type = 'ERROR'
+                    error_message = lines[0] if lines else 'Unknown error'
+
+                    # Look for common timestamp patterns
+                    for line in lines[:10]:  # Check first 10 lines for timestamp
+                        # Pattern: 2024-01-15 10:30:45 or similar
+                        ts_match = re.search(r'(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})', line)
+                        if ts_match:
+                            timestamp = ts_match.group(1)
+                            break
+
+                    # Use file modification time if no timestamp found in content
+                    if not timestamp:
+                        timestamp = datetime.fromtimestamp(file_mtime).isoformat()
+
+                    # Determine error type from content
+                    content_lower = content.lower()
+                    if 'critical' in content_lower or 'fatal' in content_lower:
+                        error_type = 'CRITICAL'
+                    elif 'exception' in content_lower or 'traceback' in content_lower:
+                        error_type = 'ERROR'
+                    elif 'warning' in content_lower:
+                        error_type = 'WARNING'
+
+                    self.send_json_response({
+                        'success': True,
+                        'has_error': True,
+                        'error': {
+                            'timestamp': timestamp,
+                            'level': error_type,
+                            'message': error_message[:500],  # First line, truncated
+                            'details': content[:5000] if len(content) > 500 else None,  # Full content if longer
+                            'file_path': crash_file,
+                            'file_size': file_size,
+                            'file_modified': file_mtime
+                        }
+                    })
+
+                except Exception as e:
+                    logger.error(f"Error reading crash file: {e}", exc_info=True)
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Failed to read crash file',
                         'details': str(e)
                     }, 500)
 
@@ -2626,8 +2715,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 is_allowed, retry_after = process_manager.check_rate_limit(
                 client_ip,
                 is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
+                max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+                max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
                 window_seconds=RATE_LIMIT_WINDOW_SECONDS
             )
                 if not is_allowed:
@@ -3410,8 +3499,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             is_allowed, retry_after = process_manager.check_rate_limit(
                 client_ip,
                 is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=MAX_REQUESTS_PER_MINUTE_ONROAD,
+                max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+                max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
                 window_seconds=RATE_LIMIT_WINDOW_SECONDS
             )
             if not is_allowed:
@@ -3615,9 +3704,9 @@ def main():
         logger.info("Added venv site-packages to sys.path for LogReader support")
 
     try:
-        port = int(params.get("BPWebServerPort") or "8088")
+        port = int(params.get("BPPortalPort") or "8088")
     except Exception:
-        # BPWebServerPort may not be registered in params schema, use default
+        # BPPortalPort may not be registered in params schema, use default
         port = 8088
 
     logger.info(f"Starting BluePilot Web Routes Server on port {port}")

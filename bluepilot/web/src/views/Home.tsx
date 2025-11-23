@@ -30,6 +30,23 @@ interface DriveStatsResponse {
   cloud_error?: string
 }
 
+interface LastErrorEntry {
+  timestamp: string
+  level: 'ERROR' | 'WARNING' | 'CRITICAL'
+  message: string
+  details?: string | null
+  file_path?: string
+  file_size?: number
+  file_modified?: number
+}
+
+interface LastErrorResponse {
+  success: boolean
+  has_error: boolean
+  message?: string
+  error?: LastErrorEntry
+}
+
 export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
   const navigate = useNavigate()
   const { status, deviceInfo, metrics, diskSpace, fetchStatus, fetchDeviceInfo } = useSystemStore()
@@ -37,6 +54,7 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
   const { params, fetchParams } = useParamsStore()
   const [driveStats, setDriveStats] = useState<DriveStatsResponse | null>(null)
   const [driveStatsLoading, setDriveStatsLoading] = useState(true)
+  const [lastError, setLastError] = useState<LastErrorEntry | null>(null)
 
   useEffect(() => {
     console.log('Home mounted, fetching data...')
@@ -45,6 +63,7 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
     fetchRoutes(1)
     fetchParams()
     fetchDriveStats()
+    fetchLastError()
   }, [fetchStatus, fetchDeviceInfo, fetchRoutes, fetchParams])
 
   const fetchDriveStats = async () => {
@@ -61,6 +80,22 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
       console.error('Error fetching drive stats:', error)
     } finally {
       setDriveStatsLoading(false)
+    }
+  }
+
+  const fetchLastError = async () => {
+    try {
+      const response = await fetch('/api/last-error')
+      if (response.ok) {
+        const data: LastErrorResponse = await response.json()
+        if (data.success && data.has_error && data.error) {
+          setLastError(data.error)
+        } else {
+          setLastError(null)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching last error:', error)
     }
   }
 
@@ -283,6 +318,38 @@ export const Home = ({ deviceStatus = 'checking' }: HomeProps) => {
               </button>
             </div>
           </section>
+
+          {lastError && (
+            <section className="dashboard-error-panel">
+              <div className="panel-heading">
+                <h2>
+                  <Icon name="error" className="error-icon" />
+                  Recent Crash
+                </h2>
+              </div>
+              <div className="error-card">
+                <div className="error-header">
+                  <span className={`error-level ${lastError.level.toLowerCase()}`}>
+                    {lastError.level}
+                  </span>
+                  <span className="error-timestamp">
+                    {new Date(lastError.timestamp).toLocaleString()}
+                  </span>
+                </div>
+                <div className="error-message">{lastError.message}</div>
+                {lastError.details && (
+                  <div className="error-details">{lastError.details}</div>
+                )}
+                <button
+                  type="button"
+                  className="view-logs-button"
+                  onClick={() => navigate('/logs')}
+                >
+                  View Full Logs
+                </button>
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </>

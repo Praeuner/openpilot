@@ -1,4 +1,4 @@
-// bp_web_manager_panel.h - BluePilot Web Manager Panel
+// bp_portal_panel.h - BluePilot Portal Panel
 #pragma once
 
 #include <QWidget>
@@ -14,12 +14,12 @@
 #include "common/params.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_panel_controls.h"
 
-class BPWebManagerPanel : public QWidget {
+class BPPortalPanel : public QWidget {
   Q_OBJECT
 
 public:
-  explicit BPWebManagerPanel(QWidget *parent = nullptr);
-  ~BPWebManagerPanel();
+  explicit BPPortalPanel(QWidget *parent = nullptr);
+  ~BPPortalPanel();
 
 protected:
   void showEvent(QShowEvent *event) override;

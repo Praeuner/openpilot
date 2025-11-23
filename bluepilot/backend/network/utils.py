@@ -16,7 +16,7 @@ except ImportError:
     # Mock for testing
     class Params:
         def __init__(self):
-            self._params = {"IsOnRoad": False, "BPWebServerPort": "8088", "BPWebServerEnabled": True}
+            self._params = {"IsOnRoad": False, "BPPortalPort": "8088", "BPPortalEnabled": True}
         def get_bool(self, key):
             return self._params.get(key, False)
         def get(self, key, encoding=None):
@@ -34,7 +34,7 @@ except Exception as e:
     logger.error(f"Failed to initialize params: {e}")
     class Params:
         def __init__(self):
-            self._params = {"IsOnRoad": False, "BPWebServerPort": "8088", "BPWebServerEnabled": True}
+            self._params = {"IsOnRoad": False, "BPPortalPort": "8088", "BPPortalEnabled": True}
         def get_bool(self, key):
             return self._params.get(key, False)
         def get(self, key, encoding=None):
@@ -60,7 +60,7 @@ def is_onroad():
 def should_server_run():
     """Check if server should be running (always runs when enabled, rate-limited onroad)"""
     try:
-        return params.get_bool("BPWebServerEnabled")
+        return params.get_bool("BPPortalEnabled")
     except:
         return True  # Default to running if we can't check
 

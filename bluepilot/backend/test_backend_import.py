@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick sanity check for bp_backend_server module structure
+Quick sanity check for bp_portal module structure
 Tests that all imports work correctly
 """
 
@@ -55,13 +55,13 @@ def test_imports():
         print(f"✗ utils.power import failed: {e}")
         return False
 
-    # Test main server module
+    # Test main portal module
     try:
-        from bluepilot.backend import bp_backend_server
-        print("✓ bp_backend_server module imports successful")
-        print(f"  - Has main function: {hasattr(bp_backend_server, 'main')}")
+        from bluepilot.backend import bp_portal
+        print("✓ bp_portal module imports successful")
+        print(f"  - Has main function: {hasattr(bp_portal, 'main')}")
     except Exception as e:
-        print(f"✗ bp_backend_server import failed: {e}")
+        print(f"✗ bp_portal import failed: {e}")
         return False
 
     # Test routes modules

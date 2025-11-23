@@ -101,13 +101,13 @@ def uploader_ready(started: bool, params: Params, CP: car.CarParams) -> bool:
 
   return always_run(started, params, CP)
 
-def web_server_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
-  """Web routes server - always run when enabled (rate-limited onroad)"""
-  return params.get_bool("BPWebServerEnabled")
+def portal_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
+  """BluePilot Portal - always run when enabled (rate-limited onroad)"""
+  return params.get_bool("BPPortalEnabled")
 
 def route_preprocessor_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
-  """Route preprocessor - only run when web server enabled and offroad"""
-  return params.get_bool("BPWebServerEnabled") and only_offroad(started, params, CP)
+  """Route preprocessor - only run when portal enabled and offroad"""
+  return params.get_bool("BPPortalEnabled") and only_offroad(started, params, CP)
 
 def or_(*fns):
   return lambda *args: operator.or_(*(fn(*args) for fn in fns))
@@ -195,8 +195,8 @@ procs += [
 
 # bluepilot
 procs += [
-  # Backend server (routes, video streaming, exports, system metrics)
-  PythonProcess("bp_backend_server", "bluepilot.backend.bp_backend_server", web_server_enabled),
+  # BluePilot Portal (routes, video streaming, exports, system metrics)
+  PythonProcess("bp_portal", "bluepilot.backend.bp_portal", portal_enabled),
   # Route preprocessor (runs in background during idle time)
   PythonProcess("bp_route_preprocessor", "bluepilot.backend.routes.preprocessor", route_preprocessor_enabled),
 ]

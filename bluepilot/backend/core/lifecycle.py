@@ -32,7 +32,7 @@ def record_crash(params):
 
         # Get crash count - handle both real and mock params
         try:
-            crash_count_str = params.get("BPWebServerCrashCount")
+            crash_count_str = params.get("BPPortalCrashCount")
             crash_count = int(crash_count_str) if crash_count_str else 0
         except (AttributeError, TypeError):
             # Mock params or other error
@@ -40,7 +40,7 @@ def record_crash(params):
 
         # Get last crash time - handle both real and mock params
         try:
-            last_crash_str = params.get("BPWebServerLastCrash")
+            last_crash_str = params.get("BPPortalLastCrash")
             last_crash = int(last_crash_str) if last_crash_str else 0
         except (AttributeError, TypeError):
             # Mock params or other error
@@ -55,8 +55,8 @@ def record_crash(params):
 
         # Update crash tracking parameters for monitoring only
         try:
-            params.put("BPWebServerCrashCount", min(crash_count, 10))  # Cap at 10
-            params.put("BPWebServerLastCrash", current_time)
+            params.put("BPPortalCrashCount", min(crash_count, 10))  # Cap at 10
+            params.put("BPPortalLastCrash", current_time)
         except AttributeError:
             # Mock params object doesn't have put methods, skip
             pass
@@ -80,14 +80,14 @@ def check_and_handle_crashes(params):
     try:
         # Get crash count for monitoring only - don't disable server
         try:
-            crash_count_str = params.get("BPWebServerCrashCount")
+            crash_count_str = params.get("BPPortalCrashCount")
             crash_count = int(crash_count_str) if crash_count_str else 0
         except (AttributeError, TypeError):
             crash_count = 0
 
         # Get last crash time for monitoring only
         try:
-            last_crash_str = params.get("BPWebServerLastCrash")
+            last_crash_str = params.get("BPPortalLastCrash")
             last_crash = int(last_crash_str) if last_crash_str else 0
         except (AttributeError, TypeError):
             last_crash = 0
@@ -102,8 +102,8 @@ def check_and_handle_crashes(params):
         if crash_count > 0 and current_time - last_crash > 600:  # 10 minutes
             logger.info("Server running stably for 10 minutes, resetting error count")
             try:
-                params.put("BPWebServerCrashCount", 0)
-                params.put("BPWebServerLastCrash", 0)
+                params.put("BPPortalCrashCount", 0)
+                params.put("BPPortalLastCrash", 0)
             except AttributeError:
                 # Mock params object doesn't have put methods, skip
                 pass

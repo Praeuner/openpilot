@@ -17,7 +17,7 @@
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_software_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_models_panel.h"
 #include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_osm_panel.h"
-#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_web_manager_panel.h"
+#include "selfdrive/ui/bluepilot/qt/offroad/panels/bp_portal_panel.h"
 
 // Sunnypilot panels still needed
 #include "selfdrive/ui/sunnypilot/qt/offroad/settings/sunnylink_panel.h"
@@ -90,7 +90,7 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
   QList<PanelInfo> panels = {
     PanelInfo(tr("Device"), bpDeviceView, "../../sunnypilot/selfdrive/assets/offroad/icon_home.svg"),
     PanelInfo(tr("Network"), bpNetworkPanel, "../assets/icons/network.png"),
-    PanelInfo(tr("BP App"), new BPWebManagerPanel(this), "../assets/offroad/icon_routes.png"),
+    PanelInfo(tr("BP Portal"), new BPPortalPanel(this), "../assets/offroad/icon_routes.png"),
     PanelInfo(tr("Toggles"), bpTogglesView, "../../sunnypilot/selfdrive/assets/offroad/icon_toggle.png"),
     PanelInfo(tr("Steering"), bpSteeringView, "../../sunnypilot/selfdrive/assets/offroad/icon_lateral.png"),
     PanelInfo(tr("Cruise"), bpCruiseView, "../assets/icons/speed_limit.png"),
@@ -134,7 +134,7 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
     // Use BPScrollView for BP panels, ScrollViewSP for others
     QScrollArea *panel_frame;
     if (qobject_cast<BPBaseView*>(panel) || qobject_cast<BPNavBarView*>(panel) ||
-        qobject_cast<BPWebManagerPanel*>(panel) || qobject_cast<BPStatisticsPanel*>(panel) ||
+        qobject_cast<BPPortalPanel*>(panel) || qobject_cast<BPStatisticsPanel*>(panel) ||
         qobject_cast<BPNetworkPanel*>(panel)) {
       panel_frame = new BPScrollView(panel, this);
     } else {

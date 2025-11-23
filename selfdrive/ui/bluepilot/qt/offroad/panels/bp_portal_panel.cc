@@ -1,5 +1,5 @@
-// bp_web_app_panel.cc - BluePilot Web Manager Panel
-#include "bp_web_manager_panel.h"
+// bp_portal_panel.cc - BluePilot Portal Panel
+#include "bp_portal_panel.h"
 
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -17,7 +17,7 @@
 
 using qrcodegen::QrCode;
 
-BPWebManagerPanel::BPWebManagerPanel(QWidget *parent)
+BPPortalPanel::BPPortalPanel(QWidget *parent)
     : QWidget(parent),
       serverEnabled(false),
       routeCount(0),
@@ -30,20 +30,20 @@ BPWebManagerPanel::BPWebManagerPanel(QWidget *parent)
   // Status update timer - check every 3 seconds
   statusTimer = new QTimer(this);
   statusTimer->setInterval(3000);
-  connect(statusTimer, &QTimer::timeout, this, &BPWebManagerPanel::updateServerStatus);
-  connect(statusTimer, &QTimer::timeout, this, &BPWebManagerPanel::updateWebSocketStatus);
+  connect(statusTimer, &QTimer::timeout, this, &BPPortalPanel::updateServerStatus);
+  connect(statusTimer, &QTimer::timeout, this, &BPPortalPanel::updateWebSocketStatus);
 
   // Error check timer - check every 10 seconds
   errorTimer = new QTimer(this);
   errorTimer->setInterval(10000);
-  connect(errorTimer, &QTimer::timeout, this, &BPWebManagerPanel::fetchServerErrors);
+  connect(errorTimer, &QTimer::timeout, this, &BPPortalPanel::fetchServerErrors);
 
   setupUI();
   updateServerStatus();
   updateWebSocketStatus();
 }
 
-BPWebManagerPanel::~BPWebManagerPanel() {
+BPPortalPanel::~BPPortalPanel() {
   if (statusTimer) {
     statusTimer->stop();
   }
@@ -52,17 +52,17 @@ BPWebManagerPanel::~BPWebManagerPanel() {
   }
 }
 
-void BPWebManagerPanel::setupUI() {
+void BPPortalPanel::setupUI() {
   mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(30, 30, 30, 30);
   mainLayout->setSpacing(30);
 
-  setStyleSheet("BPWebManagerPanel { background-color: #1C1C1C; }");
+  setStyleSheet("BPPortalPanel { background-color: #1C1C1C; }");
 
   BPTextSizes sizes = BPTextSizes::getSizes();
 
-  // ========== WEB SERVER GROUP ==========
-  QGroupBox *serverGroup = new QGroupBox("Web Manager");
+  // ========== BLUEPILOT PORTAL GROUP ==========
+  QGroupBox *serverGroup = new QGroupBox("BluePilot Portal");
   serverGroup->setStyleSheet(R"(
     QGroupBox {
       background-color: #242424;
@@ -100,14 +100,14 @@ void BPWebManagerPanel::setupUI() {
 
   // Toggle control
   QHBoxLayout *toggleLayout = new QHBoxLayout();
-  QLabel *enableLabel = new QLabel("Enable Web Manager");
+  QLabel *enableLabel = new QLabel("Enable BluePilot Portal");
   enableLabel->setStyleSheet(QString("font-size: %1px; color: #E4E4E4; font-weight: 500;").arg(sizes.titleSize + 5));
   toggleLayout->addWidget(enableLabel);
   toggleLayout->addStretch();
 
   serverToggle = new BPToggle();
   serverToggle->setStateColors("#4CAF50", "#808080");
-  connect(serverToggle, &BPToggle::toggled, this, &BPWebManagerPanel::toggleServer);
+  connect(serverToggle, &BPToggle::toggled, this, &BPPortalPanel::toggleServer);
   toggleLayout->addWidget(serverToggle);
   serverLayout->addLayout(toggleLayout);
 
@@ -175,16 +175,84 @@ void BPWebManagerPanel::setupUI() {
 
   // ========== HELP TEXT - MOVED BELOW SERVER GROUP ==========
   helpLabel = new QLabel(
-    "<b>Web Manager Features:</b><br/>"
-    "• <b>Routes:</b> Browse, search, preserve, and export drives with video playback and location data<br/>"
-    "• <b>System:</b> Monitor device health, CPU/memory usage, disk space, and temperature metrics<br/>"
-    "• <b>Parameters:</b> Search and configure all BluePilot settings with live updates<br/>"
-    "• <b>Real-time sync:</b> Changes update instantly across all connected devices via WebSocket<br/><br/>"
-    "Open the URL in Safari or Chrome on your phone or tablet. "
-    "While driving, all interactions are disabled for safety. Park to access the full interface.");
+    "<b>BluePilot Portal Features:</b><br/>"
+    "• <b>Dashboard:</b> Device status, system health, and weekly driving statistics<br/>"
+    "• <b>Routes:</b> Browse drives with multi-camera video playback, preserve favorites, export data<br/>"
+    "• <b>Settings:</b> Manage the same settings found in the Settings panel with favorites, search, and backup/restore<br/>"
+    "• <b>Parameters:</b> View and edit all system parameters with live sync<br/>"
+    "• <b>Logs:</b> Live system diagnostics with real-time streaming<br/><br/>"
+    "Open on any device in your browser. Can be added to your home screen as an app. "
+    "Safety: Full interface locked while driving.");
   helpLabel->setStyleSheet(QString("font-size: %1px; color: #808080; line-height: 1.5;").arg(sizes.descSize + 2));
   helpLabel->setWordWrap(true);
   mainLayout->addWidget(helpLabel);
+
+  // ========== WIFI HOTSPOT SHORTCUT ==========
+  hotspotGroup = new QGroupBox("WiFi Hotspot");
+  hotspotGroup->setStyleSheet(R"(
+    QGroupBox {
+      background-color: #242424;
+      border: none;
+      border-radius: 15px;
+      margin-top: 50px;
+      padding: 5px;
+      font-size: 40px;
+      font-weight: 500;
+    }
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      padding: 5px 15px;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+      border-bottom: none;
+      margin-left: 35px;
+      margin-top: 0px;
+      background-color: #242424;
+      color: #2196F3;
+    }
+    QGroupBox > QWidget {
+      background-color: transparent;
+    }
+    QGroupBox::indicator {
+      width: 0px;
+    }
+  )");
+  hotspotGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+  QVBoxLayout *hotspotLayout = new QVBoxLayout(hotspotGroup);
+  hotspotLayout->setContentsMargins(40, 40, 40, 40);
+  hotspotLayout->setSpacing(25);
+
+  // Info label
+  QLabel *hotspotInfoLabel = new QLabel(
+    "Quick toggle to enable WiFi hotspot (tethering) on this device. "
+    "Other devices can connect to the hotspot and access the BluePilot Portal. "
+    "<br/><br/>"
+    "<b>Note:</b> You can also enable this in Settings → Network."
+  );
+  hotspotInfoLabel->setStyleSheet(QString(R"(
+    QLabel {
+      font-size: %1px;
+      color: #AAAAAA;
+      padding: 20px;
+      background-color: #1C1C1C;
+      border-radius: 10px;
+      line-height: 1.6;
+    }
+  )").arg(sizes.descSize));
+  hotspotInfoLabel->setWordWrap(true);
+  hotspotLayout->addWidget(hotspotInfoLabel);
+
+  // Hotspot toggle - same param as network panel for consistency
+  hotspotToggle = new BPToggleControl(
+    "EnableTethering",
+    "Enable WiFi Hotspot",
+    "Share internet connection and allow hotspot access to BluePilot Portal"
+  );
+  hotspotLayout->addWidget(hotspotToggle);
+
+  mainLayout->addWidget(hotspotGroup);
 
   // ========== ROUTE STATS GROUP ==========
   statsFrame = new QGroupBox("Routes Overview");
@@ -276,81 +344,14 @@ void BPWebManagerPanel::setupUI() {
   refreshStatsButton = new BPButton("Refresh Stats");
   refreshStatsButton->setMinimumHeight(100);
   statsLayout->addWidget(refreshStatsButton);
-  connect(refreshStatsButton, &BPButton::clicked, this, &BPWebManagerPanel::refreshStats);
+  connect(refreshStatsButton, &BPButton::clicked, this, &BPPortalPanel::refreshStats);
 
   mainLayout->addWidget(statsFrame);
-
-  // ========== WIFI HOTSPOT SHORTCUT ==========
-  hotspotGroup = new QGroupBox("WiFi Hotspot");
-  hotspotGroup->setStyleSheet(R"(
-    QGroupBox {
-      background-color: #242424;
-      border: none;
-      border-radius: 15px;
-      margin-top: 50px;
-      padding: 5px;
-      font-size: 40px;
-      font-weight: 500;
-    }
-    QGroupBox::title {
-      subcontrol-origin: margin;
-      subcontrol-position: top left;
-      padding: 5px 15px;
-      border-top-left-radius: 15px;
-      border-top-right-radius: 15px;
-      border-bottom: none;
-      margin-left: 35px;
-      margin-top: 0px;
-      background-color: #242424;
-      color: #2196F3;
-    }
-    QGroupBox > QWidget {
-      background-color: transparent;
-    }
-    QGroupBox::indicator {
-      width: 0px;
-    }
-  )");
-  hotspotGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-
-  QVBoxLayout *hotspotLayout = new QVBoxLayout(hotspotGroup);
-  hotspotLayout->setContentsMargins(40, 40, 40, 40);
-  hotspotLayout->setSpacing(25);
-
-  // Info label
-  QLabel *hotspotInfoLabel = new QLabel(
-    "Quick toggle to enable WiFi hotspot (tethering) on this device. "
-    "Other devices can connect to the hotspot and access the web server. "
-    "<br/><br/>"
-    "<b>Note:</b> You can also enable this in Settings → Network."
-  );
-  hotspotInfoLabel->setStyleSheet(QString(R"(
-    QLabel {
-      font-size: %1px;
-      color: #AAAAAA;
-      padding: 20px;
-      background-color: #1C1C1C;
-      border-radius: 10px;
-      line-height: 1.6;
-    }
-  )").arg(sizes.descSize));
-  hotspotInfoLabel->setWordWrap(true);
-  hotspotLayout->addWidget(hotspotInfoLabel);
-
-  // Hotspot toggle - same param as network panel for consistency
-  hotspotToggle = new BPToggleControl(
-    "EnableTethering",
-    "Enable WiFi Hotspot",
-    "Share internet connection and allow hotspot access to web server"
-  );
-  hotspotLayout->addWidget(hotspotToggle);
-
-  mainLayout->addWidget(hotspotGroup);
 
   mainLayout->addStretch();
 }
 
-void BPWebManagerPanel::showEvent(QShowEvent *event) {
+void BPPortalPanel::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
   statusTimer->start();
   errorTimer->start();
@@ -361,13 +362,13 @@ void BPWebManagerPanel::showEvent(QShowEvent *event) {
   }
 }
 
-void BPWebManagerPanel::hideEvent(QHideEvent *event) {
+void BPPortalPanel::hideEvent(QHideEvent *event) {
   QWidget::hideEvent(event);
   statusTimer->stop();
   errorTimer->stop();
 }
 
-void BPWebManagerPanel::updateServerStatus() {
+void BPPortalPanel::updateServerStatus() {
   bool running = isServerRunning();
   serverEnabled = running;
 
@@ -439,8 +440,8 @@ void BPWebManagerPanel::updateServerStatus() {
   }
 }
 
-void BPWebManagerPanel::toggleServer(bool enabled) {
-  params.putBool("BPWebServerEnabled", enabled);
+void BPPortalPanel::toggleServer(bool enabled) {
+  params.putBool("BPPortalEnabled", enabled);
 
   if (enabled) {
     // Record timestamp for startup grace period (allows time for pip install + restart)
@@ -453,19 +454,19 @@ void BPWebManagerPanel::toggleServer(bool enabled) {
   }
 
   // Update status after a brief delay to allow process manager to react
-  QTimer::singleShot(1000, this, &BPWebManagerPanel::updateServerStatus);
+  QTimer::singleShot(1000, this, &BPPortalPanel::updateServerStatus);
 
   if (enabled) {
     // Check again after 2 seconds in case dependencies are being installed
-    QTimer::singleShot(2000, this, &BPWebManagerPanel::updateServerStatus);
+    QTimer::singleShot(2000, this, &BPPortalPanel::updateServerStatus);
     // Fetch stats once server is running
-    QTimer::singleShot(3000, this, &BPWebManagerPanel::refreshStats);
+    QTimer::singleShot(3000, this, &BPPortalPanel::refreshStats);
   }
 }
 
-bool BPWebManagerPanel::isServerRunning() {
+bool BPPortalPanel::isServerRunning() {
   // Check if enabled via param
-  bool enabled = params.getBool("BPWebServerEnabled");
+  bool enabled = params.getBool("BPPortalEnabled");
   if (!enabled) {
     return false;
   }
@@ -493,15 +494,15 @@ bool BPWebManagerPanel::isServerRunning() {
   return running;
 }
 
-QString BPWebManagerPanel::getServerUrl() {
+QString BPPortalPanel::getServerUrl() {
   QString ip = getWiFiIP();
-  int port = QString::fromStdString(params.get("BPWebServerPort")).toInt();
+  int port = QString::fromStdString(params.get("BPPortalPort")).toInt();
   if (port == 0) port = 8088;
 
   return QString("http://%1:%2").arg(ip).arg(port);
 }
 
-QString BPWebManagerPanel::getWiFiIP() {
+QString BPPortalPanel::getWiFiIP() {
   // First try to get WiFi interface IP (wlan0 on Comma devices)
   QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
 
@@ -537,7 +538,7 @@ QString BPWebManagerPanel::getWiFiIP() {
   return "127.0.0.1";
 }
 
-void BPWebManagerPanel::fetchRouteStats() {
+void BPPortalPanel::fetchRouteStats() {
   if (!isServerRunning()) {
     totalRoutesLabel->setText("Routes: Server not running");
     totalSizeLabel->setText("Size: -");
@@ -595,7 +596,7 @@ void BPWebManagerPanel::fetchRouteStats() {
   });
 }
 
-void BPWebManagerPanel::refreshStats() {
+void BPPortalPanel::refreshStats() {
   totalRoutesLabel->setText("Routes: Loading...");
   totalSizeLabel->setText("Size: Loading...");
   newestRouteLabel->setText("Newest: Loading...");
@@ -603,7 +604,7 @@ void BPWebManagerPanel::refreshStats() {
   fetchRouteStats();
 }
 
-void BPWebManagerPanel::generateQRCode(const QString &url) {
+void BPPortalPanel::generateQRCode(const QString &url) {
   try {
     // Generate QR code from URL
     QrCode qr = QrCode::encodeText(url.toUtf8().data(), QrCode::Ecc::LOW);
@@ -636,7 +637,7 @@ void BPWebManagerPanel::generateQRCode(const QString &url) {
   }
 }
 
-void BPWebManagerPanel::fetchServerErrors() {
+void BPPortalPanel::fetchServerErrors() {
   // For now, just a stub implementation to fix the linker error
   // This can be enhanced later to show errors in the UI
   // The backend /api/logs endpoint is ready when needed
@@ -674,7 +675,7 @@ void BPWebManagerPanel::fetchServerErrors() {
   */
 }
 
-void BPWebManagerPanel::updateWebSocketStatus() {
+void BPPortalPanel::updateWebSocketStatus() {
   if (!isServerRunning()) {
     websocketStatusBadge->setVisible(false);
     return;

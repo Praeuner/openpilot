@@ -338,12 +338,12 @@ This copies files from `src/` to `public/` (which is committed to the repo).
 
 Set via Comma device UI (Routes panel) or params API:
 
-**Server Control:**
-- `BPWebServerEnabled` (bool) - Enable/disable server
+**Portal Control:**
+- `BPPortalEnabled` (bool) - Enable/disable portal
   - Managed by Qt panel toggle
   - Server lifecycle controlled by openpilot manager
 
-- `BPWebServerPort` (int) - HTTP server port (default: 8088)
+- `BPPortalPort` (int) - HTTP server port (default: 8088)
   - WebSocket server runs on port + 1 (default: 8089)
 
 **Network Access:**
@@ -352,8 +352,8 @@ Set via Comma device UI (Routes panel) or params API:
   - Time-limited access (configurable timeout)
 
 **Cellular Access Timeout:**
-- `BPWebServerCellularTimeout` (int) - Cellular access timeout in minutes (default: 30)
-- `BPWebServerCellularEnabledTime` (int) - Timestamp when cellular was enabled
+- `BPPortalCellularTimeout` (int) - Cellular access timeout in minutes (default: 30)
+- `BPPortalCellularEnabledTime` (int) - Timestamp when cellular was enabled
 
 **Route Preservation:**
 - Uses xattr filesystem attributes (not params)
@@ -376,8 +376,8 @@ Set via Comma device UI (Routes panel) or params API:
 
 ### Server won't start
 - Check that port 8088 is not in use: `lsof -i :8088`
-- Check process manager logs: `journalctl -u manager -f | grep bp_web`
-- Verify BPWebServerEnabled param is true
+- Check process manager logs: `journalctl -u manager -f | grep bp_portal`
+- Verify BPPortalEnabled param is true
 
 ### Can't access from phone
 - Ensure phone and Comma device are on same WiFi network

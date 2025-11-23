@@ -284,7 +284,7 @@ BluePilot's backend is organized into modular components for maintainability:
 
 ```
 bluepilot/backend/
-├── bp_backend_server.py    # Main HTTP server
+├── bp_portal.py             # Main HTTP server (BluePilot Portal)
 ├── config.py                # Configuration and constants
 ├── handlers/                # Request handlers
 │   ├── log_downloads.py     # qlog/rlog download handlers
