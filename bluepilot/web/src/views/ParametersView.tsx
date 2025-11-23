@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { useParamsStore } from '@/stores/useParamsStore'
-import { LoadingSpinner, Button, Modal, ToggleSwitch, ToastContainer } from '@/components/common'
-import type { Parameter } from '@/types'
+import { LoadingSpinner, Button, Modal, ToastContainer, ToggleSwitch } from '@/components/common'
+import type { Parameter, DeviceStatus } from '@/types'
 import { formatParamValueForDisplay } from '@/utils/params'
 import './ParametersView.css'
 
 interface ParametersViewProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus?: DeviceStatus
 }
 
 type SortColumn = 'key' | 'value' | 'type' | 'category' | 'last_modified'
@@ -95,7 +95,7 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
       return 0
     })
-  }, [getFilteredParams, sortColumn, sortDirection])
+  }, [params, searchQuery, getFilteredParams, sortColumn, sortDirection])
 
   const toggleSortDirection = () => {
     setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
@@ -176,22 +176,6 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
       <div className="params-manager">
         <div className="params-header">
           <div className="params-controls">
-            <input
-              type="text"
-              id="params-search"
-              placeholder="Search parameters..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <ToggleSwitch
-              id="params-edit-toggle"
-              checked={editMode}
-              onChange={(checked) => setEditMode(checked)}
-              label="Edit Mode"
-              size="compact"
-              className="params-edit-toggle"
-              title="Enable parameter editing (use with caution)"
-            />
             <div className="params-sort-controls">
               <label htmlFor="params-sort">Sort</label>
               <select
@@ -214,6 +198,22 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                 {sortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
               </button>
             </div>
+            <ToggleSwitch
+              checked={editMode}
+              onChange={setEditMode}
+              label="Edit Mode"
+              size="compact"
+              alignLabel="start"
+              className={`params-edit-toggle ${editMode ? 'active' : ''}`}
+              title="Enable parameter editing (use with caution)"
+            />
+            <input
+              type="text"
+              id="params-search"
+              placeholder="Search parameters..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
         <div className="params-content">
@@ -241,6 +241,11 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
                             {param.key}
                           </span>
                           <div className="param-row__status-chips">
+                            {param.category && (
+                              <span className={`param-badge category ${param.category.toLowerCase()}`}>
+                                {param.category}
+                              </span>
+                            )}
                             {param.readonly && <span className="param-badge readonly">readonly</span>}
                             {param.critical && <span className="param-badge critical">critical</span>}
                           </div>

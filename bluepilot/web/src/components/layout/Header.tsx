@@ -2,10 +2,11 @@ import { useLayoutEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useWebSocketStore } from '@/stores/useWebSocketStore'
 import { Icon } from '@/components/common'
+import type { DeviceStatus } from '@/types'
 import './Header.css'
 
 interface HeaderProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus?: DeviceStatus
   onMetricsClick?: () => void
   subtitle?: string
 }
@@ -34,10 +35,11 @@ export const Header = ({
   const isParametersPage = location.pathname.startsWith('/parameters')
   const isLogsPage = location.pathname.startsWith('/logs')
 
-  const statusTexts = {
+  const statusTexts: Record<DeviceStatus, string> = {
     online: 'Online',
     onroad: 'Onroad',
     offline: 'Offline',
+    'no-network': 'No Network',
     checking: 'Checking...',
   }
 

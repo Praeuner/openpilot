@@ -5,7 +5,7 @@ import { Icon } from './Icon'
 import './StatusOverlay.css'
 
 interface StatusOverlayProps {
-  type: 'onroad' | 'offline'
+  type: 'onroad' | 'offline' | 'no-network'
   onRetry?: () => void
 }
 
@@ -46,17 +46,24 @@ export const StatusOverlay = ({ type, onRetry }: StatusOverlayProps) => {
     }
   }
 
-  const config = type === 'onroad'
-    ? {
-        icon: <Icon name="schedule" size={80} />,
-        title: 'Device Onroad',
-        message: 'The device is currently driving. Web access is limited to prevent distractions.',
-      }
-    : {
-        icon: <Icon name="cloud_off" size={80} />,
-        title: 'Device Offline',
-        message: 'Cannot connect to the device. Please check your network connection.',
-      }
+  const configs = {
+    onroad: {
+      icon: <Icon name="schedule" size={80} />,
+      title: 'Device Onroad',
+      message: 'The device is currently driving. Web access is limited to prevent distractions.',
+    },
+    offline: {
+      icon: <Icon name="cloud_off" size={80} />,
+      title: 'Device Offline',
+      message: 'Cannot connect to the device. Make sure you\'re on the same network as your comma device.',
+    },
+    'no-network': {
+      icon: <Icon name="wifi_off" size={80} />,
+      title: 'No Network Connection',
+      message: 'Your device appears to be offline. Please check your internet connection.',
+    },
+  }
+  const config = configs[type]
 
   return (
     <div className={`status-overlay status-${type}`}>
@@ -84,7 +91,7 @@ export const StatusOverlay = ({ type, onRetry }: StatusOverlayProps) => {
           </div>
         )}
 
-        {type === 'offline' && (
+        {(type === 'offline' || type === 'no-network') && (
           <div className="status-actions">
             <Button
               variant="primary"

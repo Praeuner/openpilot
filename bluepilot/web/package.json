@@ -8,9 +8,10 @@
     "dev": "vite",
     "build": "npm run clean:assets && tsc && vite build",
     "build:no-clean": "tsc && vite build",
-    "clean:assets": "rm -rf public/assets",
-    "clean": "rm -rf public/assets public/index.html",
+    "clean:assets": "rm -rf public/assets public/sw.js public/workbox-*.js public/registerSW.js public/manifest.webmanifest",
+    "clean": "rm -rf public/assets public/index.html public/sw.js public/workbox-*.js public/registerSW.js public/manifest.webmanifest",
     "preview": "vite preview",
+    "preview:device": "VITE_BACKEND_URL=http://10.0.1.125:8088 vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
@@ -33,6 +34,7 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "terser": "^5.44.0",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vite-plugin-pwa": "^0.20.5"
   }
 }

@@ -1,5 +1,8 @@
 // Core type definitions for BluePilot Web App
 
+// Device status for PWA and connectivity handling
+export type DeviceStatus = 'online' | 'onroad' | 'offline' | 'no-network' | 'checking'
+
 export interface VehicleFingerprint {
   carFingerprint?: string
   carVin?: string

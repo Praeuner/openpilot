@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Button, ToggleSwitch, Icon } from '@/components/common'
+import type { DeviceStatus } from '@/types'
 import './LogsView.css'
 
 interface LogResponse {
@@ -19,7 +20,7 @@ interface WebSocketMessage {
 }
 
 interface LogsViewProps {
-  deviceStatus?: 'online' | 'onroad' | 'offline' | 'checking'
+  deviceStatus?: DeviceStatus
 }
 
 // ANSI color code parser
@@ -134,6 +135,7 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
   const logContainerRef = useRef<HTMLPreElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const seenLinesRef = useRef<Set<string>>(new Set())
 
   // Load initial logs
   useEffect(() => {
@@ -144,6 +146,8 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
           const data: LogResponse = await response.json()
           if (data.success && data.output) {
             const lines = data.output.split('\n').filter(line => line.trim())
+            // Track seen lines for deduplication
+            seenLinesRef.current = new Set(lines)
             setLogLines(lines)
           }
         }
@@ -172,10 +176,23 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
           const message: WebSocketMessage = JSON.parse(event.data)
 
           if (message.type === 'log_line' && message.data?.line && !isPaused) {
+            const newLine = message.data.line
+            // Skip duplicate lines
+            if (seenLinesRef.current.has(newLine)) {
+              return
+            }
+            seenLinesRef.current.add(newLine)
+
             setLogLines(prev => {
-              const newLines = [...prev, message.data!.line!]
+              const newLines = [...prev, newLine]
               // Keep only last 2000 lines to prevent memory issues
-              return newLines.slice(-2000)
+              if (newLines.length > 2000) {
+                // Remove oldest lines from seen set too
+                const removed = newLines.slice(0, newLines.length - 2000)
+                removed.forEach(line => seenLinesRef.current.delete(line))
+                return newLines.slice(-2000)
+              }
+              return newLines
             })
           } else if (message.type === 'log_stream_status' && message.data?.status) {
             setStreamStatus(message.data.status)
@@ -289,7 +306,27 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
 
   const handleClear = () => {
     setLogLines([])
+    seenLinesRef.current.clear()
   }
+
+  // Export logs to file
+  const handleExport = useCallback(() => {
+    if (logLines.length === 0) return
+
+    // Strip ANSI codes for clean export
+    const stripAnsi = (text: string) => text.replace(/\u001b\[[0-9;]+m/g, '')
+    const cleanLogs = logLines.map(stripAnsi).join('\n')
+
+    const blob = new Blob([cleanLogs], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `bluepilot-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [logLines])
 
   const handleRefresh = async () => {
     setIsConnecting(true)
@@ -377,6 +414,16 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
               icon={<Icon name="refresh" size={18} />}
             >
               Refresh
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleExport}
+              disabled={logLines.length === 0}
+              icon={<Icon name="download" size={18} />}
+            >
+              Export
             </Button>
 
             <ToggleSwitch

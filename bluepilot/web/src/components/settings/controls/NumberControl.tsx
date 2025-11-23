@@ -1,9 +1,9 @@
 /**
  * Number Control Component
- * Renders touch-friendly +/- buttons with hold-to-repeat for integer and float values
+ * Renders +/- buttons with a slider for integer and float values
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { IntegerControl, FloatControl } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
@@ -16,12 +16,6 @@ interface NumberControlProps {
   disabled?: boolean
   disabledReason?: string | null
 }
-
-// Hold-to-repeat timing constants
-const INITIAL_DELAY = 400 // ms before repeat starts
-const REPEAT_INTERVAL = 100 // ms between repeats
-const FAST_REPEAT_THRESHOLD = 1500 // ms before faster repeat
-const FAST_REPEAT_INTERVAL = 50 // ms between fast repeats
 
 export function NumberControl({ control, disabled, disabledReason }: NumberControlProps) {
   const { params, updateParam } = useParamsStore()
@@ -38,22 +32,9 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
 
   const [localValue, setLocalValue] = useState(currentValue)
 
-  // Refs for hold-to-repeat
-  const holdStartTimeRef = useRef<number>(0)
-  const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   useEffect(() => {
     setLocalValue(currentValue)
   }, [currentValue])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current)
-      if (repeatTimeoutRef.current) clearTimeout(repeatTimeoutRef.current)
-    }
-  }, [])
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -87,81 +68,30 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
     await saveValue(localValue)
   }
 
-  // Increment/decrement with bounds checking
+  // Simple increment/decrement on click
   const increment = useCallback(() => {
-    setLocalValue((prev) => {
-      const newValue = Math.min(control.max, prev + control.increment)
-      // For floats: store directly; for integers: multiply by division
-      const valueToStore = isFloat ? newValue : Math.round(newValue * division)
-      updateParam(control.param, String(valueToStore))
-      return newValue
-    })
-  }, [control.max, control.increment, control.param, division, isFloat, updateParam])
+    const newValue = Math.min(control.max, localValue + control.increment)
+    setLocalValue(newValue)
+    const valueToStore = isFloat ? newValue : Math.round(newValue * division)
+    updateParam(control.param, String(valueToStore))
+  }, [control.max, control.increment, control.param, division, isFloat, localValue, updateParam])
 
   const decrement = useCallback(() => {
-    setLocalValue((prev) => {
-      const newValue = Math.max(control.min, prev - control.increment)
-      // For floats: store directly; for integers: multiply by division
-      const valueToStore = isFloat ? newValue : Math.round(newValue * division)
-      updateParam(control.param, String(valueToStore))
-      return newValue
-    })
-  }, [control.min, control.increment, control.param, division, isFloat, updateParam])
+    const newValue = Math.max(control.min, localValue - control.increment)
+    setLocalValue(newValue)
+    const valueToStore = isFloat ? newValue : Math.round(newValue * division)
+    updateParam(control.param, String(valueToStore))
+  }, [control.min, control.increment, control.param, division, isFloat, localValue, updateParam])
 
-  // Start hold-to-repeat
-  const startHold = useCallback((action: () => void, checkBounds: () => boolean) => {
-    if (disabled) return
-
-    holdStartTimeRef.current = Date.now()
-
-    // Execute once immediately
-    action()
-
-    // Start repeat after initial delay
-    repeatTimeoutRef.current = setTimeout(() => {
-      repeatIntervalRef.current = setInterval(() => {
-        if (!checkBounds()) {
-          stopHold()
-          return
-        }
-
-        // Speed up after threshold
-        const elapsed = Date.now() - holdStartTimeRef.current
-        if (elapsed > FAST_REPEAT_THRESHOLD && repeatIntervalRef.current) {
-          clearInterval(repeatIntervalRef.current)
-          repeatIntervalRef.current = setInterval(() => {
-            if (!checkBounds()) {
-              stopHold()
-              return
-            }
-            action()
-          }, FAST_REPEAT_INTERVAL)
-        }
-
-        action()
-      }, REPEAT_INTERVAL)
-    }, INITIAL_DELAY)
-  }, [disabled])
-
-  // Stop hold-to-repeat
-  const stopHold = useCallback(() => {
-    if (repeatIntervalRef.current) {
-      clearInterval(repeatIntervalRef.current)
-      repeatIntervalRef.current = null
-    }
-    if (repeatTimeoutRef.current) {
-      clearTimeout(repeatTimeoutRef.current)
-      repeatTimeoutRef.current = null
-    }
-  }, [])
-
-  // Button handlers
-  const handleDecrementStart = () => {
-    startHold(decrement, () => localValue > control.min)
+  // Slider change handler
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value)
+    setLocalValue(value)
   }
 
-  const handleIncrementStart = () => {
-    startHold(increment, () => localValue < control.max)
+  // Save on slider release
+  const handleSliderRelease = () => {
+    saveValue(localValue)
   }
 
   return (
@@ -173,22 +103,15 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
       className="number-control"
     >
       <div className="number-control__controls">
-        <div className="number-control__btn-wrapper">
-          <span className="number-control__limit">min: {control.min}{unit}</span>
-          <button
-            type="button"
-            className="number-control__btn number-control__btn--minus"
-            onMouseDown={handleDecrementStart}
-            onMouseUp={stopHold}
-            onMouseLeave={stopHold}
-            onTouchStart={handleDecrementStart}
-            onTouchEnd={stopHold}
-            disabled={disabled || localValue <= control.min}
-            aria-label="Decrease value"
-          >
-            <Icon name="remove" size={32} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="number-control__btn number-control__btn--minus"
+          onClick={decrement}
+          disabled={disabled || localValue <= control.min}
+          aria-label="Decrease value"
+        >
+          <Icon name="remove" size={24} />
+        </button>
 
         <div className="number-control__value">
           <input
@@ -206,22 +129,34 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
           {unit && <span className="number-control__unit">{unit}</span>}
         </div>
 
-        <div className="number-control__btn-wrapper">
-          <span className="number-control__limit">max: {control.max}{unit}</span>
-          <button
-            type="button"
-            className="number-control__btn number-control__btn--plus"
-            onMouseDown={handleIncrementStart}
-            onMouseUp={stopHold}
-            onMouseLeave={stopHold}
-            onTouchStart={handleIncrementStart}
-            onTouchEnd={stopHold}
-            disabled={disabled || localValue >= control.max}
-            aria-label="Increase value"
-          >
-            <Icon name="add" size={32} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="number-control__btn number-control__btn--plus"
+          onClick={increment}
+          disabled={disabled || localValue >= control.max}
+          aria-label="Increase value"
+        >
+          <Icon name="add" size={24} />
+        </button>
+      </div>
+
+      {/* Slider for quick adjustments */}
+      <div className="number-control__slider-container">
+        <span className="number-control__slider-label">{control.min}</span>
+        <input
+          type="range"
+          className="number-control__slider"
+          min={control.min}
+          max={control.max}
+          step={control.increment}
+          value={localValue}
+          onChange={handleSliderChange}
+          onMouseUp={handleSliderRelease}
+          onTouchEnd={handleSliderRelease}
+          disabled={disabled}
+          aria-label={`${control.title} slider`}
+        />
+        <span className="number-control__slider-label">{control.max}</span>
       </div>
     </ControlCard>
   )

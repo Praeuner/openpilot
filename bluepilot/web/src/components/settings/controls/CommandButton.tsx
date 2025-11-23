@@ -256,6 +256,30 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
     return control.button_text
   }
 
+  // Determine if this is a danger action for confirmation dialog styling
+  const isDangerAction = useMemo(() => {
+    // Check if button has red background color
+    const bgColor = control.button_style?.background_color?.toLowerCase()
+    if (bgColor && (bgColor.includes('e22c2c') || bgColor.includes('ff2424') || bgColor.includes('dc3545'))) {
+      return true
+    }
+    // Check for destructive actions
+    const dangerActions = ['reset_settings', 'remove_params', 'remove_platform']
+    if (control.action && dangerActions.includes(control.action)) {
+      return true
+    }
+    // Check for destructive button text
+    const dangerButtonTexts = ['RESET', 'DELETE', 'REMOVE', 'POWER OFF', 'SHUTDOWN']
+    if (dangerButtonTexts.includes(control.button_text?.toUpperCase())) {
+      return true
+    }
+    // SSH key removal
+    if (sshKeysState?.has_keys) {
+      return true
+    }
+    return false
+  }, [control.button_style, control.action, control.button_text, sshKeysState?.has_keys])
+
   return (
     <>
       <ControlCard
@@ -289,11 +313,11 @@ export function CommandButton({ control, disabled, disabledReason }: CommandButt
         isOpen={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={executeCommand}
-        title={inputConfig?.title || 'Confirm Action'}
+        title={inputConfig?.title || control.title || 'Confirm Action'}
         message={<div dangerouslySetInnerHTML={{ __html: inputConfig?.message || control.confirm_text || `Are you sure you want to ${control.title}?` }} />}
-        confirmText={control.confirm_button_text || control.confirm_yes_text || (sshKeysState?.has_keys ? 'Remove' : 'Confirm')}
+        confirmText={control.confirm_button_text || control.confirm_yes_text || (isDangerAction ? control.button_text : 'Confirm')}
         cancelText={control.cancel_button_text || control.confirm_no_text || 'Cancel'}
-        variant={sshKeysState?.has_keys ? 'danger' : 'info'}
+        variant={isDangerAction ? 'danger' : 'warning'}
       />
 
       {/* Input Dialog */}

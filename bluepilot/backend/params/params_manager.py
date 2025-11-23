@@ -132,64 +132,84 @@ CRITICAL_PARAMS = {
     "LongitudinalPersonality",
 }
 
-# Categorized params for better organization
-PARAM_CATEGORIES = {
-    "system": {
-        "name": "System",
-        "description": "Core system parameters",
-        "params": [
-            "DongleId", "Version", "GitCommit", "GitBranch", "Updated",
-            "IsOnRoad", "IsOffroad", "Passive"
-        ]
-    },
-    "bluepilot": {
-        "name": "BluePilot",
-        "description": "BluePilot-specific settings",
-        "params": [
-            "BPWebServerEnabled", "BPWebServerPort", "BPWebServerCellularAccess",
-            "BPRoutePreprocessorEnabled"
-        ]
-    },
-    "ui": {
-        "name": "User Interface",
-        "description": "Display and UI settings",
-        "params": [
-            "UIBrightness", "UIVolume", "EndToEndLong",
-            "ExperimentalMode", "ExperimentalLongitudinalEnabled"
-        ]
-    },
-    "controls": {
-        "name": "Controls",
-        "description": "Vehicle control parameters",
-        "params": [
-            "OpenpilotEnabledToggle", "LongitudinalPersonality",
-            "Disengage OnAccelerator"
-        ]
-    },
-    "logging": {
-        "name": "Logging",
-        "description": "Data logging settings",
-        "params": [
-            "DisableLogging", "AthenadUploadQueue"
-        ]
-    },
-    "other": {
-        "name": "Other",
-        "description": "Miscellaneous parameters",
-        "params": []
-    }
-}
+# Cache for BluePilot panel params (loaded from JSON files)
+_BLUEPILOT_PARAMS_CACHE: Optional[set] = None
+
+
+def _load_bluepilot_params() -> set:
+    """Load all param names from BluePilot panel JSON files.
+
+    Params defined in panel JSONs are considered 'BluePilot' params.
+    All other params are considered 'System' params.
+    """
+    global _BLUEPILOT_PARAMS_CACHE
+    if _BLUEPILOT_PARAMS_CACHE is not None:
+        return _BLUEPILOT_PARAMS_CACHE
+
+    bp_params: set = set()
+
+    # Find panel JSON files
+    repo_root = Path(__file__).resolve().parents[3]  # Go up to openpilot root
+    panel_dirs = [
+        repo_root / "selfdrive" / "ui" / "bluepilot" / "menus",
+    ]
+
+    for panel_dir in panel_dirs:
+        if not panel_dir.exists():
+            continue
+
+        for json_file in panel_dir.glob("*.json"):
+            try:
+                with open(json_file, 'r') as f:
+                    panel_data = json.load(f)
+
+                # Extract params from all controls in all groups
+                groups = panel_data.get("groups", [])
+                for group in groups:
+                    controls = group.get("controls", [])
+                    for control in controls:
+                        # Get param from control
+                        param = control.get("param")
+                        if param:
+                            bp_params.add(param)
+
+                        # Also check params array (some controls have multiple params)
+                        params_list = control.get("params", [])
+                        bp_params.update(params_list)
+
+                        # Check options for selection controls
+                        options = control.get("options", [])
+                        for opt in options:
+                            if isinstance(opt, dict):
+                                opt_param = opt.get("param")
+                                if opt_param:
+                                    bp_params.add(opt_param)
+
+                # Also include persistent params and other param arrays
+                for key in ["persistentParams", "clearOnManagerStartParams",
+                           "clearOnOnroadTransitionParams", "clearOnOffroadTransitionParams"]:
+                    bp_params.update(panel_data.get(key, []))
+
+            except (json.JSONDecodeError, IOError) as e:
+                logger.debug(f"Error reading panel file {json_file}: {e}")
+                continue
+
+    logger.info(f"Loaded {len(bp_params)} BluePilot params from panel JSON files")
+    _BLUEPILOT_PARAMS_CACHE = bp_params
+    return bp_params
 
 
 def _load_param_type_cache() -> Dict[str, str]:
-    """Parse common/params_keys.h to know declared types."""
+    """Parse common/params_keys.h and bluepilot/params/params.json to know declared types."""
     global _PARAM_TYPE_CACHE
     if _PARAM_TYPE_CACHE is not None:
         return _PARAM_TYPE_CACHE
 
     cache: Dict[str, str] = {}
+
+    # First, load from common/params_keys.h (openpilot core params)
     try:
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[3]  # Go up to openpilot root
         header_path = repo_root / "common" / "params_keys.h"
         if header_path.exists():
             contents = header_path.read_text()
@@ -199,6 +219,22 @@ def _load_param_type_cache() -> Dict[str, str]:
                 cache[key] = type_name.lower()
     except Exception as e:
         logger.debug(f"Failed to parse params_keys.h for param types: {e}")
+
+    # Second, load from bluepilot/params/params.json (BluePilot-specific params)
+    try:
+        repo_root = Path(__file__).resolve().parents[3]  # Go up to openpilot root
+        params_json_path = repo_root / "bluepilot" / "params" / "params.json"
+        if params_json_path.exists():
+            with open(params_json_path, 'r') as f:
+                bp_params_data = json.load(f)
+            # params.json has structure: {"params": [...]}
+            params_list = bp_params_data.get("params", []) if isinstance(bp_params_data, dict) else bp_params_data
+            for param in params_list:
+                if isinstance(param, dict) and 'name' in param and 'type' in param:
+                    cache[param['name']] = param['type'].lower()
+            logger.info(f"Loaded {len([p for p in params_list if isinstance(p, dict) and 'name' in p])} param types from bluepilot params.json")
+    except Exception as e:
+        logger.debug(f"Failed to parse bluepilot params.json for param types: {e}")
 
     _PARAM_TYPE_CACHE = cache
     return cache
@@ -269,18 +305,21 @@ def write_param_direct(key: str, value: Any) -> Tuple[bool, Optional[str]]:
 
 
 def categorize_param(key: str) -> str:
-    """Determine which category a param belongs to
+    """Determine which category a param belongs to.
+
+    Params defined in BluePilot panel JSON files are 'BluePilot'.
+    All other params are 'System'.
 
     Args:
         key: Parameter key
 
     Returns:
-        Category name
+        Category name ('BluePilot' or 'System')
     """
-    for category, info in PARAM_CATEGORIES.items():
-        if key in info["params"]:
-            return category
-    return "other"
+    bp_params = _load_bluepilot_params()
+    if key in bp_params:
+        return "BluePilot"
+    return "System"
 
 
 def get_all_params(params: Optional[Params] = None) -> Dict[str, Any]:
