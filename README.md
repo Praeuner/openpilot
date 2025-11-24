@@ -8,11 +8,15 @@ Table of Contents
   - [What's New in bp-5.0](#whats-new-in-bp-50)
     - [User Interface \& Experience](#user-interface--experience)
     - [Software \& Management](#software--management)
+    - [Web Interface \& Data Management](#web-interface--data-management)
     - [Vehicle Features](#vehicle-features)
     - [Ford-Specific Lateral Control](#ford-specific-lateral-control)
     - [BluePilot Settings \& Tuning](#bluepilot-settings--tuning)
     - [Performance \& Stability](#performance--stability)
     - [Known Issues](#known-issues)
+    - [Backend Architecture](#backend-architecture)
+    - [API Endpoints](#api-endpoints)
+    - [Development](#development)
 
 ---
 
@@ -50,9 +54,9 @@ Join the official #ford channel at the sunnypilot Discord server to stay up to d
 
 ---
 
-[bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.  BluePilot is always based upon sunnypilot's dev-c3-new branch.
+[bluepilot](https://github.com/bluepilotdev/bluepilot) is a fork of the hugely popular SunnyPilot project for the Comma3 and Comma3X.  The goal of BluePilot is to develop, test, and stage Ford specific enhancements, validating them before submission to the SunnyPilot team for inclusion in the parent project.  BluePilot is always based upon sunnypilot's master-devbranch.
 
-**BluePilot bp-5.0** is based on **SunnyPilot v2025.001.000** and includes all upstream sunnypilot features plus Ford-specific enhancements. This release runs on AGNOS 13.1 and brings significant improvements to the UI, settings management, and onroad experience.
+**BluePilot bp-5.0** is based on **SunnyPilot v2025.003.000** and includes all upstream sunnypilot features plus Ford-specific enhancements. This release runs on AGNOS 13.1 and brings significant improvements to the UI, settings management, and onroad experience.
 
 ### Upstream SunnyPilot Features
 BluePilot includes **all** features from the upstream SunnyPilot project. For a complete list of sunnypilot features and changes:
@@ -105,7 +109,7 @@ Requires further assistance with software installation? Join the [sunnypilot Dis
 
 ## What's New in bp-5.0
 
-BluePilot 5.0 is a **major update** based on SunnyPilot v2025.001.000 (AGNOS 13.1) with significant improvements to the UI, settings management, and onroad experience.
+BluePilot 5.0 is a **major update** based on SunnyPilot v2025.003.000 (AGNOS 13.1) with significant improvements to the UI, settings management, and onroad experience.
 
 ### User Interface & Experience
 * **Completely redesigned settings menu** - Reorganized into focused panels (Device, Display, Network, Vehicle, Toggles, Cruise, Steering, Developer, Visuals) for better navigation
