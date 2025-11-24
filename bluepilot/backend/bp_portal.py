@@ -352,32 +352,26 @@ async def websocket_handler(websocket):
         logger.info(f"WebSocket client disconnected. Remaining clients: {client_count}")
 
 
-async def no_origin_check(path, request):
-    """
-    Allow all WebSocket connections, bypassing origin checks.
-    This is required for compatibility with Safari, which can be strict
-    about cross-origin policies even for local connections.
-    """
-    return None  # Allow the connection
-
-
 async def start_websocket_server():
     """Start the WebSocket server"""
     try:
-        # Import websockets directly for the serve function
         import websockets
     except ImportError:
         logger.warning("WebSocket server not started - websockets library not available")
         return
 
     try:
-        logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT}")
+        logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT} (websockets {websockets.__version__})")
 
         # Try to bind, retry once on port conflict
         retry_count = 0
         max_retries = 2
+        server = None
+
         while retry_count < max_retries:
             try:
+                # websockets 11+ uses origins=None to allow all origins (Safari compatible)
+                # process_request was removed in websockets 11+
                 server = await websockets.serve(
                     websocket_handler,
                     WEBSOCKET_HOST,
@@ -386,12 +380,12 @@ async def start_websocket_server():
                     ping_timeout=10,
                     close_timeout=5,
                     compression=None,  # Disable permessage-deflate for Safari compatibility
-                    process_request=no_origin_check  # Custom handler for Safari
+                    origins=None,  # Allow all origins (Safari compatible)
                 )
-                logger.info("WebSocket server started with custom origin handling for Safari")
+                logger.info(f"WebSocket server started on port {WEBSOCKET_PORT}")
                 break
             except OSError as e:
-                if e.errno == 98:  # Address already in use
+                if e.errno in (98, 48):  # Address already in use (Linux=98, macOS=48)
                     logger.warning(f"Port {WEBSOCKET_PORT} in use, attempting to kill existing process...")
                     if process_manager.kill_port_process(WEBSOCKET_PORT):
                         logger.info(f"Killed process on port {WEBSOCKET_PORT}, retrying...")
@@ -402,6 +396,10 @@ async def start_websocket_server():
                         raise
                 else:
                     raise
+
+        if server is None:
+            logger.error("Failed to start WebSocket server after retries")
+            return
 
         # Keep server running
         await asyncio.Future()  # Run forever
