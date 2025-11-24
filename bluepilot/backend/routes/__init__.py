@@ -40,6 +40,9 @@ from .segments import (
 from .scanner import (
     scan_routes,
 )
+from .utils import (
+    build_route_metadata,
+)
 
 __all__ = [
     # Processing
@@ -68,4 +71,6 @@ __all__ = [
     'get_disk_space_info',
     # Scanner
     'scan_routes',
+    # Utilities
+    'build_route_metadata',
 ]

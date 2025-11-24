@@ -56,7 +56,7 @@ bluepilot/backend/
 │
 └── handlers/                      # HTTP endpoint handlers
     ├── __init__.py
-    └── export_backup.py           # Export and backup endpoints
+    └── log_downloads.py           # Download qlog/rlog helpers
 ```
 
 ### Process Configuration
@@ -122,7 +122,7 @@ The current implementation delegates to `web_routes_server.py` while providing a
 
 ### Phase 3: Handler Modularization (PLANNED)
 
-Break down the monolithic HTTP handler into focused endpoint handlers, similar to the existing `export_backup.py` pattern.
+Break down the monolithic HTTP handler into focused endpoint handlers, similar to the existing `handlers/` pattern.
 
 ## Development
 

@@ -23,6 +23,8 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+from bluepilot.backend.utils.params_fallback import get_params_with_defaults
+
 logger = logging.getLogger(__name__)
 
 # Import configuration
@@ -59,25 +61,7 @@ from bluepilot.backend.video import (
 )
 
 # Import params for unit preference
-try:
-    from openpilot.common.params import Params
-    params = Params()
-except ImportError:
-    # Mock for testing
-    class Params:
-        def __init__(self):
-            self._params = {"IsMetric": False}
-        def get_bool(self, key):
-            return self._params.get(key, False)
-    params = Params()
-except Exception as e:
-    logger.error(f"Failed to initialize params: {e}")
-    class Params:
-        def __init__(self):
-            self._params = {"IsMetric": False}
-        def get_bool(self, key):
-            return self._params.get(key, False)
-    params = Params()
+params = get_params_with_defaults({"IsMetric": False})
 
 
 def scan_routes():
