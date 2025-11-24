@@ -337,6 +337,9 @@ async def start_websocket_server():
                     origins=None,  # Allow all origins (Safari compatible)
                 )
                 logger.info(f"WebSocket server started on port {WEBSOCKET_PORT}")
+                # Update global flag now that websocket server is confirmed running
+                global WEBSOCKETS_AVAILABLE
+                WEBSOCKETS_AVAILABLE = True
                 break
             except OSError as e:
                 if e.errno in (98, 48):  # Address already in use (Linux=98, macOS=48)
