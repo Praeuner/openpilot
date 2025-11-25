@@ -1813,12 +1813,12 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             elif path.startswith('/api/download/qlog/'):
                 # Download qlog: /api/download/qlog/{route_base}
-                handle_qlog_download(self, path, get_route_segments)
+                handle_qlog_download(self, path, get_route_segments, server_state)
                 return
 
             elif path.startswith('/api/download/rlog/'):
                 # Download rlog: /api/download/rlog/{route_base}
-                handle_rlog_download(self, path, get_route_segments)
+                handle_rlog_download(self, path, get_route_segments, server_state)
                 return
 
             elif path.startswith('/api/route-coordinates/'):
@@ -2018,8 +2018,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'bp_cruise_panel',
                         'bp_visuals_panel',
                         'bp_display_panel',
-                        'bp_software_panel',
-                        'bp_models_panel',
                         'bp_vehicle_panel',
                         'bp_developer_panel',
                     ]

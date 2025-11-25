@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Modal, Icon } from '@/components/common'
 import { useToastStore } from '@/stores/useToastStore'
+import { useExportStore } from '@/stores/useExportStore'
 import type { RouteDetails } from '@/types'
 import './RouteDownloadModal.css'
 
@@ -28,6 +29,7 @@ interface ExportProgress {
 
 export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModalProps) => {
   const { addToast } = useToastStore()
+  const { activeExports, updateProgress } = useExportStore()
   const [cameraSizes, setCameraSizes] = useState<CameraSizes>({})
   const [exportProgress, setExportProgress] = useState<Map<string, ExportProgress>>(new Map())
 
@@ -171,6 +173,16 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
   const downloadLog = (logType: 'qlog' | 'rlog') => {
     if (!route) return
     const routeId = route.baseName || route.id || ''
+
+    // Set initial progress state (will be updated by WebSocket)
+    updateProgress(routeId, {
+      routeId,
+      type: logType,
+      status: 'processing',
+      progress: 0,
+      message: 'Starting download...'
+    })
+
     const url = `/api/download/${logType}/${routeId}`
     // Trigger download using anchor element for better browser compatibility
     const link = document.createElement('a')
@@ -181,6 +193,11 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
     document.body.removeChild(link)
     addToast(`${logType.toUpperCase()} download started`, 'success')
   }
+
+  // Get log download progress from export store
+  const routeId = route?.baseName || route?.id || ''
+  const qlogProgress = activeExports.get(routeId)?.type === 'qlog' ? activeExports.get(routeId) : null
+  const rlogProgress = activeExports.get(routeId)?.type === 'rlog' ? activeExports.get(routeId) : null
 
   if (!route) return null
 
@@ -304,10 +321,19 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => downloadLog('qlog')}
+                disabled={qlogProgress?.status === 'processing'}
               >
-                Download qlog
+                {qlogProgress?.status === 'processing' ? 'Preparing...' : 'Download qlog'}
               </button>
             </div>
+            {qlogProgress && qlogProgress.status === 'processing' && (
+              <div className="export-progress">
+                <div className="export-progress-bar">
+                  <div className="export-progress-fill" style={{ width: `${qlogProgress.progress}%` }} />
+                </div>
+                <div className="export-progress-message">{qlogProgress.message}</div>
+              </div>
+            )}
 
             <div className="log-download-item">
               <div className="log-info">
@@ -319,10 +345,19 @@ export const RouteDownloadModal = ({ isOpen, onClose, route }: RouteDownloadModa
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => downloadLog('rlog')}
+                disabled={rlogProgress?.status === 'processing'}
               >
-                Download rlog
+                {rlogProgress?.status === 'processing' ? 'Preparing...' : 'Download rlog'}
               </button>
             </div>
+            {rlogProgress && rlogProgress.status === 'processing' && (
+              <div className="export-progress">
+                <div className="export-progress-bar">
+                  <div className="export-progress-fill" style={{ width: `${rlogProgress.progress}%` }} />
+                </div>
+                <div className="export-progress-message">{rlogProgress.message}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>

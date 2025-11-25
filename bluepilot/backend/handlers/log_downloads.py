@@ -71,7 +71,7 @@ def generate_log_filename(route_base, log_type, segments=None):
     Returns:
         Filename string with date/time, location, and log type
     """
-    from bluepilot.backend.utils import METRICS_CACHE
+    from bluepilot.backend.config import METRICS_CACHE
 
     components = []
 
@@ -116,7 +116,25 @@ def generate_log_filename(route_base, log_type, segments=None):
     return f"{filename_base}.zst"
 
 
-def handle_qlog_download(handler, path, get_route_segments):
+def _broadcast_log_download_update(server_state, route_base, log_type, status_info):
+    """Broadcast log download status via WebSocket"""
+    if not server_state:
+        return
+    broadcaster = server_state.get_broadcaster()
+    if broadcaster:
+        try:
+            from bluepilot.backend.realtime import WebSocketEvent
+            payload = {
+                'route': route_base,
+                'logType': log_type,
+                **status_info
+            }
+            broadcaster.broadcast(WebSocketEvent.LOG_DOWNLOAD_UPDATE, payload)
+        except Exception as e:
+            logger.debug(f"Error broadcasting log download update: {e}")
+
+
+def handle_qlog_download(handler, path, get_route_segments, server_state=None):
     """Handle GET /api/download/qlog/{route_base}"""
     parts = path.split('/')[4:]
     if len(parts) < 1:
@@ -149,14 +167,57 @@ def handle_qlog_download(handler, path, get_route_segments):
             handler.send_file_response(qlog_files[0], download_filename=filename)
             return
 
-        # Multiple segments - concatenate qlogs
-        # Create temporary combined file
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.zst', prefix='qlog_')
+        # Multiple segments - concatenate qlogs with progress tracking
+        # Create temporary combined file on data partition (not /tmp which is tiny tmpfs)
+        from bluepilot.backend.config import IMPORT_TEMP_DIR
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.zst', prefix='qlog_', dir=IMPORT_TEMP_DIR)
+
+        # Start tracking
+        total_files = len(qlog_files)
+        if server_state:
+            server_state.start_log_download(route_base, 'qlog', total_files, f"Concatenating {total_files} qlog files")
+            _broadcast_log_download_update(server_state, route_base, 'qlog', {
+                'status': 'processing',
+                'progress': 0,
+                'message': f"Concatenating {total_files} qlog files",
+                'totalFiles': total_files,
+                'filesProcessed': 0
+            })
+
         try:
             with os.fdopen(temp_fd, 'wb') as temp_file:
-                for qlog_file in qlog_files:
+                for i, qlog_file in enumerate(qlog_files):
                     with open(qlog_file, 'rb') as f:
                         temp_file.write(f.read())
+
+                    # Update progress
+                    if server_state:
+                        progress = (i + 1) / total_files
+                        server_state.update_log_download(route_base, 'qlog',
+                            progress=progress,
+                            files_processed=i + 1,
+                            message=f"Processing segment {i + 1} of {total_files}"
+                        )
+                        _broadcast_log_download_update(server_state, route_base, 'qlog', {
+                            'status': 'processing',
+                            'progress': progress,
+                            'progressPercent': int(progress * 100),
+                            'message': f"Processing segment {i + 1} of {total_files}",
+                            'totalFiles': total_files,
+                            'filesProcessed': i + 1
+                        })
+
+            # Mark complete before sending
+            if server_state:
+                server_state.complete_log_download(route_base, 'qlog', "Download ready")
+                _broadcast_log_download_update(server_state, route_base, 'qlog', {
+                    'status': 'ready',
+                    'progress': 1.0,
+                    'progressPercent': 100,
+                    'message': 'Download ready',
+                    'totalFiles': total_files,
+                    'filesProcessed': total_files
+                })
 
             handler.send_file_response(temp_path, download_filename=filename)
         finally:
@@ -165,13 +226,23 @@ def handle_qlog_download(handler, path, get_route_segments):
                 os.remove(temp_path)
             except OSError:
                 pass
+            # Clear status after download completes
+            if server_state:
+                server_state.clear_log_download(route_base, 'qlog')
 
     except Exception as e:
         logger.error(f"Error serving qlog for {route_base}: {e}", exc_info=True)
+        if server_state:
+            server_state.fail_log_download(route_base, 'qlog', str(e))
+            _broadcast_log_download_update(server_state, route_base, 'qlog', {
+                'status': 'error',
+                'message': str(e)
+            })
+            server_state.clear_log_download(route_base, 'qlog')
         handler.send_json_response({'error': f'Failed to serve qlog: {str(e)}'}, 500)
 
 
-def handle_rlog_download(handler, path, get_route_segments):
+def handle_rlog_download(handler, path, get_route_segments, server_state=None):
     """Handle GET /api/download/rlog/{route_base}"""
     parts = path.split('/')[4:]
     if len(parts) < 1:
@@ -204,14 +275,57 @@ def handle_rlog_download(handler, path, get_route_segments):
             handler.send_file_response(rlog_files[0], download_filename=filename)
             return
 
-        # Multiple segments - concatenate rlogs
-        # Create temporary combined file
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.zst', prefix='rlog_')
+        # Multiple segments - concatenate rlogs with progress tracking
+        # Create temporary combined file on data partition (not /tmp which is tiny tmpfs)
+        from bluepilot.backend.config import IMPORT_TEMP_DIR
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.zst', prefix='rlog_', dir=IMPORT_TEMP_DIR)
+
+        # Start tracking
+        total_files = len(rlog_files)
+        if server_state:
+            server_state.start_log_download(route_base, 'rlog', total_files, f"Concatenating {total_files} rlog files")
+            _broadcast_log_download_update(server_state, route_base, 'rlog', {
+                'status': 'processing',
+                'progress': 0,
+                'message': f"Concatenating {total_files} rlog files",
+                'totalFiles': total_files,
+                'filesProcessed': 0
+            })
+
         try:
             with os.fdopen(temp_fd, 'wb') as temp_file:
-                for rlog_file in rlog_files:
+                for i, rlog_file in enumerate(rlog_files):
                     with open(rlog_file, 'rb') as f:
                         temp_file.write(f.read())
+
+                    # Update progress
+                    if server_state:
+                        progress = (i + 1) / total_files
+                        server_state.update_log_download(route_base, 'rlog',
+                            progress=progress,
+                            files_processed=i + 1,
+                            message=f"Processing segment {i + 1} of {total_files}"
+                        )
+                        _broadcast_log_download_update(server_state, route_base, 'rlog', {
+                            'status': 'processing',
+                            'progress': progress,
+                            'progressPercent': int(progress * 100),
+                            'message': f"Processing segment {i + 1} of {total_files}",
+                            'totalFiles': total_files,
+                            'filesProcessed': i + 1
+                        })
+
+            # Mark complete before sending
+            if server_state:
+                server_state.complete_log_download(route_base, 'rlog', "Download ready")
+                _broadcast_log_download_update(server_state, route_base, 'rlog', {
+                    'status': 'ready',
+                    'progress': 1.0,
+                    'progressPercent': 100,
+                    'message': 'Download ready',
+                    'totalFiles': total_files,
+                    'filesProcessed': total_files
+                })
 
             handler.send_file_response(temp_path, download_filename=filename)
         finally:
@@ -220,9 +334,19 @@ def handle_rlog_download(handler, path, get_route_segments):
                 os.remove(temp_path)
             except OSError:
                 pass
+            # Clear status after download completes
+            if server_state:
+                server_state.clear_log_download(route_base, 'rlog')
 
     except Exception as e:
         logger.error(f"Error serving rlog for {route_base}: {e}", exc_info=True)
+        if server_state:
+            server_state.fail_log_download(route_base, 'rlog', str(e))
+            _broadcast_log_download_update(server_state, route_base, 'rlog', {
+                'status': 'error',
+                'message': str(e)
+            })
+            server_state.clear_log_download(route_base, 'rlog')
         handler.send_json_response({'error': f'Failed to serve rlog: {str(e)}'}, 500)
 
 

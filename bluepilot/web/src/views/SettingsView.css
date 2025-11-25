@@ -236,10 +236,13 @@
   box-shadow: var(--panel-card-shadow);
 }
 
-/* Import/Export buttons */
+/* Import/Export buttons at top of sidebar */
 .settings-backup-actions {
   display: flex;
   gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .settings-backup-btn {
@@ -274,13 +277,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
-}
-
-/* Backup actions inside nav - separate visually on desktop */
-.settings-nav > .settings-backup-actions {
-  margin-bottom: 0.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
 }
 
 /* Push toggles panel to bottom of navigation */
@@ -372,72 +368,8 @@
 
   .settings-sidebar {
     position: static;
+    /* Sidebar appears first on mobile, which is good for navigation */
     order: -1;
-    padding: 0.75rem;
-  }
-
-  /* Horizontal scrollable navigation on tablet/mobile */
-  .settings-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 0.5rem;
-    padding-bottom: 0.5rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-  }
-
-  .settings-nav::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .settings-nav::-webkit-scrollbar-track {
-    background: var(--border-color);
-    border-radius: 2px;
-  }
-
-  .settings-nav::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 2px;
-  }
-
-  .settings-nav-btn {
-    flex-direction: column;
-    min-width: 90px;
-    flex-shrink: 0;
-    padding: 0.75rem 0.5rem;
-    text-align: center;
-  }
-
-  .settings-nav-copy {
-    align-items: center;
-  }
-
-  .settings-nav-desc {
-    display: none;
-  }
-
-  .settings-nav-label {
-    font-size: 0.75rem;
-    text-align: center;
-  }
-
-  .settings-backup-actions {
-    flex-shrink: 0;
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-    padding-right: 0.75rem;
-    border-right: 1px solid var(--border-color);
-  }
-
-  .settings-backup-btn {
-    flex-direction: column;
-    padding: 0.5rem;
-    min-width: 60px;
-  }
-
-  .settings-backup-btn span {
-    font-size: 0.65rem;
   }
 
   .settings-panel-header {
@@ -454,87 +386,45 @@
 }
 
 @media (max-width: 768px) {
-  .settings-sidebar {
-    padding: 0.5rem;
+  .settings-nav {
+    gap: 0.5rem;
   }
 
   .settings-nav-btn {
-    min-width: 75px;
-    padding: 0.5rem 0.4rem;
+    padding: 0.5rem 0.625rem;
   }
 
   .settings-nav-icon {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
   }
 
   .settings-nav-icon svg {
     width: 20px;
     height: 20px;
   }
-
-  .settings-nav-label {
-    font-size: 0.7rem;
-  }
 }
 
 @media (max-width: 640px) {
   .settings-view {
-    padding: 0.5rem;
-  }
-
-  .settings-main {
     padding: 0.75rem;
   }
 
   .settings-panel-heading h1 {
-    font-size: 1.25rem;
-  }
-
-  .settings-panel-heading p {
-    font-size: 0.8rem;
+    font-size: 1.5rem;
   }
 
   .settings-panel-icon {
-    width: 44px;
-    height: 44px;
-  }
-
-  .settings-panel-icon svg {
-    width: 22px;
-    height: 22px;
+    width: 58px;
+    height: 58px;
   }
 
   .settings-nav-btn {
-    min-width: 65px;
-    padding: 0.5rem 0.35rem;
+    padding: 0.75rem;
   }
 
   .settings-nav-icon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .settings-nav-icon svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .settings-nav-label {
-    font-size: 0.65rem;
-  }
-
-  .settings-backup-btn {
-    min-width: 50px;
-    padding: 0.4rem;
-  }
-
-  .settings-backup-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .settings-backup-btn span {
-    font-size: 0.6rem;
+    width: 50px;
+    height: 50px;
   }
 }

@@ -25,6 +25,11 @@ VIDEOS_ZIP_CACHE = os.path.join(DATA_ROOT, "videos_zip")
 BACKUP_CACHE = os.path.join(DATA_ROOT, "backups")
 IMPORT_TEMP_DIR = os.path.join(DATA_ROOT, "import_temp")
 
+# Ensure all cache directories exist
+for cache_dir in [DATA_ROOT, THUMBNAIL_CACHE, REMUX_CACHE, METRICS_CACHE,
+                  ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE, IMPORT_TEMP_DIR]:
+    os.makedirs(cache_dir, exist_ok=True)
+
 # Camera configuration
 CAMERA_FILES = {
     'front': 'fcamera.hevc',
