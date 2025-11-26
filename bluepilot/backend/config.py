@@ -25,9 +25,14 @@ VIDEOS_ZIP_CACHE = os.path.join(DATA_ROOT, "videos_zip")
 BACKUP_CACHE = os.path.join(DATA_ROOT, "backups")
 IMPORT_TEMP_DIR = os.path.join(DATA_ROOT, "import_temp")
 
+# User preferences
+BLUEPILOT_DATA_DIR = "/data/bluepilot" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot")
+FAVORITE_SETTINGS_FILE = os.path.join(BLUEPILOT_DATA_DIR, "favorite_settings.json")
+
 # Ensure all cache directories exist
 for cache_dir in [DATA_ROOT, THUMBNAIL_CACHE, REMUX_CACHE, METRICS_CACHE,
-                  ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE, IMPORT_TEMP_DIR]:
+                  ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE, IMPORT_TEMP_DIR,
+                  BLUEPILOT_DATA_DIR]:
     os.makedirs(cache_dir, exist_ok=True)
 
 # Camera configuration

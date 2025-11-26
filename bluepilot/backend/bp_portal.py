@@ -64,6 +64,7 @@ from bluepilot.backend.config import (
     WEBSOCKET_HOST,
     RATE_LIMIT_WINDOW_SECONDS,
     RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD, RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+    FAVORITE_SETTINGS_FILE,
 )
 
 # Core server components
@@ -2195,6 +2196,32 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     logger.error(f"Error getting backup params: {e}", exc_info=True)
                     self.send_json_response({'success': False, 'error': str(e)}, 500)
 
+            elif path == '/api/favorite_settings':
+                # Get favorite settings from file
+                try:
+                    if os.path.exists(FAVORITE_SETTINGS_FILE):
+                        with open(FAVORITE_SETTINGS_FILE, 'r') as f:
+                            favorites = json.load(f)
+                        self.send_json_response({
+                            'success': True,
+                            'favorites': favorites
+                        })
+                    else:
+                        # Return empty array if file doesn't exist yet
+                        self.send_json_response({
+                            'success': True,
+                            'favorites': []
+                        })
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing favorites file: {e}")
+                    self.send_json_response({
+                        'success': True,
+                        'favorites': []
+                    })
+                except Exception as e:
+                    logger.error(f"Error reading favorites: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
             elif path == '/api/drive-stats':
                 # Get aggregate drive statistics from ApiCache_DriveStats param
                 # This matches the Qt widget behavior which caches API responses in params
@@ -2896,6 +2923,53 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     }, 400)
                 except Exception as e:
                     logger.exception("Error restoring params")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
+            elif path == '/api/favorite_settings':
+                # Save favorite settings to file
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length == 0:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing request body'
+                        }, 400)
+                        return
+
+                    body = self.rfile.read(content_length).decode('utf-8')
+                    data = json.loads(body)
+
+                    favorites = data.get('favorites')
+                    if favorites is None:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing required field: favorites'
+                        }, 400)
+                        return
+
+                    # Ensure parent directory exists
+                    os.makedirs(os.path.dirname(FAVORITE_SETTINGS_FILE), exist_ok=True)
+
+                    # Write favorites to file
+                    with open(FAVORITE_SETTINGS_FILE, 'w') as f:
+                        json.dump(favorites, f, indent=2)
+
+                    logger.info(f"Saved {len(favorites)} favorites to {FAVORITE_SETTINGS_FILE}")
+                    self.send_json_response({
+                        'success': True,
+                        'count': len(favorites)
+                    })
+
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Invalid JSON in request body'
+                    }, 400)
+                except Exception as e:
+                    logger.exception("Error saving favorites")
                     self.send_json_response({
                         'success': False,
                         'error': str(e)
