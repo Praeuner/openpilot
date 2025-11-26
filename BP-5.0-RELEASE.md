@@ -12,6 +12,8 @@ BluePilot 5.0 is a **major release** representing months of development focused 
 
 This release brings a completely redesigned web interface, enhanced onroad visuals, improved Ford lateral controls, and numerous quality-of-life improvements throughout the system.
 
+**Watch the release overview:** [BluePilot 5.0 Overview on YouTube](https://www.youtube.com/watch?v=9ggGzCI-zx0)
+
 ---
 
 ## Highlights
@@ -47,6 +49,30 @@ The on-device settings have been completely reorganized into focused panels:
 - **Human Turn Detection** - Increased latch time to 3.0 seconds for smoother handling
 - **Panda Safety** - Curvature limits refined for better message handling
 - **Bug Fixes** - Fixed blocked messages during speed transitions and turns
+
+### Recommended Driving Models by Platform
+
+| Platform | Years | Bus Type | Recommended Models |
+|----------|-------|----------|-------------------|
+| Ford Bronco Sport | 2021-24 | CAN | Nevada, WD40 |
+| Ford Edge | 2022 | CAN | Nevada, WD40 |
+| Ford Escape | 2020-22 | CAN | Nevada, WD40 |
+| Ford Escape | 2023-24 | CANFD | Nevada, WD40 |
+| Ford Expedition | 2022-24 | CANFD | Nevada, WD40, FoF |
+| Ford Explorer | 2020-24 | CAN | Nevada, WD40 |
+| Ford F-150 | 2021-23 | CANFD | Nevada, WD40, FoF |
+| Ford F-150 Lightning | 2022-23 | CANFD | Nevada, WD40, FoF |
+| Ford Focus | 2018 | CAN | Nevada, WD40 |
+| Ford Kuga | 2020-24 | CAN/CANFD | Nevada, WD40 |
+| Ford Maverick | 2022-24 | CAN | Nevada, WD40 |
+| Ford Mustang Mach-E | 2021-24 | CANFD | Nevada, WD40 |
+| Ford Ranger | 2024 | CANFD | Nevada, WD40 |
+| Lincoln Aviator | 2020-24 | CAN | Nevada, WD40 |
+
+**Model Notes:**
+- **Nevada** - Recommended for all Ford platforms
+- **WD40** - Recommended for all Ford platforms
+- **FoF** - Optimized specifically for F-150, F-150 Lightning, and Expedition
 
 ---
 
