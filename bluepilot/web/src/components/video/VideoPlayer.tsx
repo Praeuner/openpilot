@@ -52,6 +52,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
   const lastPlaybackTimeRef = useRef(0)
   const bufferErrorCountRef = useRef(0)
   const MAX_BUFFER_ERRORS = 5
+  const canvasTimeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const canvasStartTimeRef = useRef<number>(0)
+  const currentSegmentRef = useRef(0)
 
   // Detect browser capabilities on mount
   useEffect(() => {
@@ -163,19 +166,27 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
     if (!useCanvas || videoRef.current) return // Already switched
 
     console.log('Switching from canvas to video element for HLS playback')
+
+    // Clear canvas time tracking interval when switching away from canvas
+    if (canvasTimeIntervalRef.current) {
+      clearInterval(canvasTimeIntervalRef.current)
+      canvasTimeIntervalRef.current = null
+    }
+
     setUseCanvas(false)
   }, [useCanvas])
 
   // Load h265-web-player for HEVC playback on browsers without native support
   const loadH265WebPlayer = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || !route.segments || currentSegment >= route.segments.length) {
+    const segmentIndex = currentSegmentRef.current
+    if (!canvas || !route.segments || segmentIndex >= route.segments.length) {
       console.error('Canvas element not available for h265-web-player')
       setBuffering(false)
       return
     }
 
-    const segment = route.segments[currentSegment]
+    const segment = route.segments[segmentIndex]
     const videoUrl = `/api/video/${route.baseName}/${segment.number}/${currentCamera}`
 
     try {
@@ -224,16 +235,37 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
         setBuffering(false)
       }, 1000)
 
-      // Auto-play next segment after 60 seconds (each segment is ~1 minute)
-      // Note: This is a simplified version - full implementation would need segment timers
-      setTimeout(() => {
-        const nextSegment = currentSegment + 1
-        if (nextSegment < route.segments.length) {
-          setCurrentSegment(nextSegment)
-        } else {
-          setShowReplayOverlay(true)
+      // Start time tracking for canvas player (h265-web-player doesn't fire timeupdate events)
+      // Clear any existing interval
+      if (canvasTimeIntervalRef.current) {
+        clearInterval(canvasTimeIntervalRef.current)
+      }
+
+      // Start time tracking for this segment
+      canvasStartTimeRef.current = Date.now()
+
+      // Update currentTime every 100ms
+      canvasTimeIntervalRef.current = setInterval(() => {
+        const elapsedMs = Date.now() - canvasStartTimeRef.current
+        const elapsedSeconds = elapsedMs / 1000
+        const currentSeg = currentSegmentRef.current
+        const newTime = currentSeg * 60 + elapsedSeconds
+
+        setCurrentTime(newTime)
+
+        // Auto-advance to next segment after ~60 seconds
+        if (elapsedSeconds >= 60) {
+          clearInterval(canvasTimeIntervalRef.current!)
+          canvasTimeIntervalRef.current = null
+
+          const nextSegment = currentSeg + 1
+          if (nextSegment < route.segments.length) {
+            setCurrentSegment(nextSegment)
+          } else {
+            setShowReplayOverlay(true)
+          }
         }
-      }, 60000)
+      }, 100)
     } catch (error) {
       console.error('Error initializing h265-web-player:', error)
       setBuffering(false)
@@ -255,7 +287,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
         }, 100)
       }
     }
-  }, [route, currentSegment, currentCamera, switchToVideoElement, currentCamera])
+  }, [route, currentCamera, switchToVideoElement])
 
   // Load native HLS playback (Safari)
   const loadNativeHLS = useCallback(() => {
@@ -612,6 +644,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
         h265PlayerRef.current = null
       }
 
+      // Clear canvas time tracking interval
+      if (canvasTimeIntervalRef.current) {
+        clearInterval(canvasTimeIntervalRef.current)
+        canvasTimeIntervalRef.current = null
+      }
+
       const video = videoRef.current
       if (video) {
         video.pause()
@@ -662,6 +700,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
     }
   }, [])
 
+  // Keep segment ref in sync with state (for use in event handlers without stale closures)
+  useEffect(() => {
+    currentSegmentRef.current = currentSegment
+  }, [currentSegment])
+
   // Video event handlers
   useEffect(() => {
     const video = videoRef.current
@@ -675,13 +718,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
       if (hlsRef.current && route.segments.length > 0) {
         const calculatedSegment = Math.floor(time / 60) // Each segment is 60 seconds
 
-        // If we've moved to a different segment, update
+        // If we've moved to a different segment, update (use ref to avoid stale closure)
         if (
-          calculatedSegment !== currentSegment &&
+          calculatedSegment !== currentSegmentRef.current &&
           calculatedSegment < route.segments.length &&
           calculatedSegment >= 0
         ) {
-          console.log(`Segment changed: ${currentSegment} → ${calculatedSegment}`)
+          console.log(`Segment changed: ${currentSegmentRef.current} → ${calculatedSegment}`)
           setCurrentSegment(calculatedSegment)
         }
       }
@@ -746,7 +789,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
       video.removeEventListener('canplay', handleCanPlay)
       video.removeEventListener('ended', handleEnded)
     }
-  }, [currentSegment, route.segments])
+  }, [route.segments.length, useCanvas])
 
   // Native video controls handle all interactions
 
@@ -907,6 +950,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ route, onClose }) => {
                   {currentCamera === 'lq'
                     ? 'LQ (H.264)'
                     : `${currentCamera.toUpperCase()} (HEVC)`}
+                  {' | '}
+                  <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                    {useCanvas ? 'Canvas' : 'Video'} | Time: {currentTime.toFixed(1)}s
+                  </span>
                 </span>
               </div>
             </div>

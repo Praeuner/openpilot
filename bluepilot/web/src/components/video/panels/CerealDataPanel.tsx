@@ -29,7 +29,6 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
   const { addToast } = useToastStore()
   const [isOpen, setIsOpen] = useState(false)
   const [messageType, setMessageType] = useState('carState')
-  const [syncWithVideo, setSyncWithVideo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<CerealMessage[]>([])
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0)
@@ -37,18 +36,15 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
   const [lastUpdate, setLastUpdate] = useState('')
   const [timeRange, setTimeRange] = useState({ start: 0, end: 0 })
 
+  // Sync cereal data to video playback time (always enabled)
   useEffect(() => {
-    if (syncWithVideo && messages.length > 0) {
-      syncDataToVideo()
-    }
-  }, [videoCurrentTime, syncWithVideo, messages])
-
-  const syncDataToVideo = () => {
     if (messages.length === 0) return
 
-    const currentVideoTime = videoCurrentTime
+    // Calculate time relative to current segment (each segment is 60 seconds)
+    const segmentOffset = currentSegment * 60
+    const segmentRelativeTime = videoCurrentTime - segmentOffset
     const segmentStartTime = timeRange.start
-    const targetTimestamp = segmentStartTime + currentVideoTime
+    const targetTimestamp = segmentStartTime + segmentRelativeTime
 
     // Find the message closest to current video time
     let closestIndex = 0
@@ -62,10 +58,8 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
       }
     })
 
-    if (closestIndex !== currentMessageIndex) {
-      setCurrentMessageIndex(closestIndex)
-    }
-  }
+    setCurrentMessageIndex(closestIndex)
+  }, [videoCurrentTime, messages, currentSegment, timeRange.start])
 
   const loadCerealData = async () => {
     if (!route) {
@@ -113,7 +107,6 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
   }
 
   const stopCereal = () => {
-    setSyncWithVideo(false)
     setMessages([])
     setMessageCount(0)
     setCurrentMessageIndex(0)
@@ -284,24 +277,15 @@ export const CerealDataPanel = ({ route, currentSegment, videoCurrentTime = 0 }:
                   <option value="carStateBP">carStateBP</option>
                 </optgroup>
               </select>
-              <label className="cereal-sync-label">
-                <input
-                  type="checkbox"
-                  id="cereal-sync-checkbox"
-                  checked={syncWithVideo}
-                  onChange={(e) => setSyncWithVideo(e.target.checked)}
-                />
-                Sync with video
-              </label>
-              <button type="button" className="btn btn-sm" onClick={loadCerealData}>
-                Reload
-              </button>
             </div>
             {messages.length > 0 && (
               <div className="cereal-status-row">
                 <span id="cereal-last-update">Last updated: {lastUpdate}</span>
                 <span id="cereal-message-count">
                   {messageCount} message{messageCount !== 1 ? 's' : ''}
+                </span>
+                <span style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: '12px', opacity: 0.7 }}>
+                  Msg #{currentMessageIndex + 1} | Video: {videoCurrentTime.toFixed(1)}s | Seg: {currentSegment}
                 </span>
               </div>
             )}
