@@ -1598,12 +1598,12 @@ void BPPanelBase::registerSignalConnectors() {
   // Register showLanguageSelector signal connector
   signalConnectors["showLanguageSelector"] = [this](QWidget *widget, QObject *target) {
     QObject::connect(this, &BPPanelBase::showLanguageSelector, target, [target]() {
-      Params params;
+      Params langParams;
       QMap<QString, QString> langs = getSupportedLanguages();
-      QString currentLang = langs.key(QString::fromStdString(params.get("LanguageSetting")));
+      QString currentLang = langs.key(QString::fromStdString(langParams.get("LanguageSetting")));
       QString selection = MultiOptionDialog::getSelection(QObject::tr("Select a language"), langs.keys(), currentLang, qobject_cast<QWidget*>(target));
       if (!selection.isEmpty()) {
-        params.put("LanguageSetting", langs[selection].toStdString());
+        langParams.put("LanguageSetting", langs[selection].toStdString());
         qApp->exit(18);
         watchdog_kick(0);
       }
