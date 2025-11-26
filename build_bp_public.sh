@@ -67,7 +67,7 @@ readonly GIT_REPO_URL=$(git config --get remote.origin.url)
 if [ "$OS" = "Darwin" ]; then
     readonly BUILD_DIR="$HOME/Documents/bluepilot-utility/bp-build"
 else
-    readonly BUILD_DIR="/data/bluepilot-build"
+    readonly BUILD_DIR="/data/openpilot"
 fi
 
 print_info "[+] BluePilot Build Script"
