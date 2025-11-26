@@ -1,4 +1,5 @@
 // Common components barrel export
+export { BackToTop } from './BackToTop'
 export { Button } from './Button'
 export { Icon } from './Icon'
 export { LoadingSpinner } from './LoadingSpinner'

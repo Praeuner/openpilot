@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { useParamsStore } from '@/stores/useParamsStore'
-import { LoadingSpinner, Button, Modal, ToastContainer, ToggleSwitch } from '@/components/common'
+import { LoadingSpinner, Button, Modal, ToastContainer, ToggleSwitch, BackToTop } from '@/components/common'
 import type { Parameter, DeviceStatus } from '@/types'
 import { formatParamValueForDisplay } from '@/utils/params'
 import './ParametersView.css'
@@ -457,6 +457,8 @@ export const ParametersView = ({ deviceStatus = 'checking' }: ParametersViewProp
           </div>
         )}
       </Modal>
+
+      <BackToTop />
     </>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { useRoutesStore } from '@/stores/useRoutesStore'
 import { useToastStore } from '@/stores/useToastStore'
-import { LoadingSpinner, ConfirmDialog, Icon } from '@/components/common'
+import { LoadingSpinner, ConfirmDialog, Icon, BackToTop } from '@/components/common'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { DiskSpaceVisualization } from '@/components/storage/DiskSpaceVisualization'
 import { MetricsModal, RouteDownloadModal } from '@/components/modals'
@@ -495,6 +495,8 @@ export const RoutesView = ({ deviceStatus = 'checking' }: RoutesViewProps) => {
           </>
         )}
       </div>
+
+      <BackToTop />
     </>
   )
 }

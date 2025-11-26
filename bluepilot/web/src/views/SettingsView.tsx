@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Header } from '@/components/layout/Header'
-import { LoadingSpinner, Icon, Modal, Button } from '@/components/common'
+import { LoadingSpinner, Icon, Modal, Button, BackToTop } from '@/components/common'
 import { PanelGroup } from '@/components/settings/PanelGroup'
 import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
 import { usePanelsStore } from '@/stores/usePanelsStore'
@@ -497,6 +497,8 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
           </div>
         </Modal>
       )}
+
+      <BackToTop />
     </>
   )
 }
