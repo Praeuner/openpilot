@@ -11,6 +11,12 @@ import subprocess
 import threading
 from collections import defaultdict
 
+from bluepilot.backend.config import (
+    RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+    RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+    RATE_LIMIT_WINDOW_SECONDS,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,16 +66,11 @@ request_counter = defaultdict(list)
 rate_limit_lock = threading.Lock()
 onroad_request_timestamps = []
 
-# Rate limiting constants - per-second for burst protection (can be overridden)
-RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD = 5  # 5 req/s per IP when parked
-RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD = 5   # 5 req/s total when driving - allows settings management
-RATE_LIMIT_WINDOW = 1  # 1 second window
-
 
 def check_rate_limit(client_ip, is_onroad_func,
                      max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
                      max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
-                     window_seconds=RATE_LIMIT_WINDOW):
+                     window_seconds=RATE_LIMIT_WINDOW_SECONDS):
     """
     Check if client has exceeded rate limit (per-second burst protection)
 

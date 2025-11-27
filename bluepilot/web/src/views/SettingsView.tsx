@@ -8,9 +8,11 @@ import { Header } from '@/components/layout/Header'
 import { LoadingSpinner, Icon, Modal, Button, BackToTop } from '@/components/common'
 import { PanelGroup } from '@/components/settings/PanelGroup'
 import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
+import { FloatingChangesIndicator } from '@/components/settings/FloatingChangesIndicator'
 import { usePanelsStore } from '@/stores/usePanelsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { useParamsStore } from '@/stores/useParamsStore'
+import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning'
 import type { DeviceStatus } from '@/types'
 import './SettingsView.css'
 
@@ -55,6 +57,9 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   const { fetchParams } = useParamsStore()
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Warn user about unsaved changes when leaving page
+  useUnsavedChangesWarning()
 
   // Backup/Restore state
   const [exporting, setExporting] = useState(false)
@@ -497,6 +502,9 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
           </div>
         </Modal>
       )}
+
+      {/* Floating indicator for pending changes */}
+      <FloatingChangesIndicator />
 
       <BackToTop />
     </>

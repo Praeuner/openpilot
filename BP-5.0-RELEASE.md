@@ -1,189 +1,172 @@
-# BluePilot 5.0 Release Announcement
+# BluePilot 5.0
 
-**Release Date:** November 23, 2025
-**Base:** SunnyPilot 2025.003.0.0
-**AGNOS:** 13.1
+> **Base:** SunnyPilot 2025.003.0.0 | **AGNOS:** 13.1 | **Released:** November 25, 2025
 
----
+BluePilot 5.0 is a major release featuring a brand new web interface, redesigned on-device UI, enhanced onroad visuals, and improved Ford lateral controls.
 
-## Overview
-
-BluePilot 5.0 is a **major release** representing months of development focused on improving the user experience, expanding Ford-specific features, and introducing powerful new tools for managing your comma device.
-
-This release brings a completely redesigned web interface, enhanced onroad visuals, improved Ford lateral controls, and numerous quality-of-life improvements throughout the system.
-
-**Watch the release overview:** [BluePilot 5.0 Overview on YouTube](https://www.youtube.com/watch?v=9ggGzCI-zx0)
+**[Watch the Release Overview on YouTube]**
+https://www.youtube.com/watch?v=9ggGzCI-zx0
 
 ---
 
-## Highlights
+## Quick Install
 
-### BluePilot Portal - All-New Web Interface
+**Fresh Install:**
 
-The biggest addition in BP-5.0 is the **BluePilot Portal**, a modern React-based Progressive Web App (PWA) that provides comprehensive device management from any browser.
+```text
+installer.comma.ai/BluePilotDev/bp-5.0
+```
 
-**Access it at:** `http://<device-ip>:8088`
+**Upgrading:** Settings → Software → CHECK → Select `bp-5.0` → Install
 
-**Key Features:**
-- **Home Dashboard** - Real-time system status, drive statistics, and disk space visualization
-- **Routes Management** - Browse drives, view GPS paths, play back video, and export footage
-- **Settings Panel** - Configure all BluePilot parameters with real-time WebSocket updates
-- **Diagnostics** - Live TMUX streaming and parameter debugging
-- **PWA Support** - Install on your phone for app-like quick access
+---
 
-### Redesigned Settings Experience
+## What's New in 5.0
 
-The on-device settings have been completely reorganized into focused panels:
-- Device, Display, Network, Vehicle, Toggles, Cruise, Steering, Developer, Visuals
-- New Models Panel for easy driving model switching
-- New Software Panel with integrated updater and branch management
+### BluePilot Portal
+
+A new web-based control center accessible at `http://[device-ip]:8088`
+
+- **Dashboard** — Real-time system status, drive stats, disk usage
+- **Routes** — Browse drives, view GPS paths, play video, export footage
+- **Settings** — Configure all parameters with live WebSocket updates
+- **Diagnostics** — Live TMUX streaming and parameter debugging
+- **PWA Support** — Install on your phone for app-like access
+
+### Redesigned On-Device Settings
+
+Settings have been reorganized into focused panels:
+
+- **Core:** Device, Display, Network, Vehicle
+- **Driving:** Toggles, Cruise, Steering
+- **Visual:** Visuals, Developer
+- **New:** Models Panel (driving model switching) and Software Panel (updates & branch management)
 
 ### Enhanced Onroad Visuals
 
 - Improved lane lines, road edges, and path rendering with glow effects
 - Smoother curve tracking with reduced path swaying
-- Better color consistency and refined rendering logic
+- Better color consistency and refined rendering
 
 ### Ford-Specific Improvements
 
-- **Human Turn Detection** - Increased latch time to 3.0 seconds for smoother handling
-- **Panda Safety** - Curvature limits refined for better message handling
-- **Bug Fixes** - Fixed blocked messages during speed transitions and turns
+- **Human Turn Detection** — Latch time increased to 3.0s for smoother handling
+- **Panda Safety** — Curvature limits refined for better message handling
+- **Bug Fixes** — Fixed blocked messages during speed transitions and turns
 
-### Recommended Driving Models by Platform
+### Additional Changes
 
-| Platform | Years | Bus Type | Recommended Models |
-|----------|-------|----------|-------------------|
-| Ford Bronco Sport | 2021-24 | CAN | Nevada, WD40 |
-| Ford Edge | 2022 | CAN | Nevada, WD40 |
-| Ford Escape | 2020-22 | CAN | Nevada, WD40 |
-| Ford Escape | 2023-24 | CANFD | Nevada, WD40 |
-| Ford Expedition | 2022-24 | CANFD | Nevada, WD40, FoF |
-| Ford Explorer | 2020-24 | CAN | Nevada, WD40 |
-| Ford F-150 | 2021-23 | CANFD | Nevada, WD40, FoF |
-| Ford F-150 Lightning | 2022-23 | CANFD | Nevada, WD40, FoF |
-| Ford Focus | 2018 | CAN | Nevada, WD40 |
-| Ford Kuga | 2020-24 | CAN/CANFD | Nevada, WD40 |
-| Ford Maverick | 2022-24 | CAN | Nevada, WD40 |
-| Ford Mustang Mach-E | 2021-24 | CANFD | Nevada, WD40 |
-| Ford Ranger | 2024 | CANFD | Nevada, WD40 |
-| Lincoln Aviator | 2020-24 | CAN | Nevada, WD40 |
+#### Vehicle Features
 
-**Model Notes:**
-- **Nevada** - Recommended for all Ford platforms
-- **WD40** - Recommended for all Ford platforms
-- **FoF** - Optimized specifically for F-150, F-150 Lightning, and Expedition
-
----
-
-## What's New
-
-### Web Interface & Data Management
-- BluePilot Portal with modern React UI
-- Routes viewer with video playback and camera selection
-- Video exports for front, wide, and driver cameras
-- Direct qlog/rlog downloads for data analysis
-- Real-time parameter configuration
-- Backup and restore functionality
-
-### User Interface
-- Completely redesigned settings menu structure
-- BP Models Panel for driving model selection
-- BP Software Panel for software management
-- Enhanced sidebar with WiFi status display
-- Perceptual brightness correction system
-
-### Vehicle Features
-- Brake status indicator using CAN signals
+- Brake status indicator via CAN signals
 - Radar overlay with correct speed units
-- Improved stop sign detection and display
+- Improved stop sign detection display
 - More accurate hybrid battery gauge
 - Option to bypass BluePilot lateral controls
 
-### Ford Lateral Controls
-- Improved human turn detection with longer latch
-- Better EPAS wind-up prevention
-- Fixed message blocking during transitions
-- Escape MK4.5 naming correction
+#### Developer Tools
 
-### Developer Tools
 - Customizable onroad debug panel
 - UI crash detection system
 - Unified logging throughout BluePilot code
 
-### Performance
+#### Performance
+
 - Refactored renderer for better performance
 - Thread safety improvements
 - Fixed web server startup crashes
-- General stability improvements
 
 ---
 
-## Installation
+## Recommended Models by Vehicle
 
-### Fresh Install
-```
-installer.comma.ai/BluePilotDev/bp-5.0
-```
+### CAN Vehicles (Nevada, WD40 recommended)
 
-### Upgrade from Previous Version
-1. Go to **Settings** > **Software**
-2. Press **CHECK** at Download
-3. Select **bp-5.0** as Target Branch
-4. Install and reboot
+- Ford Bronco Sport (2021-24)
+- Ford Edge (2022)
+- Ford Escape (2020-22)
+- Ford Explorer (2020-24)
+- Ford Focus (2018)
+- Ford Maverick (2022-24)
+- Lincoln Aviator (2020-24)
+
+### CANFD Vehicles (Nevada, WD40 recommended)
+
+- Ford Escape (2023-24)
+- Ford Kuga (2020-24)
+- Ford Mustang Mach-E (2021-24)
+- Ford Ranger (2024)
+
+### CANFD Vehicles (Nevada, WD40, FoF recommended)
+
+- Ford Expedition (2022-24)
+- Ford F-150 (2021-23)
+- Ford F-150 Lightning (2022-23)
+
+**Model Notes:**
+
+- **Nevada / WD40** — Recommended for all Ford platforms
+- **FoF** — Optimized specifically for F-150, F-150 Lightning, and Expedition
+
+---
+
+## Included SunnyPilot Features
+
+All features from SunnyPilot 2025.003.0.0 are included:
+
+- **MADS** — Modular Assistive Driving System
+- **NNLC** — Neural Network Lateral Control
+- **DEC** — Dynamic Experimental Control
+- **SLA** — Speed Limit Assist
+- **ICBM** — Intelligent Cruise Button Management *(not yet available for Ford)*
+- **Model Manager** — 86+ driving models available
+- **sunnylink** — Cloud integration
 
 ---
 
 ## Documentation
 
-For complete details on all changes and features:
-
-- **[CHANGELOG.md](CHANGELOG.md)** - Full changelog with all changes
-- **[README.md](README.md)** - Complete feature documentation
-- **[CHANGELOG_SP.md](CHANGELOG_SP.md)** - Upstream SunnyPilot changes
-- **[README_SP.md](README_SP.md)** - SunnyPilot feature documentation
+- [CHANGELOG.md](https://github.com/BluePilotDev/bluepilot/blob/bp-5.0/CHANGELOG.md) — Full changelog
+- [README.md](https://github.com/BluePilotDev/bluepilot/blob/bp-5.0/README.md) — Feature documentation
+- [CHANGELOG_SP.md](https://github.com/BluePilotDev/bluepilot/blob/bp-5.0/CHANGELOG_SP.md) — SunnyPilot upstream changes
+- [README_SP.md](https://github.com/BluePilotDev/bluepilot/blob/bp-5.0/README_SP.md) — SunnyPilot features
 
 ---
 
 ## Known Issues
 
 - Routes Panel video playback is in beta and may have performance issues on some devices
-- Some features are still being refined
 
 ---
 
-## Getting Help
+## Support
 
-Join the **#ford** channel on the [SunnyPilot Discord](https://discord.sunnypilot.com) for:
-- Installation assistance
-- Feature questions
-- Bug reports
-- Community discussion
+- **Community** — [SunnyPilot Forum](https://community.sunnypilot.ai) (preferred) or **#ford** on Discord
+- **Bug Reports** — [GitHub Issues](https://github.com/BluePilotDev/bluepilot/issues)
 
----
+### Reporting Issues
 
-## Upstream Features
+**A shared Route ID from comma connect is required for all bug reports.** Without route data, we cannot diagnose the issue.
 
-BluePilot 5.0 includes all features from SunnyPilot 2025.003.0.0:
-- MADS (Modular Assistive Driving System)
-- Neural Network Lateral Control (NNLC)
-- Dynamic Experimental Control (DEC)
-- Speed Limit Assist (SLA)
-- Intelligent Cruise Button Management (ICBM, not yet available for Ford vehicles)
-- Driving Model Manager with 86+ models
-- sunnylink integration
-- And much more...
+To report a bug on GitHub, include:
 
-See [CHANGELOG_SP.md](CHANGELOG_SP.md) for complete upstream changes.
+1. **Route ID** — Shared via comma connect (required)
+2. **Vehicle** — Make, model, and year
+3. **Description** — What happened and what you expected
+4. **Steps to reproduce** — If applicable
+
+**How to share your route:**
+
+1. Open [comma connect](https://connect.comma.ai)
+2. Find the drive where the issue occurred
+3. Click the share button and make the route public
+4. Include the route link in your issue
 
 ---
 
 ## Thank You
 
-Thanks to everyone who contributed to this release through testing, feedback, and development. Special thanks to the SunnyPilot team and the Ford community.
-
----
+Thanks to everyone who contributed through testing, feedback, and development. Special thanks to the SunnyPilot team and the Ford community.
 
 **Safe driving!**
-
-*- The BluePilot Team*
+*— The BluePilot Team*

@@ -6,7 +6,10 @@
 import type { PanelControl, PanelState } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { useFavoritesStore } from '@/stores/useFavoritesStore'
+import { usePanelsStore } from '@/stores/usePanelsStore'
+import { useChangeTrackingStore } from '@/stores/useChangeTrackingStore'
 import { isControlVisible, isControlEnabled, getDisabledReason } from '@/utils/conditionalEvaluator'
+import { SettingsProvider } from '@/contexts/SettingsContext'
 import {
   ToggleControl,
   SelectionControl,
@@ -30,22 +33,36 @@ interface DynamicControlProps {
 }
 
 export function DynamicControl({ control, state, panelId, groupName }: DynamicControlProps) {
-  const params = useParamsStore((store) => store.params)
+  const { getEffectiveParams } = useParamsStore()
   const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore()
+  const { panels, loadedPanels } = usePanelsStore()
+  const { getChangeForParam } = useChangeTrackingStore()
+
+  // Use effective params (with staged changes) for condition evaluation
+  const effectiveParams = getEffectiveParams()
+
+  // Get panel name from metadata or loaded panel config
+  const panelName = panelId
+    ? (panels.find((p) => p.id === panelId)?.name || loadedPanels[panelId]?.menuName || panelId)
+    : ''
+
+  // Check if this control has a pending change
+  const controlParam = 'param' in control ? control.param : undefined
+  const hasPendingChange = controlParam ? !!getChangeForParam(controlParam) : false
 
   // Check if control is hidden in web UI
   if ('webSupported' in control && control.webSupported === false) {
     return null
   }
 
-  // Check visibility
-  if (!isControlVisible(control, state, params)) {
+  // Check visibility (using effective params so staged changes affect visibility)
+  if (!isControlVisible(control, state, effectiveParams)) {
     return null
   }
 
-  // Check if enabled
-  const enabled = isControlEnabled(control, state, params)
-  const disabledReason = !enabled ? getDisabledReason(control.enableConditions, state, params) : null
+  // Check if enabled (using effective params so staged changes affect enabled state)
+  const enabled = isControlEnabled(control, state, effectiveParams)
+  const disabledReason = !enabled ? getDisabledReason(control.enableConditions, state, effectiveParams) : null
 
   // Check if this control is favorited
   const favorited = panelId && groupName ? isFavorite(panelId, groupName, control.title) : false
@@ -143,22 +160,37 @@ export function DynamicControl({ control, state, panelId, groupName }: DynamicCo
 
   if (!controlElement) return null
 
-  // Wrap control with favorite button (if we have panel context)
+  // Wrap control with SettingsProvider context and favorite button (if we have panel context)
   if (panelId && groupName) {
     return (
-      <div className="dynamic-control-wrapper">
-        <div className="dynamic-control-content">{controlElement}</div>
-        <button
-          className={`dynamic-control-favorite ${favorited ? 'favorited' : ''}`}
-          onClick={handleToggleFavorite}
-          title={favorited ? 'Remove from favorites' : 'Add to favorites'}
-          aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {favorited ? '★' : '☆'}
-        </button>
-      </div>
+      <SettingsProvider panelId={panelId} panelName={panelName} groupName={groupName}>
+        <div className={`dynamic-control-wrapper ${hasPendingChange ? 'has-pending-change' : ''}`}>
+          <div className="dynamic-control-content">{controlElement}</div>
+          <div className="dynamic-control-actions">
+            {hasPendingChange && (
+              <span className="dynamic-control-modified-badge" title="Unsaved change">
+                Modified
+              </span>
+            )}
+            <button
+              type="button"
+              className={`dynamic-control-favorite ${favorited ? 'favorited' : ''}`}
+              onClick={handleToggleFavorite}
+              title={favorited ? 'Remove from favorites' : 'Add to favorites'}
+              aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              {favorited ? '★' : '☆'}
+            </button>
+          </div>
+        </div>
+      </SettingsProvider>
     )
   }
 
-  return controlElement
+  // For controls without panel context (e.g., in favorites panel), still provide basic context
+  return (
+    <SettingsProvider panelId={panelId || ''} panelName={panelName} groupName={groupName || ''}>
+      {controlElement}
+    </SettingsProvider>
+  )
 }

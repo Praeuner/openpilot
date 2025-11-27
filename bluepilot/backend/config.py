@@ -66,8 +66,8 @@ DEFAULT_PORT = 8088
 
 # Rate limiting (per-second for burst protection)
 RATE_LIMIT_WINDOW_SECONDS = 1  # 1 second window for smoother rate limiting
-RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD = 15  # 5 req/s when parked (~300/min equivalent)
-RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD = 15   # 5 req/s when driving - allows settings management
+RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD = 30  # 30 req/s when parked - allows fast settings loading
+RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD = 30   # 30 req/s when driving - allows settings management
 
 # FFmpeg binary detection
 def find_ffmpeg_binary():

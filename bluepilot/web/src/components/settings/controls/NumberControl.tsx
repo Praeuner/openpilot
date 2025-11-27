@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback } from 'react'
 import type { IntegerControl, FloatControl } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
+import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useStagedParam } from '@/hooks/useStagedParam'
 import { getDynamicDescription } from '@/utils/conditionalEvaluator'
 import { ControlCard, Icon } from '@/components/common'
 import './NumberControl.css'
@@ -18,17 +20,29 @@ interface NumberControlProps {
 }
 
 export function NumberControl({ control, disabled, disabledReason }: NumberControlProps) {
-  const { params, updateParam } = useParamsStore()
+  const { params } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
+  const settingsContext = useSettingsContext()
 
   const isFloat = control.type === 'float'
+  const division = isFloat ? 1 : (control.division || 1)
 
-  // Get current value
+  // Use staged param hook for change tracking
+  const { value: stagedValue, stageValue } = useStagedParam({
+    param: control.param,
+    controlTitle: control.title,
+    controlType: isFloat ? 'float' : 'integer',
+    panelId: settingsContext?.panelId || '',
+    panelName: settingsContext?.panelName || '',
+    groupName: settingsContext?.groupName || '',
+  })
+
+  // Get current value (use staged value)
   // For floats: store the actual decimal value (0.70), no division scaling needed
   // For integers: use division to convert stored integer to display decimal (e.g., stored 70 / 100 = display 0.70)
-  const storedValue = params[control.param]?.value
-  const division = isFloat ? 1 : (control.division || 1)
-  const currentValue = storedValue !== undefined ? Number(storedValue) / division : control.min
+  const currentValue = stagedValue !== null && stagedValue !== undefined
+    ? Number(stagedValue) / division
+    : control.min
 
   const [localValue, setLocalValue] = useState(currentValue)
 
@@ -46,16 +60,16 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
   // Decimal places for display
   const decimalPlaces = isFloat ? 2 : 0
 
-  // Save value to backend
-  const saveValue = useCallback(async (value: number) => {
+  // Stage value (instead of saving to backend)
+  const stageNumberValue = useCallback((value: number) => {
     const clamped = Math.max(control.min, Math.min(control.max, value))
     setLocalValue(clamped)
 
     // For floats: store the display value directly (0.70)
     // For integers: multiply by division and round (display 0.70 * 100 = stored 70)
     const valueToStore = isFloat ? clamped : Math.round(clamped * division)
-    await updateParam(control.param, String(valueToStore))
-  }, [control.min, control.max, control.param, division, isFloat, updateParam])
+    stageValue(String(valueToStore))
+  }, [control.min, control.max, division, isFloat, stageValue])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value)
@@ -64,8 +78,8 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
     }
   }
 
-  const handleInputBlur = async () => {
-    await saveValue(localValue)
+  const handleInputBlur = () => {
+    stageNumberValue(localValue)
   }
 
   // Simple increment/decrement on click
@@ -73,15 +87,15 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
     const newValue = Math.min(control.max, localValue + control.increment)
     setLocalValue(newValue)
     const valueToStore = isFloat ? newValue : Math.round(newValue * division)
-    updateParam(control.param, String(valueToStore))
-  }, [control.max, control.increment, control.param, division, isFloat, localValue, updateParam])
+    stageValue(String(valueToStore))
+  }, [control.max, control.increment, division, isFloat, localValue, stageValue])
 
   const decrement = useCallback(() => {
     const newValue = Math.max(control.min, localValue - control.increment)
     setLocalValue(newValue)
     const valueToStore = isFloat ? newValue : Math.round(newValue * division)
-    updateParam(control.param, String(valueToStore))
-  }, [control.min, control.increment, control.param, division, isFloat, localValue, updateParam])
+    stageValue(String(valueToStore))
+  }, [control.min, control.increment, division, isFloat, localValue, stageValue])
 
   // Slider change handler
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,9 +103,9 @@ export function NumberControl({ control, disabled, disabledReason }: NumberContr
     setLocalValue(value)
   }
 
-  // Save on slider release
+  // Stage on slider release
   const handleSliderRelease = () => {
-    saveValue(localValue)
+    stageNumberValue(localValue)
   }
 
   return (

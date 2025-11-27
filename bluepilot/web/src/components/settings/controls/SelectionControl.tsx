@@ -6,6 +6,8 @@
 import type { SelectionControl as SelectionControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
+import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useStagedParam } from '@/hooks/useStagedParam'
 import { getDynamicDescription, evaluateConditions } from '@/utils/conditionalEvaluator'
 import { ControlCard } from '@/components/common'
 import './SelectionControl.css'
@@ -17,12 +19,22 @@ interface SelectionControlProps {
 }
 
 export function SelectionControl({ control, disabled, disabledReason }: SelectionControlProps) {
-  const { params, updateParam } = useParamsStore()
+  const { params } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
+  const settingsContext = useSettingsContext()
 
-  // Get current value and normalize to string for comparison
-  const rawValue = params[control.param]?.value
-  const currentValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : ''
+  // Use staged param hook for change tracking
+  const { value, stageValue } = useStagedParam({
+    param: control.param,
+    controlTitle: control.title,
+    controlType: 'selection',
+    panelId: settingsContext?.panelId || '',
+    panelName: settingsContext?.panelName || '',
+    groupName: settingsContext?.groupName || '',
+  })
+
+  // Get current value and normalize to string for comparison (use staged value)
+  const currentValue = value !== null && value !== undefined ? String(value) : ''
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -37,8 +49,8 @@ export function SelectionControl({ control, disabled, disabledReason }: Selectio
   const isMetric = params['IsMetric']?.value === true
   const unit = isMetric && control.unitMetric ? control.unitMetric : control.unit
 
-  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    await updateParam(control.param, e.target.value)
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    stageValue(e.target.value)
   }
 
   return (

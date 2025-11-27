@@ -4,6 +4,7 @@ import type { Parameter } from "@/types";
 
 interface ParamsState {
   params: Record<string, Parameter>;
+  stagedParams: Record<string, string | number | boolean>; // Staged (unsaved) values
   loading: boolean;
   error: string | null;
   searchQuery: string;
@@ -11,12 +12,19 @@ interface ParamsState {
   // Actions
   fetchParams: () => Promise<void>;
   updateParam: (key: string, value: string | number | boolean) => Promise<void>;
+  stageParam: (key: string, value: string | number | boolean) => void;
+  unstageParam: (key: string) => void;
+  clearStagedParams: () => void;
+  applyStagedParams: () => void; // Apply staged values to local state after commit
+  getEffectiveValue: (key: string) => string | number | boolean | null;
+  getEffectiveParams: () => Record<string, Parameter>; // Get params with staged values applied
   setSearchQuery: (query: string) => void;
   getFilteredParams: () => Parameter[];
 }
 
 export const useParamsStore = create<ParamsState>((set, get) => ({
   params: {},
+  stagedParams: {},
   loading: false,
   error: null,
   searchQuery: "",
@@ -67,6 +75,64 @@ export const useParamsStore = create<ParamsState>((set, get) => ({
           error instanceof Error ? error.message : "Failed to update parameter",
       });
     }
+  },
+
+  stageParam: (key: string, value: string | number | boolean) => {
+    set((state) => ({
+      stagedParams: {
+        ...state.stagedParams,
+        [key]: value,
+      },
+    }));
+  },
+
+  unstageParam: (key: string) => {
+    set((state) => {
+      const newStagedParams = { ...state.stagedParams };
+      delete newStagedParams[key];
+      return { stagedParams: newStagedParams };
+    });
+  },
+
+  clearStagedParams: () => {
+    set({ stagedParams: {} });
+  },
+
+  applyStagedParams: () => {
+    // After a successful commit, apply staged values to local params state
+    set((state) => {
+      const newParams = { ...state.params };
+      for (const [key, value] of Object.entries(state.stagedParams)) {
+        if (newParams[key]) {
+          newParams[key] = { ...newParams[key], value };
+        }
+      }
+      return { params: newParams, stagedParams: {} };
+    });
+  },
+
+  getEffectiveValue: (key: string) => {
+    const { params, stagedParams } = get();
+    // Return staged value if it exists, otherwise return actual value
+    if (key in stagedParams) {
+      return stagedParams[key];
+    }
+    return params[key]?.value ?? null;
+  },
+
+  getEffectiveParams: () => {
+    const { params, stagedParams } = get();
+    // Return params with staged values overlaid
+    if (Object.keys(stagedParams).length === 0) {
+      return params;
+    }
+    const effectiveParams = { ...params };
+    for (const [key, value] of Object.entries(stagedParams)) {
+      if (effectiveParams[key]) {
+        effectiveParams[key] = { ...effectiveParams[key], value };
+      }
+    }
+    return effectiveParams;
   },
 
   setSearchQuery: (query: string) => {
