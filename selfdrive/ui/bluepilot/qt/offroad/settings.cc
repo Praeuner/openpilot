@@ -143,24 +143,14 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
     panel_widget->addWidget(panel_frame);
   }
 
-  auto update_button_styles = [=](QAbstractButton *active_btn) {
-    for (auto btn : nav_btns->buttons()) {
-      if (btn == active_btn) {
-        btn->setStyleSheet("background-color: #0084FF; color: white;");
-      } else {
-        btn->setStyleSheet(""); // Revert to default stylesheet
-      }
-    }
-  };
-
   QObject::connect(nav_btns, QOverload<QAbstractButton *>::of(&QButtonGroup::buttonClicked), [=](QAbstractButton *btn) {
     panel_widget->setCurrentIndex(nav_btns->id(btn));
-    update_button_styles(btn);
+    updateButtonStyles(btn);
   });
 
   // Set initial state
   if (nav_btns->buttons().size() > 0) {
-    update_button_styles(nav_btns->buttons().at(0));
+    updateButtonStyles(nav_btns->buttons().at(0));
   }
 
   // Add buttons to scrollable area
@@ -249,4 +239,24 @@ BPSettingsWindow::BPSettingsWindow(QWidget *parent) : SettingsWindow(parent) {
      .arg(bp_text_primary.name())        // %6
      .arg(bp_text_secondary.name())      // %7
   );
+}
+
+void BPSettingsWindow::updateButtonStyles(QAbstractButton *active_btn) {
+  for (auto btn : nav_btns->buttons()) {
+    if (btn == active_btn) {
+      btn->setStyleSheet("background-color: #0084FF; color: white;");
+    } else {
+      btn->setStyleSheet(""); // Revert to default stylesheet
+    }
+  }
+}
+
+void BPSettingsWindow::showEvent(QShowEvent *event) {
+  // Call parent implementation which resets to panel 0
+  SettingsWindow::showEvent(event);
+
+  // Sync button styles with the reset panel selection
+  if (nav_btns && nav_btns->buttons().size() > 0) {
+    updateButtonStyles(nav_btns->buttons().at(0));
+  }
 }

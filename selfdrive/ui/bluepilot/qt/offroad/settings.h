@@ -14,6 +14,11 @@ public:
   explicit BPSettingsWindow(QWidget *parent = nullptr);
 
 protected:
+  void showEvent(QShowEvent *event) override;
+
+private:
+  void updateButtonStyles(QAbstractButton *active_btn);
+
   struct PanelInfo {
     QString name;
     QWidget *widget;
