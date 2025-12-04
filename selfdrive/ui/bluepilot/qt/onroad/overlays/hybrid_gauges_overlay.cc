@@ -26,9 +26,13 @@ void HybridGaugesOverlay::render(QPainter &painter, const QRect &rect, const UIS
     return;
   }
 
-  // Hide when any alert is showing (matches driver monitor behavior)
+  // Hide when alerts are showing, except for the "Dashcam Mode" alert
+  // This allows hybrid gauge to remain visible in dashcam-only mode
   auto &sm = *(s.sm);
-  if (sm["selfdriveState"].getSelfdriveState().getAlertSize() != cereal::SelfdriveState::AlertSize::NONE) {
+  auto ss = sm["selfdriveState"].getSelfdriveState();
+  auto alertSize = ss.getAlertSize();
+  std::string alertType = ss.getAlertType().cStr();
+  if (alertSize != cereal::SelfdriveState::AlertSize::NONE && alertType != "dashcamMode") {
     return;
   }
 
