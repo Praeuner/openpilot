@@ -2121,6 +2121,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             state['hasLongitudinalControl'] = car_params.openpilotLongitudinalControl
                             state['hasBlindSpotMonitoring'] = len(car_params.enableBsm) > 0
                             state['isAngleSteering'] = car_params.steerControlType == car.CarParams.SteerControlType.angle
+                            state['isPcmCruise'] = car_params.pcmCruise
 
                             # Brand detection
                             car_name = car_params.carName.lower() if car_params.carName else ''
@@ -2140,10 +2141,23 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         except Exception as e:
                             logger.warning(f"Error parsing CarParams: {e}")
 
-                    # Check for specific features from params
-                    state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
-                    state['isPcmCruise'] = safe_get_bool("PcmCruise")
-                    state['isICBMAvailable'] = safe_get_bool("ICBMAvailable")
+                    # Parse CarParamsSP if available for ICBM availability
+                    icbm_available = False
+                    if param_exists("CarParamsSP"):
+                        try:
+                            from cereal import custom
+                            car_params_sp_bytes = params.get("CarParamsSP")
+                            car_params_sp = custom.CarParamsSP.from_bytes(car_params_sp_bytes)
+                            icbm_available = car_params_sp.intelligentCruiseButtonManagementAvailable
+                        except Exception as e:
+                            logger.warning(f"Error parsing CarParamsSP: {e}")
+
+                    # Check for specific features
+                    # ICBM available = car supports it (from CarParamsSP)
+                    state['isICBMAvailable'] = icbm_available
+                    # ICBM active = car supports it AND user has enabled it (matches SunnyPilot C++ logic)
+                    icbm_user_enabled = safe_get_bool("IntelligentCruiseButtonManagement")
+                    state['hasIntelligentCruiseButtonManagement'] = icbm_available and icbm_user_enabled
 
                     # Branch detection
                     state['isReleaseBranch'] = param_exists("ReleaseNotes")
