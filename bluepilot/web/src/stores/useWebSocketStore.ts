@@ -149,6 +149,43 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
           // Diagnostics panel manages its own WebSocket feed; ignore to avoid noise
           break
 
+        case 'log_download_update':
+          // Handle qlog/rlog download progress updates
+          if (data && typeof data === 'object' && 'route' in data && 'logType' in data) {
+            const logData = data as {
+              route: string
+              logType: 'qlog' | 'rlog'
+              status: 'processing' | 'ready' | 'error'
+              progress: number
+              progressPercent: number
+              message: string
+              totalFiles?: number
+              filesProcessed?: number
+            }
+
+            if (logData.status === 'processing') {
+              useExportStore.getState().updateProgress(logData.route, {
+                routeId: logData.route,
+                type: logData.logType,
+                status: 'processing',
+                progress: logData.progressPercent,
+                message: logData.message,
+                totalFiles: logData.totalFiles,
+                filesProcessed: logData.filesProcessed
+              })
+            } else if (logData.status === 'ready') {
+              useExportStore.getState().setComplete(logData.route, logData.logType)
+              // Clear after a short delay since download will start
+              setTimeout(() => {
+                useExportStore.getState().clearExport(logData.route)
+              }, 2000)
+            } else if (logData.status === 'error') {
+              useExportStore.getState().setError(logData.route, logData.logType, logData.message)
+              useToastStore.getState().addToast(logData.message || 'Log download failed', 'error')
+            }
+          }
+          break
+
         case 'heartbeat':
           // Respond to heartbeat with pong to keep connection alive
           const ws = getWebSocketService()

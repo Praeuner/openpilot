@@ -9,6 +9,11 @@ import type {
   VehicleInfo,
   DeviceInfo,
 } from '@/types'
+import { useToastStore } from '@/stores/useToastStore'
+
+// Rate limit tracking to avoid toast spam
+let lastRateLimitToast = 0
+const RATE_LIMIT_TOAST_COOLDOWN = 5000 // 5 seconds between toasts
 
 // Create axios instance
 const api = axios.create({
@@ -33,6 +38,32 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    // Handle rate limiting (429)
+    if (error.response?.status === 429) {
+      const now = Date.now()
+      const data = error.response.data as {
+        retry_after_seconds?: number
+        reason?: string
+        limit?: string
+      }
+
+      // Only show toast if cooldown has passed (avoid spam)
+      if (now - lastRateLimitToast > RATE_LIMIT_TOAST_COOLDOWN) {
+        lastRateLimitToast = now
+        const retryAfter = data.retry_after_seconds || 1
+        const isOnroad = data.reason === 'onroad_protection'
+
+        const message = isOnroad
+          ? `Rate limited while driving. Retry in ${retryAfter}s`
+          : `Too many requests. Retry in ${retryAfter}s`
+
+        useToastStore.getState().addToast(message, 'error', 3000)
+      }
+
+      console.warn('Rate limited:', data)
+      return Promise.reject(error)
+    }
+
     console.error('API Error:', error.message)
     // Log the full error response for debugging
     if (error.response) {

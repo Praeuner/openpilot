@@ -6,47 +6,15 @@ Network interface detection and connection type management
 
 import logging
 
+from bluepilot.backend.utils.params_fallback import get_params_with_defaults
+
 logger = logging.getLogger(__name__)
 
-# Try to import params
-try:
-    from openpilot.common.params import Params
-    params = Params()
-except ImportError:
-    # Mock for testing
-    class Params:
-        def __init__(self):
-            self._params = {"IsOnRoad": False, "BPWebServerPort": "8088", "BPWebServerEnabled": True}
-        def get_bool(self, key):
-            return self._params.get(key, False)
-        def get(self, key, encoding=None):
-            value = self._params.get(key, "")
-            if encoding and isinstance(value, str):
-                return value.encode(encoding)
-            return value if isinstance(value, str) else str(value)
-        def put(self, key, value):
-            self._params[key] = value
-        def put_bool(self, key, value):
-            self._params[key] = value
-    params = Params()
-except Exception as e:
-    # Handle any other params initialization errors
-    logger.error(f"Failed to initialize params: {e}")
-    class Params:
-        def __init__(self):
-            self._params = {"IsOnRoad": False, "BPWebServerPort": "8088", "BPWebServerEnabled": True}
-        def get_bool(self, key):
-            return self._params.get(key, False)
-        def get(self, key, encoding=None):
-            value = self._params.get(key, "")
-            if encoding and isinstance(value, str):
-                return value.encode(encoding)
-            return value if isinstance(value, str) else str(value)
-        def put(self, key, value):
-            self._params[key] = value
-        def put_bool(self, key, value):
-            self._params[key] = value
-    params = Params()
+params = get_params_with_defaults({
+    "IsOnRoad": False,
+    "BPPortalPort": "8088",
+    "BPPortalEnabled": True,
+})
 
 
 def is_onroad():
@@ -60,7 +28,7 @@ def is_onroad():
 def should_server_run():
     """Check if server should be running (always runs when enabled, rate-limited onroad)"""
     try:
-        return params.get_bool("BPWebServerEnabled")
+        return params.get_bool("BPPortalEnabled")
     except:
         return True  # Default to running if we can't check
 

@@ -27,6 +27,8 @@
 
 /* Route Card */
 .route-card {
+  display: flex;
+  flex-direction: column;
   background: var(--bp-bg-secondary);
   border: 2px solid var(--bp-border);
   border-radius: 12px;
@@ -135,6 +137,9 @@
 }
 
 .route-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   padding: 14px;
 }
 
@@ -193,7 +198,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--bp-border);
 }

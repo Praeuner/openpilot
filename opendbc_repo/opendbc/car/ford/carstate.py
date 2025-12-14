@@ -321,7 +321,7 @@ class CarState(CarStateBase, MadsCarState):
       ("VehicleOperatingModes", 100),
       ("BrakeSysFeatures", 50),
       ("BrakeSysFeatures_2", 50),
-      ("BCM_Lamp_Stat_FD1", 1),  # Added for brake light status - matches actual vehicle frequency
+      ("BCM_Lamp_Stat_FD1", float('nan')),  # Brake light status - non-critical, ignore for CAN validity
       ("Yaw_Data_FD1", 100),
       ("DesiredTorqBrk", 50),
       ("EngVehicleSpThrottle", 100),
@@ -335,18 +335,19 @@ class CarState(CarStateBase, MadsCarState):
       ("RCMStatusMessage2_FD1", 10),
     ]
 
-    # Try to add HEV message to parser config
+    # HEV overlay messages - use float('nan') to mark as non-critical for CAN validity
+    # These messages may arrive at irregular intervals depending on vehicle state
     if CP.flags & FordFlags.HEV_CLUSTER_DATA:
       print("Cluster_HEV_Data2 signal exists (get_can_parser)")
-      pt_messages.append(("Cluster_HEV_Data2", 10))
+      pt_messages.append(("Cluster_HEV_Data2", float('nan')))
 
     if CP.flags & FordFlags.HEV_BATTERY_DATA:
       print("Battery_Traction_1_FD1 signal exists (get_can_parser)")
-      pt_messages.append(("Battery_Traction_1_FD1", 10))
+      pt_messages.append(("Battery_Traction_1_FD1", float('nan')))
       print("Battery_Traction_3_FD1 signal exists (get_can_parser)")
-      pt_messages.append(("Battery_Traction_3_FD1", 10))
+      pt_messages.append(("Battery_Traction_3_FD1", float('nan')))
       print("Battery_Traction_4_FD1 signal exists (get_can_parser)")
-      pt_messages.append(("Battery_Traction_4_FD1", 10))
+      pt_messages.append(("Battery_Traction_4_FD1", float('nan')))
 
     if CP.flags & FordFlags.ALT_STEER_ANGLE:
       pt_messages += [

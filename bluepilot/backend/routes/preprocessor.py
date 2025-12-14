@@ -249,7 +249,7 @@ def main():
     # Initialize broadcaster for cross-process WebSocket communication
     # Get web server port from params
     try:
-        web_port = int(params.get("BPWebServerPort") or "8088")
+        web_port = int(params.get("BPPortalPort") or "8088")
     except:
         web_port = 8088
 

@@ -31,10 +31,10 @@ interface LogResponse {
 export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsPanelProps) => {
   const { addToast } = useToastStore()
   const [isOpen, setIsOpen] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [logType, setLogType] = useState<'qlog' | 'rlog'>('rlog')
   const [levelFilter, setLevelFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [syncWithVideo, setSyncWithVideo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState<LogMessage[]>([])
   const [logStats, setLogStats] = useState({ returned: 0, total: 0, truncated: false })
@@ -50,21 +50,17 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
     }
   }, [])
 
-  // Video sync effect
+  // Sync logs to video playback time (unless paused)
   useEffect(() => {
-    if (syncWithVideo && logs.length > 0 && messagesRef.current) {
-      syncLogsToVideo()
-    }
-  }, [videoCurrentTime, syncWithVideo, logs])
+    if (logs.length === 0 || !messagesRef.current || isPaused) return
 
-  const syncLogsToVideo = () => {
-    if (!messagesRef.current || logs.length === 0) return
-
-    const currentVideoTime = videoCurrentTime
+    // Calculate time relative to current segment (each segment is 60 seconds)
+    const segmentOffset = currentSegment * 60
+    const segmentRelativeTime = videoCurrentTime - segmentOffset
     const segmentStartTime = logTimeRange.start
 
     // Find the log message closest to current video time
-    const targetTimestamp = segmentStartTime + currentVideoTime
+    const targetTimestamp = segmentStartTime + segmentRelativeTime
 
     let closestIndex = -1
     let closestDistance = Infinity
@@ -91,7 +87,7 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
         closestElement.classList.add('log-message-active')
       }
     }
-  }
+  }, [videoCurrentTime, logs, currentSegment, logTimeRange.start, isPaused])
 
   const loadLogs = async () => {
     if (!route) {
@@ -101,6 +97,7 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
 
     setLoading(true)
     setIsOpen(true)
+    setIsPaused(false)
 
     try {
       // Build API URL
@@ -146,9 +143,9 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
   }
 
   const stopLogs = () => {
-    setSyncWithVideo(false)
     setLogs([])
     setLogStats({ returned: 0, total: 0, truncated: false })
+    setIsPaused(false)
   }
 
   const formatTimestamp = (timestamp: number): string => {
@@ -175,16 +172,29 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
         </div>
         <div className="panel-header-actions">
           {logs.length > 0 ? (
-            <button
-              type="button"
-              className="btn btn-sm btn-danger panel-action-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                stopLogs()
-              }}
-            >
-              Stop
-            </button>
+            <>
+              <button
+                type="button"
+                className={`btn btn-sm panel-action-btn ${isPaused ? 'btn-success' : 'btn-secondary'}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsPaused(!isPaused)
+                }}
+                title={isPaused ? 'Resume auto-scroll' : 'Pause auto-scroll'}
+              >
+                <Icon name={isPaused ? 'play_arrow' : 'pause'} size={16} />
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger panel-action-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  stopLogs()
+                }}
+              >
+                Stop
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -249,18 +259,6 @@ export const LogsPanel = ({ route, currentSegment, videoCurrentTime = 0 }: LogsP
                   }
                 }}
               />
-              <label className="log-sync-label">
-                <input
-                  type="checkbox"
-                  id="log-sync-checkbox"
-                  checked={syncWithVideo}
-                  onChange={(e) => setSyncWithVideo(e.target.checked)}
-                />
-                Sync with video
-              </label>
-              <button type="button" className="btn btn-sm" onClick={loadLogs}>
-                Reload
-              </button>
             </div>
           </div>
 

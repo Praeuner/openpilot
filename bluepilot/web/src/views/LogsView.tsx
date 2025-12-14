@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { Header } from '@/components/layout/Header'
-import { Button, ToggleSwitch, Icon } from '@/components/common'
+import { Button, ToggleSwitch, Icon, BackToTop } from '@/components/common'
 import type { DeviceStatus } from '@/types'
 import './LogsView.css'
 
@@ -472,6 +472,8 @@ export function LogsView({ deviceStatus = 'checking' }: LogsViewProps) {
           </pre>
         </div>
       </div>
+
+      <BackToTop />
     </>
   )
 }

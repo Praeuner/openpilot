@@ -25,6 +25,16 @@ VIDEOS_ZIP_CACHE = os.path.join(DATA_ROOT, "videos_zip")
 BACKUP_CACHE = os.path.join(DATA_ROOT, "backups")
 IMPORT_TEMP_DIR = os.path.join(DATA_ROOT, "import_temp")
 
+# User preferences
+BLUEPILOT_DATA_DIR = "/data/bluepilot" if os.path.exists("/data") else os.path.expanduser("~/comma_data/bluepilot")
+FAVORITE_SETTINGS_FILE = os.path.join(BLUEPILOT_DATA_DIR, "favorite_settings.json")
+
+# Ensure all cache directories exist
+for cache_dir in [DATA_ROOT, THUMBNAIL_CACHE, REMUX_CACHE, METRICS_CACHE,
+                  ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE, IMPORT_TEMP_DIR,
+                  BLUEPILOT_DATA_DIR]:
+    os.makedirs(cache_dir, exist_ok=True)
+
 # Camera configuration
 CAMERA_FILES = {
     'front': 'fcamera.hevc',
@@ -53,14 +63,11 @@ FFMPEG_RESERVED_FOR_PLAYBACK = 1  # Always keep 1 slot free for playback
 
 # Server configuration
 DEFAULT_PORT = 8088
-RATE_LIMIT_WINDOW_SECONDS = 60
-RATE_LIMIT_MAX_REQUESTS = 100
-MAX_REQUESTS_PER_MINUTE_ONROAD = 20  # Stricter limit when driving
-MAX_REQUESTS_PER_MINUTE_OFFROAD = RATE_LIMIT_MAX_REQUESTS  # Normal limit when parked
 
-# Cellular access configuration
-CELLULAR_ACCESS_TIMEOUT_DEFAULT = 60  # 1 hour default timeout in minutes
-
+# Rate limiting (per-second for burst protection)
+RATE_LIMIT_WINDOW_SECONDS = 1  # 1 second window for smoother rate limiting
+RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD = 30  # 30 req/s when parked - allows fast settings loading
+RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD = 30   # 30 req/s when driving - allows settings management
 
 # FFmpeg binary detection
 def find_ffmpeg_binary():

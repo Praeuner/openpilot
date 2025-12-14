@@ -118,8 +118,8 @@
 
 @media (max-width: 768px) {
   .toast-container {
-    top: auto;
-    bottom: 20px;
+    top: 20px;
+    bottom: auto;
     right: 10px;
     left: 10px;
   }
@@ -127,5 +127,17 @@
   .toast {
     width: 100%;
     max-width: none;
+    animation: slideInDown 0.3s ease;
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }

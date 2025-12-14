@@ -440,3 +440,64 @@ class ServerState:
         key = f"import:{import_id}"
         with self._lock:
             self._route_exports.pop(key, None)
+
+    # Log Download operations (qlog/rlog)
+    def get_log_download_status(self, route_base, log_type):
+        """Get status of log download operation"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            return self._route_exports.get(key, {}).copy()
+
+    def start_log_download(self, route_base, log_type, total_files, message="Preparing download"):
+        """Start log download operation"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            self._route_exports[key] = {
+                'status': 'processing',
+                'progress': 0.0,
+                'message': message,
+                'total_files': total_files,
+                'files_processed': 0,
+                'started_at': time.time()
+            }
+            return True
+
+    def update_log_download(self, route_base, log_type, **updates):
+        """Update log download operation status"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update(updates)
+                self._route_exports[key]['updated_at'] = time.time()
+                return self._route_exports[key].copy()
+            return {}
+
+    def complete_log_download(self, route_base, log_type, message="Download ready"):
+        """Mark log download as complete"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'ready',
+                    'progress': 1.0,
+                    'message': message,
+                    'completed_at': time.time()
+                })
+                return self._route_exports[key].copy()
+            return {}
+
+    def fail_log_download(self, route_base, log_type, message):
+        """Mark log download as failed"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            if key in self._route_exports:
+                self._route_exports[key].update({
+                    'status': 'error',
+                    'message': message
+                })
+
+    def clear_log_download(self, route_base, log_type):
+        """Clear log download status"""
+        key = f"log_download:{route_base}:{log_type}"
+        with self._lock:
+            self._route_exports.pop(key, None)

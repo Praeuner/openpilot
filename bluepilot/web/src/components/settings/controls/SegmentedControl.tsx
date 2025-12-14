@@ -6,6 +6,8 @@
 import type { SegmentedControl as SegmentedControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
+import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useStagedParam } from '@/hooks/useStagedParam'
 import { getDynamicDescription, evaluateConditions } from '@/utils/conditionalEvaluator'
 import { ControlCard } from '@/components/common'
 import './SegmentedControl.css'
@@ -17,12 +19,22 @@ interface SegmentedControlProps {
 }
 
 export function SegmentedControl({ control, disabled, disabledReason }: SegmentedControlProps) {
-  const { params, updateParam } = useParamsStore()
+  const { params } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
+  const settingsContext = useSettingsContext()
 
-  // Get current value and normalize to string for comparison
-  const rawValue = params[control.param]?.value
-  const currentValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : ''
+  // Use staged param hook for change tracking
+  const { value, stageValue } = useStagedParam({
+    param: control.param,
+    controlTitle: control.title,
+    controlType: 'segmented_control',
+    panelId: settingsContext?.panelId || '',
+    panelName: settingsContext?.panelName || '',
+    groupName: settingsContext?.groupName || '',
+  })
+
+  // Get current value and normalize to string for comparison (use staged value)
+  const currentValue = value !== null && value !== undefined ? String(value) : ''
 
   // Get dynamic description
   const description = getDynamicDescription(control, panelState, params)
@@ -33,9 +45,9 @@ export function SegmentedControl({ control, disabled, disabledReason }: Segmente
     return evaluateConditions(option.enableConditions, panelState, params)
   })
 
-  const handleSelect = async (value: string) => {
+  const handleSelect = (newValue: string) => {
     if (!disabled) {
-      await updateParam(control.param, value)
+      stageValue(newValue)
     }
   }
 

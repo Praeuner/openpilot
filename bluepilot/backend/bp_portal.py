@@ -19,7 +19,6 @@ import json
 import mimetypes
 import subprocess
 import sys
-import tempfile
 import shutil
 import time
 import signal
@@ -32,9 +31,7 @@ import logging
 import re
 import asyncio
 import threading
-from collections import defaultdict
 import requests
-import jwt as pyjwt
 
 try:
     import psutil
@@ -58,19 +55,20 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 # Configuration
 from bluepilot.backend.config import (
-    ROUTES_DIR, WEBAPP_DIR, WEBSOCKET_PORT, DEFAULT_PORT,
-    FFMPEG_BINARY, FFPROBE_BINARY,
-    MAX_CONCURRENT_FFMPEG, FFMPEG_RESERVED_FOR_PLAYBACK,
+    ROUTES_DIR, WEBAPP_DIR, WEBSOCKET_PORT,
+    FFMPEG_BINARY,
+    MAX_CONCURRENT_FFMPEG,
     THUMBNAIL_CACHE, REMUX_CACHE, METRICS_CACHE,
-    ROUTE_EXPORT_CACHE, VIDEOS_ZIP_CACHE, BACKUP_CACHE,
-    CAMERA_FILES, HEVC_CAMERAS, CAMERA_LABELS,
-    WEBSOCKET_HOST, CELLULAR_ACCESS_TIMEOUT_DEFAULT,
-    RATE_LIMIT_WINDOW_SECONDS, RATE_LIMIT_MAX_REQUESTS,
-    MAX_REQUESTS_PER_MINUTE_ONROAD, MAX_REQUESTS_PER_MINUTE_OFFROAD,
+    ROUTE_EXPORT_CACHE,
+    CAMERA_FILES,
+    WEBSOCKET_HOST,
+    RATE_LIMIT_WINDOW_SECONDS,
+    RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD, RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+    FAVORITE_SETTINGS_FILE,
 )
 
 # Core server components
-from bluepilot.backend.core import ServerState, ErrorBufferHandler
+from bluepilot.backend.core import ServerState
 from bluepilot.backend.core import process_manager, lifecycle
 
 # Network utilities
@@ -79,31 +77,30 @@ from bluepilot.backend.network import (
     get_wifi_ip, get_all_wifi_ips, get_connection_type,
 )
 
-# Route utilities  
+# Route utilities
 from bluepilot.backend.routes import (
     # Processing
-    haversine_distance, reverse_geocode,
-    extract_gps_metrics_from_segment, get_route_gps_metrics,
-    generate_thumbnail, get_route_fingerprint,
-    get_route_drive_stats, get_route_drive_stats_cached_only,
-    check_processing_status, process_route, kill_existing_process,
+    reverse_geocode,
+    get_route_gps_metrics,
+    generate_thumbnail,
+    kill_existing_process,
     # Parsing
-    get_route_base_name, get_segment_number,
-    parse_route_datetime, format_time_12hr,
-    format_display_date, format_elapsed_time,
+    get_route_base_name,
+    parse_route_datetime,
     # Segments
     get_route_segments, get_file_size,
     format_size, get_disk_space_info,
     # Scanner
     scan_routes,
+    # Metadata builder
+    build_route_metadata,
 )
 
 # Video processing
 from bluepilot.backend.video import (
-    FFmpegProcess, stream_ffmpeg_logs,
+    FFmpegProcess,
     get_video_duration, get_video_duration_from_cache,
-    get_video_files, get_log_files,
-    remux_segment_to_cache, prefetch_next_segments,
+    prefetch_next_segments,
     route_export_key, get_export_output_path,
     generate_route_export_filename, export_is_up_to_date,
     format_route_export_status, broadcast_route_export_update,
@@ -122,13 +119,12 @@ from bluepilot.backend.params.params_watcher import ParamsWatcher
 
 # Cache management
 from bluepilot.backend.cache import (
-    get_all_cache_sizes, cleanup_old_cache, is_route_starred,
-    MAX_CACHE_SIZE_GB, CACHE_CLEANUP_THRESHOLD,
+    get_all_cache_sizes, cleanup_old_cache,
 )
 
 # Storage and preservation
 from bluepilot.backend.storage import (
-    calculate_route_deletion_risk, get_cached_deletion_data,
+    get_cached_deletion_data,
     check_route_preserve_status, set_route_preserve,
     clear_deletion_data_cache,
 )
@@ -141,13 +137,12 @@ from bluepilot.backend.logs import (
 
 # File operations
 from bluepilot.backend.utils.file_ops import (
-    atomic_write, safe_json_write,
     get_free_disk_space, has_sufficient_disk_space,
 )
 
 # Power management
 from bluepilot.backend.utils.power import (
-    enable_performance_mode, restore_power_save,
+    enable_performance_mode,
     check_and_restore_power_save,
 )
 
@@ -209,46 +204,6 @@ def restart_ui_process():
         logger.error(f"Failed to invoke pkill for UI restart: {exc}")
 
     return False, 'Unable to signal UI process'
-
-# JWT Helper for Comma API authentication
-def create_comma_jwt(dongle_id, expiry_hours=1):
-    """Create JWT token for Comma API authentication using RSA private key"""
-    try:
-        # Try persist root paths
-        persist_paths = [
-            '/persist/comma/id_rsa',
-            '/data/persist/comma/id_rsa',
-            os.path.expanduser('~/.comma/id_rsa'),
-        ]
-
-        private_key = None
-        for key_path in persist_paths:
-            if os.path.exists(key_path):
-                with open(key_path, 'r') as f:
-                    private_key = f.read()
-                logger.debug(f"Found RSA key at {key_path}")
-                break
-
-        if not private_key:
-            logger.warning("No RSA private key found for Comma API authentication")
-            return None
-
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        payload = {
-            'identity': dongle_id,
-            'nbf': now,
-            'iat': now,
-            'exp': now + timedelta(hours=expiry_hours),
-        }
-
-        token = pyjwt.encode(payload, private_key, algorithm='RS256')
-        if isinstance(token, bytes):
-            token = token.decode('utf8')
-        return token
-
-    except Exception as e:
-        logger.error(f"Error creating JWT token: {e}", exc_info=True)
-        return None
 
 # Disk space deletion thresholds
 try:
@@ -352,32 +307,26 @@ async def websocket_handler(websocket):
         logger.info(f"WebSocket client disconnected. Remaining clients: {client_count}")
 
 
-async def no_origin_check(path, request):
-    """
-    Allow all WebSocket connections, bypassing origin checks.
-    This is required for compatibility with Safari, which can be strict
-    about cross-origin policies even for local connections.
-    """
-    return None  # Allow the connection
-
-
 async def start_websocket_server():
     """Start the WebSocket server"""
     try:
-        # Import websockets directly for the serve function
         import websockets
     except ImportError:
         logger.warning("WebSocket server not started - websockets library not available")
         return
 
     try:
-        logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT}")
+        logger.info(f"Starting WebSocket server on {WEBSOCKET_HOST}:{WEBSOCKET_PORT} (websockets {websockets.__version__})")
 
         # Try to bind, retry once on port conflict
         retry_count = 0
         max_retries = 2
+        server = None
+
         while retry_count < max_retries:
             try:
+                # websockets 11+ uses origins=None to allow all origins (Safari compatible)
+                # process_request was removed in websockets 11+
                 server = await websockets.serve(
                     websocket_handler,
                     WEBSOCKET_HOST,
@@ -386,12 +335,15 @@ async def start_websocket_server():
                     ping_timeout=10,
                     close_timeout=5,
                     compression=None,  # Disable permessage-deflate for Safari compatibility
-                    process_request=no_origin_check  # Custom handler for Safari
+                    origins=None,  # Allow all origins (Safari compatible)
                 )
-                logger.info("WebSocket server started with custom origin handling for Safari")
+                logger.info(f"WebSocket server started on port {WEBSOCKET_PORT}")
+                # Update global flag now that websocket server is confirmed running
+                global WEBSOCKETS_AVAILABLE
+                WEBSOCKETS_AVAILABLE = True
                 break
             except OSError as e:
-                if e.errno == 98:  # Address already in use
+                if e.errno in (98, 48):  # Address already in use (Linux=98, macOS=48)
                     logger.warning(f"Port {WEBSOCKET_PORT} in use, attempting to kill existing process...")
                     if process_manager.kill_port_process(WEBSOCKET_PORT):
                         logger.info(f"Killed process on port {WEBSOCKET_PORT}, retrying...")
@@ -402,6 +354,10 @@ async def start_websocket_server():
                         raise
                 else:
                     raise
+
+        if server is None:
+            logger.error("Failed to start WebSocket server after retries")
+            return
 
         # Keep server running
         await asyncio.Future()  # Run forever
@@ -466,6 +422,54 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def _deny_rate_limit(self, payload, retry_after):
+        """Send a uniform 429 response for rate limiting"""
+        self.send_response(429)
+        self.send_header('Retry-After', str(retry_after))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode())
+
+    def _enforce_rate_limit(self, path, api_only=False, detailed=False, skip_internal=False):
+        """Apply rate limiting consistently across verbs"""
+        if skip_internal and path.startswith('/_internal/'):
+            return True
+        if api_only and not path.startswith('/api/'):
+            return True
+
+        client_ip = self.client_address[0]
+        is_allowed, retry_after = process_manager.check_rate_limit(
+            client_ip,
+            is_onroad_func=is_onroad,
+            max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+            max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS
+        )
+        if is_allowed:
+            return True
+
+        if detailed:
+            onroad = is_onroad()
+            limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
+            payload = {
+                'success': False,
+                'error': 'Rate limit exceeded',
+                'details': f'Too many requests from {client_ip}',
+                'retry_after_seconds': retry_after,
+                'limit': f'{limit} requests per second',
+                'hint': f'Please wait {retry_after}s before trying again',
+                'reason': 'onroad_protection' if onroad else 'rate_limit',
+                'timestamp': datetime.now().isoformat()
+            }
+        else:
+            payload = {
+                'error': 'Rate limit exceeded',
+                'retry_after': retry_after
+            }
+
+        self._deny_rate_limit(payload, retry_after)
+        return False
 
     def send_json_response(self, data, status=200):
         """Send JSON response with consistent error format"""
@@ -819,35 +823,9 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             path = parsed.path
 
-            # Rate limiting check
-            client_ip = self.client_address[0]
-            is_allowed, retry_after = process_manager.check_rate_limit(
-                client_ip,
-                is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
-                window_seconds=RATE_LIMIT_WINDOW_SECONDS
-            )
-            if not is_allowed:
-                onroad = is_onroad()
-                limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
-
-                self.send_response(429)  # Too Many Requests
-                self.send_header('Retry-After', str(retry_after))
-                self.send_cors_headers()
-                self.end_headers()
-
-                error_msg = json.dumps({
-                    'success': False,
-                    'error': 'Rate limit exceeded',
-                    'details': f'Too many requests from {client_ip}',
-                    'retry_after_seconds': retry_after,
-                    'limit': f'{limit} requests per minute',
-                    'hint': f'Please wait {retry_after} seconds before trying again',
-                    'reason': 'onroad_protection' if onroad else 'rate_limit',
-                    'timestamp': datetime.now().isoformat()
-                }).encode()
-                self.wfile.write(error_msg)
+            # Rate limiting check (per-second burst protection) - only for API calls
+            # Static resources (JS, CSS, images) are not rate-limited
+            if not self._enforce_rate_limit(path, api_only=True, detailed=True):
                 return
 
             # Check if server is enabled (always run when enabled, just rate-limited onroad)
@@ -1160,7 +1138,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     ffmpeg_count = server_state.get_ffmpeg_count()
 
                     # Rate limit info
-                    current_limit = MAX_REQUESTS_PER_MINUTE_ONROAD if onroad else MAX_REQUESTS_PER_MINUTE_OFFROAD
+                    current_limit = RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD if onroad else RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD
 
                     self.send_json_response({
                     'status': 'onroad' if onroad else 'online',
@@ -1177,7 +1155,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'wifi_available': wifi_ip is not None,
                         'all_wifi_ips': [{'interface': iface, 'ip': ip} for iface, ip in all_wifi_ips],
                         'tethering_enabled': tethering_enabled,
-                        'port': int(params.get("BPWebServerPort") or "8088")
+                        'port': int(params.get("BPPortalPort") or "8088")
                     },
                     'clients': {
                         'websocket_connected': ws_clients,
@@ -1185,7 +1163,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     },
                     'rate_limit': {
                         'requests_per_minute': current_limit,
-                        'window_seconds': RATE_LIMIT_WINDOW,
+                        'window_seconds': RATE_LIMIT_WINDOW_SECONDS,
                         'mode': 'global' if onroad else 'per_ip'
                     },
                     'ffmpeg': {
@@ -1232,6 +1210,95 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({
                         'success': False,
                         'error': 'Failed to retrieve logs',
+                        'details': str(e)
+                    }, 500)
+
+            elif path == '/api/last-error':
+                # Get the most recent crash/error from the crashes file
+                # This is the same file shown in the BP Developer Panel
+                try:
+                    crash_file = '/data/community/crashes/error.txt'
+
+                    if not os.path.exists(crash_file):
+                        self.send_json_response({
+                            'success': True,
+                            'has_error': False,
+                            'message': 'No crash file found'
+                        })
+                        return
+
+                    # Get file stats
+                    file_stat = os.stat(crash_file)
+                    file_size = file_stat.st_size
+                    file_mtime = file_stat.st_mtime
+
+                    # Skip if file is empty
+                    if file_size == 0:
+                        self.send_json_response({
+                            'success': True,
+                            'has_error': False,
+                            'message': 'Crash file is empty'
+                        })
+                        return
+
+                    # Limit file size to 100KB for safety
+                    if file_size > 100 * 1024:
+                        # Read only the last 100KB
+                        with open(crash_file, 'r', encoding='utf-8', errors='replace') as f:
+                            f.seek(max(0, file_size - 100 * 1024))
+                            content = f.read()
+                    else:
+                        with open(crash_file, 'r', encoding='utf-8', errors='replace') as f:
+                            content = f.read()
+
+                    # Parse the error content to extract useful info
+                    lines = content.strip().split('\n')
+
+                    # Try to extract timestamp and error type from content
+                    timestamp = None
+                    error_type = 'ERROR'
+                    error_message = lines[0] if lines else 'Unknown error'
+
+                    # Look for common timestamp patterns
+                    for line in lines[:10]:  # Check first 10 lines for timestamp
+                        # Pattern: 2024-01-15 10:30:45 or similar
+                        ts_match = re.search(r'(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})', line)
+                        if ts_match:
+                            timestamp = ts_match.group(1)
+                            break
+
+                    # Use file modification time if no timestamp found in content
+                    if not timestamp:
+                        timestamp = datetime.fromtimestamp(file_mtime).isoformat()
+
+                    # Determine error type from content
+                    content_lower = content.lower()
+                    if 'critical' in content_lower or 'fatal' in content_lower:
+                        error_type = 'CRITICAL'
+                    elif 'exception' in content_lower or 'traceback' in content_lower:
+                        error_type = 'ERROR'
+                    elif 'warning' in content_lower:
+                        error_type = 'WARNING'
+
+                    self.send_json_response({
+                        'success': True,
+                        'has_error': True,
+                        'error': {
+                            'timestamp': timestamp,
+                            'level': error_type,
+                            'message': error_message[:500],  # First line, truncated
+                            'details': content[:5000] if len(content) > 500 else None,  # Full content if longer
+                            'file_path': crash_file,
+                            'file_size': file_size,
+                            'file_modified': file_mtime
+                        }
+                    })
+
+                except Exception as e:
+                    logger.error(f"Error reading crash file: {e}", exc_info=True)
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Failed to read crash file',
                         'details': str(e)
                     }, 500)
 
@@ -1380,171 +1447,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'success': False, 'error': 'Route not found'}, 404)
                     return
 
-                # Parse datetime from base name
-                route_dt = parse_route_datetime(route_base)
-                if route_dt is None:
-                    # Use directory modification time as fallback
-                    try:
-                        first_seg_path = segments[0]['path']
-                        mtime = os.path.getmtime(first_seg_path)
-                        route_dt = datetime.fromtimestamp(mtime)
-                    except Exception as e:
-                        logger.warning(f"Failed to get route datetime for {route_base}: {e}")
-                        route_dt = datetime.now()
-
-                # Calculate total size
-                total_size = sum(get_file_size(seg['path']) for seg in segments)
-
-                # Calculate duration (1 minute per segment)
-                duration_seconds = len(segments) * 60
-                hours = duration_seconds // 3600
-                minutes = (duration_seconds % 3600) // 60
-                if hours > 0:
-                    duration_str = f"{hours}h {minutes}m"
-                else:
-                    duration_str = f"{minutes}m"
-
-                # Calculate end time from last segment's timestamp
-                # Parse the last segment name to get its timestamp
-                last_segment = segments[-1]
-                last_segment_dt = parse_route_datetime(last_segment['name'].rsplit('--', 1)[0])
-                if last_segment_dt:
-                    # Add 1 minute to account for the segment's duration
-                    end_dt = last_segment_dt + timedelta(minutes=1)
-                else:
-                    # Fallback: use start time + duration if parsing fails
-                    end_dt = route_dt + timedelta(seconds=duration_seconds)
-
-                # Check which cameras have footage across all segments
-                has_video = {
-                    'front': False,
-                    'wide': False,
-                    'driver': False,
-                    'lq': False
-                }
-                for seg in segments:
-                    videos = get_video_files(seg['path'])
-                    for camera in videos.keys():
-                        has_video[camera] = True
-
-                # Check if route is preserved via xattr
-                is_preserved = check_route_preserve_status(route_base)
-
-                # Load GPS metrics from cache if available
-                cache_file = os.path.join(METRICS_CACHE, f"{route_base}.json")
-                avg_speed_str = None
-                max_speed_str = None
-                if os.path.exists(cache_file):
-                    try:
-                        with open(cache_file) as f:
-                            gps_metrics = json.load(f)
-                    except Exception as e:
-                        logger.debug(f"Error reading GPS cache for {route_base}: {e}")
-                        gps_metrics = {'has_gps_data': False}
-                else:
-                    gps_metrics = {'has_gps_data': False}
-
-                # Format GPS metrics based on user preference
-                if gps_metrics['has_gps_data']:
-                    is_metric = params.get_bool("IsMetric")
-                    if is_metric:
-                        distance_km = gps_metrics['total_distance_meters'] / 1000
-                        avg_speed_kmh = gps_metrics['avg_speed_ms'] * 3.6
-                        max_speed_kmh = gps_metrics['max_speed_ms'] * 3.6
-                        mileage_str = f"{distance_km:.2f} km"
-                        avg_speed_str = f"{avg_speed_kmh:.1f} km/h"
-                        max_speed_str = f"{max_speed_kmh:.1f} km/h"
-                    else:
-                        distance_miles = gps_metrics['total_distance_meters'] / 1609.34
-                        avg_speed_mph = gps_metrics['avg_speed_ms'] * 2.237
-                        max_speed_mph = gps_metrics['max_speed_ms'] * 2.237
-                        mileage_str = f"{distance_miles:.2f} mi"
-                        avg_speed_str = f"{avg_speed_mph:.1f} mph"
-                        max_speed_str = f"{max_speed_mph:.1f} mph"
-                    start_location = gps_metrics.get('start_location')
-                    end_location = gps_metrics.get('end_location')
-                else:
-                    mileage_str = None
-                    start_location = None
-                    end_location = None
-                    avg_speed_str = None
-                    max_speed_str = None
-
-                # Build segment details
-                segments_detail = []
-                for seg in segments:
-                    videos = get_video_files(seg['path'])
-                    segments_detail.append({
-                        'number': seg['segment'],
-                        'name': seg['name'],
-                        'path': seg['path'],
-                        'videos': videos
-                    })
-
-                # Get drive statistics if cached (for processing banner)
-                drive_stats = get_route_drive_stats_cached_only(route_base)
-
-                # Get fingerprint data if cached (don't process logs during request - too slow)
-                fingerprint_data = get_route_fingerprint(route_base, segments)
-
-                # Calculate deletion risk for this route
-                deletion_data = get_cached_deletion_data()
-                disk_info = get_disk_space_info()
-                deletion_risk = calculate_route_deletion_risk(route_base, segments, deletion_data, disk_info)
-
-                # Check if route is still being processed
-                processing = drive_stats is None if drive_stats is not None else False
-
-                self.send_json_response({
-                    'success': True,
-                    # Primary identifiers
-                    'baseName': route_base,
-                    'id': route_base,  # Alias for frontend
-                    # Date/time information
-                    'displayDate': format_display_date(route_dt),
-                    'date': format_display_date(route_dt),  # Alias for frontend
-                    'displayTime': format_time_12hr(route_dt),
-                    'displayEndTime': format_time_12hr(end_dt),
-                    'timestamp': route_dt.isoformat(),
-                    'dateTime': route_dt.isoformat(),  # For sorting
-                    'elapsedTime': format_elapsed_time(route_dt),
-                    'start_time': route_dt.isoformat(),  # Frontend alias
-                    'end_time': end_dt.isoformat(),  # Frontend alias
-                    # Route metrics
-                    'duration': duration_str,
-                    'size': format_size(total_size),
-                    'sizeBytes': total_size,
-                    'totalSegments': len(segments_detail),
-                    # Camera availability
-                    'hasVideo': has_video,
-                    # GPS metrics (camelCase)
-                    'mileage': mileage_str,
-                    'distance': mileage_str,  # Alias for frontend
-                    'avgSpeed': avg_speed_str,
-                    'topSpeed': max_speed_str,
-                    'hasGpsData': gps_metrics['has_gps_data'],
-                    'startLocation': start_location,
-                    'endLocation': end_location,
-                    # GPS metrics (snake_case aliases for frontend)
-                    'avg_speed': avg_speed_str,
-                    'top_speed': max_speed_str,
-                    'start_location': start_location,
-                    'end_location': end_location,
-                    # Preservation status
-                    'isPreserved': is_preserved,
-                    'isStarred': is_preserved,
-                    'preserved': is_preserved,  # Alias for frontend
-                    # Deletion risk
-                    'deletionRisk': deletion_risk,
-                    # Processing status
-                    'processing': processing,
-                    # Detailed segments info
-                    'segments': segments_detail,
-                    # Drive statistics
-                    'driveStats': drive_stats if drive_stats else None,
-                    # Vehicle fingerprint
-                    'fingerprint': fingerprint_data if fingerprint_data else None
-                })
+                payload = build_route_metadata(route_base, segments, params)
+                self.send_json_response(payload)
 
             elif path == '/api/routes':
                 # Fast route list (cached data only, no processing)
@@ -1716,15 +1620,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Route not found'}, 404)
                     return
 
-                # Map camera to filename
-                camera_files = {
-                    'front': 'fcamera.hevc',
-                    'wide': 'ecamera.hevc',
-                    'driver': 'dcamera.hevc',
-                    'lq': 'qcamera.ts'
-                }
-
-                if camera not in camera_files:
+                camera_file = CAMERA_FILES.get(camera)
+                if not camera_file:
                     self.send_json_response({'error': 'Invalid camera type'}, 400)
                     return
 
@@ -1765,7 +1662,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 max_duration = 0
                 segment_count = 0
                 for idx, seg in enumerate(segments):
-                    seg_path = os.path.join(seg['path'], camera_files[camera])
+                    seg_path = os.path.join(seg['path'], camera_file)
                     if os.path.exists(seg_path):
                         segment_num = seg['segment']
 
@@ -1847,19 +1744,12 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Segment not found'}, 404)
                     return
 
-                # Map camera to filename
-                camera_files = {
-                    'front': 'fcamera.hevc',
-                    'wide': 'ecamera.hevc',
-                    'driver': 'dcamera.hevc',
-                    'lq': 'qcamera.ts'
-                }
-
-                if camera not in camera_files:
+                camera_filename = CAMERA_FILES.get(camera)
+                if not camera_filename:
                     self.send_json_response({'error': 'Invalid camera type'}, 400)
                     return
 
-                video_path = os.path.join(segment_data['path'], camera_files[camera])
+                video_path = os.path.join(segment_data['path'], camera_filename)
 
                 # For HEVC files, remux to MP4 for browser compatibility
                 if camera in ['front', 'wide', 'driver']:
@@ -1924,12 +1814,12 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
             elif path.startswith('/api/download/qlog/'):
                 # Download qlog: /api/download/qlog/{route_base}
-                handle_qlog_download(self, path, get_route_segments)
+                handle_qlog_download(self, path, get_route_segments, server_state)
                 return
 
             elif path.startswith('/api/download/rlog/'):
                 # Download rlog: /api/download/rlog/{route_base}
-                handle_rlog_download(self, path, get_route_segments)
+                handle_rlog_download(self, path, get_route_segments, server_state)
                 return
 
             elif path.startswith('/api/route-coordinates/'):
@@ -1966,14 +1856,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                     self.send_json_response({'error': 'Route not found'}, 404)
                     return
 
-                # Camera and log file mappings
-                camera_files = {
-                    'front': 'fcamera.hevc',
-                    'wide': 'ecamera.hevc',
-                    'driver': 'dcamera.hevc',
-                    'lq': 'qcamera.ts'
-                }
-
                 # Calculate total size for each camera and log file across all segments
                 camera_sizes = {
                     'front': 0,
@@ -1987,7 +1869,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                 for segment in segments:
                     segment_path = segment['path']
                     # Camera sizes
-                    for camera, filename in camera_files.items():
+                    for camera, filename in CAMERA_FILES.items():
                         file_path = os.path.join(segment_path, filename)
                         if os.path.exists(file_path):
                             try:
@@ -2137,8 +2019,6 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'bp_cruise_panel',
                         'bp_visuals_panel',
                         'bp_display_panel',
-                        'bp_software_panel',
-                        'bp_models_panel',
                         'bp_vehicle_panel',
                         'bp_developer_panel',
                     ]
@@ -2241,6 +2121,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                             state['hasLongitudinalControl'] = car_params.openpilotLongitudinalControl
                             state['hasBlindSpotMonitoring'] = len(car_params.enableBsm) > 0
                             state['isAngleSteering'] = car_params.steerControlType == car.CarParams.SteerControlType.angle
+                            state['isPcmCruise'] = car_params.pcmCruise
 
                             # Brand detection
                             car_name = car_params.carName.lower() if car_params.carName else ''
@@ -2260,10 +2141,23 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         except Exception as e:
                             logger.warning(f"Error parsing CarParams: {e}")
 
-                    # Check for specific features from params
-                    state['hasIntelligentCruiseButtonManagement'] = safe_get_bool("IntelligentCruiseButtonManagement")
-                    state['isPcmCruise'] = safe_get_bool("PcmCruise")
-                    state['isICBMAvailable'] = safe_get_bool("ICBMAvailable")
+                    # Parse CarParamsSP if available for ICBM availability
+                    icbm_available = False
+                    if param_exists("CarParamsSP"):
+                        try:
+                            from cereal import custom
+                            car_params_sp_bytes = params.get("CarParamsSP")
+                            car_params_sp = custom.CarParamsSP.from_bytes(car_params_sp_bytes)
+                            icbm_available = car_params_sp.intelligentCruiseButtonManagementAvailable
+                        except Exception as e:
+                            logger.warning(f"Error parsing CarParamsSP: {e}")
+
+                    # Check for specific features
+                    # ICBM available = car supports it (from CarParamsSP)
+                    state['isICBMAvailable'] = icbm_available
+                    # ICBM active = car supports it AND user has enabled it (matches SunnyPilot C++ logic)
+                    icbm_user_enabled = safe_get_bool("IntelligentCruiseButtonManagement")
+                    state['hasIntelligentCruiseButtonManagement'] = icbm_available and icbm_user_enabled
 
                     # Branch detection
                     state['isReleaseBranch'] = param_exists("ReleaseNotes")
@@ -2314,6 +2208,32 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
                 except Exception as e:
                     logger.error(f"Error getting backup params: {e}", exc_info=True)
+                    self.send_json_response({'success': False, 'error': str(e)}, 500)
+
+            elif path == '/api/favorite_settings':
+                # Get favorite settings from file
+                try:
+                    if os.path.exists(FAVORITE_SETTINGS_FILE):
+                        with open(FAVORITE_SETTINGS_FILE, 'r') as f:
+                            favorites = json.load(f)
+                        self.send_json_response({
+                            'success': True,
+                            'favorites': favorites
+                        })
+                    else:
+                        # Return empty array if file doesn't exist yet
+                        self.send_json_response({
+                            'success': True,
+                            'favorites': []
+                        })
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing favorites file: {e}")
+                    self.send_json_response({
+                        'success': True,
+                        'favorites': []
+                    })
+                except Exception as e:
+                    logger.error(f"Error reading favorites: {e}", exc_info=True)
                     self.send_json_response({'success': False, 'error': str(e)}, 500)
 
             elif path == '/api/drive-stats':
@@ -2621,26 +2541,8 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             path = parsed.path
 
             # Rate limiting check (skip for internal endpoints)
-            if not path.startswith('/_internal/'):
-                client_ip = self.client_address[0]
-                is_allowed, retry_after = process_manager.check_rate_limit(
-                client_ip,
-                is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
-                window_seconds=RATE_LIMIT_WINDOW_SECONDS
-            )
-                if not is_allowed:
-                    self.send_response(429)
-                    self.send_header('Retry-After', str(retry_after))
-                    self.send_cors_headers()
-                    self.end_headers()
-                    error_msg = json.dumps({
-                        'error': 'Rate limit exceeded',
-                        'retry_after': retry_after
-                    }).encode()
-                    self.wfile.write(error_msg)
-                    return
+            if not self._enforce_rate_limit(path, skip_internal=True):
+                return
 
             # Internal broadcast endpoint (for cross-process communication)
             # No authentication check - only listens on localhost
@@ -3040,6 +2942,53 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
                         'error': str(e)
                     }, 500)
 
+            elif path == '/api/favorite_settings':
+                # Save favorite settings to file
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length == 0:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing request body'
+                        }, 400)
+                        return
+
+                    body = self.rfile.read(content_length).decode('utf-8')
+                    data = json.loads(body)
+
+                    favorites = data.get('favorites')
+                    if favorites is None:
+                        self.send_json_response({
+                            'success': False,
+                            'error': 'Missing required field: favorites'
+                        }, 400)
+                        return
+
+                    # Ensure parent directory exists
+                    os.makedirs(os.path.dirname(FAVORITE_SETTINGS_FILE), exist_ok=True)
+
+                    # Write favorites to file
+                    with open(FAVORITE_SETTINGS_FILE, 'w') as f:
+                        json.dump(favorites, f, indent=2)
+
+                    logger.info(f"Saved {len(favorites)} favorites to {FAVORITE_SETTINGS_FILE}")
+                    self.send_json_response({
+                        'success': True,
+                        'count': len(favorites)
+                    })
+
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'success': False,
+                        'error': 'Invalid JSON in request body'
+                    }, 400)
+                except Exception as e:
+                    logger.exception("Error saving favorites")
+                    self.send_json_response({
+                        'success': False,
+                        'error': str(e)
+                    }, 500)
+
             elif path == '/api/panel-command':
                 # Execute panel command (reboot, shutdown, set param, etc.)
                 try:
@@ -3406,24 +3355,7 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
             path = parsed.path
 
             # Rate limiting check
-            client_ip = self.client_address[0]
-            is_allowed, retry_after = process_manager.check_rate_limit(
-                client_ip,
-                is_onroad_func=is_onroad,
-                max_offroad=RATE_LIMIT_MAX_REQUESTS,
-                max_onroad=20,
-                window_seconds=RATE_LIMIT_WINDOW_SECONDS
-            )
-            if not is_allowed:
-                self.send_response(429)
-                self.send_header('Retry-After', str(retry_after))
-                self.send_cors_headers()
-                self.end_headers()
-                error_msg = json.dumps({
-                    'error': 'Rate limit exceeded',
-                    'retry_after': retry_after
-                }).encode()
-                self.wfile.write(error_msg)
+            if not self._enforce_rate_limit(path):
                 return
 
             # Check if server should be running
@@ -3494,61 +3426,12 @@ class WebRoutesHandler(BaseHTTPRequestHandler):
 
 
 def ensure_dependencies():
-    """Check if all required dependencies are available, install if missing, and restart server"""
+    """Delegate dependency installation to lifecycle helpers to avoid drift."""
     global WEBSOCKETS_AVAILABLE
-
-    try:
-        # Check if websockets is available (direct import)
-        try:
-            import websockets
-            WEBSOCKETS_AVAILABLE = True
-            logger.info("websockets library is available")
-            return False  # No restart needed
-        except ImportError:
-            WEBSOCKETS_AVAILABLE = False
-
-        logger.warning("websockets library not available - attempting installation")
-        logger.info("HTTP API will still work during installation")
-
-        # Try to install websockets package
-        try:
-            import subprocess
-            import shutil
-
-            # Use uv pip install to avoid modifying pyproject.toml
-            if shutil.which("uv"):
-                logger.info("Installing websockets using uv pip (user site-packages)...")
-                result = subprocess.run(
-                    ["uv", "pip", "install", "websockets", "websocket-client"],
-                    capture_output=True,
-                    text=True,
-                    timeout=60
-                )
-
-                if result.returncode == 0:
-                    logger.info("websockets installed successfully")
-                    logger.info("Server will restart in 3 seconds to enable WebSocket features")
-                    return True  # Restart needed
-                else:
-                    logger.error(f"Failed to install websockets: {result.stderr}")
-                    logger.info("WebSocket features will remain disabled")
-                    return False
-            else:
-                logger.warning("uv not available - cannot install websockets automatically")
-                logger.info("To enable WebSocket support, run: uv pip install websockets websocket-client")
-                return False
-
-        except subprocess.TimeoutExpired:
-            logger.error("Package installation timed out (60s)")
-            logger.info("Network may not be available yet. WebSocket features will remain disabled")
-            return False
-        except Exception as e:
-            logger.error(f"Error during package installation: {e}")
-            return False
-
-    except Exception as e:
-        logger.warning(f"Error during dependency check: {e}")
-        return False
+    restart_needed = lifecycle.ensure_dependencies()
+    # Refresh availability flag based on the unified lifecycle check
+    WEBSOCKETS_AVAILABLE = lifecycle.check_dependencies()
+    return restart_needed
 
 
 def cleanup_on_shutdown():
@@ -3615,9 +3498,9 @@ def main():
         logger.info("Added venv site-packages to sys.path for LogReader support")
 
     try:
-        port = int(params.get("BPWebServerPort") or "8088")
+        port = int(params.get("BPPortalPort") or "8088")
     except Exception:
-        # BPWebServerPort may not be registered in params schema, use default
+        # BPPortalPort may not be registered in params schema, use default
         port = 8088
 
     logger.info(f"Starting BluePilot Web Routes Server on port {port}")
@@ -3630,15 +3513,13 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     logger.info("Registered graceful shutdown handlers")
 
-    # Ensure dependencies are available, install if missing
-    needs_restart = lifecycle.ensure_dependencies()
-
-    if needs_restart:
-        # Dependencies were just installed, restart the server process
-        logger.info("Waiting 3 seconds before restart to ensure packages are fully installed...")
-        time.sleep(3)
-        logger.info("Restarting server to load newly installed packages...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+    # Check if dependencies are available (don't install yet - server starts first)
+    deps_available = lifecycle.check_dependencies()
+    if deps_available:
+        logger.info("All dependencies available - WebSocket features enabled")
+    else:
+        logger.info("Some dependencies missing - will install in background after server starts")
+        logger.info("HTTP API will work immediately, WebSocket features available after restart")
 
     # Kill any existing server instances first
     kill_existing_process('web_routes_server.py')
@@ -3812,6 +3693,18 @@ def main():
         except Exception as e:
             logger.error(f"Error in status monitor: {e}")
 
+    # Start background dependency installation if needed (after server is ready to start)
+    # This ensures the server is responsive immediately while packages install in background
+    if not deps_available:
+        def on_deps_installed(restart_needed):
+            if restart_needed:
+                logger.info("Dependencies installed - server will restart on next timeout cycle")
+            else:
+                logger.info("Dependency installation complete - no restart needed")
+
+        lifecycle.install_dependencies_background(on_complete_callback=on_deps_installed)
+        logger.info("Server starting immediately - dependency installation running in background")
+
     # Start HTTP server - runs continuously until disabled or terminated
     try:
         logger.info(f"Web server starting on {bind_address}:{port}")
@@ -3822,6 +3715,22 @@ def main():
 
         def custom_handle_timeout():
             monitor_status()  # Check onroad status and broadcast changes
+
+            # Check if restart is needed due to dependency installation
+            if lifecycle.is_restart_pending():
+                logger.info("Restart pending - triggering graceful restart...")
+                try:
+                    # Shutdown server before restart (best effort)
+                    server.shutdown()
+                except Exception as e:
+                    logger.warning(f"Error during server shutdown: {e}")
+                try:
+                    lifecycle.trigger_restart()
+                except Exception as e:
+                    logger.error(f"Failed to trigger restart: {e}")
+                    # Server will continue running, retry on next timeout
+                return  # Don't call original handler if restarting
+
             if original_handle_timeout:
                 original_handle_timeout()
 

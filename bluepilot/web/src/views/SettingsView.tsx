@@ -3,14 +3,16 @@
  * Main settings page with tabbed panel interface
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Header } from '@/components/layout/Header'
-import { LoadingSpinner, Icon, Modal, Button } from '@/components/common'
+import { LoadingSpinner, Icon, Modal, Button, BackToTop } from '@/components/common'
 import { PanelGroup } from '@/components/settings/PanelGroup'
 import { FavoritesPanel } from '@/components/settings/FavoritesPanel'
+import { FloatingChangesIndicator } from '@/components/settings/FloatingChangesIndicator'
 import { usePanelsStore } from '@/stores/usePanelsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
 import { useParamsStore } from '@/stores/useParamsStore'
+import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning'
 import type { DeviceStatus } from '@/types'
 import './SettingsView.css'
 
@@ -56,12 +58,37 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Warn user about unsaved changes when leaving page
+  useUnsavedChangesWarning()
+
   // Backup/Restore state
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [backupResult, setBackupResult] = useState<{ success: boolean; message: string; details?: any } | null>(null)
   const [showBackupModal, setShowBackupModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Mobile dropdown state
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const mobileNavRef = useRef<HTMLDivElement>(null)
+
+  // Close mobile nav when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileNavRef.current && !mobileNavRef.current.contains(event.target as Node)) {
+        setMobileNavOpen(false)
+      }
+    }
+    if (mobileNavOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [mobileNavOpen])
+
+  const handleMobileNavSelect = useCallback((panelId: string) => {
+    setSelectedPanelId(panelId)
+    setMobileNavOpen(false)
+  }, [])
 
   // Fetch panels and state on mount
   useEffect(() => {
@@ -255,6 +282,85 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
       <div className="settings-view">
         <div className="settings-layout">
           <aside className="settings-sidebar">
+            {/* Mobile dropdown navigation */}
+            <div className="settings-nav-mobile" ref={mobileNavRef}>
+              <div className="settings-backup-actions">
+                <button
+                  type="button"
+                  className="settings-backup-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  title="Import settings"
+                >
+                  <Icon name="upload" size={18} />
+                  <span>{importing ? '...' : 'Import'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-backup-btn"
+                  onClick={handleExport}
+                  disabled={exporting}
+                  title="Export settings"
+                >
+                  <Icon name="download" size={18} />
+                  <span>{exporting ? '...' : 'Export'}</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                className={`settings-nav-dropdown-trigger ${mobileNavOpen ? 'open' : ''}`}
+                onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                aria-label="Select settings panel"
+              >
+                <div className="settings-nav-dropdown-selected">
+                  <div className="settings-nav-icon">{getPanelIcon(selectedPanelId || 'favorites')}</div>
+                  <div className="settings-nav-copy">
+                    <span className="settings-nav-label">
+                      {selectedPanelId === 'favorites'
+                        ? 'Favorites'
+                        : panels.find((p) => p.id === selectedPanelId)?.name || 'Select Panel'}
+                    </span>
+                    <span className="settings-nav-desc">
+                      {selectedPanelId === 'favorites'
+                        ? 'Starred controls'
+                        : panels.find((p) => p.id === selectedPanelId)?.description || ''}
+                    </span>
+                  </div>
+                </div>
+                <Icon name="expand_more" size={20} className="settings-nav-dropdown-chevron" />
+              </button>
+              {mobileNavOpen && (
+                <div className="settings-nav-dropdown-menu">
+                  <button
+                    type="button"
+                    className={`settings-nav-dropdown-item ${selectedPanelId === 'favorites' ? 'active' : ''}`}
+                    onClick={() => handleMobileNavSelect('favorites')}
+                  >
+                    <div className="settings-nav-icon">{getPanelIcon('favorites')}</div>
+                    <div className="settings-nav-copy">
+                      <span className="settings-nav-label">Favorites</span>
+                      <span className="settings-nav-desc">Starred controls</span>
+                    </div>
+                  </button>
+                  {panels.map((panel) => (
+                    <button
+                      type="button"
+                      key={panel.id}
+                      className={`settings-nav-dropdown-item ${selectedPanelId === panel.id ? 'active' : ''}`}
+                      onClick={() => handleMobileNavSelect(panel.id)}
+                    >
+                      <div className="settings-nav-icon">{getPanelIcon(panel.id)}</div>
+                      <div className="settings-nav-copy">
+                        <span className="settings-nav-label">{panel.name}</span>
+                        <span className="settings-nav-desc">{panel.description || 'Panel controls'}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop button navigation */}
             <div className="settings-nav">
               {/* Import/Export buttons inline with nav */}
               <div className="settings-backup-actions">
@@ -396,6 +502,11 @@ export function SettingsView({ deviceStatus: _deviceStatus }: SettingsViewProps)
           </div>
         </Modal>
       )}
+
+      {/* Floating indicator for pending changes */}
+      <FloatingChangesIndicator />
+
+      <BackToTop />
     </>
   )
 }

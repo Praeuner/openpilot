@@ -10,6 +10,7 @@ if sys.platform == "darwin" and "SCALE" not in os.environ:
 import pyray as rl
 from openpilot.common.watchdog import kick_watchdog
 from openpilot.system.ui.lib.application import gui_app
+from openpilot.selfdrive.ui.layouts.main import MainLayout
 from openpilot.system.hardware import PC
 from openpilot.selfdrive.ui.ui_state import ui_state
 

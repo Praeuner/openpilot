@@ -75,17 +75,19 @@ function getControlDefaultValue(
 }
 
 export function PanelGroup({ group, state, panelId }: PanelGroupProps) {
-  const params = useParamsStore((store) => store.params)
-  const updateParam = useParamsStore((store) => store.updateParam)
+  const { params, getEffectiveParams, updateParam } = useParamsStore()
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+
+  // Use effective params (with staged changes) for visibility checks
+  const effectiveParams = getEffectiveParams()
 
   // Skip hidden groups
   if (group.hidden) {
     return null
   }
 
-  // Check if any controls in this group are visible
+  // Check if any controls in this group are visible (using effective params for staged changes)
   const hasVisibleControls = useMemo(() => {
     return group.controls.some((control) => {
       // Check if control is hidden in web UI
@@ -93,9 +95,9 @@ export function PanelGroup({ group, state, panelId }: PanelGroupProps) {
         return false
       }
       // Check visibility conditions
-      return isControlVisible(control, state, params)
+      return isControlVisible(control, state, effectiveParams)
     })
-  }, [group.controls, state, params])
+  }, [group.controls, state, effectiveParams])
 
   // Get all resettable controls in the group
   const resettableControls = useMemo(() => {

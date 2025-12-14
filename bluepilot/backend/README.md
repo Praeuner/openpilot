@@ -1,10 +1,10 @@
-# BluePilot Backend Server
+# BluePilot Portal Backend
 
-The BluePilot backend server provides HTTP and WebSocket APIs for route management, video streaming, export/backup functionality, and system monitoring.
+The BluePilot Portal backend provides HTTP and WebSocket APIs for route management, video streaming, export/backup functionality, and system monitoring.
 
 ## Overview
 
-The backend has been refactored from `web_routes_server.py` to `bp_backend_server.py` to support future expansion beyond just routes handling.
+The backend has been refactored from `web_routes_server.py` to `bp_portal.py` to support future expansion beyond just routes handling.
 
 ### Current Capabilities
 
@@ -29,7 +29,7 @@ The backend has been refactored from `web_routes_server.py` to `bp_backend_serve
 
 ```
 bluepilot/backend/
-├── bp_backend_server.py          # Main entry point (NEW)
+├── bp_portal.py                   # Main entry point
 ├── web_routes_server.py           # Legacy implementation (kept for reference)
 ├── config.py                      # Centralized configuration (NEW)
 │
@@ -56,16 +56,16 @@ bluepilot/backend/
 │
 └── handlers/                      # HTTP endpoint handlers
     ├── __init__.py
-    └── export_backup.py           # Export and backup endpoints
+    └── log_downloads.py           # Download qlog/rlog helpers
 ```
 
 ### Process Configuration
 
 The backend server is managed by the openpilot process manager:
 
-**Process Name**: `bp_backend_server` (was `bp_web_routes_server`)
-**Module**: `bluepilot.backend.bp_backend_server`
-**Condition**: Runs when `BPWebServerEnabled` param is true
+**Process Name**: `bp_portal`
+**Module**: `bluepilot.backend.bp_portal`
+**Condition**: Runs when `BPPortalEnabled` param is true
 
 See [process_config.py:198](../../system/manager/process_config.py#L198)
 
@@ -73,7 +73,7 @@ See [process_config.py:198](../../system/manager/process_config.py#L198)
 
 ### Phase 1: Renaming (COMPLETED)
 
-- Created `bp_backend_server.py` as new entry point
+- Created `bp_portal.py` as new entry point
 - Updated process_config.py to use new process name
 - Created modular directory structure (core/, utils/, video/, routes/, realtime/)
 - Extracted initial modules:
@@ -122,7 +122,7 @@ The current implementation delegates to `web_routes_server.py` while providing a
 
 ### Phase 3: Handler Modularization (PLANNED)
 
-Break down the monolithic HTTP handler into focused endpoint handlers, similar to the existing `export_backup.py` pattern.
+Break down the monolithic HTTP handler into focused endpoint handlers, similar to the existing `handlers/` pattern.
 
 ## Development
 
@@ -133,7 +133,7 @@ The server is automatically managed by the openpilot process manager when enable
 Manual testing:
 ```bash
 cd /data/openpilot  # or your openpilot directory
-python3 -m bluepilot.backend.bp_backend_server
+python3 -m bluepilot.backend.bp_portal
 ```
 
 ### Configuration
@@ -197,7 +197,7 @@ The original monolithic implementation (~6000 lines) is kept for reference durin
 - System monitoring
 - WebSocket integration
 
-**Status**: Active (bp_backend_server.py delegates to this)
+**Status**: Active (bp_portal.py delegates to this)
 **Future**: Will be deprecated once modularization is complete
 
 ## Contributing

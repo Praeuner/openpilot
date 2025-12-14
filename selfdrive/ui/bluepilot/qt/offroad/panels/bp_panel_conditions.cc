@@ -225,6 +225,8 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     cereal::CarParams::Reader CP = cmsg.getRoot<cereal::CarParams>();
     return CP.getPcmCruise();
   } else if (conditionType == "hasIntelligentCruiseButtonManagement") {
+    // ICBM active = car supports it (from CarParamsSP) AND user has enabled the toggle
+    // This matches SunnyPilot's hasIntelligentCruiseButtonManagement() logic
     auto cp_sp_bytes = params.get("CarParamsSPPersistent");
     if (cp_sp_bytes.empty()) {
       return false;
@@ -232,9 +234,23 @@ bool PanelConditions::validateSingleCondition(const QString &conditionType, cons
     AlignedBuffer aligned_buf;
     capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
     cereal::CarParamsSP::Reader CP_SP = cmsg.getRoot<cereal::CarParamsSP>();
-    bool has_icbm = CP_SP.getIntelligentCruiseButtonManagementAvailable();
+    bool icbm_available = CP_SP.getIntelligentCruiseButtonManagementAvailable();
+    bool icbm_user_enabled = params.getBool("IntelligentCruiseButtonManagement");
+    bool has_icbm = icbm_available && icbm_user_enabled;
     bool expected = condition.toBool();
     return (has_icbm == expected);
+  } else if (conditionType == "isICBMAvailable") {
+    // ICBM available = car supports it (from CarParamsSP), regardless of user toggle
+    auto cp_sp_bytes = params.get("CarParamsSPPersistent");
+    if (cp_sp_bytes.empty()) {
+      return false;
+    }
+    AlignedBuffer aligned_buf;
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(cp_sp_bytes.data(), cp_sp_bytes.size()));
+    cereal::CarParamsSP::Reader CP_SP = cmsg.getRoot<cereal::CarParamsSP>();
+    bool icbm_available = CP_SP.getIntelligentCruiseButtonManagementAvailable();
+    bool expected = condition.toBool();
+    return (icbm_available == expected);
   } else if (conditionType == "isTiciHardware") {
     return Hardware::TICI();
   } else if (conditionType == "isPcHardware") {

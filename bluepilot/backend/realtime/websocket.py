@@ -38,6 +38,7 @@ class WebSocketEvent:
     SYSTEM_METRICS_UPDATED = 'system_metrics_updated'  # System metrics updated
     LOG_LINE = 'log_line'  # Manager log line
     LOG_STREAM_STATUS = 'log_stream_status'  # Log stream status changed
+    LOG_DOWNLOAD_UPDATE = 'log_download_update'  # qlog/rlog download progress
 
 
 class WebSocketBroadcaster:

@@ -392,7 +392,7 @@
       "max": 2
     },
     {
-      "name": "BPWebServerEnabled",
+      "name": "BPPortalEnabled",
       "default": false,
       "type": "bool",
       "flags": ["PERSISTENT", "BACKUP"],
@@ -400,7 +400,7 @@
       "enabled": true
     },
     {
-      "name": "BPWebServerPort",
+      "name": "BPPortalPort",
       "default": 8088,
       "type": "int",
       "flags": ["PERSISTENT", "BACKUP"],
@@ -408,7 +408,7 @@
       "enabled": true
     },
     {
-      "name": "BPWebServerCrashCount",
+      "name": "BPPortalCrashCount",
       "default": 0,
       "type": "int",
       "flags": ["PERSISTENT"],
@@ -416,7 +416,7 @@
       "enabled": true
     },
     {
-      "name": "BPWebServerLastCrash",
+      "name": "BPPortalLastCrash",
       "default": 0,
       "type": "int",
       "flags": ["PERSISTENT"],

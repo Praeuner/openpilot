@@ -86,13 +86,13 @@ def main():
 
         # Check for web server params
         try:
-            port = params.get("BPWebServerPort")
+            port = params.get("BPPortalPort")
             if port:
-                print(f"✓ BPWebServerPort = {port}")
+                print(f"✓ BPPortalPort = {port}")
             else:
-                print("  BPWebServerPort not set (will default to 8088)")
+                print("  BPPortalPort not set (will default to 8088)")
         except:
-            print("  BPWebServerPort not set (will default to 8088)")
+            print("  BPPortalPort not set (will default to 8088)")
 
     except ImportError:
         print("⚠ Params system not available (normal on dev machines)")

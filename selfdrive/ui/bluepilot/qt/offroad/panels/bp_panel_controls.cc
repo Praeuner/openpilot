@@ -348,7 +348,11 @@ void BPWifiListControl::onConnectToNetwork(const Network n) {
     return;  // Already connected
   }
 
-  if (n.security_type == SecurityType::OPEN) {
+  // Check if this is a known/saved connection first - if so, just activate it
+  // without prompting for password (matches stock networking.cc behavior)
+  if (wifi->isKnownConnection(n.ssid)) {
+    wifi->activateWifiConnection(n.ssid);
+  } else if (n.security_type == SecurityType::OPEN) {
     wifi->connect(n);
   } else {
     QString pass = InputDialog::getText(

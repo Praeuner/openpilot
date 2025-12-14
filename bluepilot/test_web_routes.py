@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple test script for BluePilot Web Routes Server
+Simple test script for BluePilot Portal
 Run this locally to test the server without building the entire project
 
 Usage:
@@ -26,7 +26,7 @@ except ImportError:
         def __init__(self):
             self._params = {
                 "IsOnRoad": b"0",
-                "BPWebServerPort": b"8088"
+                "BPPortalPort": b"8088"
             }
 
         def get_bool(self, key):
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     print()
 
     # Import and run the server
-    from bluepilot.backend.bp_backend_server import main
+    from bluepilot.backend.bp_portal import main
 
     try:
         main()

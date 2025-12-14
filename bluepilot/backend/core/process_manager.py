@@ -11,6 +11,12 @@ import subprocess
 import threading
 from collections import defaultdict
 
+from bluepilot.backend.config import (
+    RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+    RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+    RATE_LIMIT_WINDOW_SECONDS,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,28 +66,23 @@ request_counter = defaultdict(list)
 rate_limit_lock = threading.Lock()
 onroad_request_timestamps = []
 
-# Rate limiting constants (can be overridden)
-MAX_REQUESTS_PER_MINUTE_OFFROAD = 120  # 120 requests per minute per IP when offroad
-MAX_REQUESTS_PER_MINUTE_ONROAD = 6     # 6 requests per minute total when onroad (1 per 10s)
-RATE_LIMIT_WINDOW = 60  # 1 minute window
-
 
 def check_rate_limit(client_ip, is_onroad_func,
-                     max_offroad=MAX_REQUESTS_PER_MINUTE_OFFROAD,
-                     max_onroad=MAX_REQUESTS_PER_MINUTE_ONROAD,
-                     window_seconds=RATE_LIMIT_WINDOW):
+                     max_offroad=RATE_LIMIT_REQUESTS_PER_SECOND_OFFROAD,
+                     max_onroad=RATE_LIMIT_REQUESTS_PER_SECOND_ONROAD,
+                     window_seconds=RATE_LIMIT_WINDOW_SECONDS):
     """
-    Check if client has exceeded rate limit
+    Check if client has exceeded rate limit (per-second burst protection)
 
     Args:
         client_ip: Client IP address
         is_onroad_func: Function that returns True if vehicle is onroad
-        max_offroad: Maximum requests per minute per IP when offroad
-        max_onroad: Maximum requests per minute total when onroad
-        window_seconds: Time window for rate limiting in seconds
+        max_offroad: Maximum requests per second per IP when offroad
+        max_onroad: Maximum requests per second total when onroad
+        window_seconds: Time window for rate limiting (default 1 second)
 
     Returns:
-        tuple: (is_allowed: bool, retry_after: int)
+        tuple: (is_allowed: bool, retry_after_seconds: float)
     """
     current_time = time.monotonic()
     onroad = is_onroad_func()
@@ -94,8 +95,10 @@ def check_rate_limit(client_ip, is_onroad_func,
                                            if current_time - t < window_seconds]
 
             if len(onroad_request_timestamps) >= max_onroad:
-                retry_after = int(window_seconds - (current_time - onroad_request_timestamps[0])) + 1
-                return False, retry_after
+                # Calculate time until oldest request expires
+                oldest = onroad_request_timestamps[0]
+                retry_after = max(0.1, window_seconds - (current_time - oldest))
+                return False, round(retry_after, 1)
 
             onroad_request_timestamps.append(current_time)
             return True, 0
@@ -105,8 +108,10 @@ def check_rate_limit(client_ip, is_onroad_func,
             timestamps[:] = [t for t in timestamps if current_time - t < window_seconds]
 
             if len(timestamps) >= max_offroad:
-                retry_after = int(window_seconds - (current_time - timestamps[0])) + 1
-                return False, retry_after
+                # Calculate time until oldest request expires
+                oldest = timestamps[0]
+                retry_after = max(0.1, window_seconds - (current_time - oldest))
+                return False, round(retry_after, 1)
 
             timestamps.append(current_time)
             return True, 0

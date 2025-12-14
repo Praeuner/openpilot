@@ -7,6 +7,8 @@ import { useState } from 'react'
 import type { ToggleControl as ToggleControlType } from '@/types/panels'
 import { useParamsStore } from '@/stores/useParamsStore'
 import { usePanelStateStore } from '@/stores/usePanelStateStore'
+import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useStagedParam } from '@/hooks/useStagedParam'
 import { getDynamicDescription, getDynamicTitle, getDynamicStyle } from '@/utils/conditionalEvaluator'
 import { ControlCard, ConfirmDialog, ToggleSwitch } from '@/components/common'
 import './ToggleControl.css'
@@ -18,44 +20,54 @@ interface ToggleControlProps {
 }
 
 export function ToggleControl({ control, disabled, disabledReason }: ToggleControlProps) {
-  const { params, updateParam } = useParamsStore()
+  const { params } = useParamsStore()
   const panelState = usePanelStateStore((state) => state.state)
+  const settingsContext = useSettingsContext()
   const [showConfirm, setShowConfirm] = useState(false)
-  const [pendingValue, setPendingValue] = useState<boolean | null>(null)
+  const [pendingToggleValue, setPendingToggleValue] = useState<boolean | null>(null)
 
-  // Get current value
-  const currentValue = params[control.param]?.value
-  const isEnabled = currentValue === true || currentValue === '1' || currentValue === 1
+  // Use staged param hook for change tracking
+  const { value, stageValue } = useStagedParam({
+    param: control.param,
+    controlTitle: control.title,
+    controlType: 'toggle',
+    panelId: settingsContext?.panelId || '',
+    panelName: settingsContext?.panelName || '',
+    groupName: settingsContext?.groupName || '',
+  })
+
+  // Get current value (use staged value if available)
+  const isEnabled = value === true || value === '1' || value === 1
 
   // Get dynamic content
   const title = getDynamicTitle(control, panelState, params)
   const description = getDynamicDescription(control, panelState, params)
   const style = getDynamicStyle(control, panelState, params)
 
-  const handleToggle = async () => {
+  const handleToggle = () => {
     const newValue = !isEnabled
 
     // Show confirmation if required
     if (control.confirm || control.confirmation) {
-      setPendingValue(newValue)
+      setPendingToggleValue(newValue)
       setShowConfirm(true)
       return
     }
 
-    // Otherwise, update immediately
-    await updateParam(control.param, newValue ? '1' : '0')
+    // Otherwise, stage the change
+    stageValue(newValue ? '1' : '0')
   }
 
-  const handleConfirm = async () => {
-    if (pendingValue !== null) {
-      await updateParam(control.param, pendingValue ? '1' : '0')
-      setPendingValue(null)
+  const handleConfirm = () => {
+    if (pendingToggleValue !== null) {
+      stageValue(pendingToggleValue ? '1' : '0')
+      setPendingToggleValue(null)
     }
     setShowConfirm(false)
   }
 
   const handleCancel = () => {
-    setPendingValue(null)
+    setPendingToggleValue(null)
     setShowConfirm(false)
   }
 
@@ -83,15 +95,15 @@ export function ToggleControl({ control, disabled, disabledReason }: ToggleContr
         isOpen={showConfirm}
         onClose={handleCancel}
         onConfirm={handleConfirm}
-        title={`${pendingValue ? 'Enable' : 'Disable'} ${title}`}
+        title={`${pendingToggleValue ? 'Enable' : 'Disable'} ${title}`}
         message={
           control.confirm_text ? (
             <div dangerouslySetInnerHTML={{ __html: control.confirm_text }} />
           ) : (
-            `Are you sure you want to ${pendingValue ? 'enable' : 'disable'} ${title}?`
+            `Are you sure you want to ${pendingToggleValue ? 'enable' : 'disable'} ${title}?`
           )
         }
-        confirmText={control.confirm_yes_text || (pendingValue ? 'Enable' : 'Disable')}
+        confirmText={control.confirm_yes_text || (pendingToggleValue ? 'Enable' : 'Disable')}
         cancelText={control.confirm_no_text || 'Cancel'}
         variant={style?.backgroundColor?.toLowerCase().includes('e22c2c') ? 'danger' : 'warning'}
       />
