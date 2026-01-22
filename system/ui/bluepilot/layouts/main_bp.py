@@ -8,12 +8,19 @@ import pyray as rl
 from enum import IntEnum
 import cereal.messaging as messaging
 from openpilot.selfdrive.ui.ui_state import ui_state, device
-from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
 from openpilot.system.ui.widgets import Widget
 from system.ui.bluepilot.lib.constants import BPConstants
 from system.ui.bluepilot.widgets.sidebar import SidebarBP
 from system.ui.bluepilot.offroad.home_bp import HomeLayoutBP
 from system.ui.bluepilot.settings.settings_bp import BPSettingsLayout, BPPanelType
+
+# Try to import BluePilot enhanced onroad view, fallback to stock
+try:
+    from system.ui.bluepilot.onroad.augmented_road_view_bp import AugmentedRoadViewBP
+    BLUEPILOT_ONROAD = True
+except ImportError:
+    from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView as AugmentedRoadViewBP
+    BLUEPILOT_ONROAD = False
 
 
 class MainState(IntEnum):
@@ -43,11 +50,11 @@ class MainLayoutBP(Widget):
     self._current_mode = MainState.HOME
     self._prev_onroad = False
 
-    # Initialize layouts - using BluePilot home and settings layouts
+    # Initialize layouts - using BluePilot home, settings, and onroad layouts
     self._layouts = {
       MainState.HOME: HomeLayoutBP(),
       MainState.SETTINGS: BPSettingsLayout(),
-      MainState.ONROAD: AugmentedRoadView()
+      MainState.ONROAD: AugmentedRoadViewBP()
     }
 
     # Layout rectangles

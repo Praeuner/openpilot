@@ -47,15 +47,17 @@ class UIStateBP(UIState):
 
     # BluePilot overlay flags
     self.show_hybrid_drive_overlay: bool = False
-    self.hybrid_drive_gauge_size: int = 0
-    self.radar_overlay_size: int = 0
+    self.hybrid_drive_gauge_size: int = 2  # 1=small, 2=medium, 3=large
+    self.radar_overlay_size: int = 2       # 1=small, 2=medium, 3=large
     self.show_hybrid_battery_overlay: bool = False
     self.show_animated_wheel_angle: bool = False
     self.show_bp_radar_overlay: bool = False
     self.show_blindspot_indicators: bool = False
     self.show_stop_indicator_overlay: bool = False
+    self.show_standstill_timer: bool = False
     self.show_gforce_meter: bool = False
     self.show_brake_status: bool = False
+    self.dev_ui_info: int = 0  # 0=off, 1=right panel, 2=right+bottom
 
     # Sidebar visibility
     self.sidebar_visible: bool = True
@@ -118,9 +120,22 @@ class UIStateBP(UIState):
 
       # Overlay flags (read less frequently as they're usually static)
       self.show_hybrid_drive_overlay = self.params_bp.get_bool("ShowHybridDriveOverlay")
+      self.show_hybrid_battery_overlay = self.params_bp.get_bool("ShowHybridBatteryOverlay")
       self.show_bp_radar_overlay = self.params_bp.get_bool("ShowBPRadarOverlay")
       self.show_blindspot_indicators = self.params_bp.get_bool("ShowBlindspotIndicators")
       self.show_stop_indicator_overlay = self.params_bp.get_bool("ShowStopIndicatorOverlay")
+      self.show_standstill_timer = self.params_bp.get_bool("StandstillTimer")
+      self.show_brake_status = self.params_bp.get_bool("ShowBrakeStatus")
+
+      # Dev UI info (debug panels)
+      dev_ui_str = self.params_bp.get("DevUIInfo") or "0"
+      self.dev_ui_info = int(dev_ui_str) if dev_ui_str.isdigit() else 0
+
+      # Overlay size settings
+      gauge_size_str = self.params_bp.get("HybridDriveGaugeSize") or "2"
+      self.hybrid_drive_gauge_size = int(gauge_size_str) if gauge_size_str.isdigit() else 2
+      radar_size_str = self.params_bp.get("RadarOverlaySize") or "2"
+      self.radar_overlay_size = int(radar_size_str) if radar_size_str.isdigit() else 2
 
     except Exception:
       # Silently handle missing params
