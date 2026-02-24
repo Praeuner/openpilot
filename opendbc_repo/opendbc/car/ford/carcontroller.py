@@ -828,22 +828,25 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         self.bpSpeedAllow = False
 
       # Long-control debug for controllerStateBP (log which path and why)
+      # RadarState.leadOne.status: 0 = no lead, 1 = lead
       lead_debug = None
+      has_lead = False
       v_lead_mph_debug = 0.0
       if self.sm.valid.get('radarState', False):
         rs = self.sm['radarState']
         lead_debug = getattr(rs, 'leadOne', None)
-        if lead_debug and getattr(lead_debug, 'status', False):
+        if lead_debug is not None and getattr(lead_debug, 'status', 0) == 1:
+          has_lead = True
           v_lead_mph_debug = float(getattr(lead_debug, 'vLead', 0)) * 2.23694
       gasPressed_debug = CS.out.gasPressed
       brakePressed_debug = CS.out.brakePressed
       apply_bp_long_debug = (
         self.disable_BP_long_UI == False and self.bpSpeedAllow
         and not gasPressed_debug and not brakePressed_debug
-        and (lead_debug is None or v_lead_mph_debug > 40.0)
+        and (not has_lead or v_lead_mph_debug > 40.0)
       )
       self.bp_long_debug_disable_bp_long_ui = self.disable_BP_long_UI
-      self.bp_long_debug_lead_present = (lead_debug is not None)
+      self.bp_long_debug_lead_present = has_lead
       self.bp_long_debug_v_lead_mph = v_lead_mph_debug
       self.bp_long_debug_bp_speed_allow = self.bpSpeedAllow
       self.bp_long_debug_apply_bp_long = apply_bp_long_debug
@@ -851,7 +854,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       # BluePilot longitudinal: gas limits when following + rate-limited accel/brake to avoid stomping.
       if not self.disable_BP_long_UI:
 
-        # Lead time (s) and lead state
+        # Lead time (s) and lead state. leadOne.status: 0 = no lead, 1 = lead.
         v_ego = max(CS.out.vEgo, 0.5)
         lead_time_sec = 999.0  # no lead: treat as far
         lead = None
@@ -860,7 +863,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.sm.valid.get('radarState', False):
           rs = self.sm['radarState']
           lead = getattr(rs, 'leadOne', None)
-          if lead and getattr(lead, 'status', False):
+          if lead is not None and getattr(lead, 'status', 0) != 1:
+            lead = None
+          if lead:
             d_rel = float(getattr(lead, 'dRel', 0))
             v_rel = float(getattr(lead, 'vRel', 0))
             v_lead = float(getattr(lead, 'vLead', 0))  # m/s; schema is vLead (camelCase)
@@ -873,7 +878,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if self.sm.valid.get('radarState', False):
           rs = self.sm['radarState']
           lead = getattr(rs, 'leadOne', None)
-          if lead and getattr(lead, 'status', False):
+          if lead is not None and getattr(lead, 'status', 0) != 1:
+            lead = None
+          if lead:
             d_rel = float(getattr(lead, 'dRel', 0))
             v_rel = float(getattr(lead, 'vRel', 0))
             if d_rel > 0 and v_rel < 0:
@@ -927,6 +934,14 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
           min_follow_gas = op_gas
           max_follow_accel = op_accel
           min_follow_accel = op_accel
+
+        # limits with no lead
+        if lead == 0:
+          max_follow_gas = op_gas
+          min_follow_gas = op_gas
+          max_follow_accel = 0
+          min_follow_accel = 0
+
 
         # apply our bp gas and accel targets
         bp_gas = clip(op_gas, min_follow_gas, max_follow_gas)
