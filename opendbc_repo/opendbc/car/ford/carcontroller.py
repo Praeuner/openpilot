@@ -807,9 +807,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
       accel_pitch_compensated = op_accel + accel_due_to_pitch
       op_brake_actuate = self.op_brake_actuate_last
-      if accel_pitch_compensated > 0.3 or not CC.longActive:
+      if accel_pitch_compensated > self.brake_actuate_release or not CC.longActive:
         op_brake_actuate = False
-      elif accel_pitch_compensated < 0.0:
+      elif accel_pitch_compensated < self.brake_actuate_target:
         op_brake_actuate = True
       # else: keep op_brake_actuate (hysteresis between 0 and 0.3)
 
