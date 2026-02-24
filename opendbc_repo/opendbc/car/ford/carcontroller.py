@@ -21,17 +21,6 @@ from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementIn
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
-
-def _get_T_FOLLOW(personality):
-  """Match long_mpc.get_T_FOLLOW: follow time (s) from driving personality (relaxed/standard/aggressive)."""
-  if personality == log.LongitudinalPersonality.relaxed:
-    return 1.75
-  if personality == log.LongitudinalPersonality.standard:
-    return 1.45
-  if personality == log.LongitudinalPersonality.aggressive:
-    return 1.25
-  return 1.45  # default standard if unknown
-
 def index_function(idx, max_val=192, max_idx=32):
   return (max_val) * ((idx/max_idx)**2)
 
@@ -156,6 +145,13 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.bp_gas_last = 0.0
     self.bp_accel_last = 0.0
     self.bpSpeedAllow = False # initialize to false
+
+    # Long-control debug for controllerStateBP (which path BP vs stock and why)
+    self.bp_long_debug_disable_bp_long_ui = False
+    self.bp_long_debug_lead_present = False
+    self.bp_long_debug_v_lead_mph = 0.0
+    self.bp_long_debug_bp_speed_allow = False
+    self.bp_long_debug_apply_bp_long = False
 
     # Long Control Variables
     self.MAX_URBAN_SPEED_MPH = 45.0
@@ -830,6 +826,27 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         self.bpSpeedAllow = True
       if bpSpeedTooSlow:
         self.bpSpeedAllow = False
+
+      # Long-control debug for controllerStateBP (log which path and why)
+      lead_debug = None
+      v_lead_mph_debug = 0.0
+      if self.sm.valid.get('radarState', False):
+        rs = self.sm['radarState']
+        lead_debug = getattr(rs, 'leadOne', None)
+        if lead_debug and getattr(lead_debug, 'status', False):
+          v_lead_mph_debug = float(getattr(lead_debug, 'vLead', 0)) * 2.23694
+      gasPressed_debug = CS.out.gasPressed
+      brakePressed_debug = CS.out.brakePressed
+      apply_bp_long_debug = (
+        self.disable_BP_long_UI == False and self.bpSpeedAllow
+        and not gasPressed_debug and not brakePressed_debug
+        and (lead_debug is None or v_lead_mph_debug > 40.0)
+      )
+      self.bp_long_debug_disable_bp_long_ui = self.disable_BP_long_UI
+      self.bp_long_debug_lead_present = (lead_debug is not None)
+      self.bp_long_debug_v_lead_mph = v_lead_mph_debug
+      self.bp_long_debug_bp_speed_allow = self.bpSpeedAllow
+      self.bp_long_debug_apply_bp_long = apply_bp_long_debug
 
       # BluePilot longitudinal: gas limits when following + rate-limited accel/brake to avoid stomping.
       if not self.disable_BP_long_UI:
