@@ -1,6 +1,6 @@
 import math
 import cereal.messaging as messaging
-from cereal import log
+from cereal import log, custom
 import numpy as np
 from numpy import clip, interp
 from collections import deque
@@ -20,6 +20,9 @@ from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementIn
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
+
+# DEC state: acc = use Ford brake signals, blended = use OP brake signals
+DecStateAcc = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState.acc
 
 def index_function(idx, max_val=192, max_idx=32):
   return (max_val) * ((idx/max_idx)**2)
@@ -145,6 +148,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.bp_gas_last = 0.0
     self.bp_accel_last = 0.0
     self.bpSpeedAllow = False # initialize to false
+    self.DECisACC = False  # True when DEC is in ACC mode (use Ford brake signals)
 
     # Long-control debug for controllerStateBP (which path BP vs stock and why)
     self.bp_long_debug_disable_bp_long_ui = False
@@ -258,9 +262,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.max_path_offset_change = 0.00125
     self.max_curvature_rate_change = 0.0001
 
-    self.sm = messaging.SubMaster(['modelV2', 'liveParameters', 'selfdriveState', 'radarState'])
+    self.sm = messaging.SubMaster(['modelV2', 'liveParameters', 'selfdriveState', 'radarState', 'longitudinalPlanSP'])
     self.VM = VehicleModel(self.CP)
-    self.curvature_lookup_time = 0.2
+
 
     self.model = None
     self.lp = None
@@ -776,6 +780,16 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     # send acc msg at 50Hz
     v_ego_mph = CS.out.vEgo * 2.23694  # m/s to mph
 
+    # Capture stock ACC values from CAN (ACCDATA on camera bus) into holding variables every frame
+    try:
+      acc_stock = getattr(CS, "acc_stock_values", None)
+      if acc_stock and isinstance(acc_stock, dict):
+        for key in self.stock_acc_values:
+          if key in acc_stock:
+            self.stock_acc_values[key] = acc_stock[key]
+    except (TypeError, AttributeError):
+      pass
+
     if self.CP.openpilotLongitudinalControl and (self.frame % CarControllerParams.ACC_CONTROL_STEP) == 0:
       # First calcualte the stock logic's accel, gas, and brake request
       op_accel = actuators.accel
@@ -825,6 +839,16 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
       # TODO return to this signal later, it might help with highway control, but sending values ford doesn't like causes ACC to cancel.
       self.accel_pred = -5.0  # same as BluePilot branch until safe logic is confirmed
+
+      # get ford equivalents from canbus (from holding variables populated from ACCDATA)
+      ford_accel = self.stock_acc_values["AccBrkTot_A_Rq"]
+
+      # DEC mode: when ACC use Ford brake signals, when blended use OP brake signals
+      if self.sm.valid.get("longitudinalPlanSP", False):
+        self.DECisACC = self.sm["longitudinalPlanSP"].dec.state == DecStateAcc
+      else:
+        self.DECisACC = False
+
 
       # Speed deadband for BP long: engage above 50 mph, disallow below 45 mph; 45–50 keeps current state to avoid oscillation.
       bpSpeedTooSlow = v_ego_mph < self.MAX_URBAN_SPEED_MPH
@@ -952,7 +976,8 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
         # apply our bp gas and accel targets
         bp_gas = clip(op_gas, min_follow_gas, max_follow_gas)
-        bp_accel = clip(op_accel, min_follow_accel, max_follow_accel)
+        # bp_accel = clip(op_accel, min_follow_accel, max_follow_accel)
+        bp_accel = ford_accel
 
         # now let's apply some rate limits, not much, just try to dampen the initial hit when braking
         # but only apply the limits if there is no imminent chance of a collision
@@ -974,10 +999,10 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         brakePressed = CS.out.brakePressed
 
         # When we have a lead, require lead speed > 40 mph so we don't coast into a traffic jam; when no lead, allow BP long
-        apply_bp_long = (self.disable_BP_long_UI == False) and (self.bpSpeedAllow) and (gasPressed == False) and (brakePressed == False) and (lead is None or v_lead_mph > 40.0)
+        apply_bp_long = (self.disable_BP_long_UI == False) and (self.bpSpeedAllow) and (gasPressed == False) and (brakePressed == False) and self.DECisACC
 
         if apply_bp_long and CC.longActive:
-          accel = bp_accel
+          accel = op_accel if lead is None else bp_accel
           gas = bp_gas
           brake_actuate = bp_brake_actuate
           precharge_actuate = bp_precharge_actuate

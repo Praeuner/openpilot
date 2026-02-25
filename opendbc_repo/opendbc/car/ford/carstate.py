@@ -171,6 +171,12 @@ class CarState(CarStateBase, MadsCarState, CarStateExt):
     self.acc_tja_status_stock_values = cp_cam.vl["ACCDATA_3"]
     self.lkas_status_stock_values = cp_cam.vl["IPMA_Data"]
 
+     # Stock ACC values from ACCDATA (camera bus) for optional use in longitudinal control
+    try:
+      self.acc_stock_values = cp_cam.vl["ACCDATA"]
+    except (KeyError, TypeError):
+      self.acc_stock_values = {}
+
     MadsCarState.update_mads(self, ret, can_parsers)
     CarStateExt.update(self, ret, ret_sp, can_parsers)
 
