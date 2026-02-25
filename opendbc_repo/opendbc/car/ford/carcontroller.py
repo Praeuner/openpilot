@@ -163,6 +163,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.precharge_actuate_target = -0.12 # at what accel limit do we engage precharge
     self.precharge_actuate_release = -0.06 # at what accel limit do we release precharge
     self.op_brake_actuate_last = False # init the value for our hysteresis
+    self.disable_downhill_comp_UI = True #flag to disable downhill pitch compensation
 
     # # Curvature variables
     self.curvature_lookup_time = 0.42 #from lagd
@@ -287,6 +288,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.LC_PID_gain_UI = float(self.params.get("LC_PID_gain_UI", return_default=True))
     # Ford long: bypass BP longitudinal toggle (gas/accel ROC use __init__ defaults only)
     self.disable_BP_long_UI = self.params.get_bool("disable_BP_long_UI")
+    self.disable_downhill_comp_UI = self.params.get_bool("disable_downhill_comp_UI")
 
   def handle_post_lane_change_transition(self, path_angle, path_offset, desired_curvature_rate):
     """
@@ -800,6 +802,11 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       accel_due_to_pitch = 0.0
       if len(CC.orientationNED) == 3:
         accel_due_to_pitch = math.sin(CC.orientationNED[1]) * ACCELERATION_DUE_TO_GRAVITY
+
+      # some ford vehicles have downhill compensation built in, adding in accel_due_to_pitch is double dipping, creating harsh braking downhill
+      if self.disable_downhill_comp_UI:
+          if accel_due_to_pitch < 0:
+              accel_due_to_pitch = 0
 
       accel_pitch_compensated = op_accel + accel_due_to_pitch
       op_brake_actuate = self.op_brake_actuate_last

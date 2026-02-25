@@ -40,6 +40,7 @@ class BluePilotLayoutMici(NavWidget):
     self.hide_border = BigParamControlBP("hide screen border", "mici_hide_onroad_border")
     self.disable_BP_lat = BigParamControlBP("disable BP lateral control", "disable_BP_lat_UI")
     self.disable_BP_long = BigParamControlBP("bypass BP longitudinal control", "disable_BP_long_UI")
+    self.disable_dowhill_comp = BigParamControlBP("disable downhill compensation", "disable_downhill_comp_UI")
     self.ui_debug_log = BigParamControlBP("ui debug logging", "BPUIDebugLog")
     self.vbatt_pause_charging = BigParamFloatControl("12V battery limit", "vbatt_pause_charging", min=11.0, max=14.0, step=0.1)
 
@@ -84,6 +85,7 @@ class BluePilotLayoutMici(NavWidget):
       self.vbatt_pause_charging,
       self.disable_BP_lat,
       self.disable_BP_long,
+      self.disable_dowhill_comp,
       self.ui_debug_log,
     ], snap_items=False)
 
@@ -101,6 +103,7 @@ class BluePilotLayoutMici(NavWidget):
       ("custom_profile", self.custom_profile),
       ("disable_BP_lat_UI", self.disable_BP_lat),
       ("disable_BP_long_UI", self.disable_BP_long),
+      ("disable_downhill_comp_UI", self.disable_dowhill_comp),
       ("BPAnimateSteeringWheel", self.animate_steering_wheel),
       ("BPUIDebugLog", self.ui_debug_log),
       ("mici_hide_onroad_fade", self.hide_fade),
