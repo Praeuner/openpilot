@@ -150,6 +150,12 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.bpSpeedAllow = False # initialize to false
     self.DECisACC = False  # True when DEC is in ACC mode (use Ford brake signals)
 
+    # Stock ACC holding variables (from CAN ACCDATA when available; for optional use in long control)
+    self.stock_acc_values = {
+      "AccBrkTot_A_Rq": 0.0,
+    }
+
+
     # Long-control debug for controllerStateBP (which path BP vs stock and why)
     self.bp_long_debug_disable_bp_long_ui = False
     self.bp_long_debug_lead_present = False
