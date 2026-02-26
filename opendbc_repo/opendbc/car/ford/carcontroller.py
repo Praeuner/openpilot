@@ -1041,7 +1041,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       if gas != CarControllerParams.INACTIVE_GAS:
         accel_pred_send = gas
       else:
-        accel_pred_send = 0
+        accel_pred_send = accel
 
       if brakePressed:
           accel_pred_send = 0
