@@ -1037,11 +1037,14 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       if gas != CarControllerParams.INACTIVE_GAS:
         gas = float(clip(gas, CarControllerParams.MIN_GAS, CarControllerParams.ACCEL_MAX))
 
-
+      # set accel pred value
       if gas > 0:
         accel_pred_send = gas
       else:
         accel_pred_send = accel
+
+      if CC.longActive == False or gasPressed or brakePressed:
+          accel_pred_send =  gas = CarControllerParams.INACTIVE_GAS
 
       can_sends.append(fordcan.create_acc_msg(
         self.packer, self.CAN, CC.longActive, gas, accel, accel_pred_send, stopping,
