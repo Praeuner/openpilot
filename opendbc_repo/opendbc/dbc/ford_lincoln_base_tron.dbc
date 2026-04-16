@@ -1,0 +1,2820 @@
+VERSION ""
+
+NS_ :
+
+BS_:
+
+BU_: IPMA_ADAS PSCM ABS_ESC PCM GWM BCM TCCM Vector__XXX
+
+BO_ 65 Msg_0x041: 8 Vector__XXX
+ SG_ immoControlCmd_T1 : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 66 Msg_0x042: 8 Vector__XXX
+ SG_ immoControlCmd_T2 : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 73 Msg_0x049: 8 Vector__XXX
+ SG_ immoSubTarget1Cmd_T1 : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 90 DesiredTorqBrk_TRON: 9 Vector__XXX
+ SG_ TrnGearButtn_B_ActlN0 : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlM2 : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlM1 : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlM0 : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlD2 : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlD1 : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlD0 : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BrkSwtchPos_B_ActlGsm : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlR2 : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlR1 : 14|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlR0 : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlP2 : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlP1 : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlP0 : 10|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlN2 : 9|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_B_ActlN1 : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearButtn_U_Actl : 16|8@0+ (0.05,0) [0|12.75] "" Vector__XXX
+ SG_ TrnValidGearRq_D_Stat : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnGearRqCnt_B_Actl : 29|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGear_D_RqDrv : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ TrnGear_No_Cs : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ DrQltyDrv_D_StatGsm : 45|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrnBtsiOvrrd_B_Stat : 44|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGear_No_Cnt : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnRng_D_RqGsm : 52|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ GsmGearMsgTxt_D_Rq : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 92 Msg_0x05C: 8 Vector__XXX
+ SG_ TrnGear_D_RqPt : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrnNtrlTowCmd_D_Actl : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnCmdCnt_B_Actl : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearCmd_Pc_ActlPt : 14|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ TrnValidGear_D_Cnfm : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnGearCmd_No_Cnt : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnGearCmd_No_Cs : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TrnGearMsgTxt_D_Rq : 35|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ PrkBrkActv_D_RqTrnGear : 33|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnCmdState_B_Actl : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ GearSelLck_D_Rq : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnDtpCmd_D_Actl : 41|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrnGearNtmAllow_B_Stat : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 116 Msg_0x074: 8 Vector__XXX
+ SG_ BrkStopLamp_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StopLamp_B_RqBrk_EF : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 117 Msg_0x075: 8 Vector__XXX
+ SG_ BrkLamp_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrvSlipCtlLamp_D_Rq_EF : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvAntiLckLamp_D_Rq_EF : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BrkLamp_B_Rq_EF : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkYwLamp_D_Rq_EF : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkBrkRedLamp_D_Rq_EF : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvSlipCtlOffLamp_D_Rq_EF : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 118 BrakeData_TRON: 8 ABS_ESC
+ SG_ StopLamp_B_RqBrk : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrvSte_D_Stat : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ EmgcyBrkLamp_D_Rq : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvSte_Tq_Rq : 24|8@0+ (0.0625,-8) [-8|7.9375] "" Vector__XXX
+ SG_ BrkTerrMde_D_Actl : 33|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BrkTerrMdeChng_D_Rdy : 49|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 119 BrakeSnData_TRON: 8 ABS_ESC
+ SG_ VehOverGnd_V_Est : 0|16@0+ (0.01,0) [0|655.35] "" Vector__XXX
+ SG_ VehYawComp_W_Actl : 20|12@0+ (0.03663,-75) [-75|74.9999] "" Vector__XXX
+ SG_ VehLatComp_A_Actl : 44|10@0+ (0.035,-17.9) [-17.9|17.905] "" Vector__XXX
+ SG_ VehLongComp_A_Actl : 54|10@0+ (0.035,-17.9) [-17.9|17.905] "" Vector__XXX
+
+BO_ 125 BrakeSnData_4: 8 ABS_ESC
+ SG_ BrkTot_Tq_RqArb : 3|13@0+ (4,0) [0|32764] "" Vector__XXX
+ SG_ HsaStat_D_Actl : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BrkTotTqRqArb_No_Cs : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ BrkTot_Tq_Actl : 28|13@0+ (4,0) [0|32764] "" Vector__XXX
+ SG_ BrkTotTqRqArb_No_Cnt : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehVertComp_A_Actl : 42|10@0+ (0.035,-17.9) [-17.9|17.905] "" Vector__XXX
+
+BO_ 126 SteeringPinion_Data: 8 PSCM
+ SG_ StePinRelInit_An_Sns : 0|16@0+ (0.1,-3200) [-3200|3353.5] "" Vector__XXX
+ SG_ StePinComp_An_Est : 17|15@0+ (0.1,-1600) [-1600|1676.7] "" Vector__XXX
+ SG_ StePinAn_No_Cs : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ StePinCompAnEst_D_Qf : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ StePinAn_No_Cnt : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 127 Msg_0x07F: 8 Vector__XXX
+ SG_ AwdLck_Tq_RqMn : 28|12@0+ (1,0) [0|4095] "" Vector__XXX
+
+BO_ 129 SteWhlSwtch_TRON: 8 Vector__XXX
+ SG_ SteWhlSwtchDown_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchLeft_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchRght_B_Stat : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchUp_B_Stat : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchOk_B_Stat : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteEffortInc_B_RqDrv : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeInc_B_RqDrv : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeDec_B_RqDrv : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchSet_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchPhon_B_Stat : 14|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchNav_B_Stat : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchMed_B_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchHud_B_Stat : 10|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchBack_B_Stat : 9|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PoliceAux2Swtch_B_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PoliceAux1Swtch_B_Stat : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchMenu_B_Stat : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteWhlSwtchView_B_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeSwtch3_D_Stat4 : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeSwtch2_D_Stat4 : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeSwtch1_D_Stat4 : 26|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PoliceAux4Swtch_B_Stat : 25|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PoliceAux3Swtch_B_Stat : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngExhMdeQuiet_B_RqDrv2 : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 130 EPAS_INFO_TRON: 9 PSCM
+ SG_ EPAS_Failure : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvSteActv_B_Stat : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteMdule_I_Est : 18|12@0+ (0.05,-64) [-64|140.75] "" Vector__XXX
+ SG_ VehVTrlrAid_B_Rq : 30|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SteMdule_U_Meas : 32|8@0+ (0.05,6) [6|18.75] "" Vector__XXX
+ SG_ DrvSte_Tq_Actl : 40|8@0+ (0.0625,-8) [-8|7.9375] "" Vector__XXX
+ SG_ SteMdule_D_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Veh_V_RqMxTrlrAid : 56|8@0+ (0.1,0) [0|25.5] "" Vector__XXX
+
+BO_ 131 Steering_Data_FD1: 8 Vector__XXX
+ SG_ WiprFront_D_Stat : 4|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TurnLghtSwtch_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LghtAmb_D_Sns : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CcAslButtnDeny_B_Actl : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LaSwtchPos_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AhbStat_B_Dsply : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HeadLghtHiOn_B_StatAhb : 37|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HeadLghtHiFlash_D_Actl : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ HeadLghtHiCtrl_D_RqAhb : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ WiprFrontSwtch_D_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TurnLghtSwtch_D_Arb : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 132 Clock_Data_TRON: 8 ABS_ESC
+ SG_ GlblClkDay_No_Actl : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ GlblClkMnte_No_Actl : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ GlblClkScnd_No_Actl : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ GlblClkHr_No_Actl : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 272 VehicleOperatingModes: 8 Vector__XXX
+ SG_ StePersFeatVal_No_Rq : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ StePersSrvc_D_Rq : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ StePersIndx_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ StePersSrvcId_No_Rq : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 276 Msg_0x114: 10 Vector__XXX
+ SG_ DrPersFeat_No_Actl : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ DrPersFeatVal_No_Actl : 32|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ DrPersFeatCnt_No_Actl : 51|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DrPersSrvcId_No_Actl : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrPersSrvc_D_Res : 58|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrPersChng_D_Stat : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrPersIndx_D_Stat : 64|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 277 Msg_0x115: 9 Vector__XXX
+ SG_ DrPersFeat_No_Rq : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ DrPersFeatVal_No_Rq : 32|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ DrPersSrvc_D_Rq : 51|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrPersIndx_D_Rq : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrPersSrvcId_No_Rq : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 281 Msg_0x119: 8 Vector__XXX
+ SG_ BrkPersFeat_No_Rq : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BrkPersFeatVal_No_Rq : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BrkPersSrvc_D_Rq : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BrkPersIndx_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 303 Msg_0x12F: 8 Vector__XXX
+ SG_ CanMsg12F_No_Crc : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CanMsg12F_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrStatHood_D2_Actl : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrChildLckPw_No_Actl : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchExtFr_No_Actl : 27|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchExtFl_No_Actl : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchExtRr_No_Actl : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchExtRl_No_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchInnrFr_No_Actl : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchInnrFl_No_Actl : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchInnrRr_No_Actl : 51|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchInnrRl_No_Actl : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 333 Msg_0x14D: 8 Vector__XXX
+ SG_ VehElAvgTrip2_Eff2_Dsply : 11|11@0+ (1,-200) [-200|1847] "" Vector__XXX
+ SG_ VehElEffTrip_No2_Dsply : 22|11@0+ (1,-200) [-200|1847] "" Vector__XXX
+ SG_ VehElEffAvg_No2_Dsply : 33|11@0+ (1,-200) [-200|1847] "" Vector__XXX
+
+BO_ 342 Msg_0x156: 8 Vector__XXX
+ SG_ EngClnt_Te_Actl : 0|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ EngOil_Te_Actl : 8|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ EngGoutLss_Tq_Est : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ EngClntTe_D_Qf : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EngOvrhtMitgActv_D_Ind : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 357 EngBrakeData: 9 PCM
+ SG_ AccEngStat_D_Actl : 5|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CmbbDeny_B_ActlPrpl : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BpedDrvAppl_D_Actl : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CcOvrrdActv_B_Actl : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbEngTqMn_B_Actl : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CcStat_D_Actl : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CcMde_D_Actl : 10|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Veh_V_DsplyCcSet : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ AccStopMde_D_Rq : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrplTqMnSat_B_Actl : 46|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngAout_N_MnAllw : 51|13@0+ (2,0) [0|16382] "" Vector__XXX
+
+BO_ 358 Msg_0x166: 8 Vector__XXX
+ SG_ AutoStopPtDelta_I_Est : 0|8@0+ (1,-127) [-127|128] "" Vector__XXX
+ SG_ StopStrtMsgTxt_D_Rq : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StopStrtDrvMde_D_Indic : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ HiElPwInhbt_B_Stat : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OdoTripVerify_L_Actl : 24|24@0+ (0.1,0) [0|1677721.525] "" Vector__XXX
+ SG_ StopStrtIODTxt_D_Rq : 51|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ StopStrtStdby_D_Indic : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 359 EngVehicleSpThrottle2: 8 PCM
+ SG_ PlgActvArb_B_Actl : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ElPw_D_Stat : 4|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwPckTq_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Eng_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrplWhlTot2_Tq_Actl : 8|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ PrplWhlRgenMn_Tq_Actl : 30|13@0+ (4,-16380) [-16380|16384] "" Vector__XXX
+ SG_ LscmbbDeny_B_ActlPrpl : 28|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ElPw_D_StatStrtStop : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnAin_Tq_Actl : 45|11@0+ (1,-500) [-500|1547] "" Vector__XXX
+ SG_ TrnAinTq_D_Qf : 43|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 360 Msg_0x168: 8 Vector__XXX
+ SG_ PrkBrkActv_D_RqGsmGear : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GearButtnStuck_B_Actl : 9|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnGearPwmFalt_B_Actl : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkButtnDStat_No_Cnt : 19|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkBrkButtn_D_Stat : 17|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GsmSrvcRqd_B_Rq : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 369 Msg_0x171: 8 Vector__XXX
+ SG_ TrnIpcDsplyGear_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnIpcDsplyMde_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnIpcDsplyGear_D_Actl : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnIpcDsplyRng_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SeatWorkSrfc_B_Falt : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnIpcDsplyMde_D_Actl : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrnIpcDsplyRng2_D_Actl : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnIpcDsplyMdeDActl_No_Cs : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 374 Gear_Shift_by_Wire_FD1: 8 PCM
+ SG_ GearPos_D_Actl : 4|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ GearLvr_D_ActlDrv : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ GearPos_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ GearPos_D_Trg : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ GearPos_No_Cs : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TrnRng_D_Rq : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnPrkSys_D_Actl : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnIgnOffDly_T_Rq : 32|8@0+ (4,0) [0|1020] "" Vector__XXX
+ SG_ GearEngag_D_Actl : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 376 Msg_0x178: 8 Vector__XXX
+ SG_ HvacHtrCore2_Te_Actl : 6|10@0+ (0.25,-50) [-50|205.75] "" Vector__XXX
+ SG_ AslIconDsply_D_Rq : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DynoMde_B_Cmd : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngAout_Aa_Actl : 22|10@0+ (0.05,-25.6) [-25.6|25.55] "" Vector__XXX
+ SG_ GasPrtc_D_RqDsply : 17|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ AirAmb_Te_Actl : 38|10@0+ (0.25,-128) [-128|127.75] "" Vector__XXX
+ SG_ AirAmbTe_D_Qf : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AslChime_B_Rq : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AirAmb_Te_ActlFilt : 54|10@0+ (0.25,-128) [-128|127.75] "" Vector__XXX
+ SG_ AirAmb_P_Actl : 48|6@0+ (10,500) [500|1130] "" Vector__XXX
+
+BO_ 377 Msg_0x179: 8 Vector__XXX
+ SG_ EngSrvcRqd_B_Rq : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HvacAirFullOut_B_Rq : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FuelFillInlet_B_Dsply : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngOilLife_Pc_Actl : 32|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ FuelFlw_Vl_Dsply : 54|10@0+ (25,0) [0|25575] "" Vector__XXX
+ SG_ AirCondClutch_B_Stats : 52|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AirCondRec_B_Rq : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 381 Msg_0x17D: 8 Vector__XXX
+ SG_ EngOilSrvcMsgTxt_D_Rq : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 382 Msg_0x17E: 9 Vector__XXX
+ SG_ EngInnrClnt_Te_Actl : 0|7@0+ (1,50) [50|177] "" Vector__XXX
+ SG_ EngMnfldChrg_Te_Actl : 8|7@0+ (1,-20) [-20|107] "" Vector__XXX
+ SG_ DcacOut1_Pw2_Dsply : 16|13@0+ (1,0) [0|8191] "" Vector__XXX
+ SG_ DcacOut2_Pw2_Dsply : 32|13@0+ (1,0) [0|8191] "" Vector__XXX
+ SG_ DcacOut_E_Tot : 48|16@0+ (20,0) [0|1310700] "" Vector__XXX
+
+BO_ 389 Msg_0x185: 8 Vector__XXX
+ SG_ HtrnSrvcRqd_B_Dsply : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HtrnOvrTeLamp_B_Dsply : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HtrnMil_D_Rq : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTrac_I_EstVsc : 16|15@0+ (0.05,-750) [-750|888.35] "" Vector__XXX
+ SG_ HtrnHvilOpen_B_Actl : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HtrnAin_UHi_Actl : 32|10@0+ (0.5,0) [0|511.5] "" Vector__XXX
+ SG_ DrvCondTpRrDefrs_B_Rq : 54|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PreCondActv_B_Actl : 53|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 390 ACCDATA: 8 IPMA_ADAS
+ SG_ AccAutoResum_D_Rq : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AccPrpl_A_Pred : 22|10@0+ (0.01,-5) [-5|5.23] "" Vector__XXX
+ SG_ AccVeh_V_Trg : 39|9@0+ (0.5,0) [0|255.5] "" Vector__XXX
+ SG_ AccResumEnbl_B_Rq : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccStopStat_B_Rq : 37|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkPulse_B_Rq : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbDeny_B_Actl : 34|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkPrkEl_B_Rq : 33|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccCancl_B_Rq : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccPrpl_A_Rq : 54|10@0+ (0.01,-5) [-5|5.23] "" Vector__XXX
+ SG_ Cmbb_B_Enbl : 53|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbOvrrd_B_RqDrv : 52|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbEngTqMn_B_Rq : 51|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccDeny_B_Rq : 50|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkPrchg_B_Rq : 49|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkDecel_B_Rq : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 391 ACCDATA_2: 8 IPMA_ADAS
+ SG_ CmbbBrkDecel_No_Cs : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CmbbBrkDecel_A_Rq : 11|13@0+ (0.0039,-20) [-20|11.9449] "" Vector__XXX
+ SG_ CmbbBaSens_D_Rq : 9|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CmbbBrkDecel_B_Rq : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HudDsplyIntns_No_Actl : 24|8@0+ (0.5,0) [0|127.5] "" Vector__XXX
+ SG_ HudBlk3_B_Rq : 34|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HudBlk1_B_Rq : 53|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HudBlk2_B_Rq : 52|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HudFlashRate_D_Actl : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CmbbBrkPrchg_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 394 ACCDATA_3: 9 IPMA_ADAS
+ SG_ AccStopMde_B_Dsply : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HaDsply_No_Cnt : 3|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ FcwMsgTxt_D_Rq : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ FcwAudioWarn_B_Rq : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FcwDeny_B_Dsply : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CadsAlignIncplt_B_Actl : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FcwMemStat_B_Actl : 10|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbPostEvnt_B_Dsply : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccFllwMde_B_Dsply : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FcwMemSens_D_Actl : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CadsRadrBlck_B_Actl : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccMsgTxt_D2_Rq : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ AccTGap_D_Dsply : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ AccTGap_B_Dsply : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccMemEnbl_B_RqDrv : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccWarn_D_Dsply : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AccStopStat_D_Dsply : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Tja_D_Stat : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ IaccLamp_D_Rq : 41|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FcwVisblWarn_B_Rq : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TjaWarn_D_Rq : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TjaMsgTxt_D_Dsply : 50|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ AccStopRes_B_Dsply : 49|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HaDsply_No_Cs : 56|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 396 Msg_0x18C: 8 Vector__XXX
+ SG_ CamraPersFeatVal_No_Act : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ CamraPersFeatCnt_No_Act : 35|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ CamraPersSrvcId_No_Act : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CamraPersSrvc_D_Res : 42|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CamraPersChng_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 397 Msg_0x18D: 8 Vector__XXX
+ SG_ CamraPersFeatVal_No_Rq : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ CamraPersIndx_D_Rq : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CamraPersSrvc_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CamraPersSrvcId_No_Rq : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 399 Msg_0x18F: 8 Vector__XXX
+ SG_ PtPersFeatVal_No_Rq : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ PtPersSrvcId_No_Rq : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PtPersIndx_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PtPersSrvc_D_Rq : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 465 Msg_0x1D1: 8 Vector__XXX
+ SG_ StlnVeh1_D_ResLim : 0|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ StlnVeh2_D_StatLim : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ StlnVeh2_D_ResLim : 8|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Fleet1_D_StatLim : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Fleet1_D_ResLim : 16|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Fleet2_D_StatLim : 29|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Fleet2_D_ResLim : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ HwyVLim_B_Stat : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CtyVLim_B_Stat : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SecMdeLim_B_Stat : 37|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkLotVLim_B_Stat : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwPckInhbtLim_B_Stat : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrplLim_B_Stat : 34|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VflCstmLim_B_Stat : 33|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VflCstmVLim_B_Stat : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PadlShifPullDual_B_St : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ NnMtvMdeLim_B_Stat : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 469 Msg_0x1D5: 8 Vector__XXX
+ SG_ StlnVeh1_D_RqLim : 2|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ StlnVeh_D_RqLimActvtn : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ StlnVeh2_D_RqLim : 10|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Fleet_D_RqLimActvtn : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Fleet1_D_RqLim : 16|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Fleet2_D_RqLim : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 512 Msg_0x200: 8 Vector__XXX
+ SG_ PrplWhlTot_Tq_LimMn : 16|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ PrplWhlTot_Tq_Rq : 32|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ PrplWhlTotTqRq_No_Cnt : 52|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PtDrvMde_D_Stat : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 514 Cluster_Info1_FD1: 9 PCM
+ SG_ StrtrMtrCtlMsgTxt_D2_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GearRvrse_D_Actl : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ StrtrMtrCtlMsgTxt_D_Rq : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VehVActlEng_No_Cs : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehVActlEng_No_Cnt : 17|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehVTrlrAid_B_Avail : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Veh_V_RqCcSet : 39|9@0+ (0.5,0) [0|255.5] "" Vector__XXX
+ SG_ VehVActlEng_D_Qf : 33|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Veh_V_ActlEng : 48|16@0+ (0.01,0) [0|655.35] "" Vector__XXX
+
+BO_ 516 EngVehicleSpThrottle: 8 Vector__XXX
+ SG_ ApedPos_Pc_ActlArb : 6|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ ApedPosPcActl_No_Cnt : 2|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApedPosPcActl_D_Qf : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApedPos_PcRate_ActlArb : 16|8@0+ (0.04,-5) [-5|5.2] "" Vector__XXX
+ SG_ EngAout_N_Actl : 27|13@0+ (2,0) [0|16382] "" Vector__XXX
+ SG_ ApedPosPcActl_No_Cs : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 517 Msg_0x205: 8 Vector__XXX
+ SG_ BrkTot_Tq_RqFapLc : 0|13@0+ (4,0) [0|32764] "" Vector__XXX
+ SG_ TrnAin_Pc_RqDrv : 14|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+
+BO_ 524 Msg_0x20C: 8 Vector__XXX
+ SG_ PrplWhlTot_Tq_RqMxAwd : 0|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ PrplWhlTotTqRqMxAwd_No_Cnt : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 528 Msg_0x210: 8 Vector__XXX
+ SG_ TireFront_P_OffRoad1 : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TireFront_P_OffRoad2 : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TireRear_P_OffRoad1 : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TireRear_P_OffRoad2 : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ HazrdLghtMde_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwCabnMde_D_Stat : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ OffRoadMde_D_Stat : 33|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TireInflateMsgTxt_B_Rq : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SilentMde_B_Stat : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehNotConfgd_D_Rq : 45|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CrashCrtsy_B_Rq : 44|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DelvrAsstButtn_D_Stat : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DelvrAsstLckMde_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ KeylessIdl_D_Stat : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrmtrAlrmCrtsy_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 530 Msg_0x212: 9 Vector__XXX
+ SG_ OfbChrgSetDelete_B_Rq : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OfbChrgLocIdUns_B_Rq : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OfbChrgPrflWkdy_No_Rq : 8|24@0+ (1,0) [0|16777215] "" Vector__XXX
+ SG_ OfbChrgPrflWknd_No_Rq : 32|24@0+ (1,0) [0|16777215] "" Vector__XXX
+ SG_ OfbChrgToPcWknd_D_Actl : 61|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ OfbChrgToPcWkdy_D_Actl : 58|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ OfbChrgSetNow_D_Rq : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 531 BrakeStatus_TRON: 8 ABS_ESC
+ SG_ PrplWhlTot_Tq_RqMx : 0|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ LscmbBrkPrchg_B_Actl : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LscmbbMntr_B_Err : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LscmbbDeny_B_ActlBrk : 21|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LscmbbBrkDis_B_Actl : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LscmbbBrkDecel_B_Actl : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LscmbbBaSensInc_B_Actl : 18|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccStopActv_B_ActlBrk : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ StabCtlBrkActv_B_Actl : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkRedLamp_D_Rq : 25|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TracCtlPtActv_B_Actl : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccDis_B_ActlEpb : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkMsgTxt_D_Rq : 35|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkBrkYwLamp_D_Rq : 33|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehLongOvrGnd_A_Est : 46|10@0+ (0.035,-17.9) [-17.9|17.905] "" Vector__XXX
+ SG_ AccBrkDeny_B_Actl : 45|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkActv_B_Actl : 44|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkDis_B_Actl : 43|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AbsActv_B_Actl : 42|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrplDrgCtlActv_B_Actl : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CcDis_B_Cmd : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbBrkDis_B_Actl : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbBaSensInc_B_Actl : 62|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbBrkDecel_B_Actl : 61|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbBrkPrchg_B_Actl : 60|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CmbbDeny_B_ActlBrk : 59|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkPrchgActv_B_Actl : 58|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkTotTqMn_B_Actl : 57|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AccBrkWarm_B_Actl : 56|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 532 Msg_0x214: 9 Vector__XXX
+ SG_ PrplWhlTot_Tq_RqMn : 0|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+ SG_ PrplWhlTqRqMn_No_Cs : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ RgenBrkDynoMde_B_Actl : 61|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrplWhlTqRqMn_No_Cnt : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 534 Msg_0x216: 8 Vector__XXX
+ SG_ WhlRotatFr_No_Cnt : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WhlRotatFl_No_Cnt : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WhlRotatRr_No_Cnt : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WhlRotatRl_No_Cnt : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WhlDirRr_D_Actl : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WhlDirFl_D_Actl : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WhlDirFr_D_Actl : 34|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WhlDirRl_D_Actl : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BrkObdIndex_No_Actl : 50|6@0+ (1,0) [0|63] "" Vector__XXX
+
+BO_ 535 Msg_0x217: 8 Vector__XXX
+ SG_ WhlFl_W_Meas : 1|15@0+ (0.01,0) [0|327.67] "" Vector__XXX
+ SG_ WhlFr_W_Meas : 17|15@0+ (0.01,0) [0|327.67] "" Vector__XXX
+ SG_ WhlRl_W_Meas : 33|15@0+ (0.01,0) [0|327.67] "" Vector__XXX
+
+BO_ 539 Msg_0x21B: 8 Vector__XXX
+ SG_ NfcDevcCmd_No_Actl : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ NfcDevcTapId_No_Actl : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ NfcDevcDetct_D_Stat : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ NfcDevcPair_D_Stat : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NfcDevc_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NfcDevcKeyType_D_Stat : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NfcDevcTap1_No_Rq : 27|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ NfcDevc_D_Cmd : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ NfcDevcSearchId_No_Actl : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ DgtlKeyType_D_Stat : 43|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NfcDevcSrch1_No_Actl : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ NfcDevcAuthrz_T_Actl : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 540 Msg_0x21C: 8 Vector__XXX
+ SG_ NfcDevcTapMsg_No_Crc : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ NfcDevcTapMsg_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ NfcDevcTapPrd_B_Stat : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ NfcDevcTap2_No_Rq : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 541 Msg_0x21D: 8 Vector__XXX
+ SG_ NfcDevcSearch_B_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NfcFctryKeySrch_B_Rq : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ NfcDevcSrch2_No_Actl : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 550 Cluster_Info_3_FD1: 8 Vector__XXX
+ SG_ PwBus01Type_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus01Src_B_Rq : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus01Id_No_Actl : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus01_D_Rq : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus03Src_B_Rq : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus02Type_B_Rq : 14|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus02Src_B_Rq : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus02Id_No_Actl : 10|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus02_D_Rq : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus04_D_Rq : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus03Type_B_Rq : 21|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus03Id_No_Actl : 18|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus03_D_Rq : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus05Src_B_Rq : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus05_D_Rq : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus04Type_B_Rq : 28|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus04Src_B_Rq : 27|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus04Id_No_Actl : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ThrnSrvcSrc_B_Rq : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus10_D_Rq : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus05Type_B_Rq : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus05Id_No_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ThrnSrvcId_No_Rq : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ThrnSrvc_D_Rq : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 560 Msg_0x230: 8 Vector__XXX
+ SG_ TrnShifActv_B_Actl : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrnSrvcRqd_B_Rq : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ GearLvrPos_D_Actl : 11|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ BtsiShifInhbt_B_RqTrn : 10|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CleanerHeater_D_Stat : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GboxOil_Te_Actl : 32|8@0+ (1,-60) [-60|195] "" Vector__XXX
+
+BO_ 561 Msg_0x231: 8 Vector__XXX
+ SG_ TrnMsgTxt_D_Rq : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 563 Msg_0x233: 8 Vector__XXX
+ SG_ NtfyDrvTrgtDist_L2_Rq : 16|13@0+ (0.1,0) [0|819.1] "" Vector__XXX
+
+BO_ 570 Msg_0x23A: 8 Vector__XXX
+ SG_ SuspFrnt_L_Actl : 0|9@0+ (0.782779,-200) [-200|200] "" Vector__XXX
+ SG_ SuspFrnt_L_Prev : 9|9@0+ (0.782779,-200) [-200|200] "" Vector__XXX
+ SG_ SuspRear_L_Actl : 18|9@0+ (0.782779,-200) [-200|200] "" Vector__XXX
+ SG_ SuspRear_L_Prev : 27|9@0+ (0.782779,-200) [-200|200] "" Vector__XXX
+ SG_ SuspFrntRight_L_Actl : 36|9@0+ (0.782779,-200) [-200|200] "" Vector__XXX
+
+BO_ 571 Msg_0x23B: 8 Vector__XXX
+ SG_ TrlrTngLoad_M_Est : 0|11@0+ (10,-10240) [-10240|10230] "" Vector__XXX
+ SG_ VehPayloadAdd_M_Est : 11|11@0+ (5,-5115) [-5115|5120] "" Vector__XXX
+ SG_ VehPayload_M_Est : 22|10@0+ (5,0) [0|5115] "" Vector__XXX
+ SG_ TrlrTngLoad_Pc_Est : 32|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ VehPayload_Pc_Est : 48|7@0+ (1,0) [0|127] "" Vector__XXX
+
+BO_ 573 Msg_0x23D: 9 Vector__XXX
+ SG_ NfcDevcSearch_No_Rq : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ NfcDevcSearch_B_Rq : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehStrtKeyIndx_No_Actl : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ Esclck_D_RqLimActvtn : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehStrtKeyType_D_Stat : 27|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehStrtKeySrc_D_Stat : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Esclck1DRqLim_No_Cs : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehOnOff_D_RqDrv : 45|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Esclck1_D_RqLim : 40|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ NfcFctryKeySrch_No_Res : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Esclck2_D_RqLim : 48|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Esclck1DRqLim_No_Cnt : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 578 Msg_0x242: 9 Vector__XXX
+ SG_ EngOff_T_Actl : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BattULo_I_Actl : 18|14@0+ (0.0625,-512) [-512|511.938] "" Vector__XXX
+ SG_ PrkLckCtl_B_Enbl : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BrkTrnShifLck_B_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULo_U_Actl : 32|8@0+ (0.0625,0) [0|15.9375] "" Vector__XXX
+ SG_ PrkLckCtlAvail_T_Stat : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ FuelPumpPwr_D_Stat : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DcacElPw_D_Rq : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkLckCtlMsgTxt_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkLckCtlUnlck_D_Stat : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkLckCtlTow_B_Enbl : 60|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ReFuelSwtchStat_D_Actl : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 602 Msg_0x25A: 8 Vector__XXX
+ SG_ PtcHtrRun_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ObdEngStdy_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngStrtSrvc_B_Allw : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattTracRsrvSoc_Pc_Rq : 8|14@0+ (0.01,0) [0|163.83] "" Vector__XXX
+ SG_ CoolFan_D_Rq : 25|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ PwPckTqRdy_B_Dsply : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HtrnAin_N_RqMxPrtct : 35|13@0+ (2,0) [0|16382] "" Vector__XXX
+
+BO_ 603 Msg_0x25B: 9 Vector__XXX
+ SG_ FuelCtlOpenLp_B_Inhbt : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ WhlDirAvgDrv_D_Actl : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrplTqMnRgen_B_Actl : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngAout_Tq_RqFst : 21|11@0+ (1,-500) [-500|1547] "" Vector__XXX
+ SG_ BattTracCnnct_D_Rq : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EngDiag_D_RqHtrn : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ EngAout_N_Spc : 35|13@0+ (2,0) [0|16382] "" Vector__XXX
+ SG_ EDrvTqMntrRconfg_D_Cmd : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PrplWhlTot_Tq_Cmd : 48|16@0+ (4,-131072) [-131072|131068] "" Vector__XXX
+
+BO_ 606 Msg_0x25E: 8 Vector__XXX
+ SG_ OnePdlDrvBrk_D_Rq : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ElVehNowMde_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ElVehLaterMde_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 611 Msg_0x263: 9 Vector__XXX
+ SG_ AwdSrvcRqd_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Awd2wdLamp_D_RqDsply : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ NtrlTowAvail_B_Stat : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AwdRnge_D_Actl : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ AwdLck_Tq_Rq : 8|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ AwdAutoLamp_D_RqDsply : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AwdHiLamp_D_RqDsply : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AwdOffRoadMode_D_Stats : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AwdLck_D_Stat : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ AwdLoLamp_D_RqDsply : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnAout_Tq_RqMx : 40|13@0+ (1,-1250) [-1250|6941] "" Vector__XXX
+ SG_ AwdStat_D_RqDsply : 56|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 615 Msg_0x267: 8 Vector__XXX
+ SG_ PwBus03_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus02_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus01_D_Res : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus01_D_Arb : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus01_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus02_D_Res : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus02_D_Arb : 11|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus01_No_Res : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus03_D_Res : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus03_D_Arb : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus02_No_Res : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus05_B_Stat : 30|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus04_D_Arb : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus04_B_Stat : 27|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus03_No_Res : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus05_D_Arb : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus04_No_Res : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus04_D_Res : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus05_No_Res : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus05_D_Res : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 616 Msg_0x268: 8 Vector__XXX
+ SG_ PaakTrgtPssvData_No_Rq : 0|40@0+ (1,0) [0|1.099511628e+12] "" Vector__XXX
+ SG_ PaakTrgtPreAuthrz_B_Rq : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PaakTrgtRollCode_No_Rq : 43|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PaakTrgtData_D_Rq : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PaakTrgtZone_D_Rq : 51|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PaakTrgtType_D_Rq : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 617 Msg_0x269: 8 Vector__XXX
+ SG_ PaakTrgtActvData_No_Rq : 0|40@0+ (1,0) [0|1.099511628e+12] "" Vector__XXX
+ SG_ PaakAddEraseIndx_No_Actl : 42|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ PaakAddErase_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PaaKMyKeyChng_D_Stat : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 622 Msg_0x26E: 8 Vector__XXX
+ SG_ FobCtlPssvData_No_Actl : 0|40@0+ (1,0) [0|1.099511628e+12] "" Vector__XXX
+ SG_ FobCtlRollCode_No_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 625 Msg_0x271: 8 Vector__XXX
+ SG_ NfcSerial_D_Rq : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PaakSerial_D2_Rq2 : 2|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ModemAuthrz_D_Stat2 : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 636 Msg_0x27C: 9 Vector__XXX
+ SG_ WifiHtsptCrdntl_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ WifiHtsptEnbl_D_Stat : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WifiEnbl_D_Stat : 3|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WifiDevcListNew_B_Stat : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ WifiDataUsage_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ModemSigStren_D_Stat : 12|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ WifiHtsptVisbl_D_Stat : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WifiHtsptScrty_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WifiDataUsage_Pc_Actl : 19|4@0+ (5,50) [50|125] "" Vector__XXX
+ SG_ WifiHtsptCnnct_D_Stat : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WifiDataUsageOn_D_Stat : 27|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ModemTechnology_D2_Stat : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Telematics_D_Falt : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ WifiNoDevcCnnct_No_Actl : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WifiHtspt_D_Falt : 52|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ WifiHtsptFq_D_Avail : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 638 Msg_0x27E: 8 Vector__XXX
+ SG_ EmgcyCallCancl_T_Actl : 3|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ EmgcyCall_D_Stat : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ EmgcyCallFalt_B_Dsply : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 639 Msg_0x27F: 8 Vector__XXX
+ SG_ OfbTrgtSocOvrrd_D_Rq : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 650 Msg_0x28A: 8 Vector__XXX
+ SG_ GridSrvc01_D_Rq : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Bpt_D_StatEvse : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ BptStrtStop_D_RqCld : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BptDly_T_RqCld : 8|6@0+ (0.5,0) [0|31.5] "" Vector__XXX
+ SG_ BptTgl_D_Rq : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BptMde_D_RqCld : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BptComm_D_Stat : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BptMnSoc_L_RqCld : 24|13@0+ (0.1,0) [0|819.1] "" Vector__XXX
+ SG_ BptIsol_D_Stat : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BptTglCnt_No_Rq : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 651 Msg_0x28B: 8 Vector__XXX
+ SG_ EmgcyCallMute_D_Stat : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TelematicsSrvc_D_St : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 655 Msg_0x28F: 8 Vector__XXX
+ SG_ EvseDchrg_I_Mx : 0|15@0+ (0.05,0) [0|1638.35] "" Vector__XXX
+ SG_ EvseDchrg_Pw_Mx : 15|15@0+ (50,0) [0|1638350] "" Vector__XXX
+ SG_ EvseChrgOutHi_I_ActlBpt : 30|15@0+ (0.05,-750) [-750|888.35] "" Vector__XXX
+
+BO_ 673 Msg_0x2A1: 8 Vector__XXX
+ SG_ ICI_BtnID_A : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ICI_BtnID_B : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ICI_BtnID_C : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ICI_BtnID_D : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ICI_Coding_BtnID_B : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ICI_Coding_BtnID_A : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ICI_Coding_BtnID_C : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 774 Msg_0x306: 9 Vector__XXX
+ SG_ ScLocLattPostv_B_RqCld : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ScLocId_No_RqCld : 1|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ScLocDelete_B_RqCld : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ScLocLattDeg_An_RqCld : 8|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ ScLocLattFrct_An_RqCld : 16|20@0+ (9.999999975e-07,0) [0|1.04857] "" Vector__XXX
+ SG_ ScLocLongFrct_An_RqCld : 36|20@0+ (9.999999975e-07,0) [0|1.04857] "" Vector__XXX
+ SG_ ScLocLongDeg_An_RqCld : 56|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 775 Msg_0x307: 8 Vector__XXX
+ SG_ ScChrgDur_T_RqCld : 0|11@0+ (1,0) [0|2047] "" Vector__XXX
+ SG_ ScLocSetId_No_RqCld : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ScChrgDurSet_D_RqCld : 11|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ScChrgPrfl_No_RqCld : 16|24@0+ (1,0) [0|16777215] "" Vector__XXX
+ SG_ ScChrgToPc_Pc_RqCld : 40|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ ScLocRdius_L_RqCld : 48|7@0+ (100,0) [0|12700] "" Vector__XXX
+
+BO_ 776 Msg_0x308: 8 Vector__XXX
+ SG_ ScFreshDataEnbl_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ChrgToPcEdit_Pc_RqCld : 0|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ PrcondEdit_D_RqCld : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ GoTEditHr_T_RqCld : 8|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ AirAmb_Te_ActlCld : 16|10@0+ (0.25,-128) [-128|127.75] "" Vector__XXX
+ SG_ ScEnbl_D_RqCld : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GoTEditMnte_T_RqCld : 26|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ScChrgrPwMax_Pw_RqCld : 32|12@0+ (50,0) [0|204750] "" Vector__XXX
+ SG_ ScLocPwId_No_RqCld : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 785 Msg_0x311: 9 Vector__XXX
+ SG_ BattTracLoThres_D_Stat : 5|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BattTracLoSoc_D_Dsply : 3|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTracLoMsgTxt_D_Rq : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DestSocRqd_Pc_Dsply : 8|8@0+ (0.5,0) [0|127.5] "" Vector__XXX
+ SG_ PwPckTqRdyChime_B_Rq : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DestChrgEndMin_No_Actl : 16|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ RgenAnimation_B_Dsply : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EcoIdl_D_Stat : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DestChrgEndHr_No_Actl : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ BattElecPerf_D2_Actl : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DestChrgEndDay_No_Actl : 32|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DteVehOffstMsgTxt_D_Rq : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DteVehOffst_L_Dsply : 48|13@0+ (0.1,-400) [-400|419.1] "" Vector__XXX
+ SG_ VehVLimMsgTxt_B_Rq : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattTracLimPerf_D_Dsply : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 786 Msg_0x312: 9 Vector__XXX
+ SG_ VehElRnge_L2_Dsply : 20|13@0+ (0.1,0) [0|819.1] "" Vector__XXX
+ SG_ PtDataKeyId_D_Stat : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ RgenTrip_Pc_Dsply : 38|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ ChrgStat_D_Dsply : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RgenTrip_L_Dsply : 48|16@0+ (0.1,0) [0|6553.5] "" Vector__XXX
+
+BO_ 788 Msg_0x314: 8 Vector__XXX
+ SG_ EcoCochATrip1_Pc_Dsply : 0|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochATrip2_Pc_Dsply : 8|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochCrus1_Pc_Dsply : 16|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochCrus2_Pc_Dsply : 24|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochDecel1_Pc_Dsply : 32|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+
+BO_ 810 Msg_0x32A: 8 Vector__XXX
+ SG_ DteCldAcceptData_B_Rq : 59|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 817 Msg_0x331: 9 Vector__XXX
+ SG_ Power_Liftgate_Rqst : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Power_Decklid_Rqst : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ L_Pwr_Sliding_Dr_Rqst : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FobComm_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Keyfob_Pad_Msg_Count : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ DrTgateExtSwMde_B_Stat : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Veh_Lock_Status : 37|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WindowLockout_B_Stat : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ R_Pwr_Sliding_Dr_Rqst : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Lockmsgtxt_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Veh_Lock_EvNum : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ Remote_Device_Feedback : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Veh_Lock_Requestor : 48|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ VehLckInd_D_Rq : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrTgateOpen_B_Rq : 60|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Veh_Lock_Sub_Id : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 818 Msg_0x332: 8 Vector__XXX
+ SG_ WndwDrvSide_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ KeyCylSwDrvDr_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Driver_Lock_Sw_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChildLckPw_D_Rq : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ChildLckFdbckRd_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Driver_Lock_Sw_Cnt : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ChildLckPw_N_Cnt : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ DrvSpotLight_B_Stat : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ WndwUpDrvFront_D_Falt : 43|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RvrseMirrorChime_B_Rq : 42|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrPrsntRearDrv_D_Stat : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrPrsntDrv_D_Stat : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 819 Msg_0x333: 8 Vector__XXX
+ SG_ Memory_1_SwPsngr_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ WndwPsngrSide_D_Stat : 3|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Pasngr_Lock_Sw_Stat : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChildLckFdbckRp_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Pasngr_Lock_Sw_Cnt : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ WndwUpPsngrRear_D_Falt : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwUpPsngrFront_D_Falt : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Memory_3_SwPsngr_Stat : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Memory_2_SwPsngr_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RollCode_No_ActlPdm : 24|16@0+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 820 Msg_0x334: 8 Vector__XXX
+ SG_ HeadLghtHiOn_B_StatHcm : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TurnLampFrOut_B_Stat : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TurnLampFlOut_B_Stat : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Adaptive_Hdlmp_Fault : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HeadLghtDrvSide_B_Stat : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AhbStatGfhbFdbk_D_Actl : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 824 Msg_0x338: 9 Vector__XXX
+ SG_ DteCldBattULo_Eff_Actl : 0|8@0+ (10,-1000) [-1000|1550] "" Vector__XXX
+ SG_ DteCldClimt_Eff_Actl : 8|8@0+ (10,-1000) [-1000|1550] "" Vector__XXX
+ SG_ DteCldPayload_B_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldId_No_Actl : 18|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DteCldExtTe_B_Stat : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldDcac_B_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldDrv_Eff_Actl : 24|8@0+ (10,-1000) [-1000|1550] "" Vector__XXX
+ SG_ DteCldExt_Eff_Actl : 32|8@0+ (10,-1000) [-1000|1550] "" Vector__XXX
+ SG_ DteCldCompltRoute_B_Rq : 42|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldTrlrOn_B_Stat : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldTrlrOff_B_Stat : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldTrip_L2_Actl : 51|13@0+ (0.1,0) [0|819.1] "" Vector__XXX
+ SG_ DteCldTraffic_B_Stat : 50|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldTerrain_B_Stat : 49|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DteCldRoute_B_Stat : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 826 Msg_0x33A: 8 Vector__XXX
+ SG_ Mirror_Manual_Override : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Memory_2_Sw_Stat : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Memory_1_Sw_Stat : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 827 Msg_0x33B: 8 Vector__XXX
+ SG_ LghtAmbIntns_D_Sns : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SteClmnSwtchTlt_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SteClmnSwtchTel_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LghtAmb_Intns_Sns : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 828 Msg_0x33C: 8 Vector__XXX
+ SG_ SpotLghtRight_D_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SpotLghtLeft_D_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 830 Msg_0x33E: 9 Vector__XXX
+ SG_ DrPrpsCodeBec_No_Res : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrAuthntctnCode_No_RqBec : 32|32@0+ (1,0) [0|4294967295] "" Vector__XXX
+
+BO_ 837 Msg_0x345: 8 Vector__XXX
+ SG_ CcdMsgTxt_D_RqDsply : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ AdptDrvMdeChassis_D_Rq : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VdmSustnActv_B_Rq : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeSusp_D_Stat : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AdptDrvMdePt_D_Rq : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Ccd_B_Falt : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehCurb_M_Actl : 44|10@0+ (5,0) [0|5115] "" Vector__XXX
+ SG_ VehGvwr_M_Actl : 54|10@0+ (10,0) [0|10230] "" Vector__XXX
+
+BO_ 869 Cluster_HEV_Data2: 8 Vector__XXX
+ SG_ EngPwLvl_Pc_Dsply : 6|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ EngActv_B_Dsply : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EffWhlThresOn_B_Dsply : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ChrgActv_B_Dsply : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DchrgActv_B_Dsply : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RgenActv_B_Dsply : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EffWhlLvl2_Pc_Dsply : 22|10@0+ (0.2,-102.2) [-102.2|102.4] "" Vector__XXX
+ SG_ FuelMaintMde_D_Dsply : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EffEAvg_Pc_Dsply : 38|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ EngOnMsg1_D_Dsply : 33|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ EffWhlThres_Pc_Dsply : 54|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ EngOnMsg2_D_Dsply : 49|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ EngOffTe_B_Dsply : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 870 Msg_0x366: 8 Vector__XXX
+ SG_ EffRgenThres_Pc_Dsply : 14|10@0+ (0.1,-102.3) [-102.3|-1.527369022e-06] "" Vector__XXX
+
+BO_ 872 Msg_0x368: 8 Vector__XXX
+ SG_ HybMdeStat_D_Dsply : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 874 Msg_0x36A: 9 Vector__XXX
+ SG_ BattChlrShrtGrnd_D_Falt : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattChlrShrtBatt_D_Falt : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattChlrOpnCirct_D_Falt : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattChlrLifeLim_D_Falt : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTracShrtGrnd_D_Falt : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTracShrtBatt_D_Falt : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTracOpnCirct_D_Falt : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattTracLifeLim_D_Falt : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondCluOpen_D_Falt : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondCluLife_D_Falt : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondCluGnd_D_Falt : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondCluBatt_D_Falt : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus06_D_Arb : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus06_B_Stat : 29|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattTracLow_D_Falt : 27|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondClu_D_Stat : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus07_No_Res : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus07_D_Arb : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus06_No_Res : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus09_B_Stat : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus08_No_Res : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus08_D_Arb : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus08_B_Stat : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus07_B_Stat : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ThrnSrvcId_No_Actl : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus09_No_Res : 50|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus09_D_Arb : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ThrnSrvc_D_Res : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 877 Msg_0x36D: 8 Vector__XXX
+ SG_ PwFlwFuelClimt_B_Dsply : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwFlwFuelBatt_B_Dsply : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwFlwBattClimt_B_Dsply : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwFlwBatt_D_Dsply : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PwFlwFuelDrv_D_Dsply : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RngImpctClim_L_Dsply : 23|9@0+ (1,-255) [-255|256] "" Vector__XXX
+ SG_ VehElEffAvg_No_Dsply : 16|7@0+ (10,-100) [-100|1170] "" Vector__XXX
+ SG_ RngImpctDrv_L_Dsply : 32|9@0+ (1,-255) [-255|256] "" Vector__XXX
+
+BO_ 878 Msg_0x36E: 9 Vector__XXX
+ SG_ DcacGfciTest_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DcacElPw_D_Stat : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBedPnlEnbl_B_Rq : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DcacOn_B_Rq : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DcacSys_B_Falt : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DcacLedCtl_D_Rq : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DcacHw_D_Confg : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DcacOut_Pw_DsplyMx : 16|10@0+ (10,0) [0|10230] "" Vector__XXX
+ SG_ DcacLoFuelMsgTxt_D_Rq : 26|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DcacOut1_Pw_Dsply : 32|7@0+ (100,0) [0|12700] "" Vector__XXX
+ SG_ DcacOut2_Pw_Dsply : 40|7@0+ (100,0) [0|12700] "" Vector__XXX
+ SG_ EngExhMdeHrStrt_D_Stat : 50|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DcacEngOnMsgTxt_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LowFuelDsplyType_B_Rq : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EngExhMdeHrEnbl_D_Stat : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EngExhMdeHrEnd_D_Stat : 56|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 879 Msg_0x36F: 8 Vector__XXX
+ SG_ WndwRearHeat_D_Stat : 11|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 885 Msg_0x375: 8 Vector__XXX
+ SG_ CanMsg375_No_Crc : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CanMsg375_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehOn_D_RqCld : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehOnRqstr_D_Stat : 18|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehStrtInhbt_D_RqCld : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 894 Msg_0x37E: 8 Vector__XXX
+ SG_ RmtCtlBody_D_Stat : 3|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ RmtCtl_D_RqBody : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RmtCtlTrgt_D_Rq : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlRngSet_D_Stat : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlKeySrch_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 909 Msg_0x38D: 8 Vector__XXX
+ SG_ KeyMykeyTot_No_Cnt : 4|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyAdmnTot_No_Cnt : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Keycode_Status : 8|20@0+ (1,0) [0|1048575] "" Vector__XXX
+ SG_ SteWhlLckMsgTxt_D_Rq : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PEBackupSlot_Stats : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrmtrAlrmEvnt_D_Stat : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ immoMsgTxt_D_Rq : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrsnlDevcChrgEnbl_B_Rq : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrLatchMsgTxt_D_Rq : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TracKeyMde_D_Stat : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SecurityMsgTxt_D_Rq : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TurnLghtSwtch_D_Stat2 : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ HeadLghtHiPrmsn_D_Stat : 52|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PoliceIdlMde_D_Stat : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ HazrdLght_B_Stat : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IgnPsswrdDsply_B_Rq : 62|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ElPwPoint_D_Rq : 60|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 912 Msg_0x390: 8 Vector__XXX
+ SG_ BattChlrSov_D_Stat : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CabnEvapSovFront_D_Stat : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ GearPrkLck_D_Stat : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BattTracClntVlv_D_Stat : 27|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ GearPrkMtr_D_Stat : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus07_D_Res : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus06_D_Res : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus08_D_Res : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 929 Msg_0x3A1: 8 Vector__XXX
+ SG_ DrLckCnt_No_ActlBalrl : 2|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrLckActv_B_RqBalrl : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CamraRearOn_B_RqBalrl : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrMdeSelLeft_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft_D_Stat : 13|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BalrLckLeft_B_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrWndwLeft_B_Stat : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrSnsLeft_D_Falt : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BalrMdeLeft_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwPsngrRear_D_RqBalrl : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwPsngr_D_RqBalrl : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwDrvRear_D_RqBalrl : 26|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwDrv_D_RqBalrl : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 930 Msg_0x3A2: 8 Vector__XXX
+ SG_ BalrChimeRight_D_Rq : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrLckCnt_No_ActlBalrr : 2|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrLckActv_B_RqBalrr : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CamraRearOn_B_RqBalrr : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrMdeSelRight_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight_D_Stat : 13|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BalrLckRight_B_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrSnsRight_D_Falt : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BalrMdeRight_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwPsngrRear_D_RqBalrr : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwPsngr_D_RqBalrr : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwDrvRear_D_RqBalrr : 26|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WndwDrv_D_RqBalrr : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 931 Msg_0x3A3: 8 Vector__XXX
+ SG_ EngStrt_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrvInCtl_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IgnPreOffActv_B_Stat : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CrnkInhbt_No_Cnt : 1|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CrnkInhbt_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CrnkInhbt_No_Cs : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ AdvStrt_No_Stat : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StrtrMtrCtlDStat_No_Cs : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PtWakeReas_D_Stat : 33|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ EngStrtActv_B_Stat : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 932 Msg_0x3A4: 8 Vector__XXX
+ SG_ CanMsg3A4_No_Crc : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CanMsg3A4_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehOnSrc2_D_Stat : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ChildLck_D_Dsply : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehInhbtMde_D_Stat : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VehOnCtl_D_Stat : 17|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehStrtInhbt_D_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 934 Side_Detect_L_Stat: 8 IPMA_ADAS
+ SG_ CtaAlrtLeft2_D_Stat : 30|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ CtaBrkLeftMsgTxt_B_Rq : 42|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ CtaLeftBrkDecel_B_Rq : 7|1@0+ (1,0) [0|1] "SED"  GWM,ABS_ESC
+ SG_ CtaLeftBrkEnbl_B_Rq : 31|1@0+ (1,0) [0|1] "SED"  GWM,ABS_ESC
+ SG_ Side_Detect_L_Illum : 39|8@0+ (1,0) [0|255] "Percent"  GWM
+ SG_ BttLeft_D_Stat : 45|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ BttLeft_D_RqDrv : 47|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ CtaSnsLeft_D_Stat : 25|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ SodDetctLeft_D_Stat : 23|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ CtaLeft_D_Stat : 18|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ CtaAlrtLeft_D_Stat : 8|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ SodLeft_D_Stat : 15|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ SodSnsLeft_D_Stat : 12|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ SodAlrtLeft_D_Stat : 10|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ SodWarnLeft_Prd_Rq : 6|7@0+ (1,0) [0|127] "millisecond"  GWM
+
+BO_ 935 Side_Detect_R_Stat: 8 IPMA_ADAS
+ SG_ SodRight_D_Stat : 15|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ CtaAlrtRight2_D_Stat : 30|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ BttRight_D_Stat : 45|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ BttRight_D_RqDrv : 47|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ CtaBrkRightMsgTxt_B_Rq : 42|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ CtaRightBrkEnbl_B_Rq : 31|1@0+ (1,0) [0|1] "SED"  GWM,ABS_ESC
+ SG_ CtaRightBrkDecel_B_Rq : 7|1@0+ (1,0) [0|1] "SED"  GWM,ABS_ESC
+ SG_ Side_Detect_R_Illum : 39|8@0+ (1,0) [0|255] "Percent"  GWM
+ SG_ CtaSnsRight_D_Stat : 25|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ CtaAlrtRight_D_Stat : 8|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ CtaRight_D_Stat : 18|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ SodSnsRight_D_Stat : 12|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ SodAlrtRight_D_Stat : 10|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ SodDetctRight_D_Stat : 23|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ SodWarnRight_Prd_Rq : 6|7@0+ (1,0) [0|127] "millisecond"  GWM
+
+BO_ 936 Msg_0x3A8: 9 Vector__XXX
+ SG_ ApaTrgtDist_D_Stat : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaMsgTxt_D_Rq : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaActvSide2_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaAcsy_D_RqDrv : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaChime_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaScan_D_Stat : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaLongCtl_D_RqDrv : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaGearShif_D_RqDrv : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSteScanMde_D_Stat : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaSelSapp_D_Stat : 52|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaSelPpa_D_Stat : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaSelPoa_D_Stat : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaButtnPrssd_B_Stat : 61|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSteWhl_D_RqDrv : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 937 Msg_0x3A9: 8 Vector__XXX
+ SG_ FapLcDistToObj_L_Actl : 0|8@0+ (0.01,0) [0|2.55] "" Vector__XXX
+ SG_ TrnRng_D_RqFap : 12|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrnRngDRqFap_No_Cnt : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnRngDRqFap_No_Cs : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 938 Msg_0x3AA: 9 Vector__XXX
+ SG_ FpaChime_D_Rq : 4|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ RpaChime_D_Rq : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSwtch_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkAidAudioMute_B_Rq : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkAidMsgTxt_D_Rq : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkBrkEl_B_RqFap : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaMde_D_Stat : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PrkAidSnsFlCrnr_D_Stat : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsFlCntr_D_Stat : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsFrCntr_D_Stat : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsFrCrnr_D_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SidePrkSnsL2_D_Stat : 52|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SidePrkSnsL1_D_Stat : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SidePrkSnsR1_D_Stat : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 939 Msg_0x3AB: 9 Vector__XXX
+ SG_ ApaLongCtrlEnbl_D_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkAidFront_D_Stat : 5|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkAidChime_D_Stat : 3|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkAid_D_Falt : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PrkAidSnsRlCrnr_D_Stat : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsRlCntr_D_Stat : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsRrCntr_D_Stat : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidSnsRrCrnr_D_Stat : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidLamp_D_Rq : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SidePrkSnsL3_D_Stat : 34|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PrkAidRear_D_Stat : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SidePrkSnsL4_D_Stat : 44|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SidePrkSnsR3_D_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaBrk_D_Rq : 52|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SidePrkSnsR4_D_Stat : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaBrk_A_Rq : 56|8@0+ (0.05,-12.75) [-12.75|1.899898052e-07] "" Vector__XXX
+
+BO_ 942 Msg_0x3AE: 8 IPMA_ADAS
+ SG_ PrkAidRdiusLeft_L_Dsply : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PrkAidRdiusRight_L_Dsply : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ApaControlMode_D_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkAidAcsyRear_D_Stat : 21|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkAidAcsyFront_D_Stat : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PrkAidDrvDir_D_Stat : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaParkInSel_B_Avail : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaMsgTxt_D2_Stat : 27|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaDynmcSlot_B_Stat : 26|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaDisplayMode_D_Stat : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ApaSys_D2_Stat : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaSlotTrgt_D_Stat : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ApaDrvRq1MsgTxt_D_Rq : 45|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSlotOption_B_Avail : 44|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotAlrtSet_B_Stat : 43|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotAlrt_B_Rq : 42|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaRmtFeatSel_B_Avail : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaParkOutSel_B_Avail : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkElRleas_B_RqApa : 53|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaDrvRq2MsgTxt_D_Rq : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 943 Msg_0x3AF: 8 IPMA_ADAS
+ SG_ Veh_V_ActlAdas : 0|14@0+ (0.01,0) [0|163.83] "" Vector__XXX
+ SG_ Veh_V_RqLsc : 16|14@0+ (0.01,0) [0|163.83] "" Vector__XXX
+ SG_ AdasLcDistToObj_L_Actl : 32|12@0+ (0.002,0) [0|8.19] "" Vector__XXX
+
+BO_ 944 Msg_0x3B0: 8 Vector__XXX
+ SG_ InhbtGlblClkDay_No_Rq : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ InhbtGlblClkHr_No_Rq : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ InhbtGlblClkMnte_No_Rq : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ InhbtGlblClkScnd_No_Rq : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ InhbtGlblClkAdj_B_Rq : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 945 Msg_0x3B1: 8 Vector__XXX
+ SG_ PrkLckCtlMsgTxt_D2_Rq : 5|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PrkLckCtlLatch_B_Rq : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ KeyOffMde_D_Actl : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt2_D_Dsply : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt1_D_Dsply : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt4_D_Dsply : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt3_D_Dsply : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt6_D_Dsply : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyPadCodeDgt5_D_Dsply : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ PwLoApim_T_Actl : 37|11@0+ (1,0) [0|2047] "" Vector__XXX
+ SG_ KeyPadCodeDgt7_D_Dsply : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DelvrAsstMsgTxt_D_Rq : 52|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StrtrMtrCtlMsgTxt_D_Rq2 : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrMatChime_B_Rq : 58|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BrkPtsActv_B_Stat : 56|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 947 BodyInfo_3_FD1: 9 Vector__XXX
+ SG_ DrStatTgate_B_Actl : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FogLghtRearOn_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Parklamp_Status : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Ignition_Status : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TurnLghtLeft_D_Rq : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BodySrvcRqd_B_Rq : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Key_In_Ignition_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Remote_Start_Status : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Day_Night_Status : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DimmingLvlEvnt_No_Actl : 21|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrStatDrvErrCnt_B_Stat : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Backlit_LED_Status : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Dimming_Lvl : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ FuelPmpInhbt_B_Stat : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CrashEvnt_D_Stat : 37|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TurnLghtRightOn_B_Stat : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IgnKeyType_D_Actl : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrStatRl_B_Actl : 55|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrStatRr_B_Actl : 54|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LifeCycMde_D_Actl : 50|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TurnLghtLeftOn_B_Stat : 49|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PrkBrkActv_B_Actl : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FogLghtFrontOn_B_Stat : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Delay_Accy : 62|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrStatInnrTgate_B_Actl : 61|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrStatHood_B_Actl : 60|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrStatPsngr_B_Actl : 59|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrStatDrv_B_Actl : 58|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TurnLghtRight_D_Rq : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 948 Msg_0x3B4: 8 Vector__XXX
+ SG_ TirePReset_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Tire_Press_Telltale : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Tire_Press_System_Stat : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_RF_Stat : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_LF_Stat : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_LR_OLR_Stat : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_RR_ORR_Stat : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_ILR_Stat : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_IRR_Stat : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Press_Placrd_Frnt : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ Tire_Press_Placrd_Rear : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TlghtTestLght_D2_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 949 Msg_0x3B5: 9 Vector__XXX
+ SG_ Tire_Press_LF_Data : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ Tire_Press_RF_Data : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ Tire_Press_LR_OLR_Data : 48|16@0+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 950 Msg_0x3B6: 9 Vector__XXX
+ SG_ TirePress_Filter_Ctrl : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RemoteKey_Info_TIC : 32|32@0+ (1,0) [0|4294967295] "" Vector__XXX
+
+BO_ 951 Msg_0x3B7: 9 Vector__XXX
+ SG_ TirePress_Info_ID : 32|32@0+ (1,0) [0|4294967295] "" Vector__XXX
+
+BO_ 952 Msg_0x3B8: 8 Vector__XXX
+ SG_ Tire_Press_ILR_Data : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 953 Msg_0x3B9: 9 Vector__XXX
+ SG_ WakeAlarm3_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WakeAlarm2_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WakeAlarm1_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WakeAlarm0_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChrgCordResp1_No_Actl : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ ChrgCordResp2_No_Actl : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ BattRgenLoChrg_D_Rq : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattRgenLoDChrg_D_Rq : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PaakMyKeySearch_D_Stat : 25|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ChrgCordLck_B_Stat : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULoChrgHyb_B_Rq : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ KeyMyKeyTot_No2_Cnt : 32|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ KeyAdmnTot_No2_Cnt : 40|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ BattRgenLoSoc_Pc_LimLo : 48|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ BattULoChrgHyb_D_Stat : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 954 Msg_0x3BA: 9 Vector__XXX
+ SG_ ExtLght_D_Falt : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ GenericSwtch2_No_Actl : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ GenericSwtch1_No_Actl : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ExtLghtLeft_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ExtLghtFront_D_Stat : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ExtLghtAlrt_B_Rq : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ GenericSwtch3_No_Actl : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PudSptLghtRight_D_Rq : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PudSptLghtLeft_D_Rq : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ExtLghtRight_D_Stat : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ExtLghtRear_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrukBedLght_B_Stat : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrHitchLamp_D_Stat : 30|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LicPlateLght_B_Stat : 29|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehWlcmFrwlMde_D_Stat : 26|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VehWlcmFrwl_D_Stat : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TlghtTest_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwRnngBoardPoll_D_Stat : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PoliceDmngLvl_D_Stat : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LoadShedRelay_B_Rq : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ KeylessIdl_B_Stat : 46|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TlghtTestLght_D_Stat : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TlghtTestPrecnd_D_Stat : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PosLghtFr_D_Stat : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PosLghtFl_D_Stat : 52|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LoadShedRelayMde_D_Stat : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CargoLght_D_Stat : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrlrHitchLamp_D2_Stat : 62|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChildLckMaint_D_Stat : 60|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ExtLghtFront_D_RqBody : 58|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CrtsyLghtRear_D_Stat : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 955 Msg_0x3BB: 8 Vector__XXX
+ SG_ Tire_Temp_ILR_Data : 0|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ Tire_Temp_IRR_Data : 8|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ Tire_Temp_LF_Data : 16|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ Tire_Temp_OLR_Data : 24|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ Tire_Temp_ORR_Data : 32|8@0+ (1,-60) [-60|195] "" Vector__XXX
+
+BO_ 963 BCM_Lamp_Stat_FD1: 8 GWM
+ SG_ Illuminated_Entry_Stat : 63|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ Dr_Courtesy_Light_Stat : 49|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ Courtesy_Delay_Status : 51|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ ImpactEvntFdbck_D_Stat : 53|2@0+ (1,0) [0|3] "SED"  CMR_DSMC
+ SG_ WrlssAcsyChrgInhbt_B_Rq : 40|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ PudLampPsngr_D_Rq : 57|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ HeadLampLoOut_B_Stat : 32|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ CrnrLghtRight_Pc_Rq : 47|7@0+ (1,0) [0|100] "percent" Vector__XXX
+ SG_ CrnrLghtLeft_Pc_Rq : 39|7@0+ (1,0) [0|100] "percent" Vector__XXX
+ SG_ HeadLghtHiFdbck_D_Stat : 55|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ PudLampDrv_D_Rq : 59|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ TrnNotInPrkChime_B_Rq : 24|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ PrkLightChime_B_Rq : 25|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ KeyInIgnWarn_B_Cmd : 27|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ HomeSafeLtChime_B_Rq : 28|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ StopLghtOn_B_Stat : 8|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ RvrseLghtOn_B_Stat : 9|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ PrkLght_D_Stat : 13|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ HeadLghtSwtch_D_Stat : 15|2@0+ (1,0) [0|3] "SED"  IPMA_ADAS
+ SG_ HeadLampLoFrOn_B_Stat : 2|1@0+ (1,0) [0|1] "SED"  IPMA_ADAS
+ SG_ HeadLampLoFlOn_B_Stat : 3|1@0+ (1,0) [0|1] "SED"  IPMA_ADAS
+ SG_ HeadLampLoActv_B_Stat : 4|1@0+ (1,0) [0|1] "SED"  IPMA_ADAS,PCM,ECM_Diesel
+ SG_ Headlamp_On_Wrning_Cmd : 29|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ Park_Brake_Chime_Rqst : 26|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ HeadLghtHiOn_B_Stat : 1|1@0+ (1,0) [0|1] "SED"  ECM_Diesel,IPMA_ADAS,PCM
+ SG_ BrkWarnInd_B_Rq : 20|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ Brk_Fluid_Lvl_Low : 31|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ ReducedGuard_D_Stat : 19|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ Perimeter_Alarm_Status : 17|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ Courtesy_BSave_Stat : 7|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ DrTgateLck_D_Stat : 61|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ WndwGlbl_D_Cmd : 23|3@0+ (1,0) [0|7] "SED" Vector__XXX
+ SG_ PudLamp_D_Rq : 11|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ DayRnngLampOn_B_Stat : 5|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ PerimeterAlarmChimeRq : 0|1@0+ (1,0) [0|1] "SED" Vector__XXX
+
+BO_ 966 Msg_0x3C6: 8 Vector__XXX
+ SG_ TrunkFrontRolCd_No_Actl : 0|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ VehHorn_D_RqAlrt : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrnkFrontRleas_D_Src : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrunkFrontOpen_No_Actl : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ExtLghtRear_D_RqBody : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ScrtyHornActv_B_Rq : 28|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehHorn_D_Rq : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ NfcDevcAuthrzT_B_Rq : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwTrnkFrontRleas_D_Src : 33|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrnkFrontScnd_B_Falt : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ NfcDevc_D_Dsply : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 967 Msg_0x3C7: 8 Vector__XXX
+ SG_ AdminMyKeyTot_No_Actl : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ KeyMyKeysTot_No_Actl : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CamraZoomMan_D_Actl : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CamraOvrlDyn_D_Actl : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CamraViewSplit_D_Actl : 17|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CamraOvrlTow_D_Actl : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CamraOvrlStat_D_Actl : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 970 Lane_Assist_Data1_TRON: 8 IPMA_ADAS
+ SG_ LdwActvIntns_D_Req : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LdwActvStats_D_Req : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LkaActvStats_D2_Req : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LaCurvature_No_Calc : 8|12@0+ (4.999999874e-06,-0.01024) [-0.01024|0.010235] "" Vector__XXX
+ SG_ LaRefAng_No_Req : 20|12@0+ (0.05,-102.4) [-102.4|102.35] "" Vector__XXX
+ SG_ LkaDrvOvrrd_D_Rq : 33|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LaRampType_B_Req : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 972 Lane_Assist_Data1: 8 IPMA_ADAS
+ SG_ LsmcBrkDecelEnbl_D_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TjaHandsOnCnfdnc_B_Est : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LaActDeny_B_Actl : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LaHandsOff_B_Actl : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LsmcBrk_Tq_Rq : 8|13@0+ (4,0) [0|32764] "" Vector__XXX
+ SG_ LatCtlSte_D_Stat : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrlrAn_An_TrgtCalc : 24|8@0+ (1,-128) [-128|127] "" Vector__XXX
+ SG_ LatCtlLim_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LatCtlCpbltyDStat_No_Cnt : 34|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ LatCtlCpblty_D_Stat : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LatCtlCpbltyDStat_No_Cs : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 973 Lane_Assist_Data3_FD1: 9 IPMA_ADAS
+ SG_ TsrOvtkStatMsgTxt_D_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrOswWarnMsgTxt_D_Rq : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrMsgTxt_D_Rq : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TsrStatMsgTxt_D_Rq : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TsrOvtkMsgTxt_D_Rq : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TsrVl2RstrcMsgTxt_D_Rq : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RoadSignRgltry_D_Dsply : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVl1StatMsgTxt_D_Rq : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVl1RstrcMsgTxt_D_Rq : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVLim1MsgTxt_D_Rq : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TsrVLim2MsgTxt_D_Rq : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TsrVl1PrmntMsgTxt_D_Rq : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVlUnitMsgTxt_D_Rq : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVl2StatMsgTxt_D_Rq : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WwaWarn_B_Rq : 55|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TsrVl1RstrcMsgTxt2_D_Rq : 52|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TsrOvtkMsgTxt2_D_Rq : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ LaSysOffStat_D_Dsply : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVl2PrmntMsgTxt_D_Rq : 59|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrVl2RstrcMsgTxt2_D_Rq : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 976 Msg_0x3D0: 8 IPMA_ADAS
+ SG_ SrpDistLeft_L_Actl : 0|9@0+ (0.02,0) [0|10.22] "" Vector__XXX
+ SG_ SrpDistRight_L_Actl : 9|9@0+ (0.02,0) [0|10.22] "" Vector__XXX
+ SG_ SrpHghtLeft_L_Actl : 22|9@0+ (0.000624999986,-0.16) [-0.16|0.159375] "" Vector__XXX
+ SG_ SrpEventRight_D_Stat : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SrpEventLeft_D_Stat : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SrpHghtRight_L_Actl : 31|9@0+ (0.000624999986,-0.16) [-0.16|0.159375] "" Vector__XXX
+ SG_ SrpSigValid_B_Stat : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 981 Traffic_RecognitnData: 9 IPMA_ADAS
+ SG_ AdbBrdrTop_An_Rq : 0|8@0+ (0.04,-9.54) [-9.54|0.66] "" Vector__XXX
+ SG_ AdbBrdrLeft_An_Rq : 14|10@0+ (0.04,-20.4) [-20.4|20.52] "" Vector__XXX
+ SG_ AdbBrdrBottom_An_Rq : 8|6@0+ (0.04,-1.86) [-1.86|0.66] "" Vector__XXX
+ SG_ AdbBrdrRight_An_Rq : 24|10@0+ (0.04,-20.4) [-20.4|20.52] "" Vector__XXX
+ SG_ AdbBrdrRight_L_Stat : 34|9@0+ (2,0) [0|1022] "" Vector__XXX
+ SG_ AdbBrdrLeft_L_Stat : 47|9@0+ (2,0) [0|1022] "" Vector__XXX
+ SG_ AdbBeam_D_Rq : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 982 LateralMotionControl2: 9 IPMA_ADAS
+ SG_ LatCtlRampType_D_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LatCtlPrecision_D_Rq : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LatCtl_D2_Rq : 1|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ HandsOffCnfm_B_Rq : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LatCtlPath_No_Cs : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ LatCtlCurv_No_Actl : 16|11@0+ (1.999999949e-05,-0.02) [-0.02|0.02094] "" Vector__XXX
+ SG_ LatCtlPath_An_Actl : 27|11@0+ (0.0005000000237,-0.5) [-0.5|0.5235] "" Vector__XXX
+ SG_ LatCtlCrv_NoRate2_Actl : 48|11@0+ (9.999999975e-07,-0.001024) [-0.001024|0.001023] "" Vector__XXX
+ SG_ LatCtlPath_No_Cnt : 59|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 983 CMBB_Object_Data: 8 IPMA_ADAS
+ SG_ CmbbObjDistLong_L_Actl : 0|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ CmbbObjConfdnc_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CmbbObjClass_D_Stat : 10|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CmbbObjRelLat_V_Actl : 16|9@0+ (0.1,-25.5) [-25.5|25.6] "" Vector__XXX
+ SG_ CmbbObjColl_T_Actl : 25|7@0+ (0.05,0) [0|6.35] "" Vector__XXX
+ SG_ CmbbObjDistLat_L_Actl : 42|9@0+ (0.1,-25.5) [-25.5|25.6] "" Vector__XXX
+ SG_ EsaEnbl_D2_Rq : 51|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 984 IPMA_Data: 9 IPMA_ADAS
+ SG_ LaDenyStats_B_Dsply : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HzrdWarnLamp_B_Rq : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CamraStats_D_Dsply : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CamraDefog_B_Req : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PersIndexIpma_D_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DasAlrtLvl_D_Dsply : 45|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DasWarn_D_Dsply : 43|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DasStats_D_Dsply : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LaHandsOff_D_Dsply : 53|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LaActvStats_D2_Dsply : 48|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ AhbcRampingV_D_Rq : 62|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AhbHiBeam_D_Rq : 60|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DsmcMsgTxt_D_Dsply : 58|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AhbFeat_D_Stat : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 985 IPMA_Data2: 8 IPMA_ADAS
+ SG_ IsaVLim_D_Rq : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ SblmStopScnr_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SblmRndAbtScnr_B_Stat : 14|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IaccVLimUnit_D_Rq : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DasAlrtInfo_D_Dsply : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ IsaVLimUnit_D_Rq : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ IaccVLim_D_Rq : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ LongCtrlBrk_D_Rq : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LongCtrlEnblDRq_No_Cnt : 26|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ AdbDividedRoad_B_Stat : 25|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SblmYieldScnr_B_Stat : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SblmPedCrossScnr_B_Stat : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LdwChime_B_Rq : 37|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AdbDrvSide_B_Stat : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LcwaMsgTxt_D_Stat : 34|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ClrExitAsst_D_Stat : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LongCtrlEnbl_D_Rq : 45|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TsrRegionTxt_D_Stat : 40|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ PwSustnAdas_B_Rq : 55|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClrExitAsstMsgTxt_D_Rq : 51|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ClrExitAsstChime_D_Rq : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 990 Msg_0x3DE: 8 Vector__XXX
+ SG_ FeatNoDdm_No_Actl : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 991 Msg_0x3DF: 9 Vector__XXX
+ SG_ Trlr_M_Actl : 37|11@0+ (10,0) [0|20470] "" Vector__XXX
+ SG_ VehPayloadGear_B_Stat : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehPayloadFlat_B_Stat : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehPayloadTare_D_Stat : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehFalr_D_Stat : 51|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrlrTngLoad_D_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VehPayloadTireP_B_Stat : 60|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehPayloadStew_B_Stat : 59|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehPayloadScrn_D_Stat : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 995 Msg_0x3E3: 8 Vector__XXX
+ SG_ FeatNoBcm_No_Actl : 16|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ FobAssocChime_B_Rq : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PersIndexBcm_D_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LightAmbColor_No_Actl : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ LightAmbIntsty_No_Actl : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 997 Msg_0x3E5: 8 Vector__XXX
+ SG_ PersIndexCcm_D_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1003 Msg_0x3EB: 9 Vector__XXX
+ SG_ RecallEvent_No_Cnt : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PersNo_D_Actl : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Pers1Key_D_Stat : 11|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AssocConfirm_D_Actl : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PersNoPos_D_Actl : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PersSetupRestr_D_Actl : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PersConflict_D_Actl : 17|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PersSetup_No_Actl : 24|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ Pers3Key_D_Stat : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Pers2Key_D_Stat : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehKeyActv_D_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Pers4Key_D_Stat : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EmPrflNo_D_Stat : 51|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ EmPrflKeyAssoc_D_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PersRecallSrc_D_Actl : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1010 Msg_0x3F2: 8 Vector__XXX
+ SG_ LightCurv_No_Actl : 0|11@0+ (1.999999949e-05,-0.02) [-0.02|0.02094] "" Vector__XXX
+ SG_ LightPath_An_Actl : 11|11@0+ (0.0005000000237,-0.5) [-0.5|0.5235] "" Vector__XXX
+ SG_ LightPathOffst_L_Actl : 24|10@0+ (0.01,-5.12) [-5.12|5.11] "" Vector__XXX
+ SG_ LightCurv_NoRate_Actl : 34|13@0+ (2.499999994e-07,-0.001024) [-0.001024|0.00102375] "" Vector__XXX
+ SG_ AdbUrbanArea_B_Stat : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ MbdblActv_B_RqAdas : 55|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CbdblActv_B_RqAdas : 54|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1034 Msg_0x40A: 8 Vector__XXX
+ SG_ Engine_Fuel_Capability : 21|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Axle_Ratio : 16|16@0+ (0.01,0) [0|655.35] "" Vector__XXX
+ SG_ LS_Collision_Mitigation_By_BK : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Collision_Mitigation_By_Braking : 30|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Cruise_control : 25|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Global_Real_Time : 24|32@0+ (0.1,0) [0|429496735.9] "" Vector__XXX
+ SG_ Four_Wheel_Drive_Type : 39|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Tire_Circumference : 32|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ Gearbox_Type : 46|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Steering_Wheel_Location : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1040 Msg_0x410: 8 Vector__XXX
+ SG_ ElCmpr_N_Rq : 8|8@0+ (50,0) [0|12750] "" Vector__XXX
+ SG_ ElCmprEnbl_B_Rq : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehSimSnd_Pc_Rq : 38|10@0+ (0.2,-102.2) [-102.2|102.4] "" Vector__XXX
+
+BO_ 1042 Msg_0x412: 8 Vector__XXX
+ SG_ TrlrBrk_Pc_Rq : 9|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ VehPtch_An_Dsply : 16|7@0+ (1,-64) [-64|63] "" Vector__XXX
+ SG_ RearDiffLck_Tq_RqMn : 32|12@0+ (4,0) [0|16380] "" Vector__XXX
+
+BO_ 1043 Msg_0x413: 8 Vector__XXX
+ SG_ OrtaSwtchLamp_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OrtaMsgTxt_D_Rq : 3|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ OrtaMde_D_Ind : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ IndvMdeSel_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrailOnePdlMde_D_Ind : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ IndvMdeSel_No_Rq : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ IndvMdeMsgTxt_D_Rq : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ IndvMdeSusp_No_Stat : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ IndvMdeSte_No_Stat : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ IndvMde5_B_Avail : 36|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IndvMde4_B_Avail : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IndvMde3_B_Avail : 34|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IndvMde2_B_Avail : 33|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IndvMde1_B_Avail : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeHmi02_D_Rq : 40|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdeHmi04_D_Rq : 48|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 1044 Msg_0x414: 8 Vector__XXX
+ SG_ StePinOffst_An_Est : 0|16@0+ (0.1,-3200) [-3200|3353.5] "" Vector__XXX
+ SG_ ApaBrkErr_D_Stat : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ StePinOffst_No_Cnt : 18|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StePinOffst_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ StePinOffst_No_Cs : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PrplBrkTqAsst_Pw_Rq : 32|8@0+ (100,0) [0|25500] "" Vector__XXX
+ SG_ ApaBrkErrDStat_No_Cs : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1045 BrakeSysFeatures: 8 Vector__XXX
+ SG_ Veh_V_ActlBrk : 0|16@0+ (0.01,0) [0|655.35] "" Vector__XXX
+ SG_ BrkFluidLvl_D_Stat : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehVActlBrk_No_Cnt : 18|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ VehVActlBrk_D_Qf : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehVActlBrk_No_Cs : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehYawLin_W_Rq : 36|12@0+ (0.03663,-75) [-75|74.9999] "" Vector__XXX
+ SG_ LsmcBrkDecel_D_Stat : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ VehYawNonLin_W_Rq : 52|12@0+ (0.03663,-75) [-75|74.9999] "" Vector__XXX
+
+BO_ 1046 BrakeSysFeatures_2: 8 ABS_ESC
+ SG_ HsaMde_D_Mem : 33|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ BrkBstrVac_B_Rq : 27|1@0+ (1,0) [0|1] "Discrete"  ECM_Diesel,PCM,PCM_HEV,GWM
+ SG_ HdcMde_D_Actl : 31|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ RearDiffLck_Tq2_RqMx : 51|12@0+ (4,0) [0|16376] "Nm"  GWM
+ SG_ TRLR_SWAY_EVNT_IN_PROG : 25|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ TRLR_SWAY_CONFIG_STAT : 26|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ TCMode : 15|1@0+ (1,0) [0|1] "SED"  VDM,IPMA_ADAS,ECM_Diesel,PCM,PCM_HEV,GWM
+ SG_ DrvSlipCtlLamp_D_Rq : 42|2@0+ (1,0) [0|3] "SED"  VDM,IPMA_ADAS,ECM_Diesel,PCM,PCM_HEV,GWM
+ SG_ Abs_B_Falt : 5|1@0+ (1,0) [0|1] "SED"  ECM_Diesel,PCM,PCM_HEV,GWM
+ SG_ DrvSlipCtlMde_D_Ind : 44|2@0+ (1,0) [0|3] "SED"  TCCM,IPMA_ADAS,ECM_Diesel,PCM,PCM_HEV,GWM
+ SG_ DrvAntiLckLamp_D_Rq : 55|2@0+ (1,0) [0|3] "SED"  ECM_Diesel,GWM,IPMA_ADAS
+ SG_ BpedMove_No_Cnt : 3|4@0+ (1,0) [0|15] "Unitless"  ECM_Diesel,GWM
+ SG_ StabCtlBrk_B_Avail : 4|1@0+ (1,0) [0|1] "SED"  VDM,TCCM,GWM
+ SG_ DrvHdcWarnInfo_D_Rq : 35|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ DrvHdcMsg_D_Rq : 10|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ DrvHdcLampInfo_D_Rq : 12|2@0+ (1,0) [0|3] "SED"  GWM
+ SG_ BpedMove_D_Actl : 7|2@0+ (1,0) [0|3] "SED"  ECM_Diesel,GWM
+ SG_ ChimeBrk_B_Rq : 14|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ BrkLamp_B_Rq : 13|1@0+ (1,0) [0|1] "SED"  GWM
+ SG_ HILL_DESC_MC : 47|3@0+ (1,0) [0|7] "SED"  GWM
+ SG_ RearDiffElckrOpen_B_Rq : 40|1@0+ (1,0) [0|1] "SED"  GWM,TCCM
+
+BO_ 1047 Msg_0x417: 9 Vector__XXX
+ SG_ HitchToTrlrAxle_L_Calc : 0|9@0+ (0.0254,0) [0|12.9794] "" Vector__XXX
+ SG_ TrlrAidMsgTxt_D2_Rq : 9|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ SelDrvMdeSte_D_Stat : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EsaOn_B_Stat : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrAn_An_WarnCalc : 27|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ TrlrAidEnbl_D2_Stat : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrlrAidTrgtId_No_Rq : 43|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ TrlrAidSetup_D2_Stat : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrlrAn_An_MxCalc : 48|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ TrlrAidTrlrId_No_Rq : 56|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 1052 Msg_0x41C: 9 Vector__XXX
+ SG_ AwdLeft_Tq_Rq : 12|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ AwdRight_Tq_Est : 24|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ AwdRight_Tq_Rq : 36|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ AwdLck_Tq_Actl : 49|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ AwdLckTqNeg_B_Actl : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AwdDcnntSlipTrgt_B_Rq : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AwdCnnct_D_Stat : 61|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 1054 Msg_0x41E: 9 Vector__XXX
+ SG_ AutoHoldSwMde_B_Ind : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AutoHoldMsgTxt_D_Rq : 3|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ BrkMdeInhbt_B_RqDsply : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrvSlipCtlMdeMsg_D_Rq : 10|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ AutoHoldMde_D_Ind : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvSlipCtlOffLamp_D_Rq : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeAwd_D_Rq : 26|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ ApaBrk_D_Stat : 37|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeChassis_D_Rq : 32|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdeChassis2_D_Rq : 42|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ CtaBrk_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FrontDiffElckrOpen_B_Rq : 55|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrailCtlMsgTxt_D_Rq : 51|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrailCtl_D_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrailOnePdlTqLm_B_Actl : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdeChassis3_D_Rq : 58|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ RbaBrk_D_Stat : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 1055 Msg_0x41F: 8 Vector__XXX
+ SG_ EcoCochA_Pc_Dsply : 0|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochCrus_Pc_Dsply : 8|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochDecel_Pc_Dsply : 16|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochIdlFuel_Pc_Dsply : 24|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochShif_Pc_Dsply : 32|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EcoCochInst_Pc_Dsply : 40|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+
+BO_ 1056 Msg_0x420: 9 Vector__XXX
+ SG_ SelDrvMdeHmi03_D_Rq : 11|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdeMsgTxt_D_Rq : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SelDrvMdeMsgTxt2_D_Rq : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ SelDrvMdePos01_B_Avail : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMde_D_Stat : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdePt_D_Rq : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos02_B_Avail : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AwdMde_D_RqBrk : 36|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ AutoEpbDsply_D_Stat : 34|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdePos10_B_Avail : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos09_B_Avail : 46|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos08_B_Avail : 45|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos07_B_Avail : 44|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos06_B_Avail : 43|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos05_B_Avail : 42|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos04_B_Avail : 41|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos03_B_Avail : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ActvDrvMde_D2_Stat : 50|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos12_B_Avail : 49|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ SelDrvMdePos11_B_Avail : 48|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ AutoEpbMsgTxt_D_Rq : 61|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ SelDrvMde_D2_Rq : 56|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 1057 Msg_0x421: 9 Vector__XXX
+ SG_ EngIdlShutDown_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AirCondFluidHi_P_Actl : 48|8@0+ (0.125,0) [0|31.875] "" Vector__XXX
+ SG_ FUEL_ALCOHOL_PERCNT : 56|8@0+ (0.393701,0) [0|100.394] "" Vector__XXX
+
+BO_ 1060 Msg_0x424: 8 Vector__XXX
+ SG_ BpedDrvMsgTxt_B_Dsply : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RearDiffOil_Te_Actl : 8|9@0+ (1,-40) [-40|471] "" Vector__XXX
+ SG_ FuelLvlWarn_D_ActlEng : 20|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ SelDrvMdePt_D_Stat : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FuelRange_L_DsplyEng : 32|14@0+ (0.1,0) [0|1638.3] "" Vector__XXX
+ SG_ FuelLvl_Pc_DsplyEng : 46|10@0+ (0.108696,-5.21741) [-5.21741|105.979] "" Vector__XXX
+
+BO_ 1067 Msg_0x42B: 8 Vector__XXX
+ SG_ BattULoAux_U_Actl : 0|8@0+ (0.0625,0) [0|15.9375] "" Vector__XXX
+ SG_ BattULoAux_B_Falt : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULoAuxSoc_Pc_Actl : 8|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ BattULoAux_I_Actl : 16|12@0+ (0.0625,-128) [-128|127.938] "" Vector__XXX
+ SG_ BattULoAuxIsol_D_Rq : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattULoAux_D_Qlty : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattULoCrnkBelt_U_Pred : 32|7@0+ (0.1,0) [0|12.7] "" Vector__XXX
+ SG_ BattULoCrnkStrt_U_Pred : 40|7@0+ (0.1,0) [0|12.7] "" Vector__XXX
+
+BO_ 1068 Msg_0x42C: 8 Vector__XXX
+ SG_ Shed_Drain_Eng_Off_B : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PeriodicElLoad_B_Stat : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IdleSpeedIncrease_El : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Batt_Crit_SoC_B : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Batt_Lo_SoC_B : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULoChrg_D_Rq : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Shed_T_Eng_Off_B : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwSysULoFalt_D_Stat : 11|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Shed_Feature_Group_ID : 19|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ Shed_Level_Req : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ULoRgenTestMde_B_Rq : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULoSrvc_T_Actl : 32|12@0+ (1,0) [0|4095] "" Vector__XXX
+
+BO_ 1069 Msg_0x42D: 8 Vector__XXX
+ SG_ EngAirIn_Te_Actl : 14|10@0+ (0.25,-128) [-128|127.75] "" Vector__XXX
+ SG_ EngMsgTxt_D_Rq : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ObdWarmUp_B_Complt : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApedPos_Pc_ActlDiag : 24|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EngClnt_Te_ActlDiag : 32|8@0+ (1,-40) [-40|215] "" Vector__XXX
+ SG_ EngLoad_Pc_CalcDiag : 40|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ ReFuelSysStat_D_Dsply : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ GrllShtrPos_B_Falt : 52|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ GrllShtrPos_D_Cmd : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 1070 Msg_0x42E: 8 Vector__XXX
+ SG_ BattULo24_Ah_DeltaRide : 0|15@0+ (0.0078125,-100) [-100|155.992] "" Vector__XXX
+ SG_ BattULo24_B_Falt : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattULo24_I_Actl : 16|14@0+ (0.0625,-512) [-512|511.938] "" Vector__XXX
+ SG_ BattULo24State_D_Qlty : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattULo24Soc_Pc_Actl : 32|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ BattULo24_Te_Actl : 40|7@0+ (1,-40) [-40|87] "" Vector__XXX
+
+BO_ 1071 Msg_0x42F: 8 Vector__XXX
+ SG_ EngAoutIdl_N_Ntrl : 24|11@0+ (2,0) [0|4094] "" Vector__XXX
+
+BO_ 1084 Msg_0x43C: 8 Vector__XXX
+ SG_ BattULo2_Te_Actl : 25|7@0+ (1,-40) [-40|87] "" Vector__XXX
+ SG_ BattULoChrg_U_RqMn : 42|6@0+ (0.1,10.6) [10.6|16.9] "" Vector__XXX
+ SG_ BattULoState_D_Qlty : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BattULoChrg_U_RqMx : 48|6@0+ (0.1,10.6) [10.6|16.9] "" Vector__XXX
+
+BO_ 1086 Msg_0x43E: 8 Vector__XXX
+ SG_ BattULoChrg_U_Cmd : 8|8@0+ (0.025,10.6) [10.6|16.975] "" Vector__XXX
+ SG_ FuelPumpPwr_B_Rq : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ElLoadCtl_D_Rq : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ EngIpcDsplyAfr_Rt_Actl : 24|8@0+ (0.1,0) [0|25.5] "" Vector__XXX
+ SG_ EngIpcDsplyCht_Te_Actl : 32|8@0+ (1,-60) [-60|195] "" Vector__XXX
+ SG_ EngMnfld_P_Actl : 40|13@0+ (0.1,-206.8) [-206.8|612.3] "" Vector__XXX
+
+BO_ 1087 Msg_0x43F: 8 Vector__XXX
+ SG_ AdasLcObtclAbrt_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcInhbt_B_Rq : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcStopHold_B_Rq : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcPrchgBrk_B_Rq : 4|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcObstcl_B_Stat : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcMaxGrdInhbt_B_Stat : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcMaxGrdAbrt_B_Stat : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ FapLcActv_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BtsiShifInhbt_B_RqPt : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CrnkInhbtHlthRate_B_Rq : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CrnkInhbtActv_B_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattRgenLoDChrg_D_RqEng : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RepaLcGrdInhbt_B_Stat : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClimtCool_D_RqPt : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ StopStrtCstm_D_Stat : 29|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeCstmPt_D_Stat : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DcacFaltMsgTxt_D2_Rq : 32|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ EngIdlShutDownT_D_Stat : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1089 Msg_0x441: 9 Vector__XXX
+ SG_ MtrTrac2_I_Actl : 0|16@0+ (0.1,-1000) [-1000|5553.5] "" Vector__XXX
+ SG_ MtrTrac2Coil_Te_Actl : 16|8@0+ (1,-40) [-40|215] "" Vector__XXX
+ SG_ MtrTrac2Inv_Te_Actl : 24|8@0+ (1,-40) [-40|215] "" Vector__XXX
+ SG_ MtrTrac2_U_Actl : 32|10@0+ (1,0) [0|1023] "" Vector__XXX
+ SG_ MtrTrac2TeAlrm_B_Stat : 54|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ MtrTrac2Falt_B_Stat : 53|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Mtr2CntlTeAlrm_B_Stat : 52|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Inv1_Te_Actl : 56|8@0+ (1,-40) [-40|215] "" Vector__XXX
+
+BO_ 1090 Msg_0x442: 9 Vector__XXX
+ SG_ Inv1Ain_I_ActlMntr : 0|15@0+ (0.1,-1000) [-1000|2276.7] "" Vector__XXX
+ SG_ HybVehMde_D_ActlMntr : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ChrgStat_D_ActlMntr : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Mtr2State_D_ActlMntr : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ MtrTotNum_No_ActlMntr : 56|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1094 Msg_0x446: 8 Vector__XXX
+ SG_ CellRstrt_D_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CellLock_D_Rq : 3|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CellChirp_D_Rq : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CellPanic_D_Rq : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CellChirpRq_No_Actl : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CellLockRq_No_Actl : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CellPanicRq_No_Actl : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ CellRstrtRq_No_Actl : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1095 Msg_0x447: 8 Vector__XXX
+ SG_ PepsKeyActv_D_Stat : 4|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ KeyProg_No_Actl : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Rstrt_T_Actl : 8|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ RstrtSetting_T_Actl : 24|11@0+ (1,0) [0|2047] "" Vector__XXX
+ SG_ PepsKeyFound_No_Actl : 35|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ Pers1Phone_D_Stat : 45|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ HeadLghtOn_D_Rq : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Pers3Phone_D_Stat : 51|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Pers2Phone_D_Stat : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1098 Msg_0x44A: 8 Vector__XXX
+ SG_ EdmCurrent_Fe_Dsply : 0|8@0+ (0.1,0) [0|25.5] "" Vector__XXX
+ SG_ EdmMsgTxt_D_Rq : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ EdmLamp_D_Dsply : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ EdmPrev_Fe_Dsply : 16|8@0+ (0.1,0) [0|25.5] "" Vector__XXX
+ SG_ EdmCmplnc_Pc_Dsply : 31|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+ SG_ EdmSailMdeOn_B_Stat : 30|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EdmCmplnc_B_Dsply : 29|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ EdmVeh_V_Dsply : 24|5@0+ (5,0) [0|155] "" Vector__XXX
+ SG_ EcoCochInstTot_Pc_Dsply : 40|8@0+ (0.392157,0) [0|100] "" Vector__XXX
+
+BO_ 1100 Msg_0x44C: 8 Vector__XXX
+ SG_ GrossTrainWeight_M_Est : 0|8@0+ (100,0) [0|25500] "" Vector__XXX
+ SG_ AutoTowAllw_D_StatMnu : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EngExhMdeQuiet_D2_Stat : 27|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ HvacCmprLim_D_Stat : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrailCtlPt_B_Falt : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AutoTowActv_B_Stat : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ Veh_V_DsplyTrailCtlSet : 40|6@0+ (0.5,0) [0|31.5] "" Vector__XXX
+ SG_ WakeAlarm1_B_Typ : 63|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1102 Msg_0x44E: 9 Vector__XXX
+ SG_ SelDrvMdePos02_D_Stat : 5|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos01_D_Stat : 0|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos03_D_Stat : 10|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos05_D_Stat : 21|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos04_D_Stat : 16|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos06_D_Stat : 26|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos07_D_Stat : 32|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos11_D_Stat : 42|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos09_D_Stat : 53|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos10_D_Stat : 48|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ SelDrvMdePos08_D_Stat : 58|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 1104 Msg_0x450: 8 Vector__XXX
+ SG_ DrvCamDrvIR_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvAttentZone_D_Stat : 2|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrvAlertSt_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvEngLvlConfid_D_Stat : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrvEngageLevel_D_Stat : 10|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrvCamera_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvEngageLevel_No_Cnt : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrvImpairLvl_D_Stat : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DrvCamPassIR_D_Stat : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvImpLvlConfid_D_Stat : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1105 Msg_0x451: 8 Vector__XXX
+ SG_ TrlrAidEnbl_D_RqAdas : 2|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ CamraFrntStat_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BrkDecel_B_RqRba : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RbaMnu_D_Rq : 13|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RbaAlrt_D_Dsply : 11|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Rba_D_Stat : 9|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrlrHitchLamp_D_Rq2 : 8|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrRvrseEnbl_D2_Stat : 21|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RbaMsg_D_Rq : 17|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BrkEnbl_B_RqRba : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClrExitAsstActv_B_Rq : 31|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CamraFrntOffRd_B_Stat : 30|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrRvrseMsgTxt_D2_Rq : 24|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ TrlrAidSwtchLamp_B_Rq : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrHitchIcon_D_Rq : 35|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TrlrHitchChime_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TrlrHitchMsgTxt_D_Rq : 40|6@0+ (1,0) [0|63] "" Vector__XXX
+
+BO_ 1113 Msg_0x459: 8 Vector__XXX
+ SG_ HitchToVehAxle_L_Calc : 0|8@0+ (0.0127,-0.508) [-0.508|2.7305] "" Vector__XXX
+ SG_ HitchToTrlrAxle_L_Calc2 : 8|9@0+ (0.0254,0) [0|12.9794] "" Vector__XXX
+ SG_ TrlrAid_AnRate2_Actl : 17|10@0+ (0.125,-50) [-50|77.875] "" Vector__XXX
+ SG_ TrlrAid_An3_Actl : 27|11@0+ (0.125,-90) [-90|165.875] "" Vector__XXX
+ SG_ TrlrAnOffstDir_D_Calc : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrlrAnCalib_B_Complt : 47|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ TrlrRvrse_D_Stat : 45|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TrlrAidTrgtId_No_Actl : 40|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ TrlrAnOffst_An_Calc : 55|9@0+ (0.1,0) [0|51.1] "" Vector__XXX
+ SG_ TrlrAid_D2_Stat : 48|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 1116 Msg_0x45C: 8 Vector__XXX
+ SG_ Chirp_D_RqUpftr : 0|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ Panic_D_RqUpftr : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChirpRq_No_ActlUpftr : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1117 Msg_0x45D: 8 Vector__XXX
+ SG_ UpftrDgtlIn04_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn03_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn02_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn01_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn08_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn07_D_Stat : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn06_D_Stat : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn05_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi03_D_Stat : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi02_D_Stat : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi01_D_Stat : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn09_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi07_D_Stat : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi06_D_Stat : 28|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi05_D_Stat : 26|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi04_D_Stat : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo03_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo02_D_Stat : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo01_D_Stat : 34|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutHi08_D_Stat : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo06_D_Stat : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo05_D_Stat : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlOutLo04_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 1134 Msg_0x46E: 8 Vector__XXX
+ SG_ AuxAirCond_B_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn12_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn11_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDgtlIn10_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrEnbl_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ UpftrDynmcData2_No_Act : 16|14@0+ (1,0) [0|16383] "" Vector__XXX
+ SG_ UpftrElementId_No_Actl : 32|14@0+ (1,0) [0|16383] "" Vector__XXX
+
+BO_ 1137 Msg_0x471: 8 Vector__XXX
+ SG_ RngPerChrgAvg_L_Dsply : 0|12@0+ (0.1,0) [0|409.5] "" Vector__XXX
+ SG_ RngImpctDrv_Pc_Dsply : 24|10@0+ (0.2,-102) [-102|102.6] "" Vector__XXX
+ SG_ RngImpctClim_Pc_Dsply : 34|10@0+ (0.2,-102) [-102|102.6] "" Vector__XXX
+ SG_ RngImpctExt_Pc_Dsply : 44|10@0+ (0.2,-102) [-102|102.6] "" Vector__XXX
+ SG_ RngImpctTot_Pc_Dsply : 54|10@0+ (0.2,-102) [-102|102.6] "" Vector__XXX
+
+BO_ 1140 Msg_0x474: 8 Vector__XXX
+ SG_ BattTracPw_Pc_Avail : 0|8@0+ (0.5,0) [0|127.5] "" Vector__XXX
+ SG_ RgenEvntLvl_Pc_Dsply : 14|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ PreCondStat_D_Dsply : 11|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RgenLongTerm_Pc_Dsply : 30|10@0+ (0.1,0) [0|102.3] "" Vector__XXX
+ SG_ ExtChrgrFalt_B_Dsply : 25|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BrkEvntComplt_B_Dsply : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1141 Msg_0x475: 8 Vector__XXX
+ SG_ MtrTrac2_Tq_Actl : 26|12@0+ (1,-2047) [-2047|2048] "" Vector__XXX
+ SG_ NtfctnConflict1_D_Rq : 50|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PtRmtRprt_D_Rq : 60|4@0+ (1,0) [0|15] "" Vector__XXX
+
+BO_ 1144 Msg_0x478: 8 Vector__XXX
+ SG_ WakeAlarm0_T_Rq : 0|15@0+ (1,0) [0|32767] "" Vector__XXX
+ SG_ BattTracDrvSustn_B_Rq : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ HtrnCnnctPwr_B_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PtcHtr_D_Stat : 21|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ HtrnClntFlw_D_Rq : 19|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ WakeAlarm0_B_Typ : 18|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CabinDrvSustn_B_Rq : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BrkAppl_D_RqPt : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PreCondBatt_B_Actl : 39|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattChrgTrgtSoC_D_Rq : 36|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ HeatCoreSovRear_B_Rq : 35|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CabnEvapSovFront_B_Rq : 33|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattChlrSov_B_Rq : 32|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattTracClimtDis_B_Stat : 45|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BattTracClntVlv_B_Rq : 40|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1152 Msg_0x480: 8 Vector__XXX
+ SG_ BattTracDiagClr_B_Stat : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OnePdlDrv_D_Dsply : 3|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ EngTeHi_B_Actl : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DcdcOn_B_Rq : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ULoBattSpprtSustn_B_Rq : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ VehElEff_No_Avg : 8|7@0+ (10,-100) [-100|1170] "" Vector__XXX
+ SG_ PwOutlet8EnblScnd_B_Rq : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwOutlet8Enbl_B_Rq : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwOutlet7EnblScnd_B_Rq : 21|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwOutlet7Enbl_B_Rq : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwOutlet6EnblScnd_B_Rq : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwOutlet6Enbl_B_Rq : 18|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ OnePdlDrvLamp_B_Rq : 16|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwCabinEnblScnd_B_Rq : 27|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwCabinEnbl_B_Rq : 26|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwTrnkFrntEnblScnd_B_Rq : 25|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwTrnkFrntEnbl_B_Rq : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1160 Msg_0x488: 8 Vector__XXX
+ SG_ PwBus07Src_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus06Type_B_Rq : 6|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus06Src_B_Rq : 5|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus06Id_No_Actl : 2|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus06_D_Rq : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus08_D_Rq : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus07Type_B_Rq : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus07Id_No_Actl : 10|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus07_D_Rq : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus09Src_B_Rq : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus09_D_Rq : 21|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PwBus08Type_B_Rq : 20|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus08Src_B_Rq : 19|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus08Id_No_Actl : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PwBus09Type_B_Rq : 27|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ PwBus09Id_No_Actl : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ReFuelSwtchStat_D_Actl2 : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DcacPw_D_RqCell : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DcacPwReset_B_RqCell : 58|1@0+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 1186 Msg_0x4A2: 8 Vector__XXX
+ SG_ RearDiffLck_Tq_Actl : 0|12@0+ (1,0) [0|4095] "" Vector__XXX
+ SG_ RearDiffLckLamp_D_Rq : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RearDiffLckMsg_D_Rq : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LsdSrvcRqd_B_Rq : 18|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RearDiffFalt_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ SelDrvMdeAwd2_D_Stat : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 1200 Msg_0x4B0: 9 Vector__XXX
+ SG_ BrkHold_D_Stat : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BrkTotTqRqDrv_No_Cnt : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ BrkTot_Tq_RqDrv : 40|13@0+ (4,0) [0|32764] "" Vector__XXX
+ SG_ HsaStat_D_Dsply : 53|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BrkTotTqRqDrv_No_Cs : 56|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1205 Msg_0x4B5: 9 Vector__XXX
+ SG_ CstmDrvMde_No_Confg : 0|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ CstmDrvMde1_No_Confg2 : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde1_No_Confg1 : 8|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde2_No_Confg2 : 20|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde2_No_Confg1 : 16|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde3_No_Confg2 : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde3_No_Confg1 : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde4_No_Confg2 : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde4_No_Confg1 : 32|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde5_No_Confg2 : 44|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMde5_No_Confg1 : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ CstmDrvMdeCfg1_B_Avail : 54|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ CstmDrvMde_No_Confg1 : 48|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ CstmDrvMde_No_Confg2 : 56|6@0+ (1,0) [0|63] "" Vector__XXX
+
+BO_ 1212 Msg_0x4BC: 8 Vector__XXX
+ SG_ PersDgtlKey2_D_Stat : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PersDgtlKey3_D_Stat : 16|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ PersDgtlKey4_D_Stat : 24|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ BonAur_D_Stat : 37|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LostPKChirp_D_Stat : 35|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PersPrfl_D_Stat : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DelvrAsstFeat_D_Stat : 44|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BonAurMde_D_Stat : 40|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ DelvrAsstExtndWak_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 1213 Msg_0x4BD: 10 Vector__XXX
+ SG_ ClsrOprtSrvcSrc_B_Rq : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClsrOprtSrvcId_No_Rq : 4|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ClsrOprtPrxmChk_D_Stat : 0|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ ClsrOprtSrvcType_B_Rq : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClsrOprtSrvc_D_Rq : 8|7@0+ (1,0) [0|127] "" Vector__XXX
+ SG_ LckUnlckSrvcType_B_Rq : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LckUnlckSrvcSrc_B_Rq : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ LckUnlckSrvc_D_Rq : 16|6@0+ (1,0) [0|63] "" Vector__XXX
+ SG_ LckUnlckSrvcId_No_Rq : 24|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BodyPersFeat_No_Rq : 32|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BodyPersFeatVal_No_Rq : 48|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BodyPersSrvc_D_Rq : 67|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BodyPersSrvcId_No_Rq : 64|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1218 Msg_0x4C2: 14 Vector__XXX
+ SG_ BecSwtchExtLck_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BecSwtch2ExtLck_D_Stat : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrPsngrRearLck_D_Stat : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrDrvRearLck_D_Stat : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ LckUnlckSrvc_D_Arb : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FecSwtchExtLck_D_Stat : 12|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrPsngrLck_D_Stat : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrDrvLck_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ClsrOprtSrvc_D_Arb : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrStopTglRl_No_Actl : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrStopTglRr_No_Actl : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ClsrOprtSrvc_D_Res : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ LckUnlckSrvc_D_Res : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ LatchFdbck_B_Stat : 38|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ClsrOprtSrvcId_No_Actl : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ LckUnlckSrvcId_No_Actl : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ PsngrAutoPwWndw_D_Rq : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AwlSwtch_D_Stat : 43|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ OprtSrc_D_Stat : 40|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ BodyPersFeatCnt_No_Act : 50|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ DrvAutoPwWndw_D_Rq : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BodyPersSrvc_D_Res : 58|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ BodyPersChng_D_Stat : 56|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ BodyPersFeat_No_Actl : 64|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BodyPersFeatVal_No_Act : 80|16@0+ (1,0) [0|65535] "" Vector__XXX
+ SG_ BodyPersSrvcId_No_Actl : 96|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1223 Msg_0x4C7: 8 Vector__XXX
+ SG_ DrDrv_No_Cnt : 12|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ MrorAutoSavDrv_D_Stat : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ DrvWndwAutoOprt_D_Stat : 8|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ ChildLckFdbkRd2_B_Stat : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrChildLckDrv_No_Rq : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ DrSwtchExtDrv_No_Rq : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1229 Msg_0x4CD: 8 Vector__XXX
+ SG_ DrOpenPrvntRight_B_Rq : 3|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ DrOpenPrvntLeft_B_Rq : 2|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ExitNotClrRight_B_Stat : 1|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ExitNotClrLeft_B_Stat : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ IsaOnOff_D_Rq : 10|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 1233 Msg_0x4D1: 9 Vector__XXX
+ SG_ RmtCtlMoveDir_D_Stat : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlLeft_D_Avail : 4|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlFront_D_Avail : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FreeDrvFwd_D_Avail : 0|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlPrkMde_D_Stat : 14|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlObstcl_B_Stat : 13|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RmtCtlNxtMoveDir_D_Stat : 11|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlLeftOrnt_D_Avail : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RmtCtlSideSnsL1_D_Stat : 22|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlRightOrnt_D_Avail : 19|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RmtCtlPrkInSlot_D_Stat : 16|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RmtCtlSideSnsL2_D_Stat : 30|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlRear_D_Avail : 26|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlRight_D_Avail : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsR2_D_Stat : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsR1_D_Stat : 36|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsL4_D_Stat : 34|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsL3_D_Stat : 32|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsFrCrnr_D_Stat : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsFlCrnr_D_Stat : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsR4_D_Stat : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSideSnsR3_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsRlCrnr_D_Stat : 54|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsRear_D_Stat : 52|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsFront_D_Stat : 50|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsRrCrnr_D_Stat : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlTrgDist_D_Stat : 56|8@0+ (0.1,0) [0|25.5] "" Vector__XXX
+
+BO_ 1234 Msg_0x4D2: 8 Vector__XXX
+ SG_ RmtCtlPathPlan_B_Err : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RmtCtlAdas_D_Stat : 1|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ RmtCtlAdas_B_Err : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RmtCtlTrjctry_D_Avail : 13|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RmtCtlSnsBlckg_B_Stat : 12|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RmtCtlSns_D_Err : 11|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ RmtCtlPathPlan_D_Stat : 8|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1235 Msg_0x4D3: 8 Vector__XXX
+ SG_ ApaSlotFrontX_L_Actl : 1|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotLeft1_B_Altr : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotLeft1_D_Stat : 12|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSlotLeft3_B_Altr : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotLeft2_B_Altr : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotFrontY_L_Actl : 16|6@0+ (0.2,-6.4) [-6.4|6.2] "" Vector__XXX
+ SG_ ApaSlotLeft1X_L_Actl : 24|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotLeft2X_L_Actl : 39|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotLeft2_D_Stat : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSlotLeft3X_L_Actl : 50|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotLeft3_D_Stat : 61|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1236 Msg_0x4D4: 8 Vector__XXX
+ SG_ ApaSlotRearX_L_Actl : 1|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRight1_B_Altr : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotRight1_D_Stat : 12|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSlotRight3_B_Altr : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotRight2_B_Altr : 22|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ ApaSlotRearY_L_Actl : 16|6@0+ (0.2,-6.4) [-6.4|6.2] "" Vector__XXX
+ SG_ ApaSlotRight1X_L_Actl : 24|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRight2X_L_Actl : 39|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRight2_D_Stat : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ ApaSlotRight3X_L_Actl : 50|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRight3_D_Stat : 61|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1237 Msg_0x4D5: 8 Vector__XXX
+ SG_ ApaSlotRef1X_L_Actl : 0|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRef2X_L_Actl : 11|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRef2Y_L_Actl : 24|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+ SG_ ApaSlotRef1Y_L_Actl : 35|11@0+ (0.02,-20.96) [-20.96|19.98] "" Vector__XXX
+
+BO_ 1238 Msg_0x4D6: 8 Vector__XXX
+ SG_ IaccVAdjLim_No_Actl : 0|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ TjaLaneBias_D_Stat : 13|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ IaccVAdjReas_D_Dsply : 8|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ GfhbMnu_D_Rq : 20|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ AhbcMnu_D_Rq : 18|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TjaLaneBiasEnbl_D_Stat : 16|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TjaLc_D_Stat : 28|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ TjaCanclMsgTxt_D_Dsply : 24|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ FbaAlrt_D_Dsply : 38|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TjaLcWarn_D_Rq : 35|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ TjaLcMsgTxt_D_Rq : 32|3@0+ (1,0) [0|7] "" Vector__XXX
+ SG_ OraAutoActv_D_Rq : 46|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FbaMsg_D_Rq : 44|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ FbaMnu_D_Rq : 42|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ Fba_D_Stat : 40|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ TsrAslButtnPress_D_Rq : 48|3@0+ (1,0) [0|7] "" Vector__XXX
+
+BO_ 1239 Msg_0x4D7: 8 Vector__XXX
+ SG_ CstmDrvMdeTracCtl_D_Rq : 6|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ CstmDrvMdeHmi2_D_Rq : 24|5@0+ (1,0) [0|31] "" Vector__XXX
+ SG_ CstmDrvMdeChassis_D_Rq : 35|5@0+ (1,0) [0|31] "" Vector__XXX
+
+BO_ 1247 Msg_0x4DF: 8 Vector__XXX
+ SG_ StopLampBRqTrlrAft_No_Cnt : 1|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ StopLamp_B_RqTrlrAft : 0|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ StopLampBRqTrlrAft_No_Cs : 8|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1248 Msg_0x4E0: 8 Vector__XXX
+ SG_ BalrLeft1Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft1CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft1CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft1Prev3Y_L_Actl : 52|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1249 Msg_0x4E1: 8 Vector__XXX
+ SG_ BalrLeft2Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft2CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft2CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Threat_D_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft2Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft2Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1250 Msg_0x4E2: 8 Vector__XXX
+ SG_ BalrLeft3Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft3CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft3CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft3Prev3Y_L_Actl : 52|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1251 Msg_0x4E3: 8 Vector__XXX
+ SG_ BalrLeft4Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft4CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrLeft4CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrLeft4Prev3Y_L_Actl : 52|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1252 Msg_0x4E4: 8 Vector__XXX
+ SG_ BalrRight1Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight1CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight1CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Threat_D_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight1Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight1Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1253 Msg_0x4E5: 8 Vector__XXX
+ SG_ BalrRight2Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight2CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight2CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Threat_D_Stat : 23|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight2Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight2Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1254 Msg_0x4E6: 8 Vector__XXX
+ SG_ BalrRight3Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight3CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight3CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight3Prev3Y_L_Actl : 52|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 1255 Msg_0x4E7: 8 Vector__XXX
+ SG_ BalrRight4Dsply_B_Stat : 7|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight4CurntX_L_Actl : 0|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Fast_B_Stat : 15|1@0+ (1,0) [0|1] "" Vector__XXX
+ SG_ BalrRight4CurntY_L_Actl : 8|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev1X_L_Actl : 16|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev2X_L_Actl : 31|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev1Y_L_Actl : 24|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev2Y_L_Actl : 38|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev3X_L_Actl : 45|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+ SG_ BalrRight4Prev3Y_L_Actl : 52|7@0+ (0.5,-32) [-32|31.5] "" Vector__XXX
+
+BO_ 76 RCMStatusMessage2_FD1: 8 Vector__XXX
+ SG_ PsngrFrntDetct_D_Actl : 2|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ PassRstrnInd_Req : 24|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ RCMStatusMsg2_No_Cnt : 36|4@0+ (1,0) [0|15] "" Vector__XXX
+ SG_ FirstRowBuckle_No_Cs : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ RCMStatusMsg2_No_Cs : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 145 Yaw_Data_FD1: 8 ABS_ESC
+ SG_ VehRol_W_Actl : 0|16@0+ (0.0001999999949,-6.5) [-6.5|6.607] "" Vector__XXX
+ SG_ VehYaw_W_Actl : 16|16@0+ (0.0001999999949,-6.5) [-6.5|6.607] "" Vector__XXX
+ SG_ VehRollYawW_No_Cs : 32|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehRollYaw_No_Cnt : 40|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehRolWActl_D_Qf : 48|2@0+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 146 Yaw_Data_2: 9 Vector__XXX
+ SG_ VehLat2_A_Actl : 3|13@0+ (0.01,-40) [-40|41.91] "" Vector__XXX
+ SG_ VehLatAActl_D_Qf : 1|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehLong2_A_Actl : 19|13@0+ (0.01,-40) [-40|41.91] "" Vector__XXX
+ SG_ VehLongAActl_D_Qf : 17|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehVertAActl_D_Qf : 33|2@0+ (1,0) [0|3] "" Vector__XXX
+ SG_ VehLatLongVertA_No_Cs : 48|8@0+ (1,0) [0|255] "" Vector__XXX
+ SG_ VehLatLongVert_No_Cnt : 56|8@0+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 1076 Cluster_Info_3_FD1: 8 GWM
+ SG_ HILL_DESC_SW : 32|1@0+ (1,0) [0|1] "SED"  ABS_ESC
+ SG_ AutoRgen_D_Rq : 34|2@0+ (1,0) [0|3] "SED"  ECM_Diesel
+ SG_ W2S_LAMP_OK : 37|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ OdoTripRx_B_Actl : 2|1@0+ (1,0) [0|1] "SED"  ECM_Diesel,PCM,PCM_HEV
+ SG_ Veh_V_CompLimMx : 47|12@0+ (0.1,0) [0|409.5] "km/h"  ECM_Diesel,PCM,PCM_HEV
+ SG_ DrvSlipCtlMde_B_RqMyKey : 38|1@0+ (1,0) [0|1] "SED"  ABS_ESC
+ SG_ FuelLvlWarn_D_Actl : 51|2@0+ (1,0) [0|3] "SED" Vector__XXX
+ SG_ FuelSecndActv_B_Actl : 39|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ FuelLvlPssvSide_No_Raw : 17|10@0+ (1,0) [0|1023] "Unitless"  ECM_Diesel,PCM,PCM_HEV
+ SG_ FUEL_SENSOR_NUM : 35|1@0+ (1,0) [0|1] "SED"  ECM_Diesel,PCM,PCM_HEV
+ SG_ FuelLvlActvSide_No_Raw : 49|10@0+ (1,0) [0|1023] "Unitless"  ECM_Diesel,PCM,PCM_HEV
+ SG_ FuelLvl_Pc_Dsply : 1|10@0+ (0.108696,-5.217408) [-5.217408|105.9786] "Percent"  VDM,ECM_Diesel
+ SG_ DISPLAY_SPEED_SCALING : 23|4@0+ (0.5,100) [100|107.5] "%"  IPMA_ADAS,ECM_Diesel,PCM,PCM_HEV
+ SG_ DISPLAY_SPEED_OFFSET : 7|3@0+ (0.5,0) [0|3.5] "kph"  IPMA_ADAS,ECM_Diesel,PCM,PCM_HEV
+
+BO_ 122 Battery_Traction_1_FD1: 8 GWM
+ SG_ BattTrac_U_LimLo : 47|8@0+ (2,0) [0|510] "volt"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTrac_U_LimHi : 39|8@0+ (2,0) [0|510] "volt"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ VehStrtInhbt_B_RqBatt : 23|1@0+ (1,0) [0|1] "SED"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTracOffFst_D_Actl : 22|2@0+ (1,0) [0|3] "SED"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTracOff_B_Actl : 20|1@0+ (1,0) [0|1] "SED"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTracMil_D_Rq : 19|2@0+ (1,0) [0|3] "SED"  PCM_HEV
+ SG_ BattTrac_U_Actl : 17|10@0+ (0.5,0) [0|510.5] "Volts"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTrac_I_Actl : 6|15@0+ (0.05,-750) [-750|888.25] "Amps"  SOBDMC_HPCM_FD1,PCM_HEV
+
+BO_ 587 Battery_Traction_3_FD1: 8 GWM
+ SG_ BattTracClnt_Te_Actl : 41|8@0+ (0.5,-60) [-60|67.5] "degC"  SOBDMC_HPCM_FD1
+ SG_ BattTracWarnLamp_B_Rq : 3|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ BattTracSrvcRqd_B_Rq : 2|1@0+ (1,0) [0|1] "SED" Vector__XXX
+ SG_ BattTracSoc_Pc_MxPrtct : 35|10@0+ (0.1,0) [0|100] "%"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTracSoc_Pc_MnPrtct : 29|10@0+ (0.1,0) [0|100] "%"  PCM_HEV
+ SG_ BattTracSoc_Pc_LimLo : 23|10@0+ (0.1,0) [0|100] "%"  PCM_HEV
+ SG_ BattTracSoc_Pc_LimHi : 1|10@0+ (0.1,0) [0|100] "%"  PCM_HEV
+
+BO_ 588 Battery_Traction_4_FD1: 8 GWM
+ SG_ BattTracSoc2_Pc_Actl : 29|14@0+ (0.01,0) [0|163.81] "%"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTrac_Te_Actl : 9|10@0+ (0.5,-50) [-50|460.5] "degC"  SOBDMC_HPCM_FD1,PCM_HEV
+ SG_ BattTracDiagClr_B_Rq : 30|1@0+ (1,0) [0|1] "SED" Vector__XXX
+
+BA_DEF_ BO_ "GenMsgCycleTime" INT 0 10000;
+BA_DEF_ BO_ "SecOC" INT 0 1;
+BA_DEF_DEF_ "GenMsgCycleTime" 0;
+BA_DEF_DEF_ "SecOC" 0;
+
+BA_ "GenMsgCycleTime" BO_ 65 20;
+BA_ "GenMsgCycleTime" BO_ 66 20;
+BA_ "GenMsgCycleTime" BO_ 73 20;
+BA_ "GenMsgCycleTime" BO_ 90 100;
+BA_ "SecOC" BO_ 90 1;
+BA_ "GenMsgCycleTime" BO_ 92 100;
+BA_ "GenMsgCycleTime" BO_ 116 100;
+BA_ "GenMsgCycleTime" BO_ 117 100;
+BA_ "GenMsgCycleTime" BO_ 118 500;
+BA_ "GenMsgCycleTime" BO_ 119 20;
+BA_ "GenMsgCycleTime" BO_ 125 20;
+BA_ "GenMsgCycleTime" BO_ 126 10;
+BA_ "SecOC" BO_ 126 1;
+BA_ "GenMsgCycleTime" BO_ 127 20;
+BA_ "GenMsgCycleTime" BO_ 129 1000;
+BA_ "SecOC" BO_ 129 1;
+BA_ "GenMsgCycleTime" BO_ 130 20;
+BA_ "SecOC" BO_ 130 1;
+BA_ "GenMsgCycleTime" BO_ 131 100;
+BA_ "SecOC" BO_ 131 1;
+BA_ "GenMsgCycleTime" BO_ 272 1000;
+BA_ "SecOC" BO_ 272 1;
+BA_ "GenMsgCycleTime" BO_ 276 1000;
+BA_ "SecOC" BO_ 276 1;
+BA_ "GenMsgCycleTime" BO_ 277 1000;
+BA_ "SecOC" BO_ 277 1;
+BA_ "GenMsgCycleTime" BO_ 281 1000;
+BA_ "GenMsgCycleTime" BO_ 303 100;
+BA_ "GenMsgCycleTime" BO_ 333 1000;
+BA_ "GenMsgCycleTime" BO_ 342 100;
+BA_ "GenMsgCycleTime" BO_ 357 20;
+BA_ "GenMsgCycleTime" BO_ 358 100;
+BA_ "GenMsgCycleTime" BO_ 359 10;
+BA_ "GenMsgCycleTime" BO_ 360 100;
+BA_ "SecOC" BO_ 360 1;
+BA_ "GenMsgCycleTime" BO_ 369 30;
+BA_ "GenMsgCycleTime" BO_ 374 100;
+BA_ "GenMsgCycleTime" BO_ 376 100;
+BA_ "GenMsgCycleTime" BO_ 377 100;
+BA_ "GenMsgCycleTime" BO_ 381 100;
+BA_ "GenMsgCycleTime" BO_ 382 1000;
+BA_ "GenMsgCycleTime" BO_ 389 100;
+BA_ "GenMsgCycleTime" BO_ 390 20;
+BA_ "SecOC" BO_ 390 1;
+BA_ "GenMsgCycleTime" BO_ 391 20;
+BA_ "SecOC" BO_ 391 1;
+BA_ "GenMsgCycleTime" BO_ 394 200;
+BA_ "SecOC" BO_ 394 1;
+BA_ "GenMsgCycleTime" BO_ 396 1000;
+BA_ "SecOC" BO_ 396 1;
+BA_ "GenMsgCycleTime" BO_ 397 1000;
+BA_ "SecOC" BO_ 397 1;
+BA_ "GenMsgCycleTime" BO_ 399 1000;
+BA_ "GenMsgCycleTime" BO_ 465 1000;
+BA_ "GenMsgCycleTime" BO_ 469 1000;
+BA_ "GenMsgCycleTime" BO_ 512 20;
+BA_ "GenMsgCycleTime" BO_ 514 20;
+BA_ "GenMsgCycleTime" BO_ 516 10;
+BA_ "GenMsgCycleTime" BO_ 517 10;
+BA_ "GenMsgCycleTime" BO_ 524 10;
+BA_ "GenMsgCycleTime" BO_ 528 1000;
+BA_ "GenMsgCycleTime" BO_ 530 1000;
+BA_ "GenMsgCycleTime" BO_ 531 20;
+BA_ "GenMsgCycleTime" BO_ 532 20;
+BA_ "GenMsgCycleTime" BO_ 534 20;
+BA_ "GenMsgCycleTime" BO_ 535 10;
+BA_ "GenMsgCycleTime" BO_ 539 500;
+BA_ "GenMsgCycleTime" BO_ 540 500;
+BA_ "GenMsgCycleTime" BO_ 541 500;
+BA_ "GenMsgCycleTime" BO_ 550 1000;
+BA_ "GenMsgCycleTime" BO_ 560 20;
+BA_ "GenMsgCycleTime" BO_ 561 100;
+BA_ "GenMsgCycleTime" BO_ 563 1000;
+BA_ "GenMsgCycleTime" BO_ 570 20;
+BA_ "GenMsgCycleTime" BO_ 571 150;
+BA_ "GenMsgCycleTime" BO_ 573 500;
+BA_ "GenMsgCycleTime" BO_ 578 40;
+BA_ "GenMsgCycleTime" BO_ 602 100;
+BA_ "GenMsgCycleTime" BO_ 603 20;
+BA_ "GenMsgCycleTime" BO_ 606 1000;
+BA_ "GenMsgCycleTime" BO_ 611 100;
+BA_ "GenMsgCycleTime" BO_ 615 1000;
+BA_ "GenMsgCycleTime" BO_ 616 200;
+BA_ "GenMsgCycleTime" BO_ 617 200;
+BA_ "GenMsgCycleTime" BO_ 622 200;
+BA_ "GenMsgCycleTime" BO_ 625 1000;
+BA_ "GenMsgCycleTime" BO_ 636 1000;
+BA_ "GenMsgCycleTime" BO_ 638 1000;
+BA_ "GenMsgCycleTime" BO_ 639 1000;
+BA_ "GenMsgCycleTime" BO_ 650 500;
+BA_ "GenMsgCycleTime" BO_ 651 1000;
+BA_ "GenMsgCycleTime" BO_ 655 500;
+BA_ "GenMsgCycleTime" BO_ 673 100;
+BA_ "SecOC" BO_ 673 1;
+BA_ "GenMsgCycleTime" BO_ 774 1000;
+BA_ "GenMsgCycleTime" BO_ 775 1000;
+BA_ "GenMsgCycleTime" BO_ 776 1000;
+BA_ "GenMsgCycleTime" BO_ 785 1000;
+BA_ "GenMsgCycleTime" BO_ 786 100;
+BA_ "GenMsgCycleTime" BO_ 788 500;
+BA_ "GenMsgCycleTime" BO_ 810 1000;
+BA_ "GenMsgCycleTime" BO_ 817 1000;
+BA_ "GenMsgCycleTime" BO_ 818 100;
+BA_ "SecOC" BO_ 818 1;
+BA_ "GenMsgCycleTime" BO_ 819 100;
+BA_ "SecOC" BO_ 819 1;
+BA_ "GenMsgCycleTime" BO_ 820 1000;
+BA_ "SecOC" BO_ 820 1;
+BA_ "GenMsgCycleTime" BO_ 824 1000;
+BA_ "GenMsgCycleTime" BO_ 826 100;
+BA_ "SecOC" BO_ 826 1;
+BA_ "GenMsgCycleTime" BO_ 827 60;
+BA_ "SecOC" BO_ 827 1;
+BA_ "GenMsgCycleTime" BO_ 828 1000;
+BA_ "SecOC" BO_ 828 1;
+BA_ "GenMsgCycleTime" BO_ 830 500;
+BA_ "GenMsgCycleTime" BO_ 837 100;
+BA_ "GenMsgCycleTime" BO_ 869 100;
+BA_ "GenMsgCycleTime" BO_ 870 100;
+BA_ "GenMsgCycleTime" BO_ 872 100;
+BA_ "GenMsgCycleTime" BO_ 874 1000;
+BA_ "GenMsgCycleTime" BO_ 877 1000;
+BA_ "GenMsgCycleTime" BO_ 878 1000;
+BA_ "GenMsgCycleTime" BO_ 879 200;
+BA_ "GenMsgCycleTime" BO_ 885 200;
+BA_ "GenMsgCycleTime" BO_ 894 200;
+BA_ "GenMsgCycleTime" BO_ 909 1000;
+BA_ "GenMsgCycleTime" BO_ 912 1000;
+BA_ "GenMsgCycleTime" BO_ 929 1000;
+BA_ "SecOC" BO_ 929 1;
+BA_ "GenMsgCycleTime" BO_ 930 1000;
+BA_ "SecOC" BO_ 930 1;
+BA_ "GenMsgCycleTime" BO_ 931 30;
+BA_ "GenMsgCycleTime" BO_ 932 200;
+BA_ "GenMsgCycleTime" BO_ 934 200;
+BA_ "SecOC" BO_ 934 1;
+BA_ "GenMsgCycleTime" BO_ 935 200;
+BA_ "SecOC" BO_ 935 1;
+BA_ "GenMsgCycleTime" BO_ 936 20;
+BA_ "SecOC" BO_ 936 1;
+BA_ "GenMsgCycleTime" BO_ 937 20;
+BA_ "SecOC" BO_ 937 1;
+BA_ "GenMsgCycleTime" BO_ 938 200;
+BA_ "SecOC" BO_ 938 1;
+BA_ "GenMsgCycleTime" BO_ 939 200;
+BA_ "SecOC" BO_ 939 1;
+BA_ "GenMsgCycleTime" BO_ 942 200;
+BA_ "SecOC" BO_ 942 1;
+BA_ "GenMsgCycleTime" BO_ 943 20;
+BA_ "SecOC" BO_ 943 1;
+BA_ "GenMsgCycleTime" BO_ 945 1000;
+BA_ "GenMsgCycleTime" BO_ 947 500;
+BA_ "GenMsgCycleTime" BO_ 948 1000;
+BA_ "GenMsgCycleTime" BO_ 949 500;
+BA_ "GenMsgCycleTime" BO_ 950 250;
+BA_ "GenMsgCycleTime" BO_ 951 250;
+BA_ "GenMsgCycleTime" BO_ 952 500;
+BA_ "GenMsgCycleTime" BO_ 953 1000;
+BA_ "GenMsgCycleTime" BO_ 954 1000;
+BA_ "GenMsgCycleTime" BO_ 955 1000;
+BA_ "GenMsgCycleTime" BO_ 963 1000;
+BA_ "GenMsgCycleTime" BO_ 966 1000;
+BA_ "GenMsgCycleTime" BO_ 967 1000;
+BA_ "GenMsgCycleTime" BO_ 970 30;
+BA_ "SecOC" BO_ 970 1;
+BA_ "GenMsgCycleTime" BO_ 972 30;
+BA_ "SecOC" BO_ 972 1;
+BA_ "GenMsgCycleTime" BO_ 973 1000;
+BA_ "SecOC" BO_ 973 1;
+BA_ "GenMsgCycleTime" BO_ 976 20;
+BA_ "SecOC" BO_ 976 1;
+BA_ "GenMsgCycleTime" BO_ 981 20;
+BA_ "SecOC" BO_ 981 1;
+BA_ "GenMsgCycleTime" BO_ 982 50;
+BA_ "SecOC" BO_ 982 1;
+BA_ "GenMsgCycleTime" BO_ 983 50;
+BA_ "SecOC" BO_ 983 1;
+BA_ "GenMsgCycleTime" BO_ 984 1000;
+BA_ "SecOC" BO_ 984 1;
+BA_ "GenMsgCycleTime" BO_ 985 60;
+BA_ "SecOC" BO_ 985 1;
+BA_ "GenMsgCycleTime" BO_ 990 1000;
+BA_ "SecOC" BO_ 990 1;
+BA_ "GenMsgCycleTime" BO_ 991 1000;
+BA_ "GenMsgCycleTime" BO_ 995 1000;
+BA_ "GenMsgCycleTime" BO_ 997 1000;
+BA_ "SecOC" BO_ 997 1;
+BA_ "GenMsgCycleTime" BO_ 1003 1000;
+BA_ "GenMsgCycleTime" BO_ 1010 50;
+BA_ "SecOC" BO_ 1010 1;
+BA_ "GenMsgCycleTime" BO_ 1034 200;
+BA_ "GenMsgCycleTime" BO_ 1040 100;
+BA_ "GenMsgCycleTime" BO_ 1042 50;
+BA_ "GenMsgCycleTime" BO_ 1043 1000;
+BA_ "GenMsgCycleTime" BO_ 1044 100;
+BA_ "GenMsgCycleTime" BO_ 1045 20;
+BA_ "GenMsgCycleTime" BO_ 1046 100;
+BA_ "GenMsgCycleTime" BO_ 1047 1000;
+BA_ "SecOC" BO_ 1047 1;
+BA_ "GenMsgCycleTime" BO_ 1052 50;
+BA_ "GenMsgCycleTime" BO_ 1054 1000;
+BA_ "GenMsgCycleTime" BO_ 1055 100;
+BA_ "GenMsgCycleTime" BO_ 1056 1000;
+BA_ "GenMsgCycleTime" BO_ 1057 100;
+BA_ "GenMsgCycleTime" BO_ 1060 100;
+BA_ "GenMsgCycleTime" BO_ 1067 100;
+BA_ "GenMsgCycleTime" BO_ 1068 50;
+BA_ "GenMsgCycleTime" BO_ 1069 100;
+BA_ "GenMsgCycleTime" BO_ 1070 40;
+BA_ "GenMsgCycleTime" BO_ 1071 30;
+BA_ "GenMsgCycleTime" BO_ 1084 1000;
+BA_ "GenMsgCycleTime" BO_ 1086 50;
+BA_ "GenMsgCycleTime" BO_ 1087 1000;
+BA_ "GenMsgCycleTime" BO_ 1089 1000;
+BA_ "GenMsgCycleTime" BO_ 1090 1000;
+BA_ "GenMsgCycleTime" BO_ 1094 1000;
+BA_ "GenMsgCycleTime" BO_ 1095 1000;
+BA_ "GenMsgCycleTime" BO_ 1098 500;
+BA_ "GenMsgCycleTime" BO_ 1100 1000;
+BA_ "GenMsgCycleTime" BO_ 1102 100000;
+BA_ "GenMsgCycleTime" BO_ 1104 200;
+BA_ "SecOC" BO_ 1104 1;
+BA_ "GenMsgCycleTime" BO_ 1105 1000;
+BA_ "SecOC" BO_ 1105 1;
+BA_ "GenMsgCycleTime" BO_ 1113 50;
+BA_ "SecOC" BO_ 1113 1;
+BA_ "GenMsgCycleTime" BO_ 1116 1000;
+BA_ "GenMsgCycleTime" BO_ 1117 1000;
+BA_ "GenMsgCycleTime" BO_ 1134 1000;
+BA_ "GenMsgCycleTime" BO_ 1137 1000;
+BA_ "GenMsgCycleTime" BO_ 1140 1000;
+BA_ "GenMsgCycleTime" BO_ 1141 100;
+BA_ "GenMsgCycleTime" BO_ 1144 1000;
+BA_ "GenMsgCycleTime" BO_ 1152 1000;
+BA_ "GenMsgCycleTime" BO_ 1160 1000;
+BA_ "GenMsgCycleTime" BO_ 1186 100;
+BA_ "GenMsgCycleTime" BO_ 1200 20;
+BA_ "GenMsgCycleTime" BO_ 1205 100000;
+BA_ "GenMsgCycleTime" BO_ 1212 1000;
+BA_ "GenMsgCycleTime" BO_ 1213 1000;
+BA_ "GenMsgCycleTime" BO_ 1218 1000;
+BA_ "GenMsgCycleTime" BO_ 1223 1000;
+BA_ "SecOC" BO_ 1223 1;
+BA_ "GenMsgCycleTime" BO_ 1229 1000;
+BA_ "SecOC" BO_ 1229 1;
+BA_ "GenMsgCycleTime" BO_ 1233 200;
+BA_ "SecOC" BO_ 1233 1;
+BA_ "GenMsgCycleTime" BO_ 1234 200;
+BA_ "SecOC" BO_ 1234 1;
+BA_ "GenMsgCycleTime" BO_ 1235 1000;
+BA_ "SecOC" BO_ 1235 1;
+BA_ "GenMsgCycleTime" BO_ 1236 1000;
+BA_ "SecOC" BO_ 1236 1;
+BA_ "GenMsgCycleTime" BO_ 1237 200;
+BA_ "SecOC" BO_ 1237 1;
+BA_ "GenMsgCycleTime" BO_ 1238 1000;
+BA_ "SecOC" BO_ 1238 1;
+BA_ "GenMsgCycleTime" BO_ 1239 1000;
+BA_ "GenMsgCycleTime" BO_ 1247 100;
+BA_ "GenMsgCycleTime" BO_ 1248 1000;
+BA_ "SecOC" BO_ 1248 1;
+BA_ "GenMsgCycleTime" BO_ 1249 1000;
+BA_ "SecOC" BO_ 1249 1;
+BA_ "GenMsgCycleTime" BO_ 1250 1000;
+BA_ "SecOC" BO_ 1250 1;
+BA_ "GenMsgCycleTime" BO_ 1251 1000;
+BA_ "SecOC" BO_ 1251 1;
+BA_ "GenMsgCycleTime" BO_ 1252 1000;
+BA_ "SecOC" BO_ 1252 1;
+BA_ "GenMsgCycleTime" BO_ 1253 1000;
+BA_ "SecOC" BO_ 1253 1;
+BA_ "GenMsgCycleTime" BO_ 1254 1000;
+BA_ "SecOC" BO_ 1254 1;
+BA_ "GenMsgCycleTime" BO_ 1255 1000;
+BA_ "SecOC" BO_ 1255 1;
+
+
+VAL_ 374 TrnRng_D_Rq 15 "Fault" 14 "Unknown_Position" 13 "NotUsed_2" 12 "NotUsed_1" 11 "Range6" 10 "Range5" 9 "Range4" 8 "Range3_M3_L3" 7 "Range2_M2_L2" 6 "Range1_M1_L1" 5 "Low" 4 "Sport_DriveSport_Mposition" 3 "Drive" 2 "Neutral" 1 "Reverse" 0 "Park";
+
+VAL_ 934 CtaAlrtLeft2_D_Stat 7 "NotUsed3" 6 "NotUsed2" 5 "NotUsed1" 4 "AlertZone4" 3 "AlertZone3" 2 "AlertZone2" 1 "AlertZone1" 0 "Off";
+VAL_ 934 CtaBrkLeftMsgTxt_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 934 CtaLeftBrkDecel_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 934 CtaLeftBrkEnbl_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 934 BttLeft_D_Stat 7 "NotUsed" 6 "Disabled" 5 "Off" 4 "OffTemp" 3 "NotConnected" 2 "Pending" 1 "Connected" 0 "NotDetermined";
+VAL_ 934 BttLeft_D_RqDrv 3 "NotUsed" 2 "Request" 1 "NoRequest" 0 "Null";
+VAL_ 934 CtaSnsLeft_D_Stat 3 "Invalid" 2 "System_Failure" 1 "Blocked" 0 "Clear";
+VAL_ 934 SodDetctLeft_D_Stat 4 "Sensor_Blocked" 3 "Sensor_Fault" 2 "Flash_On" 1 "Alert_On" 0 "AlertOff_FlashOff_SensrClr";
+VAL_ 934 CtaLeft_D_Stat 7 "NotUsed_3" 6 "NotUsed_2" 5 "NotUsed_1" 4 "Invalid" 3 "Disabled" 2 "On" 1 "Trailer_Tow_Off" 0 "Off";
+VAL_ 934 CtaAlrtLeft_D_Stat 1 "On" 0 "Off";
+VAL_ 934 SodLeft_D_Stat 7 "NotUsed_3" 6 "NotUsed_2" 5 "NotUsed_1" 4 "Invalid" 3 "Disabled" 2 "On" 1 "Trailer_Tow_Off" 0 "Off";
+VAL_ 934 SodSnsLeft_D_Stat 3 "Second_Warning_Audio" 2 "System_Failure" 1 "Blocked" 0 "Clear";
+VAL_ 934 SodAlrtLeft_D_Stat 3 "Bulb_Proveout" 2 "Flash" 1 "On" 0 "Off";
+VAL_ 935 SodRight_D_Stat 7 "NotUsed_3" 6 "NotUsed_2" 5 "NotUsed_1" 4 "Invalid" 3 "Disabled" 2 "On" 1 "Trailer_Tow_Off" 0 "Off";
+VAL_ 935 CtaAlrtRight2_D_Stat 7 "NotUsed3" 6 "NotUsed2" 5 "NotUsed1" 4 "AlertZone4" 3 "AlertZone3" 2 "AlertZone2" 1 "AlertZone1" 0 "Off";
+VAL_ 935 BttRight_D_Stat 7 "NotUsed" 6 "Disabled" 5 "Off" 4 "OffTemp" 3 "NotConnected" 2 "Pending" 1 "Connected" 0 "NotDetermined";
+VAL_ 935 BttRight_D_RqDrv 3 "NotUsed" 2 "Request" 1 "NoRequest" 0 "Null";
+VAL_ 935 CtaBrkRightMsgTxt_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 935 CtaRightBrkEnbl_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 935 CtaRightBrkDecel_B_Rq 1 "Enable" 0 "Disable";
+VAL_ 935 CtaSnsRight_D_Stat 3 "Invalid" 2 "System_Failure" 1 "Blocked" 0 "Clear";
+VAL_ 935 CtaAlrtRight_D_Stat 1 "On" 0 "Off";
+VAL_ 935 CtaRight_D_Stat 7 "NotUsed_3" 6 "NotUsed_2" 5 "NotUsed_1" 4 "Invalid" 3 "Disabled" 2 "On" 1 "Trailer_Tow_Off" 0 "Off";
+VAL_ 935 SodSnsRight_D_Stat 3 "Second_Warning_Audio" 2 "System_Failure" 1 "Blocked" 0 "Clear";
+VAL_ 935 SodAlrtRight_D_Stat 3 "Bulb_Proveout" 2 "Flash" 1 "On" 0 "Off";
+VAL_ 935 SodDetctRight_D_Stat 4 "Sensor_Blocked" 3 "Sensor_Fault" 2 "Flash_On" 1 "Alert_On" 0 "AlertOff_FlashOff_SensrClr";
+VAL_ 963 Illuminated_Entry_Stat 3 "Invalid" 2 "Unknown" 1 "On" 0 "Off";
+VAL_ 963 Dr_Courtesy_Light_Stat 3 "Invalid" 2 "Unknown" 1 "On" 0 "Off";
+VAL_ 963 Courtesy_Delay_Status 3 "Invalid" 2 "Unknown" 1 "On" 0 "Off";
+VAL_ 963 ImpactEvntFdbck_D_Stat 3 "NotUsed" 2 "EventComplete" 1 "EventInProgress" 0 "Normal";
+VAL_ 963 WrlssAcsyChrgInhbt_B_Rq 1 "Yes" 0 "No";
+VAL_ 963 PudLampPsngr_D_Rq 3 "Ramp_Down" 2 "Ramp_Up" 1 "On" 0 "Off";
+VAL_ 963 HeadLampLoOut_B_Stat 1 "Out" 0 "Null";
+VAL_ 963 HeadLghtHiFdbck_D_Stat 3 "NotUsed" 2 "Cancel" 1 "Hold" 0 "Allow_Change";
+VAL_ 963 PudLampDrv_D_Rq 3 "Ramp_Down" 2 "Ramp_Up" 1 "On" 0 "Off";
+VAL_ 963 TrnNotInPrkChime_B_Rq 1 "On" 0 "Off";
+VAL_ 963 PrkLightChime_B_Rq 1 "On" 0 "Off";
+VAL_ 963 KeyInIgnWarn_B_Cmd 1 "On" 0 "Off";
+VAL_ 963 HomeSafeLtChime_B_Rq 1 "On" 0 "Off";
+VAL_ 963 StopLghtOn_B_Stat 1 "On" 0 "Off";
+VAL_ 963 RvrseLghtOn_B_Stat 1 "On" 0 "Off";
+VAL_ 963 PrkLght_D_Stat 3 "Park_Both" 2 "Park_Right" 1 "Park_Left" 0 "Off";
+VAL_ 963 HeadLghtSwtch_D_Stat 3 "Autolamp" 2 "Headlamp" 1 "Parklamp" 0 "Off";
+VAL_ 963 HeadLampLoFrOn_B_Stat 1 "Low" 0 "Not_Low";
+VAL_ 963 HeadLampLoFlOn_B_Stat 1 "Low" 0 "Not_Low";
+VAL_ 963 HeadLampLoActv_B_Stat 1 "On" 0 "Off";
+VAL_ 963 Headlamp_On_Wrning_Cmd 1 "On" 0 "Off";
+VAL_ 963 Park_Brake_Chime_Rqst 1 "On" 0 "Off";
+VAL_ 963 HeadLghtHiOn_B_Stat 1 "On" 0 "Off";
+VAL_ 963 BrkWarnInd_B_Rq 1 "On" 0 "Off";
+VAL_ 963 Brk_Fluid_Lvl_Low 3 "Invalid" 2 "Unknown" 1 "Low" 0 "OK";
+VAL_ 963 ReducedGuard_D_Stat 3 "NotUsed" 2 "Alarm_On" 1 "Alarm_Off_Previously_On" 0 "Alarm_Off";
+VAL_ 963 Perimeter_Alarm_Status 3 "Activated" 2 "Armed" 1 "Prearmed" 0 "Disarmed";
+VAL_ 963 Courtesy_BSave_Stat 3 "Invalid" 2 "Unknown" 1 "No_Effect" 0 "Off";
+VAL_ 963 DrTgateLck_D_Stat 3 "NotUsed" 2 "Unlock" 1 "Lock" 0 "Null";
+VAL_ 963 WndwGlbl_D_Cmd 7 "NotUsed3" 6 "NotUsed2" 5 "NotUsed1" 4 "GLEARN" 3 "GCLOSE" 2 "GOPEN" 1 "GSTOP" 0 "Null";
+VAL_ 963 PudLamp_D_Rq 3 "RAMP_DOWN" 2 "RAMP_UP" 1 "ON" 0 "OFF";
+VAL_ 963 DayRnngLampOn_B_Stat 1 "On" 0 "Off";
+VAL_ 963 PerimeterAlarmChimeRq 1 "On" 0 "Off";
+VAL_ 1046 HsaMde_D_Mem 3 "Undefined" 2 "Manual" 1 "Automatic" 0 "Off";
+VAL_ 1046 BrkBstrVac_B_Rq 1 "Yes" 0 "No";
+VAL_ 1046 HdcMde_D_Actl 7 "Fault" 6 "Temporarily_Unavailable" 5 "NotEnabled_WrongGearSel" 4 "NotEnabled_SpdLimitExceed" 3 "Active_Braking" 2 "Not_Active_Braking" 1 "Off" 0 "Undefined";
+VAL_ 1046 RearDiffLck_Tq2_RqMx 4095 "Faulty";
+VAL_ 1046 TRLR_SWAY_EVNT_IN_PROG 1 "Yes" 0 "No";
+VAL_ 1046 TRLR_SWAY_CONFIG_STAT 1 "On" 0 "Off";
+VAL_ 1046 TCMode 1 "Active" 0 "Inactive";
+VAL_ 1046 DrvSlipCtlLamp_D_Rq 3 "Fast_Flash" 2 "Slow_Flash" 1 "On" 0 "Off";
+VAL_ 1046 Abs_B_Falt 1 "Yes" 0 "No";
+VAL_ 1046 DrvSlipCtlMde_D_Ind 3 "App_Specific_Off_Mode_3" 2 "App_Specific_Off_Mode_2" 1 "App_Specific_Off_Mode_1" 0 "Default_Mode";
+VAL_ 1046 DrvAntiLckLamp_D_Rq 3 "Fast_Flash" 2 "Slow_Flash" 1 "On" 0 "Off";
+VAL_ 1046 StabCtlBrk_B_Avail 1 "Yes" 0 "No";
+VAL_ 1046 DrvHdcWarnInfo_D_Rq 3 "Undefined" 2 "Lamp_On_Continuously" 1 "Lamp_Flashing" 0 "Lamp_Off_Continuously";
+VAL_ 1046 DrvHdcMsg_D_Rq 7 "Undefined" 6 "Speed_too_High" 5 "Temporarily_Unavailable" 4 "System_Fault" 3 "Select_Gear" 2 "Off" 1 "On" 0 "No_Message";
+VAL_ 1046 DrvHdcLampInfo_D_Rq 3 "Fast_Flash" 2 "Slow_Flash" 1 "On" 0 "Off";
+VAL_ 1046 BpedMove_D_Actl 3 "Unknown" 2 "DriverApplyingBrakePedal" 1 "NoAutonomousBrkPdlMovement" 0 "AutonomousBrkPedalMove";
+VAL_ 1046 ChimeBrk_B_Rq 1 "Yes" 0 "No";
+VAL_ 1046 BrkLamp_B_Rq 1 "Yes" 0 "No";
+VAL_ 1046 HILL_DESC_MC 7 "Fault_Detected" 6 "Cooling_Down" 5 "Abort_Apply_Brakes" 4 "Active" 3 "Disabled" 2 "Enabled" 1 "Off_Road" 0 "Normal";
+VAL_ 1046 RearDiffElckrOpen_B_Rq 1 "Yes" 0 "No";
+VAL_ 1076 HILL_DESC_SW 1 "On" 0 "Off";
+VAL_ 1076 AutoRgen_D_Rq 3 "NotUsed" 2 "AutExhFilterCleanOFF" 1 "AutExhFilterCleanON" 0 "No_Mode_Selected";
+VAL_ 1076 W2S_LAMP_OK 1 "Yes" 0 "No";
+VAL_ 1076 OdoTripRx_B_Actl 1 "Yes" 0 "No";
+VAL_ 1076 DrvSlipCtlMde_B_RqMyKey 1 "On" 0 "Off";
+VAL_ 1076 FuelLvlWarn_D_Actl 3 "NotUsed" 2 "VeryLow" 1 "Low" 0 "OK";
+VAL_ 1076 FuelSecndActv_B_Actl 1 "Yes" 0 "No";
+VAL_ 1076 FUEL_SENSOR_NUM 1 "Dual_Sensors" 0 "Single_Sensor";
+VAL_ 122 VehStrtInhbt_B_RqBatt 1 "Yes" 0 "No";
+VAL_ 122 BattTracOffFst_D_Actl 3 "Unexpected_Contactor_Open" 2 "Restraints_Impact_Event" 1 "Interlock_Open" 0 "Normal";
+VAL_ 122 BattTracOff_B_Actl 1 "Yes" 0 "No";
+VAL_ 122 BattTracMil_D_Rq 3 "Not_Used" 2 "Flash" 1 "On" 0 "Off";
+VAL_ 122 BattTrac_U_Actl 1023 "Fault" 1022 "Unknown";
+VAL_ 122 BattTrac_I_Actl 32767 "Fault" 32766 "Unknown";
+VAL_ 587 BattTracWarnLamp_B_Rq 1 "On" 0 "Off";
+VAL_ 587 BattTracSrvcRqd_B_Rq 1 "On" 0 "Off";
+VAL_ 588 BattTracSoc2_Pc_Actl 16383 "Faulty" 16382 "NoDataExists";
+VAL_ 588 BattTrac_Te_Actl 1023 "Fault" 1022 "Unknown";
+VAL_ 588 BattTracDiagClr_B_Rq 1 "On" 0 "Off";
