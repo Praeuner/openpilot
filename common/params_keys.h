@@ -227,6 +227,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     {"DynamicExperimentalControl", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"BlindSpot", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"ShowBlindspotOverlay", {PERSISTENT | BACKUP, BOOL, "1"}},
 
     // sunnypilot model params
     {"CameraOffset", {PERSISTENT | BACKUP, FLOAT, "0.0"}},
@@ -278,4 +279,51 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"TorqueParamsOverrideEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"TorqueParamsOverrideFriction", {PERSISTENT | BACKUP, FLOAT, "0.1"}},
     {"TorqueParamsOverrideLatAccelFactor", {PERSISTENT | BACKUP, FLOAT, "2.5"}},
+
+    // Blue Pilot
+    {"send_hands_free_cluster_msg", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"enable_human_turn_detection", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"lane_change_factor_high", {PERSISTENT | BACKUP, FLOAT, "0.85"}},
+    {"pc_blend_ratio_high_C_UI", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"pc_blend_ratio_low_C_UI", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"enable_lane_positioning", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_path_offset", {PERSISTENT | BACKUP, FLOAT,"0.0"}},
+    {"enable_lane_full_mode", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_profile", {PERSISTENT | BACKUP, INT, "0"}},
+    {"LC_PID_gain_UI", {PERSISTENT | BACKUP, FLOAT, "3.0"}},
+    {"disable_BP_lat_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"disable_BP_long_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"disable_downhill_comp_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"vbatt_pause_charging", {PERSISTENT | BACKUP, FLOAT, "11.8"}},
+    {"show_lead_speed", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"FordPrefShowRadarLeadOverlay", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"FordPrefRadarOverlaySize", {PERSISTENT | BACKUP, INT, "1"}},
+    {"FordPrefHybridBatteryStatus", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridPowerFlow", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridDriveGaugeSize", {PERSISTENT | BACKUP, INT, "1"}},
+    {"FordPrefHybridGaugeStyle", {PERSISTENT | BACKUP, STRING, "flat"}},
+    {"FordPrefHevDataAvailable", {CLEAR_ON_MANAGER_START, BOOL, "0"}},
+    {"FordPrefHevBattDataAvailable", {CLEAR_ON_MANAGER_START, BOOL, "0"}},
+    {"mici_complication", {PERSISTENT | BACKUP, INT, "0"}},
+    {"ShowBrakeStatus", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridPowerFlowAlternate", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"mici_hide_onroad_fade", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"mici_hide_onroad_border", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPHideOnroadBorder", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPShowConfidenceBall", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"BPAnimateSteeringWheel", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"BPDisableLaneLineStatusColor", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPUIDebugLog", {PERSISTENT, BOOL, "0"}},
+    {"Blindspot", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BlinkerPauseLaneChange", {PERSISTENT | BACKUP, BOOL, "0"}},
+
+    // BluePilot: Portal (Web Routes Server)
+    {"EnableWebRoutesServer", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPPortalPort", {PERSISTENT | BACKUP, INT, "8088"}},
+
+    // BluePilot: UI params
+    {"BPLastSeenVersion", {PERSISTENT, STRING}},
+
+    // WiFi Management
+    {"WifiFavoriteSSID", {PERSISTENT | BACKUP, STRING}},
 };

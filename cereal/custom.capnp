@@ -465,10 +465,40 @@ struct CustomReserved11 @0xc2243c65e0340384 {
 struct CustomReserved12 @0x9ccdc8676701b412 {
 }
 
-struct CustomReserved13 @0xcd96dafb67a082d0 {
+struct ControllerStateBP @0xcd96dafb67a082d0 {
+  lateralUncertainty @0 :Float32;  # BluePilot: lateral uncertainty for angleState (e.g. torque bar)
 }
 
-struct CustomReserved14 @0xb057204d7deadf3f {
+struct CarStateBP @0xb057204d7deadf3f {
+  hybridDrive @0 :HybridDrive;
+  hybridBattery @1 :HybridBattery;
+  brakeLightStatus @2 :BrakeLightStatus;
+
+  struct HybridDrive {
+    dataAvailable @0 :Bool;
+    throttleDemandPercent @1 :Float32;
+    throttleThresholdPercent @2 :Float32;
+    powerFlowMode @3 :Text;
+    powerFlowModeValue @5 :UInt8;  # Raw numeric value for PlotJuggler compatibility
+    engineOnReason @4 :Text;
+    engineOnReasonValue @6 :UInt8;  # Raw numeric value for PlotJuggler compatibility
+  }
+
+  struct HybridBattery {
+    dataAvailable @0 :Bool;
+    voltHighLimit @1 :Float32;
+    voltLowLimit @2 :Float32;
+    voltActual @3 :Float32;
+    ampsActual @4 :Float32;
+    socMinPerc @5 :Float32;
+    socMaxPerc @6 :Float32;
+    socActual @7 :Float32;
+  }
+
+  struct BrakeLightStatus {
+    dataAvailable @0 :Bool;
+    brakeLightsOn @1 :Bool;
+  }
 }
 
 struct CustomReserved15 @0xbd443b539493bc68 {
