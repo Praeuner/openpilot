@@ -95,7 +95,7 @@ _services: dict[str, tuple] = {
   "modelDataV2SP": (True, 20., None, QueueSize.BIG),
   "liveLocationKalman": (True, 20.),
 
-  # BluePilot
+  # BluePilot: controllerStateBP (lateral uncertainty) + carStateBP (hybrid drive)
   "controllerStateBP": (True, 100., 10),
   "carStateBP": (True, 100., 10),
 
