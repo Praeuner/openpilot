@@ -1692,7 +1692,7 @@
       "icon": "toggles",
       "order": 8,
       "remote_configurable": true,
-      "description": "BluePilot Ford-specific features, gauges, and lateral/longitudinal tuning.",
+      "description": "BluePilot: Ford-specific features, gauges, and lateral/longitudinal tuning.",
       "sections": [
         {
           "id": "bp_system",
