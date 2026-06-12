@@ -73,9 +73,13 @@ class MiciHomeLayoutBP(Widget):
     )
 
   # ---- public API mirroring MiciHomeLayout ----
-  def set_callbacks(self, on_settings: Callable | None = None, on_alerts: Callable | None = None,
-                    alert_count_callback: Callable[[], int] | None = None,
-                    max_severity_callback: Callable[[], int | None] | None = None):
+  def set_callbacks(
+      self,
+      on_settings: Callable | None = None,
+      on_alerts: Callable | None = None,
+      alert_count_callback: Callable[[], int] | None = None,
+      max_severity_callback: Callable[[], int | None] | None = None,
+  ):
     self._on_settings_click = on_settings
     self._on_alerts_click = on_alerts
     self._alert_count_callback = alert_count_callback
