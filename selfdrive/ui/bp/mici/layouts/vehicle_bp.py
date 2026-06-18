@@ -8,10 +8,14 @@ from collections.abc import Callable
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.selfdrive.ui.ui_state import ui_state
-from openpilot.selfdrive.ui.bp.mici.layouts.settings.vehicle_mici import CAR_LIST_JSON
+import os
+
+from openpilot.common.basedir import BASEDIR
 from openpilot.selfdrive.ui.bp.mici.widgets.vehicle_select_mici import (
   VehicleMakeSelectMici, load_car_platforms,
 )
+
+CAR_LIST_JSON = os.path.join(BASEDIR, "sunnypilot", "selfdrive", "car", "car_list.json")
 
 
 def _vehicle_value_text() -> str:

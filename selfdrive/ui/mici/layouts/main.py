@@ -26,7 +26,7 @@ if gui_app.sunnypilot_ui():
 # BluePilot: BP settings landing wins over the SP variant. Keep this AFTER the
 # sunnypilot block so the rebind sticks.
 if is_bluepilot():
-  from openpilot.selfdrive.ui.bp.mici.layouts.settings_bp import SettingsLayoutBP as SettingsLayout
+  from openpilot.selfdrive.ui.bp.mici.layouts.settings import SettingsLayoutBP as SettingsLayout
 
 ONROAD_DELAY = 2.5  # seconds
 

@@ -6,7 +6,6 @@ See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.selfdrive.ui.mici.layouts.settings import settings as OP
 from openpilot.selfdrive.ui.mici.layouts.settings.settings import SettingsBigButton
-from openpilot.selfdrive.ui.mici.layouts.settings.device import DeviceLayoutMici
 from openpilot.selfdrive.ui.mici.widgets.button import BigCircleButton
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigConfirmationDialog, BigDialog
 from openpilot.selfdrive.ui.sunnypilot.mici.layouts.sunnylink import SunnylinkLayoutMici
@@ -14,38 +13,56 @@ from openpilot.selfdrive.ui.sunnypilot.mici.layouts.models import ModelsLayoutMi
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
-import pyray as rl
-# BluePilot: vehicle selector, BP settings panel, and BigButtonBP override
+# BluePilot: vehicle selector, BP settings panel
 from openpilot.common.bluepilot import is_bluepilot
 if is_bluepilot():
   from openpilot.selfdrive.ui.bp.mici.widgets.button_bp import BigButtonBP as BigButton
-  from openpilot.selfdrive.ui.bp.mici.layouts.settings.bluepilot import BluePilotLayoutMici
-  from openpilot.selfdrive.ui.bp.mici.layouts.settings.vehicle_mici import VehicleLayoutMici
+  from openpilot.selfdrive.ui.bp.mici.layouts.bluepilot import BluePilotLayoutBP as BluePilotLayoutMici
+  from openpilot.selfdrive.ui.bp.mici.layouts.vehicle_bp import VehicleLayoutBP as VehicleLayoutMici
 
 ICON_SIZE = 70
 BIG_ICON_SIZE = 110
 
 
 class SettingsLayoutSP(OP.SettingsLayout):
-  def __init__(self):
-    OP.SettingsLayout.__init__(self)
+  """SunnyPilot settings landing — adds sunnylink, models, vehicle, bluepilot panels
+  and always-offroad toggle buttons.
 
-    device_panel = DeviceLayoutMici()
-    self._scroller._items[2].set_click_callback(lambda: gui_app.push_widget(device_panel))
+  Panel wiring is inherited from base via _get_panel_entries() / _get_panel_kwargs().
+  Only the always-offroad button injection is SP-specific and lives in __init__.
+  """
+
+  # ---- panel registry ----
+  def _get_panel_entries(self):
+    entries = super()._get_panel_entries()
+    # Insert sunnylink + models after toggles (index 1)
+    entries.insert(1, (tr("sunnylink"), "icons_mici/settings/developer/ssh.png", 55, 55, SunnylinkLayoutMici))
+    entries.insert(2, (tr("models"), "../../sunnypilot/selfdrive/assets/offroad/icon_models.png", ICON_SIZE, ICON_SIZE, ModelsLayoutMici))
+    # BluePilot: insert vehicle + BP settings after models
+    if is_bluepilot():
+      entries.insert(3, ("vehicle", "../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png", ICON_SIZE, ICON_SIZE, VehicleLayoutMici))
+      entries.insert(4, ("bluepilot", "icons_mici/settings/car_icon.png", ICON_SIZE, ICON_SIZE, BluePilotLayoutMici))
+    return entries
+
+  def _get_panel_kwargs(self, panel_class):
+    # SP/BP panels expect back_callback=gui_app.pop_widget
+    if panel_class in (SunnylinkLayoutMici, ModelsLayoutMici):
+      return {"back_callback": gui_app.pop_widget}
+    if is_bluepilot():
+      bp_panels = (VehicleLayoutMici, BluePilotLayoutMici)
+      if panel_class in bp_panels:
+        return {"back_callback": gui_app.pop_widget}
+    return {}
+
+  # ---- construction ----
+  def __init__(self):
+    super().__init__()
 
     self.icon_offroad_enable = gui_app.texture("../../sunnypilot/selfdrive/assets/icons_mici/always_offroad.png", BIG_ICON_SIZE,
-                                               BIG_ICON_SIZE)
-    self.icon_offroad_disable = gui_app.texture("../../sunnypilot/selfdrive/assets/icons_mici/disable_offroad.png", BIG_ICON_SIZE,
                                                 BIG_ICON_SIZE)
+    self.icon_offroad_disable = gui_app.texture("../../sunnypilot/selfdrive/assets/icons_mici/disable_offroad.png", BIG_ICON_SIZE,
+                                                 BIG_ICON_SIZE)
     self.icon_offroad_slider = gui_app.texture("icons_mici/settings/device/lkas.png", BIG_ICON_SIZE, BIG_ICON_SIZE)
-
-    sunnylink_panel = SunnylinkLayoutMici(back_callback=gui_app.pop_widget)
-    sunnylink_btn = SettingsBigButton(tr("sunnylink"), "", gui_app.texture("icons_mici/settings/developer/ssh.png", 55, 55))
-    sunnylink_btn.set_click_callback(lambda: gui_app.push_widget(sunnylink_panel))
-
-    models_panel = ModelsLayoutMici(back_callback=gui_app.pop_widget)
-    models_btn = SettingsBigButton(tr("models"), "", gui_app.texture("../../sunnypilot/selfdrive/assets/offroad/icon_models.png", ICON_SIZE, ICON_SIZE))
-    models_btn.set_click_callback(lambda: gui_app.push_widget(models_panel))
 
     # onroad: enable button sits at the front (left of toggles)
     self._enable_offroad_btn_onroad = BigCircleButton(self.icon_offroad_enable, red=True)
@@ -61,28 +78,10 @@ class SettingsLayoutSP(OP.SettingsLayout):
     self._disable_offroad_btn.set_click_callback(lambda: self._handle_always_offroad(False))
     self._disable_offroad_btn.set_visible(lambda: ui_state.always_offroad)
 
+    # Inject always-offroad buttons around the panel buttons built by parent
     items = self._scroller._items.copy()
-
-    items.insert(1, sunnylink_btn)
-    items.insert(2, models_btn)
-
-    # BluePilot: insert vehicle fingerprint selector and BP settings buttons (before front slots so indices land after models)
-    if is_bluepilot():
-      vehicle_panel = VehicleLayoutMici(back_callback=gui_app.pop_widget)
-      vehicle_btn = BigButton("vehicle", "", gui_app.texture("../../sunnypilot/selfdrive/assets/offroad/icon_vehicle.png", ICON_SIZE, ICON_SIZE))
-      vehicle_btn.set_click_callback(lambda: gui_app.push_widget(vehicle_panel))
-
-      bp_panel = BluePilotLayoutMici(back_callback=gui_app.pop_widget)
-      bluepilot_btn = BigButton("bluepilot", "", gui_app.texture("icons_mici/settings/car_icon.png", ICON_SIZE, ICON_SIZE))
-      bluepilot_btn.set_click_callback(lambda: gui_app.push_widget(bp_panel))
-
-      items.insert(3, vehicle_btn)
-      items.insert(4, bluepilot_btn)
-
-    # front slots (only one ever visible at a time): exit-always-offroad, then enable-onroad
     items.insert(0, self._enable_offroad_btn_onroad)
     items.insert(0, self._disable_offroad_btn)
-    # end slot: enable-offroad (right of developer)
     items.append(self._enable_offroad_btn_offroad)
 
     self._scroller._items.clear()
