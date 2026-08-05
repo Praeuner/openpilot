@@ -5,6 +5,8 @@ MIN_VEGO, meaning samples are actually being collected. Hidden once estimated.
 """
 import pyray as rl
 
+from openpilot.common.params import Params
+from openpilot.common.params_pyx import UnknownKeyName
 from openpilot.selfdrive.locationd.lagd import MIN_VEGO
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
@@ -22,8 +24,24 @@ class LiveDelayIndicator:
     self.width = width
     self.height = round(width * ICON_ASPECT)
     self._icon = gui_app.texture("icons/liveDelay.png", width, self.height)
+    self._params = Params()
+    self._param_counter = 0
+    self._enabled = self._get_enabled()
+
+  def _get_enabled(self) -> bool:
+    try:
+      return self._params.get_bool("BPShowLiveDelayIndicator")
+    except UnknownKeyName:  # dev environment with reduced params
+      return True
 
   def render(self, x: float, y: float) -> None:
+    self._param_counter += 1  # refresh the toggle ~1s at 60fps
+    if self._param_counter >= 60:
+      self._param_counter = 0
+      self._enabled = self._get_enabled()
+    if not self._enabled:
+      return
+
     sm = ui_state.sm
     if not sm.valid.get('liveDelay') or sm['liveDelay'].status == 'estimated':
       return
