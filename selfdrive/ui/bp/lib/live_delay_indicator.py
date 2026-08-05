@@ -1,7 +1,7 @@
 """Onroad steering-lag calibration indicator (shared by TICI and MICI HUDs).
 
-Shows the icon while liveDelay is still calibrating; green once vEgo is above
-MIN_VEGO, meaning samples are actually being collected. Hidden at 100%.
+Shows the icon while liveDelay is not yet estimated; green once vEgo is above
+MIN_VEGO, meaning samples are actually being collected. Hidden once estimated.
 """
 import pyray as rl
 
@@ -25,7 +25,7 @@ class LiveDelayIndicator:
 
   def render(self, x: float, y: float) -> None:
     sm = ui_state.sm
-    if not sm.valid.get('liveDelay') or int(sm['liveDelay'].calPerc) >= 100:
+    if not sm.valid.get('liveDelay') or sm['liveDelay'].status == 'estimated':
       return
 
     backdrop = rl.Rectangle(x - PAD, y - PAD, self.width + PAD * 2, self.height + PAD * 2)
