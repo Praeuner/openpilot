@@ -77,6 +77,13 @@ function launch {
     agnos_init
   fi
 
+  # custom portal for a single Konik device
+  if grep -q -E "76acd0cfbe6f7b55" /data/params/d/DongleId; then
+    export API_HOST=https://api.konik.ai
+    export ATHENA_HOST=wss://athena.konik.ai
+  fi
+
+
   # write tmux scrollback to a file
   tmux capture-pane -pq -S-1000 > /tmp/launch_log
 
