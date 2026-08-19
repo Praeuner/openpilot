@@ -478,10 +478,22 @@ class LateralAngleExt:
     # changes (see lane_center_trim.py). Applied here, before the deviation clip below, so the
     # trimmed value inherits every limiter this file already applies to kappa_cmd instead of
     # bypassing them.
+    current_curvature = self.get_current_curvature(CS)
+    _kappa_planner = kappa_cmd
     kappa_cmd = self.lane_center_trim.update(
       kappa_cmd, self.model, v_ego, self.enable_lane_positioning_ang,
       self.custom_path_offset_ang, self.lane_centering_strength_ang,
       CC.latActive, self.lane_change)
+
+    # BluePilot: the planner's own demand has first claim on the deviation budget clipped below --
+    # the trim only takes what is left, so lane positioning yields instead of being clipped away
+    # (it consumes up to 30% of the +-CURVATURE_ERROR window at the default strength). Allowing 0
+    # always means a planner already outside the window just gets no trim; the clip still backstops.
+    if v_ego > 9:
+      _dev = _kappa_planner - current_curvature
+      kappa_cmd = _kappa_planner + float(clip(kappa_cmd - _kappa_planner,
+                                              min(-CarControllerParams.CURVATURE_ERROR - _dev, 0.0),
+                                              max(CarControllerParams.CURVATURE_ERROR - _dev, 0.0)))
 
     # BluePilot: clip kappa_cmd to current_curvature (measured, from yaw rate) +- CURVATURE_ERROR,
     # mirroring lateral_curv_ext.py's apply_ford_curvature_limits_ext exactly (same formula, same
@@ -492,7 +504,6 @@ class LateralAngleExt:
     # routinely, not just on genuine pothole/override divergence. Curvature mode has always clipped
     # here; this brings angle mode's actual steering intent in line with that proven behavior rather
     # than only clipping the value reported to panda (which would make the check a no-op).
-    current_curvature = self.get_current_curvature(CS)
     self.bp_curvature_deviation_limited = False
     if v_ego > 9:
       _kappa_cmd_pre_error_clip = kappa_cmd
