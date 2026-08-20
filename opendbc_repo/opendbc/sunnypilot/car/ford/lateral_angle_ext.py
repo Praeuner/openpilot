@@ -485,15 +485,12 @@ class LateralAngleExt:
       self.custom_path_offset_ang, self.lane_centering_strength_ang,
       CC.latActive, self.lane_change)
 
-    # BluePilot: the planner's own demand has first claim on the deviation budget clipped below --
-    # the trim only takes what is left, so lane positioning yields instead of being clipped away
-    # (it consumes up to 30% of the +-CURVATURE_ERROR window at the default strength). Allowing 0
-    # always means a planner already outside the window just gets no trim; the clip still backstops.
+    # BluePilot: the planner has first claim on the deviation budget clipped below; the trim takes
+    # what is left. Symmetric -- a one-sided form lets the trim subtract authority while the planner
+    # is already clipped short in a curve.
     if v_ego > 9:
-      _dev = _kappa_planner - current_curvature
-      kappa_cmd = _kappa_planner + float(clip(kappa_cmd - _kappa_planner,
-                                              min(-CarControllerParams.CURVATURE_ERROR - _dev, 0.0),
-                                              max(CarControllerParams.CURVATURE_ERROR - _dev, 0.0)))
+      _room = max(CarControllerParams.CURVATURE_ERROR - abs(_kappa_planner - current_curvature), 0.0)
+      kappa_cmd = _kappa_planner + float(clip(kappa_cmd - _kappa_planner, -_room, _room))
 
     # BluePilot: clip kappa_cmd to current_curvature (measured, from yaw rate) +- CURVATURE_ERROR,
     # mirroring lateral_curv_ext.py's apply_ford_curvature_limits_ext exactly (same formula, same
