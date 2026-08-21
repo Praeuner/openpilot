@@ -466,6 +466,7 @@ class LateralAngleExt:
       self.b_blend = max(target_b_blend, self.b_blend - b_step)
       
     requested_curvature = predicted_curvature * self.b_blend + desired_curvature * (1.0 - self.b_blend)
+    self._desired_curvature_last = desired_curvature
     
     if self.model is not None:
       self.lane_change = self.model.meta.laneChangeState in (1, 2, 3)
