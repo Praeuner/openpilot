@@ -522,7 +522,7 @@ class LateralAngleExt:
     )
     
     # As the curve gets bigger, we will need a little boost to the signal to to not understeer
-    self.curvature_factor = interp(self.kappa_gain_filt, [0.0007, 0.001], [self.low_gain_calc, self.high_gain_calc])
+    self.curvature_factor = interp(self.kappa_gain_filt, [0.0005, 0.002], [self.low_gain_calc, self.high_gain_calc])
 
     path_angle_calc = kappa_cmd * v_ego * self.curvature_factor
     path_angle = path_angle_calc
