@@ -141,6 +141,7 @@ class LateralAngleExt:
   def __init__(self, CP=None, CP_SP=None):
     # Predicted-curvature blend for path_angle: pred * b + desired * (1-b); b from ``FordPathAngleBlendRatio``
     self.path_angle_blend_ratio = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
+    self.b_blend = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
     # Max extra VLT above t_base; from ``FordVLTExtraMax`` param
     self.vlt_extra_max = _VLT_T_EXTRA_MAX
     # Telemetry: final path_angle (rad) after limits (see bp_card_publisher)
@@ -266,6 +267,7 @@ class LateralAngleExt:
       self.path_angle_last = 0.0
       self.bp_path_angle_final = 0.0
       self.apply_curvature_last = 0.0
+      self.b_blend = self.path_angle_blend_ratio
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
@@ -313,6 +315,7 @@ class LateralAngleExt:
       self.path_angle_last = 0.0
       self.bp_path_angle_final = 0.0
       self.apply_curvature_last = 0.0
+      self.b_blend = self.path_angle_blend_ratio
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
@@ -369,6 +372,7 @@ class LateralAngleExt:
       self.path_angle_last = 0.0
       self.bp_path_angle_final = 0.0
       self.apply_curvature_last = 0.0
+      self.b_blend = self.path_angle_blend_ratio
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
@@ -452,10 +456,16 @@ class LateralAngleExt:
     # Same bug class and fix as _PSCM_SAT_UNWIND_RATE and _soft_roc above.
     _desired_falling = abs(desired_curvature) < abs(self._desired_curvature_last) - 0.010
     _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or _in_hard_sat or _desired_falling)
-    b_blend = float(clip(b * 0.25, 0.0, 1.0)) if _on_exit_near_limit else b
-    requested_curvature = predicted_curvature * b_blend + desired_curvature * (1.0 - b_blend)
-    self._desired_curvature_last = desired_curvature
-
+    # step function for b_blend. Prevents instant jumps between .5 and .125 predicted_curvature weight
+    target_b_blend = float(clip(b * 0.25, 0.0, 1.0)) if _on_exit_near_limit else b
+    b_step = 0.1
+    if target_b_blend > self.b_blend:
+      self.b_blend = min(target_b_blend, self.b_blend + b_step)
+    else:
+      self.b_blend = max(target_b_blend, self.b_blend - b_step)
+      
+    requested_curvature = predicted_curvature * self.b_blend + desired_curvature * (1.0 - self.b_blend)
+    
     if self.model is not None:
       self.lane_change = self.model.meta.laneChangeState in (1, 2, 3)
     else:
