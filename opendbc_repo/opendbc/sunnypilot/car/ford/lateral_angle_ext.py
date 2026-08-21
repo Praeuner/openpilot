@@ -124,7 +124,8 @@ _STALL_MAX_BLIPS = 3         # give up on a stuck episode; devLim telemetry keep
 # the PSCM while the car is straight and the command is small -- a 300 ms lateral gap right at
 # hand-off, imperceptible, instead of a missed curve. The reactive detector above stays as backstop.
 _PRESS_BLIP_MIN_S = 0.5      # press must last this long before its release earns a pulse
-# The pulse releases steering for 300 ms; never fire it in a curve.
+# The pulse releases steering for 300 ms, so don't fire it in a curve -- unless the driver grabbed
+# the wheel since the last pulse (the PSCM is attenuated then; a missed curve is worse).
 _BLIP_MAX_PATH_ANGLE = 0.10  # rad
 
 
@@ -192,6 +193,7 @@ class LateralAngleExt:
     self.stall_blip_count = 0         # pulses fired this stall episode
     self.angle_stall_blip_active = False
     self.press_timer_s = 0.0          # continuous steeringPressed time, for the hand-off blip
+    self.stall_press_seen = False     # wheel touched since last pulse -> skip the curve guard
 
   def update_angle_params(self, params):
     """Sets per-platform gain defaults and reads user angle-tuning params."""
@@ -287,6 +289,7 @@ class LateralAngleExt:
       self.stall_blip_count = 0
       self.angle_stall_blip_active = False
       self.press_timer_s = 0.0
+      self.stall_press_seen = False
       self.precision_type = 1
       return LateralResult(
         apply_curvature=0.0,
@@ -331,6 +334,7 @@ class LateralAngleExt:
       self.stall_blip_count = 0
       self.angle_stall_blip_active = False
       self.press_timer_s = 0.0
+      self.stall_press_seen = False
       self.precision_type = 1
       return LateralResult(
         apply_curvature=0.0,
@@ -348,11 +352,13 @@ class LateralAngleExt:
     # reactive stall detector below to watch the car miss the next curve first.
     if CS.out.steeringPressed:
       self.press_timer_s += _STEER_DT
+      self.stall_press_seen = True
     else:
       if (self.press_timer_s >= _PRESS_BLIP_MIN_S and self.stall_blip_cooldown_s <= 0.0
           and self.stall_blip_frames_left <= 0
-          and abs(self.path_angle_last) < _BLIP_MAX_PATH_ANGLE):
+          and (self.stall_press_seen or abs(self.path_angle_last) < _BLIP_MAX_PATH_ANGLE)):
         self.stall_blip_frames_left = _STALL_BLIP_FRAMES
+        self.stall_press_seen = False
       self.press_timer_s = 0.0
 
     # Stall-blip pulse in progress: hold lateral inactive (mode 0, all-zero signals -- the same
@@ -610,14 +616,16 @@ class LateralAngleExt:
       if self.bp_curvature_deviation_limited and self.stall_blip_cooldown_s <= 0.0:
         self.stall_blip_hold_s += _STEER_DT
       if (self.stall_blip_hold_s >= _STALL_HOLD_S and self.stall_blip_count < _STALL_MAX_BLIPS
-          and abs(self.path_angle_last) < _BLIP_MAX_PATH_ANGLE):
+          and (self.stall_press_seen or abs(self.path_angle_last) < _BLIP_MAX_PATH_ANGLE)):
         self.stall_blip_frames_left = _STALL_BLIP_FRAMES
         self.stall_blip_hold_s = 0.0
         self.stall_blip_count += 1
+        self.stall_press_seen = False
     else:
       self.stall_blip_hold_s = 0.0
       if CS.out.steeringPressed or abs(_stall_gap) < 0.5 * _STALL_GAP_MIN:
         self.stall_blip_count = 0  # episode over: the car is tracking again or the driver took it
+        self.stall_press_seen = CS.out.steeringPressed  # a closed gap retires the grab
 
     ramp_type = 2
 
