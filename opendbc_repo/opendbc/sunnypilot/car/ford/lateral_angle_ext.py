@@ -456,8 +456,8 @@ class LateralAngleExt:
     _desired_falling = (
       abs(desired_curvature) < abs(self._desired_curvature_last) * 0.9
     )
-    _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or  or _desired_falling)
-    _on_straightaway = (not _kappa_entering and not _desired_falling and abs(desired_curvature) < 0.00125)
+    _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or _in_hard_sat or _desired_falling)
+    _on_straightaway = (not _kappa_entering and not _desired_falling and abs(desired_curvature) < 0.0008)
     # step function for b_blend. Prevents instant jumps between .5 and .125 predicted_curvature weight
     if _on_exit_near_limit:
       target_b_blend = b * 0.25
