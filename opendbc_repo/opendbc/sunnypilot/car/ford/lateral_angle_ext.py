@@ -412,8 +412,7 @@ class LateralAngleExt:
       _curvatures_ref = np.array(self.model.orientationRate.z) / max(0.01, v_ego)
       _kappa_at_t_base = abs(float(interp(_t_base, ModelConstants.T_IDXS, _curvatures_ref)))
     _kappa_entering = (
-      abs(desired_curvature) > 0.001 and
-      _kappa_at_t_base > abs(desired_curvature) * 1.25
+      _kappa_at_t_base > abs(desired_curvature) * 1.15
     )
     if _kappa_entering:
       _kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
@@ -455,10 +454,9 @@ class LateralAngleExt:
     # 0.04 (1/m)/s, collapsing the model blend on mild straightening instead of genuine exits.
     # Same bug class and fix as _PSCM_SAT_UNWIND_RATE and _soft_roc above.
     _desired_falling = (
-      abs(self._desired_curvature_last) > 0.001 and
-      abs(desired_curvature) < abs(self._desired_curvature_last) * 0.8
+      abs(desired_curvature) < abs(self._desired_curvature_last) * 0.9
     )
-    _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or _in_hard_sat or _desired_falling)
+    _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or  or _desired_falling)
     _on_straightaway = (not _kappa_entering and not _desired_falling and abs(desired_curvature) < 0.00125)
     # step function for b_blend. Prevents instant jumps between .5 and .125 predicted_curvature weight
     if _on_exit_near_limit:
@@ -472,7 +470,10 @@ class LateralAngleExt:
       self.b_blend = min(target_b_blend, self.b_blend + b_step)
     else:
       self.b_blend = max(target_b_blend, self.b_blend - b_step)
-      
+
+    # TEST steady low b_blend
+    self.b_blend = 0.0
+    
     requested_curvature = predicted_curvature * self.b_blend + desired_curvature * (1.0 - self.b_blend)
     self._desired_curvature_last = desired_curvature
 
@@ -531,17 +532,16 @@ class LateralAngleExt:
 
     # Speed-interpolated gain: at low speed both curves use 1.0; at high speed the params take effect.
     self.low_gain_calc = interp(
-      v_ego, [11.18, 31.29], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
+      v_ego, [13.41, 26.82], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
     )
     self.high_gain_calc = interp(
-      v_ego, [11.18, 31.29], [(1.30 * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
+      v_ego, [13.41, 26.82], [(1.30 * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
     )
 
     # Speed-interpolated curve-radius: at low speed, dont need full gain until a much tighter curve
-    high_gain_boundary = interp(v_ego, [11.18, 31.29], [0.01, 0.003])
+    high_gain_boundary = interp(v_ego, [13.41, 26.82], [0.008, 0.003])
 
     # As the curve gets bigger, we will need a little boost to the signal to to not understeer
-    #self.curvature_factor = interp(abs(self.kappa_gain_filt), [0.0005, high_gain_boundary], [self.low_gain_calc, self.high_gain_calc])
     self.curvature_factor = interp(abs(kappa_cmd), [0.0005, high_gain_boundary], [self.low_gain_calc, self.high_gain_calc])
 
     path_angle_calc = kappa_cmd * v_ego * self.curvature_factor
