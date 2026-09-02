@@ -141,7 +141,7 @@ class LateralAngleExt:
   def __init__(self, CP=None, CP_SP=None):
     # Predicted-curvature blend for path_angle: pred * b + desired * (1-b); b from ``FordPathAngleBlendRatio``
     self.path_angle_blend_ratio = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
-    self.b_blend = self.path_angle_blend_ratio / 2   #initialize halfway between low speed and high speed 
+    self.b_blend = None
     self.v_sched = None
     # Max extra VLT above t_base; from ``FordVLTExtraMax`` param
     self.vlt_extra_max = _VLT_T_EXTRA_MAX
@@ -409,7 +409,7 @@ class LateralAngleExt:
     # to command max path_angle through the entire apex. 0.15s gives t_base ≤ 0.20s and VLT ≤ 0.33s, restoring
     # the 2.8m lookahead that kept kappa_entering False at the apex in successful earlier runs.
     _t_base = float(clip(self.sm['liveDelay'].lateralDelay, 0.1, 0.15)) + _DT_MDL
-    _speed_factor = float(interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
+    _speed_factor = float(interp(self.v_sched, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
     # Direction-aware kappa factor: on curve ENTRY (model shows more curvature at t_base than planner now),
     # keep full lookahead so pre-steering begins early. On exit/apex, taper by magnitude to prevent unwind.
     _kappa_at_t_base = 0.0
@@ -463,10 +463,15 @@ class LateralAngleExt:
 
     # Low pass filter for b_blend. Prevents instant jumps between .5 and .125 predicted_curvature weight
     target_b_blend = b * 0.25 if _on_exit_near_limit else b
-    self.b_blend = (
-      0.75 * self.b_blend +
-      0.25 * target_b_blend
-    )
+
+    if self.b_blend is None:
+      self.b_blend = target_b_blend
+    else:
+      self.b_blend = (
+        0.75 * self.b_blend +
+        0.25 * target_b_blend
+      )
+    self.b_blend = float(clip(self.b_blend, 0.0, 1.0))
     
     requested_curvature = predicted_curvature * self.b_blend + desired_curvature * (1.0 - self.b_blend)
     self._desired_curvature_last = desired_curvature
