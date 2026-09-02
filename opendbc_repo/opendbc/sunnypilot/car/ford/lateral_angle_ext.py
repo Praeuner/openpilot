@@ -142,6 +142,7 @@ class LateralAngleExt:
     # Predicted-curvature blend for path_angle: pred * b + desired * (1-b); b from ``FordPathAngleBlendRatio``
     self.path_angle_blend_ratio = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
     self.b_blend = self.path_angle_blend_ratio / 2   #initialize halfway between low speed and high speed 
+    self.v_sched = None
     # Max extra VLT above t_base; from ``FordVLTExtraMax`` param
     self.vlt_extra_max = _VLT_T_EXTRA_MAX
     # Telemetry: final path_angle (rad) after limits (see bp_card_publisher)
@@ -253,6 +254,13 @@ class LateralAngleExt:
     self._ensure_lateral_curv_initialized(CP)
 
     v_ego = float(CS.out.vEgoRaw)
+    if self.v_sched is None:
+      self.v_sched = v_ego
+    else:
+      self.v_sched = (
+        0.85 * self.v_sched +
+        0.15 * v_ego
+      )
     d_ref = pscm_d_ref_m(v_ego)
 
     curvature_rate = 0.0
@@ -518,14 +526,14 @@ class LateralAngleExt:
 
     # Speed-interpolated gain: at low speed both curves use 1.0; at high speed the params take effect.
     self.low_gain_calc = interp(
-      v_ego, [11.18, 31.29], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
+      self.v_sched, [11.18, 31.29], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
     )
     self.high_gain_calc = interp(
-      v_ego, [11.18, 31.29], [(1.30 * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
+      self.v_sched, [11.18, 31.29], [(1.2 * self.low_speed_curv_factor), (1.2 * self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
     )
 
     # Speed-interpolated curve-radius: at low speed, dont need full gain until a much tighter curve
-    high_gain_boundary = interp(v_ego, [11.18, 31.29], [0.015, 0.0035])
+    high_gain_boundary = interp(self.v_sched, [11.18, 17.88, 31.29], [0.015, 0.0135, 0.0035])
 
     # As the curve gets bigger, we will need a little boost to the signal to to not understeer
     self.curvature_factor = interp(abs(kappa_cmd), [0.0005, high_gain_boundary], [self.low_gain_calc, self.high_gain_calc])
