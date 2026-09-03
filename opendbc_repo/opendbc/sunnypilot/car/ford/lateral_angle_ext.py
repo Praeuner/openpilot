@@ -404,7 +404,7 @@ class LateralAngleExt:
     # the 2.8m lookahead that kept kappa_entering False at the apex in successful earlier runs.
     _t_base = float(clip(self.sm['liveDelay'].lateralDelay, 0.1, 0.15)) + _DT_MDL
     target_speed_factor = float(interp(self.v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
-    if self.speed_factor is None
+    if self.speed_factor is None:
       self.speed_factor = target_speed_factor
     else:
       self.speed_factor = 0.80 * self.speed_factor + 0.20 * target_speed_factor
@@ -420,7 +420,7 @@ class LateralAngleExt:
       target_kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
     else:
       target_kappa_factor = float(interp(abs(desired_curvature), [_VLT_KAPPA_FULL, _VLT_KAPPA_TAPER], [1.0, 0.0]))
-    if self.kappa_factor is None
+    if self.kappa_factor is None:
       self.kappa_factor = target_kappa_factor
     else:
       self.kappa_factor = 0.80 * self.kappa_factor + 0.20 * target_kappa_factor
