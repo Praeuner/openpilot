@@ -254,8 +254,8 @@ class LateralAngleExt:
     """
     self._ensure_lateral_curv_initialized(CP)
 
-    v_ego = float(CS.out.vEgoRaw) 
-    d_ref = pscm_d_ref_m(v_ego)
+    v_ego = float(CS.out.vEgoRaw)
+    d_ref = pscm_d_ref_m(v_ego)   #deprecated
 
     curvature_rate = 0.0
     path_offset = 0.0
@@ -404,11 +404,12 @@ class LateralAngleExt:
     # the 2.8m lookahead that kept kappa_entering False at the apex in successful earlier runs.
     _t_base = float(clip(self.sm['liveDelay'].lateralDelay, 0.1, 0.15)) + _DT_MDL
     target_speed_factor = float(interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
+    #Low Pass Filter for _speed_factor calculation
     if self.speed_factor is None:
       self.speed_factor = target_speed_factor
     else:
       self.speed_factor = 0.80 * self.speed_factor + 0.20 * target_speed_factor
-    _speed_factor = self.speed_factor
+    _speed_factor = float(clip(self.speed_factor, 0.0, 1.0))
     # Direction-aware kappa factor: on curve ENTRY (model shows more curvature at t_base than planner now),
     # keep full lookahead so pre-steering begins early. On exit/apex, taper by magnitude to prevent unwind.
     _kappa_at_t_base = 0.0
@@ -420,11 +421,12 @@ class LateralAngleExt:
       target_kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
     else:
       target_kappa_factor = float(interp(abs(desired_curvature), [_VLT_KAPPA_FULL, _VLT_KAPPA_TAPER], [1.0, 0.0]))
+    #Low Pass Filter for _kappa_factor calculation
     if self.kappa_factor is None:
       self.kappa_factor = target_kappa_factor
     else:
       self.kappa_factor = 0.80 * self.kappa_factor + 0.20 * target_kappa_factor
-    _kappa_factor = self.kappa_factor
+    _kappa_factor = float(clip(self.kappa_factor, 0.0, 1.0))
     
     curvature_lookup_time = _t_base + self.vlt_extra_max * _speed_factor * _kappa_factor
     self.bp_curvature_lookup_time = curvature_lookup_time
