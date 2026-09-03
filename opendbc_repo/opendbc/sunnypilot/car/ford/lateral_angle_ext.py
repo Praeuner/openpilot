@@ -141,7 +141,8 @@ class LateralAngleExt:
   def __init__(self, CP=None, CP_SP=None):
     # Predicted-curvature blend for path_angle: pred * b + desired * (1-b); b from ``FordPathAngleBlendRatio``
     self.path_angle_blend_ratio = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
-    self.speed_factor = None
+    # Low pass filter values used in calculating kappa
+    self.speed_factor = None  #initialize as None, assign raw value on first cycle then filter
     self.kappa_factor = None
     self.b_blend = None
     # Max extra VLT above t_base; from ``FordVLTExtraMax`` param
@@ -529,6 +530,8 @@ class LateralAngleExt:
       self.bp_curvature_deviation_limited = bool(abs(kappa_cmd - _kappa_cmd_pre_error_clip) > 1e-9)
 
     lateral_uncertainty = 0.0  # no curvature-limit ladder until angle-mode torque display is defined
+
+
 
     # Speed-interpolated gain: at low speed both curves use 1.0; at high speed the params take effect.
     self.low_gain_calc = interp(
