@@ -538,7 +538,7 @@ class LateralAngleExt:
       v_ego, [11.18, 31.29], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
     )
     self.high_gain_calc = interp(
-      v_ego, [11.18, 31.29], [(1.35 * self.low_speed_curv_factor), (1.25 * self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
+      v_ego, [11.18, 31.29], [(1.40 * self.low_speed_curv_factor), (1.20 * self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
     )
 
     # Speed-interpolated curve-radius: lower the speed, tighter the curves. easing into transition
