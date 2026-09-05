@@ -440,6 +440,7 @@ class LateralAngleExt:
       )
 
     b = float(clip(self.path_angle_blend_ratio, 0.0, 1.0))
+    #interpolate b from 45mph to 60mph to transition to no predicted_curvature 
     b = interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [b, 0.0])
 
     # Exit-biased blend: near the PSCM authority limit or while the planner is actively
