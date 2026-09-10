@@ -7,21 +7,10 @@ PSCM short lookahead d_ref and y ≈ ½κ x² ⇒ path_angle = ½ κ d_ref (see
 blended with ``actuators.curvature`` per ``FordPathAngleBlendRatio`` (0 = planner only,
 1 = model only).
 
-**c0 (path_offset) is always zero on the wire, unconditionally.** An earlier port attempt piped
-a small additive trim onto path_angle through the curv-mode ``LC_PID_controller``, but it never
-actually tracked lane center correctly in this mode: path_angle here is a derived quantity
-(``kappa_cmd * v_ego * curvature_factor``), so an additive trim in that domain has the wrong
-(inverted) speed-dependence for a lane-centering nudge, and it bypassed every limiter this file
-applies to ``kappa_cmd``. That attempt was removed; only the DBC-required zero c0 remains.
-
-**Lane centering trim (``lane_center_trim.py``)** replaces it: a small correction applied to
-``kappa_cmd`` itself (see ``LaneCenterTrim``), before the deviation clip / gain table / PSCM
-clamp / soft ROC below -- so it inherits every one of those limiters automatically instead of
-bypassing them. Blends toward lane-line center by confidence (same formula as
-``lateral_curv_ext``'s ``path_offset``) and falls back to the model's own predicted path -- not
-to zero -- when lines are missing/unreliable, so the user's left/right offset still applies on
-center-stripe-only roads. Disabled during lane changes, user-tunable (enable, offset, authority)
-via ``enable_lane_positioning_ang`` / ``custom_path_offset_ang`` / ``lane_centering_strength_ang``.
+**c0 (path_offset) is always zero on the wire, unconditionally.** Angle mode has no centering
+trim -- an earlier port attempt piped a small additive trim onto path_angle through the
+curv-mode ``LC_PID_controller``, but it never actually tracked lane center correctly in this
+mode and was removed; only the DBC-required zero c0 remains.
 
 **Human-turn override**: while the driver manually turns (same sustained-press + angle criteria
 as ``lateral_curv_ext``, via the shared ``HumanTurnDetector``), lateral is forced inactive (mode
@@ -40,7 +29,6 @@ from opendbc.car.lateral import apply_std_steer_angle_limits
 from opendbc.car.ford.values import CAR, CarControllerParams
 from opendbc.sunnypilot.car.ford.lateral_curv_ext import LateralResult
 from opendbc.sunnypilot.car.ford.human_turn import HumanTurnDetector
-from opendbc.sunnypilot.car.ford.lane_center_trim import LaneCenterTrim
 from opendbc.sunnypilot.car.ford.values_ext import BP_ANGLE_LIMITS
 from selfdrive.modeld.constants import ModelConstants
 
@@ -141,10 +129,6 @@ class LateralAngleExt:
   def __init__(self, CP=None, CP_SP=None):
     # Predicted-curvature blend for path_angle: pred * b + desired * (1-b); b from ``FordPathAngleBlendRatio``
     self.path_angle_blend_ratio = _FORD_PATH_ANGLE_BLEND_RATIO_DEFAULT
-    # Low pass filter values used in calculating kappa
-    self.speed_factor = None  #initialize as None, assign raw value on first cycle then filter
-    self.kappa_factor = None
-    self.b_blend = None
     # Max extra VLT above t_base; from ``FordVLTExtraMax`` param
     self.vlt_extra_max = _VLT_T_EXTRA_MAX
     # Telemetry: final path_angle (rad) after limits (see bp_card_publisher)
@@ -163,12 +147,6 @@ class LateralAngleExt:
     # BluePilot: angle mode's own lane-change scaling factor, independent of curvature mode's
     # lane_change_factor_high_curv -- angle needs a boost (>1) where curvature needs a cut (<1).
     self.lane_change_factor_high_ang = 1.0
-    # BluePilot: angle-mode lane centering trim (advanced lane positioning) -- see
-    # lane_center_trim.py and the module docstring above.
-    self.lane_center_trim = LaneCenterTrim()
-    self.enable_lane_positioning_ang = False
-    self.custom_path_offset_ang = 0.0
-    self.lane_centering_strength_ang = 0.25
     # Telemetry: variable curvature lookup time used this frame (s)
     self.bp_curvature_lookup_time = _VLT_T_EXTRA_MAX + 0.3725  # warm start at ~0.5s
     # BluePilot: error-clipped kappa path_angle was derived from -- carcontroller.py reads this as
@@ -229,34 +207,17 @@ class LateralAngleExt:
             float(raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw), 0.85, 1.50))
       except Exception:
         pass
-      # BluePilot: angle-mode lane centering trim (advanced lane positioning) params.
-      try:
-        self.enable_lane_positioning_ang = bool(params.get_bool("enable_lane_positioning_ang"))
-      except Exception:
-        pass
-      for attr, key, min_value, max_value in (
-        ("custom_path_offset_ang", "custom_path_offset_ang", -0.5, 0.5),
-        ("lane_centering_strength_ang", "lane_centering_strength_ang", 0.0, 1.0),
-      ):
-        try:
-          raw = params.get(key, return_default=True)
-          if raw is not None and raw != b"":
-            setattr(self, attr, float(clip(
-              float(raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw), min_value, max_value)))
-        except Exception:
-          pass
 
   def update_angle_strategy(self, CC, CS, actuators, CP):
     """
-    Curvature from planner (+ optional predicted blend, + lane centering trim) → path_angle via
-    ½·κ·d_ref. c0 (path_offset) is always zero on the wire; the lane centering trim lives entirely
-    in the curvature domain (kappa_cmd), not on c0. c2 and c3 are zero.
+    Curvature from planner (+ optional predicted blend) → path_angle via ½·κ·d_ref.
+    c0 (path_offset) is always zero on the wire -- no centering trim in angle mode. c2 and c3 are zero.
     Blended κ is not passed through Ford c2 rate / DBC limits (those target the curvature actuator).
     """
     self._ensure_lateral_curv_initialized(CP)
 
     v_ego = float(CS.out.vEgoRaw)
-    d_ref = pscm_d_ref_m(v_ego)   #deprecated
+    d_ref = pscm_d_ref_m(v_ego)
 
     curvature_rate = 0.0
     path_offset = 0.0
@@ -284,7 +245,6 @@ class LateralAngleExt:
       self.bp_kappa_cmd = self.get_current_curvature(CS)
       self.human_turn_detector.reset()
       self.angle_human_turn_active = False
-      self.lane_center_trim.reset()
       self.stall_blip_hold_s = 0.0
       self.stall_blip_frames_left = 0
       self.stall_blip_cooldown_s = 0.0
@@ -325,7 +285,6 @@ class LateralAngleExt:
       self.bp_kappa_cmd = self.get_current_curvature(CS)
       # Keep exit detection current so resume doesn't compare against a stale pre-turn value.
       self._desired_curvature_last = float(actuators.curvature)
-      self.lane_center_trim.reset()
       # A human turn ends any stall episode -- its own mode 0 does the PSCM reset job. That also
       # covers the press so far: only press time accumulated AFTER the latch releases should earn
       # a hand-off pulse.
@@ -377,7 +336,6 @@ class LateralAngleExt:
       # Truthful shadow during the blip (see the inactive-path comment).
       self.bp_kappa_cmd = self.get_current_curvature(CS)
       self._desired_curvature_last = float(actuators.curvature)
-      self.lane_center_trim.reset()
       self.precision_type = 1
       if self.stall_blip_frames_left <= 0:
         self.stall_blip_cooldown_s = _STALL_COOLDOWN_S
@@ -404,13 +362,7 @@ class LateralAngleExt:
     # to command max path_angle through the entire apex. 0.15s gives t_base ≤ 0.20s and VLT ≤ 0.33s, restoring
     # the 2.8m lookahead that kept kappa_entering False at the apex in successful earlier runs.
     _t_base = float(clip(self.sm['liveDelay'].lateralDelay, 0.1, 0.15)) + _DT_MDL
-    target_speed_factor = float(interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
-    #Low Pass Filter for _speed_factor calculation
-    if self.speed_factor is None:
-      self.speed_factor = target_speed_factor
-    else:
-      self.speed_factor = 0.60 * self.speed_factor + 0.40 * target_speed_factor
-    _speed_factor = float(clip(self.speed_factor, 0.0, 1.0))
+    _speed_factor = float(interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
     # Direction-aware kappa factor: on curve ENTRY (model shows more curvature at t_base than planner now),
     # keep full lookahead so pre-steering begins early. On exit/apex, taper by magnitude to prevent unwind.
     _kappa_at_t_base = 0.0
@@ -419,16 +371,9 @@ class LateralAngleExt:
       _kappa_at_t_base = abs(float(interp(_t_base, ModelConstants.T_IDXS, _curvatures_ref)))
     _kappa_entering = _kappa_at_t_base > abs(desired_curvature)
     if _kappa_entering:
-      target_kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
+      _kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
     else:
-      target_kappa_factor = float(interp(abs(desired_curvature), [_VLT_KAPPA_FULL, _VLT_KAPPA_TAPER], [1.0, 0.0]))
-    #Low Pass Filter for _kappa_factor calculation
-    if self.kappa_factor is None:
-      self.kappa_factor = target_kappa_factor
-    else:
-      self.kappa_factor = 0.60 * self.kappa_factor + 0.40 * target_kappa_factor
-    _kappa_factor = float(clip(self.kappa_factor, 0.0, 1.0))
-    
+      _kappa_factor = float(interp(abs(desired_curvature), [_VLT_KAPPA_FULL, _VLT_KAPPA_TAPER], [1.0, 0.0]))
     curvature_lookup_time = _t_base + self.vlt_extra_max * _speed_factor * _kappa_factor
     self.bp_curvature_lookup_time = curvature_lookup_time
 
@@ -439,9 +384,8 @@ class LateralAngleExt:
         interp(curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
       )
 
-    b = float(clip(self.path_angle_blend_ratio, 0.0, 1.0))
-    #interpolate b from 55mph to 60mph to transition to no predicted_curvature 
-    b = interp(v_ego, [24.59, 26.82], [b, 0.0])
+    b = float(self.path_angle_blend_ratio)
+    b = float(clip(b, 0.0, 1.0))
 
     # Exit-biased blend: near the PSCM authority limit or while the planner is actively
     # reducing curvature (exit detected), drop model prediction weight from 60% → ~15%.
@@ -465,19 +409,9 @@ class LateralAngleExt:
     # that same real-world trigger rate on this branch's actual 20Hz cadence; unscaled it fired at
     # 0.04 (1/m)/s, collapsing the model blend on mild straightening instead of genuine exits.
     # Same bug class and fix as _PSCM_SAT_UNWIND_RATE and _soft_roc above.
-    _desired_falling = (
-      abs(desired_curvature) < abs(self._desired_curvature_last)
-    )
+    _desired_falling = abs(desired_curvature) < abs(self._desired_curvature_last) - 0.010
     _on_exit_near_limit = not _kappa_entering and (_pscm_lim >= 1 or _in_hard_sat or _desired_falling)
-
-    # Low pass filter for b_blend. Prevents instant jumps between .5 and .125 predicted_curvature weight
-    target_b_blend = b * 0.25 if _on_exit_near_limit else b
-    if self.b_blend is None:
-      self.b_blend = target_b_blend
-    else:
-      self.b_blend = 0.60 * self.b_blend + 0.40 * target_b_blend
-    b_blend = float(clip(self.b_blend, 0.0, 1.0))
-    
+    b_blend = float(clip(b * 0.25, 0.0, 1.0)) if _on_exit_near_limit else b
     requested_curvature = predicted_curvature * b_blend + desired_curvature * (1.0 - b_blend)
     self._desired_curvature_last = desired_curvature
 
@@ -500,16 +434,6 @@ class LateralAngleExt:
 
     # Use planner / predicted κ directly for the κ → path_angle map; we are not sending κ on CAN.
     kappa_cmd = float(requested_curvature)
-
-    # BluePilot: lane centering trim (advanced lane positioning) -- nudges kappa_cmd toward true
-    # lane-line center + user offset, gated on lane-line confidence and disabled during lane
-    # changes (see lane_center_trim.py). Applied here, before the deviation clip below, so the
-    # trimmed value inherits every limiter this file already applies to kappa_cmd instead of
-    # bypassing them.
-    kappa_cmd = self.lane_center_trim.update(
-      kappa_cmd, self.model, v_ego, self.enable_lane_positioning_ang,
-      self.custom_path_offset_ang, self.lane_centering_strength_ang,
-      CC.latActive, self.lane_change)
 
     # BluePilot: clip kappa_cmd to current_curvature (measured, from yaw rate) +- CURVATURE_ERROR,
     # mirroring lateral_curv_ext.py's apply_ford_curvature_limits_ext exactly (same formula, same
@@ -536,14 +460,12 @@ class LateralAngleExt:
 
     # Speed-interpolated gain: at low speed both curves use 1.0; at high speed the params take effect.
     self.low_gain_calc = interp(
-      v_ego, [13.41, 26.82], [1.00, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
+      v_ego, [13.5, 26.82], [1.0, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
     )
-    self.high_gain_calc = interp(
-      v_ego, [13.41, 26.82], [(1.30 * self.low_speed_curv_factor), (1.10 * self.path_angle_gain_highC_highV * self.high_speed_curv_factor)]
-    )
+    self.high_gain_calc = interp(v_ego, [13.5, 26.82], [(1.30 * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)])
 
     # As the curve gets bigger, we will need a little boost to the signal to to not understeer
-    self.curvature_factor = interp(abs(kappa_cmd), [0.0005, 0.002], [self.low_gain_calc, self.high_gain_calc])
+    self.curvature_factor = interp(abs(kappa_cmd), [0.0007, 0.001], [self.low_gain_calc, self.high_gain_calc])
 
     path_angle_calc = kappa_cmd * v_ego * self.curvature_factor
     path_angle = path_angle_calc
